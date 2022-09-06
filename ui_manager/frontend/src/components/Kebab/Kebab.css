@@ -1,0 +1,106 @@
+
+/* kebab 아이콘 영역 */
+.kebab {
+  cursor: pointer;
+  position: absolute;
+  display: inline-block;
+  box-sizing: border-box;
+  padding: 0px 0;
+  top: 10px;
+  right: 10px;
+  display: flex;
+  flex-direction: column;
+  width: 25px;
+  align-items: center;
+  z-index:10;
+}
+
+/* kebab 아이콘 - 점 */
+.kebab figure {
+  width: 4px;
+  height: 4px;
+  border-radius: 5px;
+  background: white;
+  margin: 2px 0;
+}
+
+/* kebab hover */
+.kebab:hover {
+  background-color: #303030;
+  border-radius: 50%;
+}
+
+/* kebab 활성화 시 리스트 */
+.kebab .dropdown {
+  position: absolute;
+  right: 0;
+  top: 15px;
+  right: 25px;
+  height: 40px;
+  width: 135px;
+  transition: all 0.25s ease-out;
+  transform: scale(0);
+  transform-origin: 100% 0;
+  box-shadow: 0 2px 4px 0 rgb(0 0 0 / 16%), 0 2px 8px 0 rgb(0 0 0 / 12%);
+  color: #bdbfc2;
+}
+
+ol, ul {
+  list-style: none;
+}
+
+/* kebab 활성화 시 리스트 */
+.kebab .dropdown.active {
+  position: absolute;
+  top: 30px;
+  /* height: 90px; */
+  height: auto;
+  width: 135px;
+  right: 10px;
+  transform: scale(1);
+  transition: all 0.25s cubic-bezier(0.5, 1.8, 0.9, 0.8);
+  background-color: #909090;
+  display: flex;
+  justify-content: flex-start;
+  padding-left: 0px;
+  align-items: center;
+  box-shadow: rgba(0, 0, 0, 0.15);
+  flex-direction: column;
+}
+
+/* kebab 버튼 리스트 - 삭제 */
+.kebab-delete {
+  color:white;
+  width: 100%;
+  display: flex;
+  justify-content: flex-start;
+  align-items: center;
+  padding:10px 10px 10px 10px;
+}
+
+/* kebab 버튼 리스트 - 삭제 hover */
+.kebab-delete:hover {
+  color:white;
+  background-color: #D0312D;
+  width: 135px;
+}
+
+/* kebab 버튼 리스트 - 이름 수정 */
+.kebab-modify {
+  color:white;
+  width: 100%;
+  display: flex;
+  justify-content: flex-start;
+  align-items: center;
+  padding:10px 10px 10px 10px;
+}
+
+/* kebab 버튼 리스트 - 이름 hover */
+.kebab-modify:hover {
+  background-color: #4a80ff;
+  color:white;
+  width: 135px;
+}
+
+
+

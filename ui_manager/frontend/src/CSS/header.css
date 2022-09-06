@@ -1,0 +1,186 @@
+{/* 헤더 아이콘 전체 레이아웃
+.icon-bar {
+    width: 100%;
+    overflow: auto;
+    float: right;
+    top: 50%;
+    -ms-transform: translateY(-50%);
+    transform: translateY(-50%);
+    position: relative;
+}
+*/}
+
+.header_menu {
+    z-index:15;
+}
+
+.icon-bar {
+    width: 100%; /* Full-width */
+    float: right;
+    top: 50%;
+    -ms-transform: translateY(-50%);
+    transform: translateY(-50%);
+    position: relative;
+    z-index:10;
+}
+
+{/* 헤더 아이콘 - 사용자 정보 레이아웃 */}
+.icon_user{
+    float: right;
+    text-align: center;
+    width: auto;
+    height:40px;
+    color: white;
+    font-size: 15px;
+    margin-right:30px;
+}
+
+{/* 헤더 아이콘 - 사용자 정보
+#user_id{
+    color: #8d97a9;
+    height:100%;
+    display:flex;
+    align-items:center;
+}*/}
+
+#user_id{
+    color: #8d97a9;
+    height:100%;
+    width: 150%;
+    display:flex;
+    align-items:center;
+    justify-content: center;
+}
+
+#user_id:hover {
+    background-color: #ececec;
+    background-size: auto;
+    width: 150%;
+    background-position-y: center;
+    background-position-x: center;
+    border-radius:25%;
+    display:flex;
+    justify-content: center;
+    align-items:center;
+}
+
+{/* 헤더 아이콘 - 알림 및 설정 레이아웃 */}
+.icon_setting{
+    float: right;
+    text-align: center;
+    width: auto;
+    height:40px;
+    color: black;
+    font-size: 15px;
+    margin-right:20px;
+}
+
+.icon_notify{
+    float: right;
+    text-align: center;
+    width: auto;
+    height:40px;
+    color: white;
+    font-size: 15px;
+    margin-right:20px;
+}
+
+{/* 헤더 아이콘 - 알림 */}
+#icon_notify_img
+{
+    color: #8d97a9;
+    height:100%;
+    width: 40px;
+    display:flex;
+    align-items:center;
+
+    background: url("../images/icons/icon_3x/notify@3x.png") no-repeat;
+    background-size: 40px;
+    background-position-y: center;
+    background-position-x: center;
+}
+
+{/* 헤더 아이콘 - 알림 마우스 오버
+.icon_notify:hover {
+    background: url("../images/icons/icon_3x/notify_on@3x.png") no-repeat;
+    background-size: 40px;
+    background-position-y: center;
+    background-position-x: center;
+}
+*/}
+
+.icon_notify:hover {
+    background-color: #ececec;
+    background-size: 40px;
+    background-position-y: center;
+    background-position-x: center;
+    border-radius:25%;
+}
+
+{/* 헤더 아이콘 - 설정 */}
+#icon_setting_img
+{
+    color: #8d97a9;
+    height:100%;
+    width: 40px;
+    display:flex;
+
+    align-items:center;
+    background: url("../images/icons/icon_3x/setting@3x.png") no-repeat;
+    background-size: 40px;
+    background-position-y: center;
+    background-position-x: center;
+}
+
+{/* 헤더 아이콘 - 설정 마우스 오버
+.icon_setting:hover {
+    background: url("../images/icons/icon_3x/setting_on@3x.png") no-repeat;
+    background-size: 40px;
+    background-position-y: center;
+    background-position-x: center;
+}*/}
+
+.icon_setting:hover {
+    background-color: #ececec;
+    background-size: 40px;
+    background-position-y: center;
+    background-position-x: center;
+    border-radius:25%;
+}
+
+
+
+.logout-dropbtn {
+  color: white;
+  padding: 16px;
+  font-size: 16px;
+  border: none;
+  cursor: pointer;
+}
+
+.logout-dropdown {
+  position: relative;
+  display: inline-block;
+}
+
+.logout-dropdown-content {
+  display: none;
+  position: absolute;
+  right: 0;
+  background-color: #f9f9f9;
+  min-width: 160px;
+  box-shadow: 0px 8px 16px 0px rgba(0,0,0,0.2);
+  z-index: 20;
+}
+
+.logout-dropdown-content a {
+  color: black;
+  padding: 12px 16px;
+  text-decoration: none;
+  display: block;
+  z-index: 20;
+}
+
+.logout-dropdown-content a:hover {background-color: #4A80FF; color:white;}
+.logout-dropdown:hover .logout-dropdown-content {display: block;}
+.logout-dropdown:hover .logout-dropbtn {background-color: #3e8e41;}

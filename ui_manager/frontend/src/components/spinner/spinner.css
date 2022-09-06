@@ -1,0 +1,25 @@
+.loader
+{
+    border :2px solid #f3f3f3;
+    border-top: 2px solid #D4C32F;
+    border-radius: 50%;
+    width: 13px;
+    height: 13px;
+    animation: spin 1s linear infinite;
+    vertical-align:text-bottom;
+    margin-left:5px;
+    display:inline-block;
+}
+
+@keyframes spin
+{
+    0%
+    {
+        transform: rotate(0deg);
+    }
+    100%
+    {
+        transform: rotate(360deg);
+    }
+
+}

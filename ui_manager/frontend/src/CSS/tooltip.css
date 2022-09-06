@@ -1,0 +1,105 @@
+.tooltip {
+  position: relative;
+  display: inline-block;
+  z-index:999;
+}
+
+/* Tooltip text */
+.tooltip .tooltiptext {
+  visibility: hidden;
+  background-color: #4A80FF;
+  color: #fff;
+  text-align: center;
+  padding: 5px 0;
+  border-radius: 5px;
+
+  /* Position the tooltip text - see examples below! */
+  position: absolute;
+  z-index: 1;
+  left: 115%;
+  transform: translateY(40%);
+}
+
+
+.tooltip:hover .tooltiptext {
+  visibility: visible;
+}
+
+.tooltip .tooltiptext::after {
+  content: " ";
+  position: absolute;
+  top: 50%;
+  right: 100%; /* To the left of the tooltip */
+  margin-top: -5px;
+  border-width: 5px;
+  border-style: solid;
+  border-color: transparent #4A80FF transparent transparent;
+}
+
+
+
+/* Tooltip text */
+.tooltip .dataset_tooltiptext {
+  width:100%;
+  visibility: hidden;
+  background-color: #4A80FF;
+  color: #fff;
+  text-align: center;
+  padding: 10px;
+  border-radius: 5px;
+
+  /* Position the tooltip text - see examples below! */
+  position: absolute;
+  z-index: 999;
+  left: -5%;
+  top:-3%;
+}
+
+.tooltip:hover .dataset_tooltiptext {
+  visibility: visible;
+}
+
+.tooltip .dataset_tooltiptext::after {
+  content: "";
+
+  top: 100%;
+  left: 50%;
+  margin-left: -5px;
+  border-width: 5px;
+  border-style: solid;
+  border-color: #4A80FF transparent transparent transparent;
+}
+
+
+
+
+/* Tooltip text */
+.tooltip .select_tooltiptext {
+  width:100%;
+  visibility: hidden;
+  background-color: white;
+  color: #303030;
+  text-align: center;
+  padding: 10px;
+  border-radius: 5px;
+
+  /* Position the tooltip text - see examples below! */
+  position: absolute;
+  z-index: 999;
+  left: 50%;
+  top:-10%;
+  border: 3px solid #303030;
+}
+
+.tooltip:hover .select_tooltiptext {
+  visibility: visible;
+}
+
+
+
+
+
+
+
+
+

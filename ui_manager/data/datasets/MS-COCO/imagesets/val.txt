@@ -1,0 +1,5 @@
+/home/tesla/PycharmProjects/DeepFrame/data/datasets/coco/images/000000106817.jpg
+/home/tesla/PycharmProjects/DeepFrame/data/datasets/coco/images/000000106832.jpg
+/home/tesla/PycharmProjects/DeepFrame/data/datasets/coco/images/000000106805.jpg
+/home/tesla/PycharmProjects/DeepFrame/data/datasets/coco/images/000000106805.jpg
+/home/tesla/PycharmProjects/DeepFrame/data/datasets/coco/images/000000106830.jpg

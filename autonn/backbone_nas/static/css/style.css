@@ -1,0 +1,96 @@
+body {
+	background-color: #343a40;
+}
+
+.Title {
+    width: 12.2%;
+    height: 5.4%;
+    margin: 43.5px 79px 15px 90px;
+    font-family: NotoSansKR;
+    font-size: 20px;
+    font-weight: bold;
+    text-align: left;
+    color: #fff;
+}
+
+.Sub_title {
+    position:relative;
+    width: 60px;
+    height: 18px;
+    margin: 0 auto;
+    font-family: NotoSansKR;
+    font-size: 18px;
+    font-weight: bold;
+    text-align: center;
+    color: #fff;
+  }
+
+.container {
+    position:relative;
+    margin:0 auto;
+    width: 200px;
+    display:flex; /* 플렉스 컨테이너 지정 */
+    padding: 9px 14.5px 13px;
+    border-radius: 15px;
+    border:1px solid #fff;
+    margin: 15px 20px 0 60px;
+    margin-bottom:30px;
+    float:left;
+    flex-direction: column; 
+  }
+
+.reports{
+    position:relative;
+    width: 72%;
+    height: 200px;
+    text-align: left;
+    padding-left: 30px;
+    border-radius: 10px;
+    float:left;
+    background-color: #434854;
+}
+
+.net2viz{
+    position:relative;
+    width: 72%;
+    height: 500px;
+    text-align: center;
+    padding-left: 30px;
+    border-radius: 10px;
+    float:left;
+    background-color: #434854;
+}
+
+.button {
+    background-color: white;
+    border: none;
+    color: black;
+    padding: 10px 30px;
+    text-align: center;
+    text-decoration: none;
+    display: inline-block;
+    font-family: NotoSansKR;
+    font-weight: bold;
+    font-size: 16px;
+    margin: 1px 2px;
+    cursor: pointer;
+  }
+
+  .button2 {
+    background-color: gray;
+    border: none;
+    color: whitesmoke;
+    padding: 5px 10px;
+    text-align: center;
+    text-decoration: none;
+    font-family: NotoSansKR;
+    font-weight: bold;
+    font-size: 14px;
+    margin: 0px 5px;
+    cursor: pointer;
+  }
+
+#margin1 {margin:50px;}
+#margin2 {margin:29px;}
+#margin3 {width:100px; height:250px;}
+#button1 {float:left;}

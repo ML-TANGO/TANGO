@@ -1,0 +1,14 @@
+.progressBackground {
+  height: 10px;
+  background-color: #475163;
+  width: 100%;
+  border-radius: 30px;
+}
+
+.progressValue {
+  height: 100%;
+  width: 100%;
+  background-color: #4a80ff;
+  border-radius: 30px;
+  width: calc(100% * 0.3);
+}

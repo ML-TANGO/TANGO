@@ -1,0 +1,212 @@
+
+.data_manage_container
+{
+    width:100%;
+    height:100%;
+    display: grid;
+    grid-template-columns: 1fr;
+    grid-template-rows: auto 1fr;
+    background-color: #191c22;
+}
+
+{/* 프로젝트 메인 - 헤더 */}
+.data_manage_header{
+    grid-row: 1 / 2;
+    width:100%;
+    height:auto;
+    position:sticky;
+    margin-bottom:20px;
+}
+
+.data_manage_header .path
+{
+    height: 30px;
+    width:100%;
+    color: white;
+    position:sticky;
+}
+
+.data_manage
+{
+    display: grid;
+    grid-template-columns: 1fr;
+    grid-template-rows: 0.1fr 0.01fr 0.99fr 0.01fr;
+    overflow: auto;
+    background-color:#242933;
+    padding:10px 10px 10px 10px;
+}
+
+.data_manage_menu
+{
+    grid-row: 1 / 2;
+}
+
+.data_manage_component_header
+{
+    grid-row: 2 / 3;
+    color: white;
+    margin-bottom:5px;
+}
+
+.data_manage_component
+{
+    grid-row: 3 / 4;
+    width:100%;
+    height:100%;
+    flex-wrap: wrap;
+    width: auto;
+    overflow:auto;
+    background-color:#2f343f;
+    color:white;
+    font-size:12px;
+}
+
+.data_manage_footer
+{
+    grid-row: 4 / 5;
+    width:100%;
+    display: flex;
+}
+
+/* 커스텀 콤보박스 */
+.custom_select {
+  margin-top: 5px;
+  height: 35px;
+  background-color: #2f343f;
+  border: none;
+  border-radius: 3px;
+  font-size: 15px;
+  color: white;
+}
+
+
+.dataset_define {
+  color: #bdbfc2;
+  font-size: 17px;
+  font-weight: 700;
+  align-items: center;
+}
+
+.dataset_filelist {
+    padding:5px 10px 0px 10px;
+}
+
+.dataset_button_list {
+  display: flex;
+  color: white;
+}
+
+.dataset_search,
+.dataset_delete {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  border-radius: 3px;
+  cursor: pointer;
+  color:white;
+}
+
+.dataset_search {
+  width: 95px;
+  height: 35px;
+  background: #4a80ff;
+  border-radius: 3px;
+
+}
+
+.dataset_search input[type="file"] {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  border: 0;
+}
+
+.dataset_delete {
+  width: 95px;
+  height: 35px;
+  border: 1px solid #c2c8d3;
+  margin-right: 10px;
+}
+
+{/* ------------------------------ */}
+{/* --- 데이터 셋 관리 페이지 CSS ---- */}
+{/* ------------------------------ */}
+
+.data_manage_content
+{
+    overflow:auto;
+}
+
+.data-mgmt-list {
+  margin-bottom: 10px;
+  height: 120px;
+
+  border: none;
+  border-radius: 5px;
+
+  display: flex;
+
+  cursor: pointer;
+  background: #242933;
+}
+
+.data-mgmt-list:hover {
+  border: 1px solid #448fff;
+}
+
+.data-mgmt-list .data-mgmt-item-image {
+  width: 90px;
+  height: 90px;
+  border: none;
+  border-radius: 5px;
+  margin-top: 15px;
+  margin-left: 15px;
+  background-color: #3a414f;
+}
+
+.data-mgmt-list .data-mgmt-item-content {
+  padding: 15px;
+  width: calc(100% - 100px);
+  position: relative;
+}
+
+.data-mgmt-item-content hr {
+  border: 1px solid #364053;
+  transform: scaleY(0.5);
+}
+
+.data-mgmt-list .data-mgmt-item-content .data-mgmt-item
+{
+  width: calc(100% - 20px);
+  position: relative;
+  display: grid;
+  grid-template-columns: 0.5fr 1fr;
+  height:100%;
+}
+
+.data-mgmt-list .data-mgmt-item-content .data-mgmt-item-left
+{
+    grid-columns: 1 / 2;
+    display: grid;
+    grid-template-row2: 1fr 1fr;
+}
+
+.data-mgmt-list .data-mgmt-item-content .data-mgmt-item-left-top
+{
+    grid-row: 1 / 2;
+}
+
+.data-mgmt-list .data-mgmt-item-content .data-mgmt-item-left-bottom
+{
+    grid-row: 2 / 3;
+}
+
+.data-mgmt-list .data-mgmt-item-content .data-mgmt-item-right
+{
+    grid-columns: 2 / 3;
+
+}
