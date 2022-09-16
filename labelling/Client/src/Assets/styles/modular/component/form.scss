@@ -1,0 +1,484 @@
+@import "~react-datepicker/dist/react-datepicker.css";
+@import "~rc-time-picker/assets/index.css";
+
+.form {
+  display: flex;
+  flex-wrap: wrap;
+  @include directify($directions) {
+    text-align: directed("left");
+    direction: directed("direction");
+  }
+  width: 100%;
+
+  input,
+  textarea {
+    width: 100%;
+    padding: 5px 10px;
+    font-size: 12px;
+    height: 32px;
+    transition: border 0.3s;
+    background: transparent;
+
+    &::-webkit-input-placeholder {
+      color: $color-additional;
+    }
+    &::-moz-placeholder {
+      color: $color-additional;
+    }
+    /* Firefox 19+ */
+    &:-moz-placeholder {
+      color: $color-additional;
+    }
+    /* Firefox 18- */
+    &:-ms-input-placeholder {
+      color: $color-additional;
+    }
+
+    @include themify($themes) {
+      border: 1px solid themed("colorFieldsBorder");
+      color: themed("colorText");
+    }
+
+    &[disabled] {
+      @include themify($themes) {
+        background: themed("colorBackgroundBody");
+      }
+
+      &:focus,
+      &:active {
+        @include themify($themes) {
+          border-color: themed("colorBorder");
+        }
+      }
+    }
+
+    &:focus,
+    &:active {
+      outline: none;
+      border-color: $color-accent;
+    }
+  }
+
+  textarea {
+    min-height: 65px;
+  }
+
+  &.form--horizontal {
+    .form__form-group {
+      display: flex;
+      flex-wrap: wrap;
+    }
+
+    .form__form-group-field {
+      width: 100%;
+      @include directify($directions) {
+        #{directed('margin-left')}: 80px;
+      }
+    }
+
+    .form__form-group-label {
+      width: 80px;
+      max-height: 32px;
+      line-height: 18px;
+      margin: auto 0;
+
+      & + .form__form-group-field {
+        @include directify($directions) {
+          #{directed('margin-left')}: 0px;
+        }
+      }
+    }
+
+    .form__form-group-description {
+      @include directify($directions) {
+        #{directed('margin-left')}: 90px;
+      }
+    }
+
+    .form__button-toolbar {
+      @include directify($directions) {
+        #{directed('margin-left')}: 0px;
+      }
+    }
+
+    .form__form-group-input-wrap--error-above {
+      margin-bottom: 15px;
+
+      .form__form-group-error {
+        top: -28px;
+      }
+    }
+
+    @media screen and (min-width: 480px) {
+      .form__form-group-label {
+        width: 120px;
+      }
+
+      .form__form-group-field {
+        @include directify($directions) {
+          #{directed('margin-left')}: 120px;
+        }
+      }
+
+      .form__form-group-description,
+      .form__button-toolbar {
+        @include directify($directions) {
+          //#{directed('margin-left')}: 140px;
+        }
+      }
+    }
+  }
+
+  &.form--preview {
+    display: flex;
+
+    & > div:nth-child(2) {
+      @include directify($directions) {
+        #{directed('margin-right')}: 50px;
+      }
+    }
+
+    .form__form-group {
+      margin-bottom: 10px;
+      width: auto;
+      min-height: 18px;
+    }
+
+    p {
+      margin-bottom: 10px;
+    }
+  }
+
+  &.form--justify {
+    display: flex;
+    flex-wrap: wrap;
+
+    .form__form-group {
+      width: 33.3333%;
+    }
+
+    .form__button-toolbar {
+      width: 100%;
+    }
+  }
+}
+
+.form__half {
+  width: calc(50% - 15px);
+  height: 100%;
+
+  &:first-child {
+    @include directify($directions) {
+      #{directed('margin-right')}: 30px;
+    }
+  }
+
+  .form__button-toolbar {
+    float: right;
+  }
+
+  @media screen and (max-width: 1200px) {
+    width: 100%;
+    @include directify($directions) {
+      #{directed('margin-right')}: 0px;
+    }
+  }
+}
+
+.form__quad {
+  width: calc(15% - 30px);
+  height: 100%;
+
+  @include directify($directions) {
+    #{directed('margin-right')}: 30px;
+  }
+
+  .form__button-toolbar {
+    float: right;
+  }
+
+  @media screen and (max-width: 1200px) {
+    width: 100%;
+    @include directify($directions) {
+      #{directed('margin-right')}: 0px;
+    }
+  }
+}
+
+.form__form-group {
+  margin-bottom: 20px;
+  width: 100%;
+  position: relative;
+}
+
+.form__form-group--address {
+  input:last-child {
+    @include directify($directions) {
+      #{directed('margin-left')}: 15px;
+    }
+    width: 70%;
+  }
+}
+
+.form__form-group-field {
+  width: 100%;
+  display: flex;
+  margin: auto;
+  @include directify($directions) {
+    direction: #{directed("direction")};
+  }
+}
+
+.form__form-group-label {
+  margin-bottom: 4px;
+  display: inline-block;
+
+  @include themify($themes) {
+    color: themed("colorText");
+  }
+
+  span {
+    color: #dddddd;
+  }
+}
+
+.form__form-group-button {
+  padding: 6px;
+  height: 32px;
+  cursor: pointer;
+  transition: all 0.3s;
+
+  @include themify($themes) {
+    background: themed("colorFieldsBorder");
+    border: 1px solid themed("colorFieldsBorder");
+  }
+
+  svg {
+    fill: $color-additional;
+    width: 18px;
+    height: 18px;
+    transition: all 0.3s;
+  }
+
+  &.active {
+    background: $color-accent;
+    border: 1px solid $color-accent;
+
+    svg {
+      fill: #ffffff;
+    }
+  }
+}
+
+.form__form-group-file {
+  label {
+    border-radius: 2px;
+    line-height: 18px;
+    font-size: 12px;
+    padding: 4px 20px;
+    cursor: pointer;
+    transition: all 0.3s;
+    text-align: center;
+
+    @include themify($themes) {
+      border: 1px solid themed("colorFieldsBorder");
+      color: themed("colorText");
+    }
+
+    &:hover {
+      @include themify($themes) {
+        background: themed("colorFieldsBorder");
+      }
+    }
+  }
+
+  span {
+    @include directify($directions) {
+      #{directed('padding-left')}: 10px;
+    }
+    overflow: hidden;
+    width: 200px;
+  }
+
+  input {
+    display: none;
+  }
+}
+
+.form__form-group-icon {
+  padding: 6px;
+  height: 32px;
+
+  @include themify($themes) {
+    background: themed("colorFieldsBorder");
+    border: 1px solid themed("colorFieldsBorder");
+  }
+
+  svg {
+    fill: $color-additional;
+    width: 18px;
+    height: 18px;
+    transition: all 0.3s;
+  }
+}
+
+.form__form-group-description {
+  font-size: 10px;
+  color: $color-additional;
+  line-height: 13px;
+  margin-top: 2px;
+}
+
+.form__button-toolbar {
+  margin-top: 10px;
+  @include directify($directions) {
+    direction: #{directed("direction")};
+  }
+}
+
+.form__form-group-input-wrap {
+  width: 100%;
+}
+
+.form__form-group-error {
+  font-size: 10px;
+  line-height: 13px;
+  color: #ad4444;
+  margin-bottom: 5px;
+  display: block;
+  //margin-top: 10px;
+}
+
+.form__form-group-input-wrap--error-above {
+  .form__form-group-error {
+    position: absolute;
+    margin: 0;
+    @include directify($directions) {
+      #{directed('right')}: 0px;
+    }
+    top: 0;
+    padding: 5px 10px;
+    background: #ffbcbc;
+    border-radius: 3px;
+
+    &:after {
+      content: "";
+      position: absolute;
+      @include directify($directions) {
+        #{directed('right')}: 10px;
+      }
+      bottom: -8px;
+      border: 4px solid transparent;
+      border-top: 4px solid #ffbcbc;
+    }
+  }
+}
+
+.form__form-group-date-cvc {
+  display: flex;
+  width: 100%;
+
+  .form__form-group-date {
+    width: 100%;
+    @include directify($directions) {
+      #{directed('margin-right')}: 20px;
+    }
+  }
+
+  .form__form-group-cvc {
+    max-width: 280px;
+    width: 100%;
+  }
+
+  @media screen and (max-width: 767px) {
+    flex-wrap: wrap;
+
+    .form__form-group-date {
+      @include directify($directions) {
+        #{directed('margin-right')}: 0px;
+      }
+    }
+
+    .form__form-group-cvc {
+      max-width: 100%;
+    }
+  }
+}
+
+.form__form-group-id-category {
+  width: 100%;
+  display: flex;
+
+  .form__form-group-id {
+    min-width: 100px;
+    width: 40%;
+    @include directify($directions) {
+      #{directed('margin-right')}: 20px;
+    }
+  }
+
+  @media screen and (max-width: 767px) {
+    flex-wrap: wrap;
+
+    .form__form-group-id {
+      @include directify($directions) {
+        #{directed('margin-right')}: 0px;
+      }
+      width: 100%;
+    }
+  }
+}
+
+.form__form-group-price-discount {
+  width: 100%;
+  display: flex;
+  margin-bottom: 20px;
+
+  & > div {
+    margin-bottom: 0;
+  }
+
+  .form__form-group-price {
+    @include directify($directions) {
+      #{directed('margin-right')}: 20px;
+    }
+  }
+
+  @media screen and (max-width: 767px) {
+    flex-wrap: wrap;
+
+    .form__form-group-price {
+      @include directify($directions) {
+        #{directed('margin-right')}: 0px;
+      }
+    }
+  }
+}
+
+.form-placeholder-select {
+  background: black;
+  width: 100%;
+  height: 32px;
+  padding: 5px 10px;
+  border-radius: 10px;
+}
+
+.form-placeholder-text {
+  background: rgb(165, 165, 165);
+  width: 15%;
+  height: 15px;
+  padding: 5px 10px;
+  border-radius: 10px;
+}
+
+.form-placeholder-table {
+  background: black;
+  width: 100%;
+  height: 250px;
+  padding: 5px 10px;
+  border-radius: 10px;
+}
+
+.form-icon-active {
+  color: #1777cb;
+}

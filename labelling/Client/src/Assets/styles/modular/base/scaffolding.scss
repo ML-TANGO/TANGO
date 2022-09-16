@@ -1,0 +1,39 @@
+main {
+  padding: 0;
+}
+
+body {
+  margin: 0;
+  padding: 0 !important;
+  box-sizing: border-box;
+  font-family: "Roboto", sans-serif;
+  font-size: 13px;
+  line-height: 1.6;
+  background-color: #2a2a31;
+}
+
+* {
+  box-sizing: inherit;
+}
+
+ul,
+ol {
+  // doesn't do RTL, it break a sidebar
+  padding-left: 15px;
+  margin-bottom: 0;
+  list-style-image: url("./../../img/circle.svg");
+}
+
+a {
+  color: $color-bluai;
+  transition: all 0.3s;
+
+  &:hover {
+    text-decoration: none;
+    color: $color-bluai-hover;
+  }
+}
+
+img {
+  width: 100%;
+}

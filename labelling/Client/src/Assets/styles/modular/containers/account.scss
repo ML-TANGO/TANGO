@@ -1,0 +1,382 @@
+.account {
+  height: 100vh;
+  width: 100%;
+  min-height: 100vh;
+  display: flex;
+  overflow-y: auto;
+
+  &.account--not-photo {
+    @include themify($themes) {
+      background: themed("colorBackgroundBody");
+    }
+  }
+
+  &.account--photo {
+    background: url(/static/bg_404.png) no-repeat center !important;
+    background-size: cover;
+
+    .account__card {
+      background-color: rgba(0, 10, 16, 0.8);
+      color: #ffffff;
+    }
+
+    .form__form-group-icon,
+    .form__form-group-button {
+      background: transparent;
+    }
+
+    .form__form-group-icon,
+    input:not(:last-child) {
+      @include directify($directions) {
+        #{directed('border-right')}: none;
+      }
+    }
+
+    .form__form-group-button,
+    input {
+      @include directify($directions) {
+        #{directed('border-left')}: none;
+      }
+    }
+
+    .form__form-group-button.active {
+      border-color: #eff1f5;
+
+      svg {
+        fill: $color-accent;
+      }
+    }
+
+    input {
+      color: #ffffff;
+
+      &:focus {
+        border-color: #eff1f5;
+      }
+    }
+
+    p {
+      color: #ffffff;
+    }
+
+    .account__title {
+      color: #ffffff;
+    }
+  }
+}
+
+.account__wrapper {
+  @include directify($directions) {
+    text-align: directed("left");
+  }
+  margin: auto;
+  padding: 10px;
+}
+
+.account__card {
+  @include themify($themes) {
+    background-color: themed("colorBackground");
+  }
+
+  background-color: #ffffff;
+  padding: 50px 60px;
+  max-width: 520px;
+  width: 100%;
+  margin: auto;
+}
+
+.account__profile {
+  text-align: center;
+}
+
+.register__btns {
+  @include directify($directions) {
+    #{directed('margin-left')}: 0px !important;
+  }
+}
+
+.account__btns {
+  display: flex;
+  width: calc(100% + 10px);
+  @include directify($directions) {
+    #{directed('margin-right')}: 0px;
+    #{directed('margin-left')}: -10px;
+  }
+  margin-top: -10px;
+  margin-bottom: -20;
+
+  a {
+    @include directify($directions) {
+      #{directed('margin-right')}: 0px;
+      #{directed('margin-left')}: 10px;
+    }
+    margin-bottom: 20px;
+    white-space: nowrap;
+  }
+}
+
+.account__btn {
+  width: 100%;
+  @include directify($directions) {
+    #{directed('margin-right')}: 0px;
+  }
+}
+
+.account__avatar {
+  height: 64px;
+  width: 64px;
+  border-radius: 50%;
+  overflow: hidden;
+}
+
+.account__name {
+  font-size: 11px;
+  text-transform: uppercase;
+  font-weight: 700;
+  line-height: 15px;
+  margin-top: 5px;
+}
+
+.account__sub {
+  margin-top: 0;
+  margin-bottom: 10px;
+  color: $color-additional;
+  font-size: 11px;
+  line-height: 15px;
+}
+
+.account__forgot-password {
+  position: absolute;
+  font-size: 11px;
+  line-height: 15px;
+  bottom: -18px;
+  @include directify($directions) {
+    #{directed('right')}: 0px;
+  }
+
+  a {
+    color: $color-blue;
+
+    &:hover {
+      color: $color-blue-hover;
+      text-decoration: none;
+    }
+  }
+}
+
+.form__form-group--forgot {
+  margin-bottom: 40px;
+}
+
+.account__or {
+  text-align: center;
+  margin-top: 35px;
+  margin-bottom: 20px;
+  position: relative;
+
+  &:before,
+  &:after {
+    content: "";
+    height: 1px;
+    width: calc(50% - 90px);
+    background: #dddddd;
+    position: absolute;
+    top: 10px;
+  }
+
+  &:before {
+    @include directify($directions) {
+      #{directed('left')}: 0px;
+    }
+  }
+
+  &:after {
+    @include directify($directions) {
+      #{directed('right')}: 0px;
+    }
+  }
+}
+
+.account__social {
+  text-align: center;
+}
+
+.account__social-btn {
+  display: inline-block;
+  height: 38px;
+  width: 38px;
+  border-radius: 5px;
+  padding: 9px;
+  @include directify($directions) {
+    #{directed('margin-right')}: 10px;
+  }
+  transition: all 0.3s;
+  border: none;
+
+  &:last-child {
+    @include directify($directions) {
+      #{directed('margin-right')}: 0px;
+    }
+  }
+
+  svg {
+    fill: #ffffff;
+    height: 20px;
+    width: 20px;
+  }
+
+  &.account__social-btn--facebook {
+    background: #4766a4;
+
+    &:hover {
+      background: darken(#4766a4, 10%);
+    }
+  }
+
+  &.account__social-btn--google {
+    background: #c74d4d;
+
+    &:hover {
+      background: darken(#c74d4d, 10%);
+    }
+  }
+  &.account__social-btn--firebase {
+    background: #4287f5;
+    margin-top: 20px;
+    padding: 0;
+    padding-left: 5px;
+
+    &:before {
+      background-color: darken(#4287f5, 10%);
+    }
+
+    &:hover {
+      background: darken(#4287f5, 10%);
+    }
+  }
+
+  &.account__social-btn--auth0 {
+    margin-top: 20px;
+  }
+}
+
+.account__head {
+  border-left: 4px solid #364261;
+  padding-left: 0.8rem;
+  margin-bottom: 1rem;
+}
+
+.account__logo {
+  font-weight: 700;
+}
+
+.account__logo-accent {
+  color: $color-blue;
+}
+
+.account__have-account {
+  text-align: center;
+  margin-top: 20px;
+
+  a {
+    color: $color-blue;
+    transition: all 0.3s;
+
+    &:hover {
+      color: $color-blue-hover;
+      text-decoration: none;
+    }
+  }
+}
+
+@media screen and (max-width: 520px) {
+  .account__card {
+    padding: 35px 30px;
+  }
+}
+
+@media screen and (max-width: 425px) {
+  .account__btns {
+    flex-wrap: wrap;
+  }
+}
+
+.account__User {
+  margin: none !important;
+  margin-top: 4px !important;
+  width: 35px !important;
+  height: 35px !important;
+  max-height: 35px !important;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  background: #3e3e3e;
+  border-radius: 2px 0 0 2px;
+}
+
+.account__input {
+  height: 36px !important;
+  border: none !important;
+  border-radius: 0px 2px 2px 0 !important;
+  &::placeholder {
+    font-size: 14px;
+    color: #666 !important;
+  }
+}
+
+.account__password__icon {
+  background: #000 !important;
+  border: none !important;
+  height: inherit !important;
+  border-radius: 0 2px 2px 0;
+  // padding-right: 12px;
+}
+
+.account__login {
+  width: 100%;
+  height: 50px;
+  border-radius: 2px;
+  color: #ddd;
+  font-size: 18px;
+  background: #105cad !important;
+  padding-bottom: 1px;
+  &:hover {
+    background: #0d4e92 !important;
+    box-shadow: 2px 2px 6px #000;
+  }
+}
+
+.count__register {
+  cursor: pointer;
+  &:hover {
+    text-decoration: underline;
+  }
+}
+
+.account__card.box_shadow {
+  box-shadow: 1px 1px 6px 1px #000;
+}
+
+.license-header {
+  border-left: 4px solid #364261;
+  padding-left: 0.8rem;
+  margin-bottom: 1rem;
+}
+
+.progress-color {
+  background-color: #203b7e !important;
+}
+
+.download_retry {
+  width: 100%;
+  height: 30px;
+  border-radius: 2px;
+  color: #ddd;
+  font-size: 18px;
+  background: #940d0d !important;
+  padding-bottom: 2px;
+  &:hover {
+    background: #6b0909 !important;
+    box-shadow: 2px 2px 6px #000;
+  }
+}

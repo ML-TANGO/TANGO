@@ -1,0 +1,142 @@
+<?xml version:"1.0" encoding:"UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="Report">
+
+  <insert id='setReportData'>
+    INSERT INTO PRJ_REPORT (
+      INS_TIME,
+      SEQ,
+      IS_CD,
+      RAW_TIME,
+      CLASS_CD,
+      COLOR,
+      DP_LABEL,
+      LOCATION,
+      ACCURACY,
+      RESULT_PATH,
+      OUTPUT_PATH,
+      RESULT_URL,
+      OBJECT_TYPE,
+      IS_TYPE,
+      CLASS_CNT
+    )
+    VALUES
+    <foreach collection="POLYGON_DATA" item="item" separator=",">
+    (
+      now(6),
+      ${item.SEQ},
+      ${IS_CD},
+      #{RAW_TIME},
+      ${item.CLASS_CD},
+      #{item.COLOR},
+      #{item.DP_LABEL},
+      #{item.LOCATION},
+      ${item.ACCURACY},
+      #{RESULT_PATH},
+      #{OUTPUT_PATH},
+      #{RESULT_URL},
+      #{OBJECT_TYPE},
+      #{IS_TYPE},
+      1
+    )
+    </foreach>
+  </insert>
+
+  
+
+  <insert id='setStaticReportData'>
+    INSERT INTO PRJ_REPORT (
+      INS_TIME,
+      SEQ,
+      IS_CD,
+      CLASS_CD,
+      COLOR,
+      DP_LABEL,
+      LOCATION,
+      ACCURACY,
+      RESULT_PATH,
+      OUTPUT_PATH,
+      RESULT_URL,
+      OBJECT_TYPE,
+      IS_TYPE,
+      FILE_INFO,
+      CLASS_CNT,
+      RAW_TIME
+    )
+    VALUES
+    <foreach collection="FOUND_CLASSES" item="item" separator=",">
+    (
+      now(6),
+      ${item.FILE_SEQ},
+      ${IS_CD},
+      ${item.CLASS_CD},
+      #{item.COLOR},
+      #{item.DP_LABEL},
+      #{item.LOCATION},
+      #{item.ACCURACY},
+      #{item.RESULT_PATH},
+      #{item.OUTPUT_PATH},
+      #{item.RESULT_URL},
+      #{item.OBJECT_TYPE},
+      #{item.IS_TYPE},
+      #{item.FI},
+      ${item.CLASS_CNT},
+      now(6)
+    )
+    </foreach>
+  </insert>
+
+  <insert id='setServiceReportData'>
+    INSERT INTO PRJ_REPORT (
+      INS_TIME,
+      SEQ,
+      IS_TYPE,
+      IS_CD,
+      CLASS_CD,
+      RAW_TIME,
+      DP_LABEL,
+      CLASS_CNT,
+      PRC_TIME,
+      REQ_DATA,
+      RESULT_DATA,
+      RS_STATUS,
+      OUT_CD,
+      REQ_NO
+    )
+    VALUES
+    <foreach collection="RPT_RESULT" item="item" separator=",">
+    (
+      now(6),
+      ${item.SEQ},
+      #{item.IS_TYPE},
+      ${item.IS_CD},
+      ${item.CLASS_CD},
+      #{item.RAW_TIME},
+      #{item.DP_LABEL},
+      ${item.CLASS_CNT},
+      ${item.PRC_TIME},
+      #{item.REQ_DATA},
+      #{item.RESULT_DATA},
+      #{item.RS_STATUS},
+      ${item.OUT_CD},
+      ${item.REQ_NO}
+    )
+    </foreach>
+  </insert>
+
+  <update id="updateFileStatus">
+    UPDATE FILE_LIST
+       SET UPT_DTM = now(),
+       FILE_FPS = CASE
+                <foreach collection="DATA" item="item">
+                WHEN FILE_SEQ = ${item.DATA_CD} THEN ${item.FPS}
+                </foreach>
+                END,
+       IS_PREDICT = 1
+     WHERE FILE_SEQ IN (
+       <foreach collection="DATA" item="item" separator=",">
+        ${item.DATA_CD}
+       </foreach>
+     )
+  </update>
+</mapper>

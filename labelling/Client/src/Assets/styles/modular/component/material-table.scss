@@ -1,0 +1,176 @@
+.material-table {
+
+  th {
+    white-space: nowrap;
+  }
+}
+
+.material-table__toolbar-wrap {
+  position: absolute;
+  top: 10px;
+  @include directify($directions) {
+    #{directed('right')}: 0px;
+  }
+
+  .material-table__toolbar {
+    padding: 0 30px;
+  }
+
+  .material-table__toolbar-button {
+    height: 36px;
+    width: 36px;
+    padding: 0;
+  }
+}
+
+.material-table__toolbar-selected {
+  @include directify($directions) {
+    #{directed('margin-right')}: 10px;
+  }
+}
+
+.material-table__row {
+  transition: 0.3s;
+  cursor: pointer;
+
+  &[aria-checked="true"] {
+
+    @include themify($themes) {
+      background-color: themed('colorHover');
+    }
+
+    .material-table__checkbox span {
+      color: $color-accent;
+    }
+  }
+
+  &:hover {
+
+    @include themify($themes) {
+      background-color: themed('colorBackgroundBody');
+    }
+  }
+}
+
+.material-table__checkbox--checked span {
+  color: $color-accent;
+}
+
+.material-table__cell-right{
+  @include directify($directions) {
+    text-align: directed('left');
+  }
+
+}
+
+.material-table__cell.material-table__cell--sort {
+
+  span {
+    transition: 0.3s;
+
+    @include themify($themes) {
+      color: themed('colorText');
+    }
+
+    &:hover {
+      color: $color-accent;
+    }
+  }
+}
+
+.material-table__cell, .material-table__sort-label, .material-table__toolbar-button {
+
+  @include themify($themes) {
+    color: themed('colorText');
+  }
+}
+
+.material-table__checkbox {
+  transition: 0.3s;
+
+  @include themify($themes) {
+    color: themed('colorIcon');
+  }
+}
+
+.material-table__pagination {
+  @include directify($directions) {
+    float: directed('right');
+  }
+
+  button:hover {
+    @include themify($themes) {
+      background-color: themed('colorHover') !important;
+    }
+  }
+
+  & > div {
+    padding: 0;
+  }
+
+  span, div, svg {
+
+    @include themify($themes) {
+      color: themed('colorText');
+    }
+  }
+}
+
+.material-table__wrap {
+  overflow-x: auto;
+}
+
+.material-table__filter-menu {
+
+  div:last-child {
+    box-shadow: 0 10px 30px 1px rgba(0, 0, 0, 0.06);
+  }
+
+  .material-table__filter-menu-item {
+    color: #646777;
+    transition: 0.3s;
+    font-size: 13px;
+    padding: 7px 24px;
+    height: auto;
+
+    &:hover {
+      background: #fafbfe;
+    }
+  }
+}
+
+
+@media screen and (max-width: 768px) {
+
+  .material-table__pagination {
+
+    div {
+      margin-left: 8px;
+      margin-right: 8px;
+
+      &:last-child {
+        @include directify($directions) {
+          #{directed('margin-right')}: 0px;
+        }
+      }
+
+      &:first-child {
+        margin: 0;
+      }
+    }
+
+    div > span:first-of-type {
+      display: none;
+    }
+  }
+}
+
+@media screen and (max-width: 420px) {
+
+  .material-table__toolbar-selected {
+
+    span {
+      display: none;
+    }
+  }
+}

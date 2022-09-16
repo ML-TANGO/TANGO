@@ -1,0 +1,126 @@
+.ds-section {
+  height: 40px;
+  line-height: 40px;
+  text-align: left;
+  font-size: 16px;
+  float: left;
+}
+.ds-section-icon-rotate {
+  height: 40px;
+  line-height: 36px;
+  width: 40px;
+  float: left;
+  svg {
+    width: 28px;
+    fill: rgb(63, 160, 43);
+  }
+}
+
+.ds-section-icon-beat {
+  height: 40px;
+  line-height: 36px;
+  width: 40px;
+  float: left;
+  svg {
+    width: 28px;
+    fill: rgb(255, 132, 0);
+  }
+}
+
+.ds-section-icon {
+  height: 40px;
+  line-height: 36px;
+  width: 40px;
+  float: left;
+  svg {
+    width: 28px;
+    fill: #009bff;
+  }
+}
+
+.ds-separator {
+  margin-top: 10px;
+  border-top: 4px solid rgb(72, 72, 72);
+  padding: 10px;
+}
+
+.ds-list-control {
+  clear: both;
+  width: 100%;
+  // border: 1px solid #fff;
+  height: 30px;
+  text-align: right;
+  position: relative;
+  &-count {
+    font-size: 10px;
+    position: absolute;
+    left: 0px;
+    top: 10px;
+  }
+  &-filter,
+  &-sort {
+    width: 200px;
+    display: inline-block;
+    // border: 1px solid #fff;
+    .form__form-group-label {
+      width: 50px !important;
+      float: left;
+      font-size: 10px;
+      padding-top: 1px;
+      // border: 1px solid #fff;
+    }
+    .form__form-group-input-wrap {
+      width: 150px;
+      float: left;
+      font-size: 10px;
+      padding-left: 5px;
+
+      // border: 1px solid #fff;
+      .react-select {
+        .react-select__control {
+          border-radius: 5px !important;
+          font-size: 10px;
+          min-height: 10px !important;
+          height: 20px;
+          background: inherit;
+
+          .react-select__value-container {
+            // height: 10px !important;
+            // border: 1px solid #fff;
+            height: 20px;
+            width: auto;
+            font-size: 10px;
+            border-bottom: 1px solid #fff !important;
+            user-select: none;
+          }
+          .react-select__indicator {
+            // border: 1px solid #fff;
+            width: 15px;
+            height: 15px;
+            border-radius: 3px;
+            background: inherit;
+          }
+        }
+      }
+    }
+  }
+}
+
+.ds-table-icon {
+  font-size: 15px;
+  margin-right: 0.5rem;
+
+  &:hover {
+    color: #bbb;
+    cursor: pointer;
+  }
+}
+
+.ds-table-icon-disabled {
+  font-size: 15px;
+  margin-right: 0.5rem;
+  color: #333;
+  &:hover {
+    cursor: default;
+  }
+}

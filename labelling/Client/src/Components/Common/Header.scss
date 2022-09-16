@@ -1,0 +1,52 @@
+.bluai-main-header {
+  width: 100%;
+  text-align: left;
+  line-height: 50px;
+  padding-top: 0.5rem;
+  &-title {
+    font-size: 18px;
+    float: left;
+  }
+  &-button {
+    margin-left: 20px;
+    margin-top: 15px;
+    float: left;
+    padding: 5px 10px 5px 10px;
+    // width: 100px;
+    border-radius: 10px;
+    line-height: 10px;
+    font-size: 10px;
+    &-icon {
+      float: left;
+      text-align: center;
+      margin-top: -1px;
+    }
+    &-title {
+      float: left;
+      padding-left: 5px;
+    }
+  }
+  &-search {
+    float: left;
+    margin-left: 20px;
+    margin-top: 16px;
+    height: 19px;
+    line-height: 15px;
+    font-size: 10px;
+    border-radius: 10px;
+    background: white;
+    padding: 1px 8px 1px 8px;
+    input {
+      height: 18px;
+      font-size: 12px;
+      border: none;
+      float: left;
+      width: 150px;
+    }
+    &-icon {
+      font-size: 14px;
+      float: right;
+      color: black;
+    }
+  }
+}

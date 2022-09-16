@@ -1,0 +1,284 @@
+@import '~react-big-calendar/lib/css/react-big-calendar.css';
+
+.calendar {
+  height: 600px;
+  margin-bottom: 70px;
+  
+  .rbc-row-segment {
+    margin-top: 15px;
+    margin-bottom: -5px;
+  }
+  .rbc-date-cell {
+    @include directify($directions) {
+      text-align: directed('left');
+      #{directed('padding-right')}: 0px;
+    }
+
+    a {
+      display: block;
+      width: 100%;
+      @include directify($directions) {
+        #{directed('padding-left')}: 10px;
+      }
+      padding-top: 5px;
+      font-weight: 500;
+      font-size: 13px;
+
+      @include themify($themes) {
+        color: themed('colorText');
+      }
+    }
+  }
+
+  .rbc-header {
+    height: 40px;
+    display: flex;
+    color: $color-additional;
+
+
+    @media screen and (max-width: 600px) {
+      white-space: pre-wrap;
+    }
+
+    @media screen and (max-width: 400px){
+      height: 20px;
+    }
+
+    @include themify($themes) {
+      background-color: themed('colorBackgroundBody');
+    }
+
+    span {
+      margin: auto;
+      text-transform: uppercase;
+      font-size: 12px;
+    }
+
+    a {
+      display: block;
+      margin: auto;
+    }
+  }
+
+  .rbc-time-slot {
+    display: flex;
+
+    span {
+      margin: auto 0;
+    }
+  }
+
+  .rbc-off-range-bg {
+    background-color: transparent;
+  }
+
+  .rbc-event {
+    height: 20px;
+    font-size: 10px;
+  }
+
+  .rbc-toolbar-label {
+    text-transform: uppercase;
+    font-weight: 700;
+
+    @include themify($themes) {
+      color: themed('colorText');
+    }
+  }
+
+  .rbc-label {
+
+    @include themify($themes) {
+      color: themed('colorText');
+    }
+  }
+
+  .rbc-show-more {
+    background-color: transparent;
+  }
+
+  .rbc-toolbar button {
+    height: 30px;
+    border-radius: 3px;
+    border: none;
+    font-size: 11px;
+    color: $color-additional;
+    transition: all 0.3s;
+    padding: 8px 14px;
+    cursor: pointer;
+
+    @include themify($themes) {
+      background-color: themed('colorHover');
+    }
+
+    &.rbc-active {
+      box-shadow: none;
+      background-color: #ededed;
+      pointer-events: none;
+
+      @include themify($themes) {
+        background-color: themed('colorFieldsBorder');
+      }
+    }
+
+    &:hover {
+
+      @include themify($themes) {
+        color: themed('colorText');
+        background-color: darken(themed('colorHover'), 2%);
+      }
+    }
+
+    &:focus, &:active {
+      outline: none;
+      box-shadow: none;
+
+      @include themify($themes) {
+        color: themed('colorText');
+      }
+    }
+
+    span {
+      font-size: 8px;
+      font-weight: 700;
+    }
+  }
+
+  .rbc-btn-group:first-child {
+
+    button {
+      @include directify($directions) {
+        #{directed('margin-right')}: 5px;
+      }
+      padding: 8px 11px;
+
+      &:last-child:not(:first-child), &:not(:first-child):not(:last-child),
+      &:first-child:not(:last-child) {
+        border-radius: 3px;
+      }
+    }
+  }
+
+  .rbc-btn-group {
+    min-width: 156px;
+  }
+
+  .rbc-today {
+    background-color: transparent;
+    position: relative;
+
+    &:before {
+      content: "";
+      height: 3px;
+      width: 100%;
+      background-color: $color-accent;
+      top: 0;
+      position: absolute;
+    }
+  }
+
+  .rbc-current-time-indicator {
+    background-color: $color-accent;
+
+    &:before {
+      background-color: $color-accent;
+    }
+  }
+
+  &.calendar--small {
+    height: 400px;
+
+    .rbc-toolbar-label {
+      font-size: 10px;
+      padding: 0 5px;
+    }
+
+    .rbc-btn-group {
+      min-width: auto;
+
+      button {
+        padding: 4px 8px;
+      }
+    }
+  }
+
+  .rbc-overlay {
+    box-shadow: 0 2px 15px 0 rgba(0, 0, 0, 0.05);
+
+    @include themify($themes) {
+      color: themed('colorText');
+      background-color: themed('colorBackground');
+    }
+  }
+
+  .rbc-timeslot-group {
+    border-bottom: 1px solid #DDD !important;
+  }
+
+  .rbc-time-content > * + * > * {
+    border: none;
+    @include directify($directions) {
+      #{directed('border-left')}: 1px solid #DDD;  
+    }
+  }
+
+  .rbc-time-header-content {
+    border: none;
+    @include directify($directions) {
+      #{directed('border-left')}: 1px solid #DDD;
+    }
+  }
+
+  .rbc-header + .rbc-header {
+    border: none;
+    border-bottom: 1px solid #DDD;
+    @include directify($directions) {
+      #{directed('border-left')}: 1px solid #DDD;
+    }
+  }
+
+  .rbc-day-bg + .rbc-day-bg {
+    border: none;
+    @include directify($directions) {
+      #{directed('border-left')}: 1px solid #DDD;
+    }
+  }
+
+
+  .rbc-day-slot .rbc-events-container {
+    @include directify($directions) {
+      #{directed('margin-right')}: 14px !important;
+      #{directed('margin-left')}: 0 !important;
+    }
+  }
+
+  .rbc-event-content {
+    white-space: nowrap;
+  }
+  .rbc-time-column {
+    left: -1px;
+  }
+}
+
+.calendar-label {
+  height: 12px;
+  width: 12px;
+  border-radius: 50%;
+  display: inline-block;
+  @include directify($directions) {
+    #{directed('margin-right')}: 5px;
+  }
+
+  &.calendar-label--red {
+    background-color: $color-red;
+  }
+
+  &.calendar-label--green {
+    background-color: $color-accent;
+  }
+
+  &.calendar-label--blue {
+    background-color: $color-blue;
+  }
+
+}
