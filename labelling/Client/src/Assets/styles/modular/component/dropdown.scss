@@ -1,0 +1,89 @@
+.dropdown {
+  &:last-child .btn {
+    @include directify($directions) {
+      #{directed('margin-right')}: 0px;
+    }
+  }
+
+  .btn.icon svg {
+    height: 18px;
+    width: 20px;
+    @include directify($directions) {
+      #{directed('margin-right')}: -5px;
+    }
+  }
+
+  .btn-group {
+    @include directify($directions) {
+      #{directed('margin-right')}: 15px;
+    }
+
+    &:last-child {
+      @include directify($directions) {
+        #{directed('margin-right')}: 0px;
+      }
+    }
+
+    .btn {
+      &:last-child {
+        padding: 7px;
+
+        svg {
+          margin-left: 0;
+          margin-right: 0;
+        }
+      }
+    }
+  }
+}
+
+.dropdown__menu {
+  width: 170px;
+  border-radius: 0;
+  border: none;
+  margin: 0;
+  padding: 15px 0;
+  box-shadow: 0 2px 15px 0 rgba(0, 0, 0, 0.05);
+  font-size: 11px;
+
+  @include themify($themes) {
+    background: themed("colorBackground");
+  }
+
+  button {
+    transition: all 0.3s;
+    padding: 7px 24px;
+    cursor: pointer;
+
+    @include themify($themes) {
+      color: themed("colorText");
+    }
+
+    &:hover {
+      @include themify($themes) {
+        background: themed("colorHover");
+        color: themed("colorText");
+      }
+    }
+  }
+
+  button:focus,
+  button:active,
+  button:active:focus {
+    outline: none;
+  }
+
+  .active button {
+    background-color: $color-blue;
+
+    &:hover {
+      background-color: $color-blue-hover;
+    }
+  }
+}
+
+.dropdown-item {
+  @include directify($directions) {
+    text-align: #{directed("left")};
+  }
+}

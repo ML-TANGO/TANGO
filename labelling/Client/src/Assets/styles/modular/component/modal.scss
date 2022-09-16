@@ -1,0 +1,246 @@
+.modal {
+}
+
+.login-modal-form {
+  .modal-content {
+    padding-top: 20px;
+    padding-bottom: 5px;
+    padding-left: 20px;
+    padding-right: 20px;
+  }
+}
+
+.modal-dialog {
+  // max-width: 385px;
+}
+
+.modal-content {
+  border-radius: 0;
+  border: none;
+  box-shadow: 0 0px 20px 3px rgba(255, 255, 255, 0.1);
+  // box-shadow: 0 5px 10px 0 rgba(0, 0, 0, 0.1);
+  position: relative;
+  padding: 50px 40px 60px 40px;
+  text-align: center;
+  color: #fff;
+
+  @include themify($themes) {
+    background-color: #0e0e10;
+    color: themed("colorText");
+  }
+}
+
+.modal__close-btn {
+  position: absolute;
+  top: 15px;
+  @include directify($directions) {
+    #{directed('right')}: 15px;
+  }
+  font-size: 14px;
+  width: 14px;
+  height: 14px;
+  cursor: pointer;
+  padding: 0;
+  border: none;
+  background: transparent;
+
+  @include themify($themes) {
+    color: themed("colorIcon");
+  }
+}
+
+.modal__title-icon {
+  width: 24px;
+  height: 24px;
+  font-size: 24px;
+}
+
+.modal__title {
+  margin-top: 10px;
+  margin-bottom: 15px;
+
+  &:first-child {
+    margin-top: 0;
+  }
+}
+
+.modal__footer {
+  margin-top: 20px;
+  display: flex;
+  justify-content: center;
+  margin-bottom: 0;
+  @include directify($directions) {
+    flex-flow: directed("flex-flow") !important;
+  }
+
+  button {
+    min-width: 100px;
+    padding: 4px 25px;
+    margin-bottom: 0;
+  }
+}
+
+.modal-dialog--primary {
+  .modal__title-icon {
+    color: $color-blue;
+  }
+}
+
+.modal-dialog--success {
+  .modal__title-icon {
+    color: $color-accent;
+  }
+}
+
+.modal-dialog--warning {
+  .modal__title-icon {
+    color: $color-yellow;
+  }
+}
+
+.modal-dialog--danger {
+  .modal__title-icon {
+    color: $color-red;
+  }
+}
+
+.modal-dialog--colored {
+  color: white;
+
+  .modal__title-icon {
+    color: white;
+  }
+
+  .modal__close-btn {
+    color: white;
+  }
+
+  .modal__footer {
+    button:first-child {
+      color: #ffffff;
+      background-color: rgba(255, 255, 255, 0.3);
+      border-color: #ffffff;
+
+      &:before {
+        background-color: rgba(255, 255, 255, 0.2);
+      }
+    }
+
+    button:last-child {
+      border-color: white;
+      color: white;
+    }
+  }
+
+  &.modal-dialog--primary .modal-content {
+    background-color: $color-blue;
+  }
+
+  &.modal-dialog--success .modal-content {
+    background-color: $color-accent;
+  }
+
+  &.modal-dialog--warning .modal-content {
+    background-color: $color-yellow;
+  }
+
+  &.modal-dialog--danger .modal-content {
+    background-color: $color-red;
+  }
+}
+
+.modal-dialog--header {
+  // max-width: 520px;
+
+  .modal-content {
+    padding: 0;
+    border-radius: 5px;
+    @include directify($directions) {
+      text-align: directed("left");
+    }
+  }
+
+  .modal__header {
+    width: 100%;
+    color: white;
+    padding: 15px 20px;
+    position: relative;
+  }
+
+  .modal__title {
+    margin: 0;
+    font-weight: 300;
+  }
+
+  .modal__close-btn {
+    color: white;
+    top: calc(50% - 8px);
+  }
+
+  .modal__body {
+    @include directify($directions) {
+      #{directed('padding-right')}: 40px;
+      #{directed('padding-left')}: 20px;
+    }
+    padding-top: 25px;
+    padding-bottom: 20px;
+  }
+
+  .modal__footer {
+    margin-bottom: 40px;
+    justify-content: flex-end;
+    @include directify($directions) {
+      #{directed('padding-right')}: 20px;
+    }
+  }
+
+  .modal-title {
+    font-size: 1.5rem !important;
+  }
+
+  &.modal-dialog--primary .modal__header {
+    background-color: $color-blue;
+  }
+
+  &.modal-dialog--success .modal__header {
+    background-color: $color-accent;
+  }
+
+  &.modal-dialog--warning .modal__header {
+    background-color: $color-yellow;
+  }
+
+  &.modal-dialog--danger .modal__header {
+    background-color: $color-red;
+  }
+}
+
+@media (min-width: 1200px) {
+  .modal-xl {
+    max-width: 1400px;
+  }
+  .modal-sm {
+    max-width: 400px;
+    max-height: 650px;
+  }
+}
+
+.wizard__modal--header .modal-title {
+  width: 100%;
+}
+.wizard__modal--header .modal-title .modal-icon {
+  padding-top: 5px;
+  float: left;
+  width: 30px;
+}
+.wizard__modal--header .modal-title .modal-name {
+  float: left;
+  width: 20%;
+}
+.wizard__modal--header .modal-title .modal-steps {
+  float: right;
+  text-align: center;
+  width: 50%;
+}
+
+//custom --hana

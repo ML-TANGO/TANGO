@@ -1,0 +1,107 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="TabDataSet">
+
+  <insert id="setFeatureInfo">
+    INSERT INTO TAB_FEATUREINFO (
+      DATASET_CD,
+      COLUMN_NM,
+      COLUMN_ALIAS,
+      DEFAULT_VALUE,
+      IS_CLASS,
+      COLUMN_IDX
+    )
+    VALUES
+      <foreach collection="DATA" item="item" separator="," >
+          (
+          #{item.DATASET_CD},
+          #{item.COLUMN_NM},
+          #{item.COLUMN_ALIAS},
+          #{item.DEFAULT_VALUE},
+          ${item.IS_CLASS},
+          ${item.COLUMN_IDX}
+          )
+      </foreach>
+  </insert>
+
+  <delete id = "removeFeatures">
+		DELETE FROM TAB_FEATUREINFO WHERE DATASET_CD = #{DATASET_CD}
+	</delete>
+
+   
+
+   <insert id="setDBInfo">
+    INSERT INTO TAB_DBINFO (
+      DATASET_CD,
+      DB_SEQ,
+      CLIENT,
+      ADDRESS,
+      PORT,
+      DBNAME,
+      USER,
+      PASSWORD,
+      QUERY,
+      IS_TEST
+      <if test="LIMIT != null and LIMIT != ''">
+      ,`LIMIT`
+      </if>
+    )
+    VALUES
+     (
+        #{DATASET_CD},
+        ${DB_SEQ},
+        #{CLIENT},
+        #{ADDRESS},
+        ${PORT},
+        #{DBNAME},
+        #{USER},
+        HEX(AES_ENCRYPT(#{PASSWORD}, #{KEY})),
+        #{QUERY},
+        ${IS_TEST}
+        <if test="LIMIT != null and LIMIT != ''">
+        ,${LIMIT}
+        </if>
+     )
+  </insert>
+
+  <delete id = "removeDBInfo">
+		DELETE FROM TAB_DBINFO WHERE DATASET_CD = #{DATASET_CD}
+	</delete>
+
+  <update id="updateFeatures">
+    UPDATE TAB_FEATUREINFO
+  </update>
+
+  <select id="getFeatures">
+    SELECT * FROM TAB_FEATUREINFO WHERE DATASET_CD = #{DATASET_CD}
+    ORDER BY COLUMN_IDX
+  </select>
+
+  <select id="getLabelColumn">
+    SELECT COLUMN_NM FROM TAB_FEATUREINFO WHERE DATASET_CD = #{DATASET_CD} AND IS_CLASS = 1
+    ORDER BY COLUMN_IDX
+  </select>
+
+  <select id="getDBInfo">
+    SELECT DATASET_CD,DB_SEQ,CLIENT,ADDRESS,PORT,DBNAME,`USER`, AES_DECRYPT(UNHEX(PASSWORD), #{KEY}) AS PASSWORD,QUERY,IS_TEST, `LIMIT` 
+    FROM TAB_DBINFO WHERE DATASET_CD = #{DATASET_CD}
+    ORDER BY DB_SEQ
+  </select>
+  
+
+
+  <update id="sample">
+    UPDATE DATASET
+    set UPT_DTM = now()
+        ,DATASET_STS = #{DATASET_STS}
+        <if test="LAST_MSG != null and LAST_MSG != ''">
+        ,LAST_MSG = #{LAST_MSG}
+        </if>
+    WHERE DATASET_CD IN (
+      <foreach collection="FAIL_LIST" item="item" separator="," >
+        #{item}
+      </foreach>
+      )
+  </update>
+
+</mapper>

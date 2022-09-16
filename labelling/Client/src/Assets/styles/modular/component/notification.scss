@@ -1,0 +1,110 @@
+.notification {
+  max-width: 400px;
+  min-width: 400px;
+  width: calc(100% - 50px);
+  box-shadow: 0 2px 8px 0 rgba(0, 0, 0, 0.07);
+  background: white;
+  padding: 20px 40px 30px 25px;
+  @include directify($directions) {
+    text-align: #{directed("left")};
+  }
+  // @include directify($directions) {
+  //   #{directed('padding-right')}: 40px;
+  //   #{directed('padding-left')}: 25px;
+  // }
+  // padding-top: 20px;
+  // padding-bottom: 30px;
+  position: relative;
+  margin: 10px 25px;
+
+  &.notification--image {
+    height: 106px;
+    overflow: hidden;
+  }
+
+  &.notification--full-wide {
+    max-width: 100vw;
+    width: 100vw;
+    margin: 0;
+    padding: 20px 40px 20px 25px;
+    // @include directify($directions) {
+    //   #{directed('padding-right')}: 40px;
+    //   #{directed('padding-left')}: 25px;
+    // }
+    // padding-top: 20px;
+    // padding-bottom: 20px;
+  }
+
+  &.notification--primary {
+    background: $color-blue;
+
+    .notification__message,
+    .notification__title {
+      color: white;
+    }
+  }
+
+  &.notification--success {
+    background: $color-accent;
+
+    .notification__message,
+    .notification__title {
+      color: white;
+    }
+  }
+
+  &.notification--warning {
+    background: $color-yellow;
+
+    .notification__message,
+    .notification__title {
+      color: white;
+    }
+  }
+
+  &.notification--danger {
+    background: $color-red;
+
+    .notification__message,
+    .notification__title {
+      color: white;
+    }
+  }
+}
+
+.notification__message {
+  margin-top: 0;
+  font-size: 15px;
+  color: $color-additional;
+}
+
+.notification__title {
+  margin-bottom: 8px;
+  color: #646777;
+}
+
+.notification__image {
+  position: absolute;
+  height: 106px;
+  width: 106px;
+  top: 0;
+  @include directify($directions) {
+    #{directed('left')}: 0;
+  }
+
+  & ~ * {
+    @include directify($directions) {
+      #{directed('padding-left')}: 106px;
+    }
+  }
+}
+
+.sidebar.sidebar--collapse + .container__wrap {
+  .notifications-tl,
+  .notifications-bl {
+    padding-left: 0px !important;
+    // @include directify($directions) {
+    //   #{directed('left')}: 0px !important;
+    // }
+  }
+}

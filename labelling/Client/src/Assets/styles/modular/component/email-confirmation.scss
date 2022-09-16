@@ -1,0 +1,60 @@
+.email-confirmation {
+  text-align: center;
+
+  .email-confirmation__buttons {
+    display: flex;
+    justify-content: center;
+    margin-top: 50px;
+    padding-bottom: 65px;
+
+    a {
+      margin: 0 15px 20px 15px;
+    }
+  }
+}
+
+.email-confirmation__icon {
+  margin: 0 auto;
+  padding-top: 75px;
+  position: relative;
+  width: 120px;
+}
+
+.email-confirmation__mail {
+  fill: $color-gray;
+  opacity: 0.16;
+  width: 120px;
+  height: 120px;
+}
+
+.email-confirmation__check {
+  fill: $color-accent;
+  height: 40px;
+  width: 40px;
+  position: absolute;
+  @include directify($directions) {
+    #{directed('right')}: 0px;
+  }
+  top: 160px;
+}
+
+.email-confirmation__title {
+  margin-bottom: 15px;
+  color: $color-gray;
+}
+
+.email-confirmation__sub {
+  color: $color-gray;
+  font-size: 18px;
+  line-height: 24px;
+}
+
+@media screen and (min-width: 576px) {
+  .email-confirmation__icon {
+    padding-top: 155px;
+  }
+
+  .email-confirmation__buttons {
+    padding-bottom: 135px;
+  }
+}

@@ -1,0 +1,90 @@
+h1 {
+  color: green;
+}
+
+body {
+  text-align: center;
+  margin: auto;
+}
+
+*:focus {
+  outline: 0px !important;
+  -webkit-appearance: none;
+  box-shadow: none !important;
+}
+
+input[type="checkbox"]:focus {
+  -webkit-appearance: checkbox !important;
+}
+
+a {
+  color: rgb(205, 205, 205) !important;
+  text-decoration: none;
+}
+a:hover {
+  color: white !important;
+  text-decoration: none;
+  cursor: pointer;
+}
+
+.theme-dark {
+  background-color: rgb(46, 46, 46);
+  color: white;
+}
+
+.navbar-text > .input-group > .form-control {
+  background-color: black;
+  border: 1px solid black;
+  border-top-right-radius: 5px;
+  border-bottom-right-radius: 5px;
+  color: white;
+}
+.navbar-text > .input-group > .input-group-prepend {
+  background-color: black;
+  color: white;
+  border-top-left-radius: 5px;
+  border-bottom-left-radius: 5px;
+  padding: 5px;
+  outline: none;
+}
+.navbar-text > .input-group > input {
+  width: 200px;
+  transition: width 0.5s;
+}
+.navbar-text > .input-group > input::placeholder {
+  color: rgb(82, 82, 82);
+}
+.navbar-text > .input-group > input:focus {
+  width: 500px;
+  transition: width 0.2s;
+}
+
+.navbar-text > .input-group > .input-group-prepend > .topbar-search-icon {
+  padding-left: 3px;
+}
+
+@media screen and (max-width: 769px) {
+  .navbar-text {
+    display: none;
+  }
+}
+
+.form-control {
+  background-color: #363c42 !important;
+  color: #fff !important;
+}
+.form input,
+.form textarea {
+  color: #fff !important;
+  font-size: 12px !important;
+  border-radius: 10px !important;
+}
+
+.form input.login-border-radius {
+  border-radius: 0px !important;
+}
+
+.form > div {
+  background-color: none;
+  border-radius: 5px !important;
+}

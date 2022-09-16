@@ -1,0 +1,168 @@
+$themes: (
+  light: (
+    colorBackground: #ffffff,
+    colorBackgroundBody: #f2f4f7,
+    colorHeaderDataPicker: #6db0ff,
+    colorText: #808288,
+    colorTextAdditional: #646777,
+    logoImg: url(./../../img/logo/bluai_logo.png),
+    colorHover: #fafbfe,
+    colorFolderHover: #f0eeee,
+    colorBorder: #eff1f5,
+    colorIcon: #808288,
+    imgInvert: invert(0%),
+    colorFieldsBorder: #b7b8bcda,
+    colorBubble: rgba(234, 238, 245, 0.65),
+    colorBubbleActive: rgba(181, 193, 249, 0.6),
+    colorScrollbar: #b4bfd0,
+    colorFitness: #646777,
+    colorEmoji: #232329,
+    colorLinkHover: #39393d,
+    colorSidebar: #000000,
+    colorTextHover: #ffffff
+  ),
+  dark: (
+    // colorBackground: #0e0e10,
+    colorBackground: #232329,
+    colorBackgroundBody: #2a2a31,
+    colorHeaderDataPicker: #063263,
+    colorText: #dddddd,
+    colorTextAdditional: #999999,
+    logoImg: url(./../../img/logo/bluai_logo.png),
+    colorHover: #38373f,
+    colorFolderHover: #ffffff1a,
+    colorBorder: #333246,
+    colorIcon: #605f7b,
+    imgInvert: invert(100%),
+    colorFieldsBorder: #33333a,
+    colorBubble: rgba(68, 79, 97, 0.65),
+    colorBubbleActive: rgba(92, 104, 156, 0.6),
+    colorScrollbar: #606071,
+    colorFitness: #ffffff,
+    colorEmoji: #ffffff
+  )
+);
+
+@mixin themify($themes) {
+  @each $theme, $map in $themes {
+    .theme-#{$theme} & {
+      $theme-map: () !global;
+      @each $key, $submap in $map {
+        $value: map-get(map-get($themes, $theme), "#{$key}");
+        $theme-map: map-merge(
+          $theme-map,
+          (
+            $key: $value
+          )
+        ) !global;
+      }
+      @content;
+      $theme-map: null !global;
+    }
+  }
+}
+
+@function themed($key) {
+  @return map-get($theme-map, $key);
+}
+
+//$color-accent 마우스 포커스 됐을 때 border 색깔
+$color-accent: #136ac7; //수정본
+// $color-accent: #474af3; 원본
+$color-accent-hover: darken($color-accent, 10%);
+$color-additional: #999999;
+$color-additional-hover: darken($color-additional, 10%);
+
+$color-yellow: #f6da6e;
+$color-yellow-hover: darken($color-yellow, 10%);
+
+$color-violet: #c88ffa;
+
+$color-red: #ff4861;
+$color-red-hover: darken($color-red, 10%);
+
+$color-blue: #0050f8;
+$color-blue-hover: darken($color-blue, 10%);
+
+$color-gray: #787985;
+$color-light-gray: #d8dfe9;
+
+$color-green: #b8e986;
+$color-green-hover: darken($color-green, 10%);
+
+$color-bluai: #c6c6c6;
+$color-bluai-hover: darken($color-bluai, 10%);
+
+$directions: (
+  ltr: (
+    direction: ltr,
+    right: right,
+    left: left,
+    margin-right: "margin-right",
+    margin-left: "margin-left",
+    padding-left: "padding-left",
+    padding-right: "padding-right",
+    border-top-left-radius: "border-top-left-radius",
+    border-bottom-left-radius: "border-bottom-left-radius",
+    border-top-right-radius: "border-top-right-radius",
+    border-bottom-right-radius: "border-bottom-right-radius",
+    border-left: "border-left",
+    border-right: "border-right",
+    translate: "translate(-50%, -50%);",
+    mirrorY: "scale(1, 1)",
+    border-right-color: "border-right-color",
+    transform-sidebar: "rotate(90deg)",
+    flex-flow: row nowrap,
+    row: "row",
+    sidebar-close: translateX(0),
+    sidebar-no-desktop: translateX(calc(0%)),
+    "-": "-"
+  ),
+  rtl: (
+    direction: rtl,
+    right: left,
+    left: right,
+    margin-right: "margin-left",
+    margin-left: "margin-right",
+    padding-left: "padding-right",
+    padding-right: "padding-left",
+    border-top-left-radius: "border-top-right-radius",
+    border-bottom-left-radius: "border-bottom-right-radius",
+    border-top-right-radius: "border-top-left-radius",
+    border-bottom-right-radius: "border-bottom-left-radius",
+    border-left: "border-right",
+    border-right: "border-left",
+    translate: "translate(50%, -50%);",
+    mirrorY: "scale(1, -1)",
+    border-right-color: "border-left-color",
+    transform-sidebar: "rotate(-90deg)",
+    flex-flow: row-reverse nowrap,
+    row: "row-reverse",
+    sidebar-close: translateX(0),
+    sidebar-no-desktop: translateX(calc(100%)),
+    "-": "+"
+  )
+);
+
+@mixin directify($directions) {
+  @each $direction, $map in $directions {
+    .#{$direction}-support & {
+      $direction-map: () !global;
+      @each $key, $submap in $map {
+        $value: map-get(map-get($directions, $direction), "#{$key}");
+        $direction-map: map-merge(
+          $direction-map,
+          (
+            $key: $value
+          )
+        ) !global;
+      }
+      @content;
+      $direction-map: null !global;
+    }
+  }
+}
+
+@function directed($key) {
+  @return map-get($direction-map, $key);
+}

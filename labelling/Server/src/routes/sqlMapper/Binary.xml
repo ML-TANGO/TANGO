@@ -1,0 +1,216 @@
+<?xml version:"1.0" encoding:"UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="Binary">  
+
+
+  <insert id="setTrainLog">
+  INSERT INTO
+      TRAIN_LOG (
+        AI_CD,
+        EPOCH,
+        UPT_DTM,
+        OBJECT_TYPE,
+        DATA_TYPE,
+        GPU_RATE,
+        CRN_USR,
+        AI_LOSS,
+        AI_ACC,
+        AI_VAL_LOSS,
+        AI_VAL_ACC,
+        IS_LAST,
+        REMANING_TIME
+      )
+   VALUES (
+      	#{AI_CD},
+        ${EPOCH},
+        now(),
+        #{OBJECT_TYPE},
+        #{DATA_TYPE},
+        ${GPU_RATE},
+        #{CRN_USR},
+        ${AI_LOSS},
+        ${AI_ACC},
+        ${AI_VAL_LOSS},
+        ${AI_VAL_ACC},
+        ${IS_LAST},
+        <choose>
+            <when test="REMANING_TIME != 0">
+              ${REMANING_TIME}
+            </when>
+            <otherwise>
+            NULL
+            </otherwise>
+        </choose>
+   )
+   ON
+      DUPLICATE KEY
+   UPDATE
+   		UPT_DTM = now(),
+      OBJECT_TYPE = #{OBJECT_TYPE},
+      DATA_TYPE = #{DATA_TYPE},
+      GPU_RATE = ${GPU_RATE},
+      CRN_USR = #{CRN_USR},
+      AI_LOSS = ${AI_LOSS},
+      AI_ACC = ${AI_ACC},
+      AI_VAL_LOSS = ${AI_VAL_LOSS},
+      AI_VAL_ACC = ${AI_VAL_ACC},
+      IS_LAST = ${IS_LAST}
+  </insert>
+
+  <delete id="initEpoch">
+    DELETE FROM TRAIN_LOG  WHERE AI_CD = #{AI_CD}
+  </delete>
+
+  <select id='getPrePredictTag'>
+    SELECT * 
+    FROM PRE_TRAINED_CLASS ptc 
+    WHERE CLASS_DB_NAME IN (
+      <foreach collection="DATA" item="item" separator="," >
+      #{item}
+      </foreach>
+      ) 
+    and BASE_MDL = #{BASE_MDL}
+  </select>
+
+  <select id='getDataTags'>
+    SELECT *
+    FROM DATASET_TAGINFO a, PRE_TRAINED_CLASS b
+    where a.DATASET_CD = #{DATASET_CD}
+    and a.CLASS_CD = b.CLASS_CD
+  </select>
+
+  <select id="getDataTagsByAiModel">
+    SELECT 
+      a.TAG_CD, 
+      a.DATASET_CD, 
+      a.NAME as CLASS_DP_NAME, 
+      a.CLASS_CD, 
+      a.DESC_TXT, 
+      a.COLOR, 
+      a.PRE_MDL_CD, 
+      a.PRE_CLASS_CD, 
+      a.CLASS_SUFFIX
+    FROM DATASET_TAGINFO a, TRAIN_CLASSINFO b
+    where a.DATASET_CD = #{DATASET_CD}
+    and a.CLASS_CD = b.TAG_CD
+  </select>
+
+  <delete id="initDataTags">
+  delete from DATASET_TAGINFO where DATASET_CD = #{DATASET_CD}
+  </delete>
+
+  <insert id="setDataTags">
+    INSERT INTO DATASET_TAGINFO (
+		DATASET_CD,
+		NAME,
+		CLASS_CD,
+		DESC_TXT,
+		COLOR,
+		PRE_MDL_CD,
+		PRE_CLASS_CD,
+		CLASS_SUFFIX
+	) VALUES 
+  <if test="DATA != null and DATA.size != 0">
+    <foreach collection="DATA" item="item" separator="," >
+        (
+          #{DATASET_CD},
+          #{item.NAME},
+          <choose>
+            <when test="item.CLASS_CD != null and item.CLASS_CD != ''">
+              #{item.CLASS_CD},
+            </when>
+            <otherwise>
+            NULL,
+            </otherwise>
+          </choose>
+          '',
+          #{item.COLOR},
+          NULL,
+          NULL,
+          NULL
+        )
+    </foreach>
+  </if>
+  </insert>
+
+  <update id="setUpdateDataElement">
+      UPDATE DATA_ELEMENT
+      SET
+        UPT_DTM = now()
+        <if test="IS_ANNO != null and IS_ANNO != ''">
+          ,IS_ANNO = ${IS_ANNO}
+			  </if>
+        ,ANNO_DATA = CASE
+        
+        <foreach collection="DATA" item="item">
+          WHEN DATA_CD = #{item.DATA_CD} THEN #{item.ANNO_DATA}
+        </foreach>
+        END
+      WHERE
+        DATASET_CD = #{DATASET_CD}
+  </update>
+
+  <delete id="removeJson">
+    DELETE FROM DATA_ELEMENT  WHERE DATASET_CD = #{DATASET_CD} AND (FILE_EXT = '.json' OR FILE_EXT = '.JSON')
+  </delete>
+
+  <select id='getAIfromPid'>
+    SELECT * FROM AI_PROJECT WHERE AI_PID = ${AI_PID}
+  </select>
+
+  <select id='getAIprj'>
+    SELECT * FROM AI_PROJECT where AI_PID > 0
+  </select>
+
+  <update id="stopAiFirstCheck">
+    UPDATE AI_PROJECT 
+		SET UPT_DTM = now()
+       ,AI_STS = 'FAIL'
+       ,AI_PID = -1
+    WHERE AI_PID IN  (
+					 <foreach collection="DATA" item="item" separator="," >
+					 ${item.AI_PID}
+					 </foreach>
+				 )
+  </update>
+
+  <update id="stopAiArray">
+    UPDATE AI_PROJECT 
+		SET UPT_DTM = now()
+      ,TRAIN_END_DTM = ${TRAIN_END_DTM}
+      ,TRAIN_TIME = CASE
+                    <foreach collection="DATA" item="item">
+                    WHEN AI_CD = #{item.AI_CD} THEN (TIMESTAMPDIFF(minute, TRAIN_SRT_DTM, now()) + TRAIN_TIME)
+                    </foreach>
+                    END
+      ,AI_STS = #{AI_STS}
+      ,AI_PID = #{AI_PID}
+      ,LAST_MSG = CASE
+                    <foreach collection="DATA" item="item">
+                    WHEN AI_CD = #{item.AI_CD} THEN #{item.LAST_MSG}
+                    </foreach>
+                    END
+		WHERE AI_PID IN  (
+					 <foreach collection="DATA" item="item" separator="," >
+					 ${item.AI_PID}
+					 </foreach>
+				 )
+  </update>
+
+  <select id="getPrdTrainModelList">
+    SELECT BASE_MDL 
+    FROM PRE_TRAINED_CLASS 
+    GROUP BY BASE_MDL
+  </select>
+
+  <select id="getAiModelTag">
+    SELECT NAME as CLASS_DB_NAME, NAME as CLASS_DP_NAME, TAG_CD as CLASS_CD, AI_CD, DESC_TXT, COLOR, ELEMENT_TAGS
+    FROM TRAIN_CLASSINFO
+    WHERE AI_CD = #{BASE_MDL}
+  </select>
+
+</mapper>
+
+
+
+     

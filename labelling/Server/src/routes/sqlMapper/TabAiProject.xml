@@ -1,0 +1,318 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="TabAiProject">
+
+  <select id="getLegacyModelOptions">
+    SELECT * from LEGACY_MODELOPTIONS
+  </select>
+
+  <select id="getLegacyModelInfo">
+    SELECT MDL_PATH FROM LEGACY_MODELS
+                  WHERE MDL_KIND = #{MODEL_TYPE}
+                    AND MDL_NM = #{MODEL_NAME}
+                    AND OBJECT_TYPE = #{OBJECT_TYPE}
+                    AND DATA_TYPE = #{DATA_TYPE}
+  </select>
+
+  <select id="getFileList">
+    SELECT FILE_PATH from DATA_ELEMENT WHERE DATASET_CD = #{DATASET_CD} order by CRN_DTM
+  </select>
+
+  <select id="getTrainModelInfo">
+    SELECT * from TRAIN_MODELINFO WHERE AI_CD = #{AI_CD}  ORDER BY MDL_IDX 
+  </select>
+
+  <delete id = "removeTrainSet">
+		DELETE FROM TAB_TRAINSET WHERE AI_CD = #{AI_CD}
+	</delete>
+
+  <delete id = "removeTrainLog">
+		DELETE FROM TRAIN_LOG WHERE AI_CD = #{AI_CD}
+	</delete>
+
+  <delete id = "removeSelectedModel">
+		DELETE FROM SELECTED_MODEL WHERE AI_CD = #{AI_CD}
+	</delete>
+
+  <delete id = "removetrainModel">
+		DELETE FROM TRAIN_MODELINFO WHERE AI_CD = #{AI_CD}
+	</delete>
+
+  <insert id="setTrainSet">
+  INSERT INTO TAB_TRAINSET
+    (
+      AI_CD,
+      DATASET_CD,
+      SPLIT_YN,
+      <if test="DATASET_SPLIT != null and DATASET_SPLIT != ''">
+      DATASET_SPLIT,
+      </if>
+      <if test="TESTDATASET != null and TESTDATASET != ''">
+      TEST_DATASET_CD,
+      </if>
+      UPT_DTM,
+      FE_MODE
+    ) VALUES (
+      #{AI_CD},
+      #{DATASET_CD},
+      #{SPLIT_YN},
+      <if test="DATASET_SPLIT != null and DATASET_SPLIT != ''">
+      ${DATASET_SPLIT},
+      </if>
+      <if test="TESTDATASET != null and TESTDATASET != ''">
+      #{TESTDATASET},
+      </if>
+      now(),
+      #{FE_MODE}
+    )
+  </insert>
+
+  <delete id = "removeTrainFeatures">
+		DELETE FROM TAB_TRAINFEATURE WHERE AI_CD = #{AI_CD}
+	</delete>
+
+  <select id="getTabWeightPath">
+  SELECT * FROM TRAIN_MODELINFO A LEFT JOIN LEGACY_MODELS B ON A.NETWORK_NAME  = B.MDL_NM   
+  WHERE AI_CD = #{AI_CD} AND MDL_IDX = #{MDL_IDX}
+  </select>
+
+  <insert id="setTrainFeatures">
+  INSERT INTO TAB_TRAINFEATURE
+    (
+      AI_CD,
+      DATASET_CD,
+      COLUMN_NM,
+      COLUMN_ALIAS,
+      DEFAULT_VALUE,
+      COLUMN_IDX
+    ) VALUES
+    <foreach collection="columnList" item="item" separator="," >
+      <if test="item.checked == true">
+        (
+          #{AI_CD},
+          #{item.DATASET_CD},
+          #{item.COLUMN_NM},
+          #{item.COLUMN_ALIAS},
+          #{item.DEFAULT_VALUE},
+          #{item.COLUMN_IDX}
+        )
+        </if>
+    </foreach>
+  </insert>
+
+  <select id="getAiProjectInfo">
+  SELECT *
+  from AI_PROJECT WHERE AI_CD = #{AI_CD}
+  </select>
+
+  <delete id="removeModelSummary">
+  DELETE FROM TRAIN_LOG WHERE AI_CD = #{AI_CD}
+  </delete>
+
+  <select id="getModelSummaryValue">
+  SELECT
+      AI_CD,
+      date_format(UPT_DTM,'%Y-%m-%d %T') AS UPT_DTM,
+      AI_ACC,
+      R2_SCORE,
+      MDL_IDX
+  FROM TRAIN_LOG WHERE AI_CD = #{AI_CD}
+  AND IS_PREDICT = TRUE ORDER BY MDL_IDX
+  </select>
+
+  <select id="getFeatureSet">
+  SELECT tt.*, d.TITLE as DATASET_NM, td.TITLE as TEST_DATASET_NM, d.UPLOAD_TYPE
+  FROM TAB_TRAINSET tt
+  LEFT JOIN DATASET d on tt.DATASET_CD = d.DATASET_CD 
+  LEFT JOIN DATASET td on tt.TEST_DATASET_CD = td.DATASET_CD 
+  WHERE AI_CD = #{AI_CD}
+  </select>
+
+  <select id="getTrainFeatures">
+    SELECT A.*,
+          CASE
+        WHEN AI_CD IS NULL
+        THEN FALSE
+        ELSE TRUE
+        END AS checked
+    FROM TAB_FEATUREINFO A
+      LEFT JOIN TAB_TRAINFEATURE B
+      ON A.DATASET_CD = B.DATASET_CD and A.COLUMN_NM = B.COLUMN_NM and B.AI_CD = #{AI_CD}
+      WHERE A.DATASET_CD =#{DATASET_CD}
+      ORDER BY COLUMN_IDX
+  </select>
+
+  <select id="getTrainModel">
+  SELECT * FROM TRAIN_MODELINFO WHERE AI_CD = #{AI_CD} ORDER BY MDL_IDX
+  </select>
+
+  <delete id = "removeTrainModelInfo">
+		DELETE FROM TRAIN_MODELINFO WHERE AI_CD = #{AI_CD}
+	</delete>
+
+  <insert id="setTrainModelInfo">
+    INSERT INTO TRAIN_MODELINFO(
+      AI_CD,
+      IS_AUTO,
+      MDL_IDX,
+      MDL_ALIAS,
+      PARAM,
+      NETWORK_NAME
+    ) VALUES
+    <foreach collection="DATA" item="item" separator="," >
+    (
+      #{AI_CD},
+      0,
+      ${item.MDL_IDX},
+      #{item.MDL_ALIAS},
+      #{item.PARAM},
+      #{item.NETWORK_NAME}
+    )
+    </foreach>
+  </insert>
+
+  <update id="updateAiStatus">
+  UPDATE AI_PROJECT
+    set UPT_DTM = now()
+      <if test="TITLE != null and TITLE != ''">
+        ,TITLE = #{TITLE}
+      </if>
+      <if test="DESC_TXT != null and DESC_TXT != ''">
+        ,DESC_TXT = #{DESC_TXT}
+      </if>
+      <if test="AI_STS != null and AI_STS != ''">
+        ,AI_STS = #{AI_STS}
+      </if>
+      <if test="AI_PID != ''">
+        ,AI_PID = ${AI_PID}
+      </if>
+      <if test="AI_SIZE != null and AI_SIZE != ''">
+        ,AI_SIZE = ${AI_SIZE}
+      </if>
+      <if test="TRAIN_SRT_DTM != null and TRAIN_SRT_DTM != ''">
+        ,TRAIN_SRT_DTM = ${TRAIN_SRT_DTM}
+      </if>
+      <if test="TRAIN_END_DTM != null and TRAIN_END_DTM != ''">
+        ,TRAIN_END_DTM = ${TRAIN_END_DTM}
+        ,TRAIN_TIME = (TIMESTAMPDIFF(SECOND, TRAIN_SRT_DTM, now()) + TRAIN_TIME)/60
+      </if>
+      <if test="LAST_MSG != null and LAST_MSG != ''">
+        ,LAST_MSG = #{LAST_MSG}
+      </if>
+    WHERE AI_CD = #{AI_CD}
+  </update>
+
+
+
+  <update id="updateModelStatus">
+  UPDATE TRAIN_MODELINFO
+     SET MDL_STS = #{MDL_STS}
+        <if test="LAST_MSG != null and LAST_MSG != ''">
+         ,LAST_MSG = #{LAST_MSG}
+        </if>
+   WHERE AI_CD = #{AI_CD}
+        <if test="MDL_IDX != null and MDL_IDX != ''">
+         AND MDL_IDX = ${MDL_IDX}
+        </if>
+
+  </update>
+
+
+  <delete id="initEpoch">
+    DELETE FROM TRAIN_LOG
+           WHERE AI_CD = #{AI_CD}
+            AND MDL_IDX = ${MDL_IDX}
+  </delete>
+
+  
+
+  <insert id="setTrainPrediceResult">
+    INSERT INTO TRAIN_LOG(
+        AI_CD,
+        EPOCH,
+        UPT_DTM,
+        OBJECT_TYPE,
+        DATA_TYPE,
+        CRN_USR,
+        <if test="AI_ACC != null and AI_ACC != ''">
+        AI_ACC,
+        </if>
+        <if test="R2_SCORE != null and R2_SCORE != ''">
+        R2_SCORE,
+        </if>
+        MDL_IDX,
+        IS_PREDICT
+  )VALUES
+    (
+       #{AI_CD},
+       ${EPOCH},
+       now(),
+       #{OBJECT_TYPE},
+       #{DATA_TYPE},
+       #{CRN_USR},
+       <if test="AI_ACC != null and AI_ACC != ''">
+       ${AI_ACC},
+       </if>
+       <if test="R2_SCORE != null and R2_SCORE != ''">
+       ${R2_SCORE},
+       </if>
+       ${MDL_IDX},
+       ${IS_PREDICT}
+    )
+  </insert>
+
+  <insert id="setTrainEpoch">
+    INSERT INTO TRAIN_LOG(
+      AI_CD,
+      EPOCH,
+      UPT_DTM,
+      OBJECT_TYPE,
+      DATA_TYPE,
+      CRN_USR,
+      AI_LOSS,
+      AI_ACC,
+      AI_VAL_LOSS,
+      AI_VAL_ACC,
+      R2_SCORE,
+      MSE,
+      MAE,
+      RMSE,
+      AI_PRECISION,
+      AI_RECALL,
+      F1,
+      MDL_IDX,
+      REMANING_TIME
+    ) VALUES
+    (
+      #{AI_CD},
+      ${EPOCH},
+      now(),
+      #{OBJECT_TYPE},
+      #{DATA_TYPE},
+      #{CRN_USR},
+      ${AI_LOSS},
+      ${AI_ACC},
+      ${AI_VAL_LOSS},
+      ${AI_VAL_ACC},
+      ${R2_SCORE},
+      ${MSE},
+      ${MAE},
+      ${RMSE},
+      ${AI_PRECISION},
+      ${AI_RECALL},
+      ${F1},
+      ${MDL_IDX},
+      <choose>
+            <when test="REMANING_TIME != 0">
+              ${REMANING_TIME}
+            </when>
+            <otherwise>
+            NULL
+            </otherwise>
+        </choose>
+    )
+  </insert>
+
+
+
+</mapper>
