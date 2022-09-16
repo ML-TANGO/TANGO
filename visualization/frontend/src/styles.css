@@ -1,0 +1,166 @@
+
+@media screen and (min-width: 250px) {
+.App {
+  font-family: sans-serif;
+  text-align: center;
+}
+body {
+  height: 100%;
+  weight: 100%;
+  background-color: #191c22;
+  color: white;
+  font-size: 12px;
+  padding: 23px 53px 53px 53px
+}
+
+
+.react-flow {
+  background: #434854;
+  border-radius: 6px;
+  box-shadow: 2.5px 2.5px 3px 0 rgba(0, 0, 0, 0.51);
+  margin: 0px 0px 0px 15px;
+
+
+}
+
+.dndflow {
+  left: 0;
+  margin-top: 2%;
+
+
+  flex-direction: column;
+  display: flex;
+  height:100%;
+
+}
+
+.dndflow aside {
+
+  flex-direction: column;
+  display: flex;
+  border-radius: 6px;
+  border: solid 0.5px #fff;
+  padding: 10px 20px 10px 20px;
+  font-size: 20px;
+  background:  #191c22;
+  height: 90vh;
+  width: 13%;
+  float: left;
+  margin-bottom: 2%;
+
+  overflow-x:hidden;
+  overflow-y:scroll;
+}
+
+.dndflow aside .description {
+  margin-bottom: 10px;
+
+}
+
+
+
+.dndflow .dndnode {
+  text-align: center;
+  font-size: 12.5px;
+  font-family: Helvetica;
+  color: "#fff";
+  box-shadow: 2.5px 2.5px 3px 0 rgba(0, 0, 0, 0.51);
+  width: 100%;
+  padding: 15px 0px 15px 0px;
+  border: 1px solid #1a192b;
+  background-color: #434854;
+  border-radius: 6px;
+  margin-bottom: 10px;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  cursor: grab;
+}
+
+.dndflow .dndnode.input {
+  background: "#44052";
+  border-color: #0041d0;
+}
+
+.dndflow .dndnode.output {
+  background: "#454052";
+  border-color: #ff0072;
+}
+
+.dndflow .reactflow-wrapper {
+  flex-grow: 1;
+  margin-bottom: 2%;
+}
+
+
+  .dndflow {
+    flex-direction: row-reverse;
+  }
+
+
+  .category {
+    font-size: 15.5px;
+    text-align: left;
+    font-weight: bold;
+    margin: 0 8.9px 9.5px;
+  }
+
+
+img{
+    min-width: 200px;
+    width: auto;
+    max-width: 100%;
+    min-height: 20vh;
+    height: auto;
+}
+
+tc{
+    width: 960px;
+    height: 10px;
+    padding-top:0px;
+    margin: 0px 0px 0px 40px;
+    font-size: 16.5px;
+    font-weight: normal;
+    font-stretch: normal;
+    font-style: normal;
+    letter-spacing: normal;
+    text-align: center;
+    color: #cdcdcd;
+}
+
+.arrange{
+
+    display: inline-block;
+    margin-top: 2%;
+    margin-left: 70%;
+
+    float: left;
+    color: #fff;
+    width: 105px;
+    height: 40px;
+    text-align: center;
+    border-radius: 6px;
+    border-color: #434854;
+    box-shadow: 2.5px 2.5px 3px 0 rgba(0, 0, 0, 0.51);
+    background-color: #434854;
+}
+
+.btn_fin{
+    display: inline-block;
+    float: left;
+    margin-top: 2%;
+
+    margin-left: 10px;
+    width: 105px;
+    height: 40px;
+    color: #fff;
+    text-align: center;
+    border-color: #4a80ff;
+    border-radius: 6px;
+    box-shadow: 2.5px 2.5px 3px 0 rgba(0, 0, 0, 0.51);
+    background-color: #4a80ff;
+
+}
+
+
+}

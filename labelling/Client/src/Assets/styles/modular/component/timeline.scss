@@ -1,0 +1,166 @@
+.timeline {
+  position: relative;
+
+  @include themify($themes) {
+    color: themed('colorText');
+  }
+
+  &:before {
+    content: "";
+    background-color: #dddddd;
+    width: 1px;
+    height: 100%;
+    position: absolute;
+    @include directify($directions) {
+      #{directed('left')}: 50%;
+    }
+  }
+
+  p {
+    margin-top: 5px;
+  }
+}
+
+.timeline__item {
+  position: relative;
+  padding-bottom: 50px;
+  @include directify($directions) {
+    text-align: directed('left');
+  }
+
+  &:nth-child(even) {
+
+    .timeline__content {
+      @include directify($directions) {
+        #{directed('margin-left')}: calc(50% + 52px);
+      }
+
+      &:after {
+        @include directify($directions) {
+          #{directed('right')}: auto;
+          #{directed('left')}: -20px;
+        }
+        border: 10px solid transparent;
+
+        @include themify($themes) {
+
+          @include directify($directions) {
+            #{directed('border-right')}: 10px solid themed('colorBackground');
+          }
+        }
+      }
+    }
+  }
+}
+
+.timeline__icon {
+  position: absolute;
+  @include directify($directions) {
+    #{directed('left')}: calc(50% - 25px);
+  }
+  height: 50px;
+  width: 50px;
+  border-radius: 50%;
+  background-color: $color-accent;
+  overflow: hidden;
+  text-align: center;
+  display: flex;
+
+  &.work {
+    background-image: linear-gradient(to bottom, #4ce1b6, #1cd25a), linear-gradient(#4ce1b6, #4ce1b6);
+  }
+
+  &.video {
+    background-image: linear-gradient(to bottom, #708eee, #9e44f3), linear-gradient(#7082ee, #7082ee);
+  }
+
+  &.file {
+    background-image: linear-gradient(to bottom, #ee4f99, #f76e5b);
+  }
+
+  img {
+    height: 100%;
+    width: auto;
+    min-width: 100%;
+  }
+
+  span {
+    color: white;
+    font-size: 20px;
+    margin: auto;
+  }
+}
+
+.timeline__content {
+  width: calc(50% - 52px);
+  @include directify($directions) {
+    #{directed('padding-right')}: 25px;
+    #{directed('padding-left')}: 20px;
+  }
+  padding-top: 25px;
+  padding-bottom: 25px;
+  border-radius: 5px;
+  position: relative;
+
+  @include themify($themes) {
+    background-color: themed('colorBackground');
+  }
+
+  &:after {
+    content: '';
+    position: absolute;
+    @include directify($directions) {
+      #{directed('right')}: -20px;
+    }
+    top: 20px;
+    border: 10px solid transparent;
+
+    @include themify($themes) {
+      @include directify($directions) {
+        #{directed('border-left')}: 10px solid themed('colorBackground');
+      }
+    }
+  }
+}
+
+.timeline__title {
+  text-transform: uppercase;
+  font-weight: 700;
+}
+
+@media screen and (max-width: 991px) {
+
+  .timeline:before {
+    @include directify($directions) {
+      #{directed('left')}: 25px;
+    }
+  }
+
+  .timeline__icon {
+    @include directify($directions) {
+      #{directed('left')}: 0px;
+    }
+  }
+
+  .timeline__item:nth-child(even) .timeline__content,
+  .timeline__item .timeline__content {
+    @include directify($directions) {
+      #{directed('margin-left')}: 72px;
+    }
+    width: calc(100% - 72px);
+
+    &:after {
+      @include directify($directions) {
+        #{directed('right')}: auto;
+        #{directed('left')}: -20px;
+      }
+      border: 10px solid transparent;
+
+      @include themify($themes) {
+        @include directify($directions) {
+          #{directed('border-right')}: 10px solid themed('colorBackground');
+        }
+      }
+    }
+  }
+}

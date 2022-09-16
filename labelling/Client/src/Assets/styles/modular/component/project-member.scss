@@ -1,0 +1,70 @@
+.project-member {
+  display: flex;
+  position: relative;
+  padding: 10px 0;
+
+  @include directify($directions) {
+    text-align: directed('left');
+  }
+  @include themify($themes) {
+    border-bottom: 1px solid themed('colorBorder');
+  }
+
+  &:last-child {
+    border-bottom: none;
+  }
+
+  .project-member__btn {
+    margin-top: 3px;
+    position: absolute;
+    @include directify($directions) {
+      #{directed('right')}: 0px;
+    }
+    padding: 5px 10px;
+    line-height: 16px;
+
+    svg {
+      @include directify($directions) {
+        #{directed('margin-right')}: 0px;
+      }
+      margin-top: 2px;
+      height: 16px;
+      width: 16px;
+    }
+  }
+}
+
+.project-member__avatar-wrap {
+  width: 40px;
+  min-width: 40px;
+  height: 40px;
+  overflow: hidden;
+  border-radius: 50%;
+  @include directify($directions) {
+    #{directed('margin-right')}: 10px;
+  }
+
+  img {
+    height: 100%;
+    min-width: 100%;
+  }
+}
+
+.project-member__name {
+  font-weight: 500;
+  line-height: 18px;
+  margin-bottom: 0;
+  margin-top: 3px;
+}
+
+.project-member__post {
+  color: $color-additional;
+  line-height: 15px;
+  font-size: 11px;
+  margin: 0;
+  @media (max-width: 1100px) and (min-width: 990px) {
+    font-size: 10px;
+  }
+
+}
+

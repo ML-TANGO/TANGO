@@ -1,0 +1,148 @@
+.slick-slider {
+  width: calc(100%);
+  margin-bottom: 24px;
+
+  .slick-slide {
+    overflow: hidden;
+    // @include directify($directions) {
+    //   #{directed('padding-right')}: 15px;
+    // }
+    position: relative;
+
+    img {
+      width: 100%;
+      height: auto;
+      min-height: 100%;
+    }
+  }
+
+  .slick-list {
+    width: 100%;
+  }
+
+  .slick-arrow {
+    height: 100%;
+    width: 100px;
+    z-index: 1;
+
+    &:before {
+      color: #dddddd;
+      font-weight: 500;
+      position: absolute;
+      top: calc(50% - 15px);
+      font-size: 30px;
+      line-height: 30px;
+      font-family: inherit;
+      width: 30px;
+      transition: all 0.3s;
+    }
+
+    &:hover {
+      color: $color-additional;
+    }
+
+    @media screen and (max-width: 750px) {
+      display: none !important;
+    }
+  }
+
+  @mixin next($dir) {
+    @if ($dir == "ltr") {
+      right: 0;
+    } @else {
+      right: -15px;
+    }
+  }
+
+  .slick-arrow.slick-next {
+    left: auto;
+    @include directify($directions) {
+      @include next(#{directed("direction")});
+    }
+    background: linear-gradient(90deg, transparent, white);
+
+    &:before {
+      content: "\203A";
+      right: 5px;
+    }
+  }
+
+  @mixin prev($dir) {
+    @if ($dir == "ltr") {
+      left: -15px;
+    } @else {
+      left: 0;
+    }
+  }
+
+  .slick-arrow.slick-prev {
+    background: linear-gradient(-90deg, transparent, white);
+    @include directify($directions) {
+      @include prev(#{directed("direction")});
+    }
+
+    &:before {
+      content: "\2039";
+      left: 5px;
+    }
+  }
+
+  .slick-dots {
+    li {
+      width: 10px;
+
+      button {
+        padding: 0;
+        width: 10px;
+
+        &:before {
+          font-size: 10px;
+          width: 10px;
+          height: 10px;
+          color: #1f1f1f;
+          opacity: 1;
+          transition: all 0.3s;
+        }
+      }
+
+      &.slick-active {
+        button:before {
+          color: #c7c8ca;
+        }
+      }
+
+      &:hover {
+        button:before {
+          color: $color-additional;
+        }
+      }
+    }
+  }
+
+  &.slick-slider--single {
+    .slick-arrow {
+      background: transparent;
+    }
+  }
+
+  .slick-slider__caption {
+    position: absolute;
+    bottom: 20px;
+    left: 30px;
+    width: calc(100% - 50px);
+  }
+
+  .slick-slider__caption-title {
+    font-size: 16px;
+    font-weight: 500;
+    color: white;
+    line-height: 20px;
+  }
+
+  .slick-slider__caption-description {
+    font-size: 12px;
+    color: $color-additional;
+    margin: 0;
+    line-height: 16px;
+  }
+}

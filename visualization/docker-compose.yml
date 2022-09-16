@@ -1,0 +1,32 @@
+version: "3"
+
+
+services:
+  db:
+    image: postgres:latest
+    restart: always
+    volumes:
+      - postgreSQL:/var/lib/postgresql/data
+    environment:
+      - POSTGRES_NAME=viz2code
+      - POSTGRES_USER=aislab
+      - POSTGRES_PASSWORD=aislab718
+
+  viz2code:
+    build:
+      context: ./
+    command: >
+      sh -c "cd frontend &&
+             npm run build &&
+             cd ..
+             python manage.py makemigrations &&
+             python manage.py migrate &&
+             python manage.py runserver 0.0.0.0:8091"
+    volumes:
+      - ./viz2code:/source
+    ports:
+      - "8091:8091"
+    depends_on:
+      - db
+volumes:
+  postgreSQL:

@@ -1,0 +1,208 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="ImageAnno">  
+  <select id="getImageList">
+    SELECT * FROM DATA_ELEMENT WHERE DATASET_CD = #{DATASET_CD} AND DATA_STATUS =#{DATA_STATUS}
+  </select>
+
+  <select id="getImage">
+    SELECT * FROM DATA_ELEMENT WHERE DATASET_CD = #{DATASET_CD} AND DATA_CD =#{DATA_CD}
+  </select>
+
+	<select id="getDataSet">
+    SELECT * FROM DATASET WHERE DATASET_CD = #{DATASET_CD}
+  </select>
+
+  <select id="getDataTags">
+		SELECT * FROM DATASET_TAGINFO a left join PRE_TRAINED_CLASS b on a.CLASS_CD = b.CLASS_CD WHERE DATASET_CD = #{DATASET_CD}
+		<if test="NAME != null and NAME != ''">
+                    AND NAME = #{NAME}
+		</if>           
+  </select>
+
+	<select id="getDataUserTags">
+    SELECT a.TAG_CD, #{DATASET_CD} as DATASET_CD, a.NAME, null as CLASS_CD, a.DESC_TXT, a.COLOR, null as PRE_MDL_CD, null as PRE_CLASS_CD, null as CLASS_SUFFIX, null as CLASS_CD, b.PATH as MDL_PATH,
+       a.NAME as CLASS_DP_NAME, b.OBJECT_TYPE, b.DATA_TYPE as MDL_TYPE, c.NETWORK_NAME as BASE_MDL, null as BASE_DATASET, null as CATEGORY1, null as CATEGORY2, null as CATEGORY3,a.NAME as CLASS_DB_NAME
+    FROM TRAIN_CLASSINFO a
+    left join AI_PROJECT b on a.AI_CD = b.AI_CD
+    left join TRAIN_MODELINFO c on a.AI_CD = c.AI_CD 
+    WHERE a.AI_CD = #{AI_CD}
+  </select>
+
+	<delete id = "removeDataTag">
+		DELETE FROM DATASET_TAGINFO WHERE DATASET_CD = #{DATASET_CD} and NAME = #{NAME}
+	</delete>
+
+  <insert id="setDataTag">
+    INSERT INTO DATASET_TAGINFO (
+		DATASET_CD,
+		NAME,
+		CLASS_CD,
+		DESC_TXT,
+		COLOR,
+		PRE_MDL_CD,
+		PRE_CLASS_CD,
+		CLASS_SUFFIX
+	) VALUES (
+		#{DATASET_CD},
+		#{NAME},
+		<choose>
+			<when test="CLASS_CD != null and CLASS_CD != ''">
+				#{CLASS_CD},
+			</when>
+			<otherwise>
+			NULL,
+			</otherwise>
+		</choose>
+		#{DESC_TXT},
+		#{COLOR},
+		NULL,
+		#{CLASS_CD},
+		NULL
+	)
+  </insert>
+
+	<select id="getDataTagInfoByTags">
+		SELECT * FROM DATASET_TAGINFO WHERE DATASET_CD = #{DATASET_CD}
+		AND TAG_CD IN (
+			<foreach collection="DATA" item="item" separator="," >
+			#{item.TAG_CD}
+			</foreach>
+		)
+	</select>
+
+
+	<select id="getDataCategory">
+		SELECT A.*, B.BASE_MDL, B.CLASS_CD, B.CLASS_DP_NAME FROM DATA_CATEGORY AS A
+	  LEFT JOIN PRE_TRAINED_CLASS AS B ON B.CATEGORY3 = A.CATEGORY_SEQ
+	  WHERE (A.DEPTH = 0) 
+		OR (A.DEPTH = 1 AND PARENTS_SEQ = ${PARENTS_SEQ1})
+		OR (A.DEPTH = 2 AND PARENTS_SEQ = ${PARENTS_SEQ2})
+	</select>
+
+	<update id="updateDataTag">
+	 UPDATE DATASET_TAGINFO 
+		SET 	NAME = #{NAME}
+		,CLASS_CD = IF(#{CLASS_CD} = '', NULL, #{CLASS_CD})      				
+		,PRE_CLASS_CD = IF(#{CLASS_CD} = '', NULL, #{CLASS_CD})      				
+		,COLOR = #{COLOR} 
+		,DESC_TXT = #{DESC_TXT}      	
+		WHERE TAG_CD = ${TAG_CD}
+  </update>
+
+	<select id="getCategory1">
+		SELECT A.CATEGORY1 AS value, B.CATEGORY_NAME AS label FROM PRE_TRAINED_CLASS as A 
+    JOIN DATA_CATEGORY as B on A.CATEGORY1 = B.CATEGORY_SEQ 
+    WHERE A.OBJECT_TYPE = #{OBJECT_TYPE}
+    GROUP BY A.CATEGORY1
+  </select>
+
+	<select id="getCategory2">
+
+	SELECT A.CATEGORY2 AS value, B.CATEGORY_NAME AS label FROM PRE_TRAINED_CLASS as A 
+    JOIN DATA_CATEGORY as B on A.CATEGORY2 = B.CATEGORY_SEQ 
+    WHERE A.OBJECT_TYPE = #{OBJECT_TYPE}
+    	AND A.CATEGORY1 = ${CATEGORY1}
+    GROUP BY A.CATEGORY2
+  </select>
+
+	<select id="getCategory3">
+		SELECT A.CLASS_CD AS value, 
+		CONCAT(A.CLASS_DP_NAME, ' (',B.CATEGORY_NAME,') - ',A.BASE_MDL) AS label  FROM PRE_TRAINED_CLASS as A 
+    JOIN DATA_CATEGORY as B on A.CATEGORY3 = B.CATEGORY_SEQ 
+    WHERE A.OBJECT_TYPE =  #{OBJECT_TYPE}
+    	AND A.CATEGORY2 = #{CATEGORY2}    
+  </select>
+
+
+	<select id="getPreTraindClass">
+					SELECT * FROM PRE_TRAINED_CLASS WHERE CLASS_CD = ${CLASS_CD}
+  </select>
+
+	 <update id="setUpdateDataElement">
+    UPDATE DATA_ELEMENT 
+		SET UPT_DTM = now()
+			,ANNO_DATA = #{ANNO_DATA}
+			<if test="IS_ANNO != null and IS_ANNO != ''">
+      ,IS_ANNO = ${IS_ANNO}
+			</if>  
+			<if test="ANNO_CNT != null and ANNO_CNT != ''">
+      ,ANNO_CNT = ${ANNO_CNT}
+			</if>  
+			<if test="TAG_CNT != null and TAG_CNT != ''">
+      ,TAG_CNT = ${TAG_CNT}
+			</if>  
+		WHERE DATASET_CD = #{DATASET_CD}
+				AND DATA_CD =#{DATA_CD}
+  </update>
+
+	<insert id="setAnnoDataElement">
+	INSERT INTO
+      DATA_ELEMENT (
+        DATASET_CD,
+				DATA_CD,
+				DATA_STATUS,
+				FILE_NAME,
+				FILE_EXT,
+				FILE_TYPE,
+				FILE_PATH,
+				CRN_DTM,
+				UPT_DTM,
+				FILE_SIZE
+      )
+   VALUES (
+      #{DATASET_CD},
+			#{DATA_CD},
+			#{DATA_STATUS},
+			#{FILE_NAME},
+			#{FILE_EXT},
+			#{FILE_TYPE},
+			#{FILE_PATH},
+			now(),
+			null,
+			${FILE_SIZE},
+   )
+   ON
+      DUPLICATE KEY
+   UPDATE
+   		UPT_DTM = now()
+	</insert>
+
+	<update id="updateDataSetStatus">
+    UPDATE DATASET 
+		SET UPT_DTM = now(),
+			DATASET_STS = #{DATASET_STS}
+			<if test="PID != null and PID != ''">
+          ,PID = ${PID}
+			</if>
+		WHERE DATASET_CD = #{DATASET_CD}
+  </update>
+
+
+	<select id = "getActiveClass">
+		SELECT * FROM PRE_TRAINED_CLASS WHERE BASE_MDL = #{AI_CD}
+	</select>
+
+
+
+	<update id="setUpdateDataElementArray">
+    UPDATE DATA_ELEMENT 
+		SET UPT_DTM = now()
+			,ANNO_CNT = CASE
+			<foreach collection="DATA" item="item">
+							  WHEN DATA_CD = #{item.DATA_CD} THEN ${item.ANNO_CNT}
+			</foreach>
+			            END
+			,TAG_CNT = CASE
+			<foreach collection="DATA" item="item">
+							  WHEN DATA_CD = #{item.DATA_CD} THEN ${item.TAG_CNT}
+			</foreach>
+							END
+		WHERE DATASET_CD = #{DATASET_CD}
+				 AND DATA_CD IN  (
+					 <foreach collection="DATA" item="item" separator="," >
+					 #{item.DATA_CD}
+					 </foreach>
+				 )
+  </update>
+</mapper>

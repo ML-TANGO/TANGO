@@ -1,0 +1,103 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="Auth">
+
+  <insert id="setUsers">
+    INSERT INTO USERS
+      (USER_ID, USER_NM, USER_PW, ROLE, PREV_PW, `USE`, LOGIN_CNT , CRN_DTM, UPT_DTM)
+    VALUES
+      (#{USER_ID}, #{USER_NM}, #{USER_PW}, #{ROLE}, #{PREV_PW}, #{USE}, "0", now(), now())
+    ON DUPLICATE KEY UPDATE
+        <if test="USER_NM != null and USER_NM != ''">
+          USER_NM = #{USER_NM},
+        </if>
+        <if test="USER_PW != null and USER_PW != ''">
+          USER_PW = #{USER_PW},
+        </if>
+        <if test="ROLE != null and ROLE != ''">
+          ROLE = #{ROLE},
+        </if>
+        <if test="USE != null and USE != ''">
+          `USE` = #{USE},
+        </if>
+        <if test="LOGIN_CNT != null and LOGIN_CNT != ''">
+          LOGIN_CNT = #{LOGIN_CNT}
+        </if>
+        <if test="PREV_PW != null and PREV_PW != ''">
+          PREV_PW = #{PREV_PW},
+          UPT_DTM = now()
+        </if>
+  </insert>
+
+  <update id="updateUser">
+    UPDATE USERS
+    <set>
+      <if test="USER_NM != null and USER_NM != ''">
+        USER_NM = #{USER_NM},
+      </if>
+      <if test="USER_PW != null and USER_PW != ''">
+        USER_PW = #{USER_PW},
+      </if>
+      <if test="ROLE != null and ROLE != ''">
+        ROLE = #{ROLE},
+      </if>
+      <if test="USE != null and USE != ''">
+        `USE` = #{USE},
+      </if>
+      <if test="LOGIN_CNT != null and LOGIN_CNT != ''">
+        LOGIN_CNT = #{LOGIN_CNT},
+      </if>
+      <if test="PREV_PW != null and PREV_PW != ''">
+        PREV_PW = #{PREV_PW},
+        UPT_DTM = now()
+      </if>
+    </set>
+    where USER_ID = #{USER_ID}
+  </update>
+
+  <select id="checkUser">
+    SELECT COUNT(1) as COUNT
+    FROM USERS 
+    WHERE USER_ID = #{USER_ID}
+  </select>
+
+  <select id="getUsers">
+    SELECT
+       USER_ID,
+       USER_NM,
+       ROLE,
+       `USE`,
+       CRN_DTM,
+       UPT_DTM
+    FROM USERS
+    <where>
+      <if test="USER_ID != null and USER_ID != ''">
+        USER_ID = #{USER_ID}    AND
+      </if>
+      <if test="USER_PW != null and USER_PW != ''">
+        USER_PW = #{USER_PW}    AND
+      </if>
+    </where>
+    ORDER BY CRN_DTM DESC
+  </select>
+
+  <select id="getUsersAll">
+    SELECT * 
+    FROM USERS
+    <where>
+      <if test="USER_ID != null and USER_ID != ''">
+        USER_ID = #{USER_ID}    AND
+      </if>
+      <if test="USER_PW != null and USER_PW != ''">
+        USER_PW = #{USER_PW}    AND
+      </if>
+    </where>
+  </select>
+
+  <delete id="deleteUser">
+    DELETE 
+    FROM USERS
+    WHERE USER_ID = #{USER_ID}
+  </delete>
+
+</mapper>

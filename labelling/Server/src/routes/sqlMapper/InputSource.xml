@@ -1,0 +1,467 @@
+<?xml version:"1.0" encoding:"UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="InputSource">
+
+  <select id='getAiModelList'>
+    SELECT 
+      A.AI_CD, 
+      A.OBJECT_TYPE, 
+      A.DATA_TYPE, 
+      A.EPOCH,
+      B.TITLE
+    FROM ( 
+      SELECT *
+      FROM TRAIN_LOG
+      GROUP BY AI_CD
+    ) A
+    JOIN AI_PROJECT B
+    ON A.AI_CD = B.AI_CD
+  </select>
+
+  <select id='getAiModelEpochList'>
+    SELECT * FROM TRAIN_LOG WHERE AI_CD = #{AI_CD}
+  </select>
+
+  <select id='getAllISList'>
+     SELECT
+        A.IS_CD,
+        A.IS_TITLE,
+        A.DESC_TXT,
+        A.OBJECT_TYPE,
+        A.IS_TYPE,
+        A.IS_PATH,
+        A.CRN_USR,
+        A.CRN_DTM,
+        date_format(A.UPT_DTM, '%Y-%m-%d %H:%i:%S') AS UPT_DTM,
+        A.SCHEDULE_YN,
+        A.IS_SAVED,
+        A.SCH_WEEKOPTION,
+        A.SCH_OPTION2,
+        A.SCH_TIME,
+        A.AI_CD,
+        A.MDL_TYPE,
+        A.SRV_PID,
+        A.HW_PID,
+        A.STATUS,
+        A.STATUS_MSG,
+        A.STATUS_CODE,
+        A.IS_STS,
+        A.MDL_EPOCH,
+        date_format(A.STATUS_TIME, '%Y-%m-%d %H:%i:%S') AS STATUS_TIME,
+        IFNULL(B.CNT, 0) AS FILE_CNT,
+        IFNULL(C.CNT, 0) AS PREDICT_CNT,
+        D.FILE_NAME AS THUM_NAIL,
+        E.HW_CD,
+        E.HW_TITLE
+  FROM INPUT_SOURCE A
+  LEFT OUTER JOIN
+    (
+      select B1.IS_CD AS IS_CD
+              ,count(1) AS CNT
+      from FILE_LIST B1
+      group by B1.IS_CD
+    ) B
+    on A.IS_CD = B.IS_CD
+  LEFT OUTER JOIN
+    (
+      select C1.IS_CD AS IS_CD
+              ,sum(case when C1.IS_PREDICT = 1 then 1 else 0 end) AS CNT
+      from FILE_LIST C1
+      group by C1.IS_CD
+    ) C
+    on A.IS_CD = C.IS_CD
+  LEFT OUTER JOIN
+    (
+      SELECT C3.IS_CD, C3.FILE_NAME
+      FROM FILE_LIST C3
+      GROUP by IS_CD ORDER BY FILE_SEQ
+    ) D
+  	on A.IS_CD  = D.IS_CD
+  LEFT OUTER JOIN
+    CAM_LIST E on A.IS_CD = E.IS_CD
+    order by CRN_DTM DESC
+  </select>
+
+  <select id='getAllCamList'>
+    SELECT * FROM CAM_LIST WHERE IS_CD IS NULL OR IS_CD = 0 
+    <if test="IS_CD != null and IS_CD != ''">
+       OR IS_CD = ${IS_CD}
+    </if>
+    order by IS_CD DESC
+  </select>
+
+  <select id='getISList'>
+    SELECT * FROM INPUT_SOURCE a
+              join USER_SERVICE_SCRIPT b
+              on a.IS_CD  = b.IS_CD 
+              WHERE a.IS_CD = #{IS_CD}
+  </select>
+
+  <select id='getLastInsert_NONEUSE'>
+    SELECT LAST_INSERT_ID() AS ID
+  </select>
+
+
+  <select id='getLastInsert'>
+    SELECT IS_CD AS ID FROM INPUT_SOURCE ORDER BY CRN_DTM DESC LIMIT 1
+  </select>
+
+
+
+  <insert id='setNewInputSource'>
+  INSERT INTO INPUT_SOURCE (
+    IS_TITLE,
+    DESC_TXT,
+    OBJECT_TYPE,
+    IS_TYPE,
+    CRN_USR,
+    CRN_DTM,
+    UPT_DTM,
+    SCHEDULE_YN,
+    IS_SAVED,
+    SCH_WEEKOPTION,
+    SCH_OPTION2,
+    SCH_TIME,
+    AI_CD,
+    MDL_TYPE,
+    IS_STS
+  )
+  VALUES (
+    #{IS_TITLE},
+    #{DESC_TXT},
+    #{OBJECT_TYPE},
+    #{IS_TYPE},
+    #{CRN_USR},
+    now(),
+    now(),
+    #{isScheduled},
+    ${IS_SAVED},
+    <choose>
+			<when test="WEEKOPTION != null and WEEKOPTION != ''">
+				#{WEEKOPTION},
+			</when>
+			<otherwise>			NULL,			</otherwise>
+		</choose>
+    <choose>
+      <when test="SCH_OPTION2 != null and SCH_OPTION2 != ''">
+        #{SCH_OPTION2},
+      </when>
+      <otherwise>			NULL,			</otherwise>
+    </choose>
+    <choose>
+      <when test="TIME != null and TIME != ''">
+        #{TIME},
+      </when>
+      <otherwise>			NULL,		</otherwise>
+    </choose>
+    #{AI_CD},
+    #{MDL_TYPE},
+    #{IS_STS}
+  )
+  </insert>
+
+  <update id="updateCam">
+    UPDATE CAM_LIST
+    SET IS_CD = ${IS_CD}
+    WHERE HW_CD = ${HW_CD}
+  </update>
+
+  <select id="getModelInfo">
+  SELECT * FROM INPUT_SOURCE WHERE IS_CD = ${IS_CD}
+  </select>
+
+  <update id="updateInputSource">
+    UPDATE INPUT_SOURCE
+    SET UPT_DTM = now()
+        <if test="IS_TITLE != null and IS_TITLE != ''">
+        ,IS_TITLE = #{IS_TITLE}
+        </if>
+
+        <if test="DESC_TXT != null and DESC_TXT != ''">
+        ,DESC_TXT = #{DESC_TXT}
+        </if>
+
+        <if test="OBJECT_TYPE != null and OBJECT_TYPE != ''">
+        ,OBJECT_TYPE = #{OBJECT_TYPE}
+        </if>
+
+        <if test="IS_TYPE != null and IS_TYPE != ''">
+        ,IS_TYPE = #{IS_TYPE}
+        </if>
+
+        <if test="CRN_USR != null and CRN_USR != ''">
+        ,CRN_USR = #{CRN_USR}
+        </if>
+
+        <if test="isScheduled != null and isScheduled != ''">
+        ,SCHEDULE_YN = #{isScheduled}
+        </if>
+
+        <if test="IS_SAVED != null and IS_SAVED != ''">
+        ,IS_SAVED = ${IS_SAVED}
+        </if>
+
+        <if test="WEEKOPTION != null and WEEKOPTION != ''">
+          ,SCH_WEEKOPTION = #{WEEKOPTION}
+        </if>
+
+        <if test="SCH_OPTION2 != null and SCH_OPTION2 != ''">
+          ,SCH_OPTION2 = #{SCH_OPTION2}
+        </if>
+
+        <if test="TIME != null and TIME != ''">
+          ,SCH_TIME = #{TIME}
+        </if>
+
+        <if test="AI_CD != null and AI_CD != ''">
+        ,AI_CD = #{AI_CD}
+        </if>
+
+        <if test="MDL_TYPE != null and MDL_TYPE != ''">
+        ,MDL_TYPE = #{MDL_TYPE}
+        </if>
+
+        <if test="IS_STS != null and IS_STS != ''">
+        ,IS_STS = #{IS_STS}
+        </if>
+
+        <if test="NETWORK_NAME != null and NETWORK_NAME != ''">
+        ,NETWORK_NAME = #{NETWORK_NAME}
+        </if>
+
+        <if test="MDL_PATH != null and MDL_PATH != ''">
+        ,MDL_PATH = #{MDL_PATH}
+        </if>
+
+        <if test="MDL_EPOCH != null and MDL_EPOCH != ''">
+        ,MDL_EPOCH = ${MDL_EPOCH}
+        </if>
+        <if test="SERVICE_PORT != null and SERVICE_PORT != ''">
+        ,SERVICE_PORT = ${SERVICE_PORT}
+        </if>
+        <if test="SRV_PID != null and SRV_PID != ''">
+        ,SRV_PID = ${SRV_PID}
+        </if>
+        <if test="IS_STS != null and IS_STS == 'ACTIVE'">
+            ,SERVICE_AUTH = HEX(AES_ENCRYPT(now(), ${IS_CD}))
+        </if>
+    WHERE IS_CD = #{IS_CD}
+  </update>
+
+  <delete id = "removeAllOutputType">
+    DELETE FROM OUTPUT_TYPE WHERE IS_CD = #{IS_CD}
+  </delete>
+
+  <insert id='setOutputType'>
+  INSERT INTO OUTPUT_TYPE (
+    IS_CD,
+    CLASS_CD,
+    CLASS_NAME,
+    DP_LABEL,
+    COLOR,
+    ACC_SCOPE,
+    LOCATION,
+    TARGET,
+    HW_CD
+  )
+  VALUES
+    <foreach collection="DATA" item="item" separator="," >
+    (
+      ${IS_CD},
+      #{item.CLASS_CD},
+      #{item.CLASS_NAME},
+      #{item.DP_LABEL},
+      #{item.COLOR},
+      #{item.ACC_SCOPE},
+      #{item.LOCATION},
+      #{item.TARGET},
+      ${item.HW_CD}
+    )
+    </foreach>
+  </insert>
+
+  <select id="getOutputType">
+  SELECT a.*, b.OBJECT_TYPE, b.IS_TYPE
+  FROM OUTPUT_TYPE a
+  JOIN INPUT_SOURCE b
+  ON a.IS_CD = b.IS_CD
+  WHERE a.IS_CD = ${IS_CD}
+  </select>
+
+  <select id="getFileList">
+    SELECT * FROM FILE_LIST WHERE IS_CD = #{IS_CD}
+  </select>
+
+  <insert id='setFileList'>
+  INSERT INTO FILE_LIST (
+    IS_CD,
+    CRN_DTM,
+    FILE_PATH,
+    FILE_NAME,
+    FILE_EXT,
+    FILE_SIZE,
+    IS_PREDICT
+  )
+  VALUES
+    <foreach collection="fileList" item="item" separator="," >
+    (
+      ${IS_CD},
+      now(),
+      #{item.FILE_PATH},
+      #{item.FILE_NAME},
+      #{item.FILE_EXT},
+      #{item.FILE_SIZE},
+      FALSE
+    )
+    </foreach>
+  </insert>
+
+  <delete id = "setRmFileList">
+    DELETE FROM FILE_LIST WHERE IS_CD = ${IS_CD} AND FILE_NAME IN
+          (
+            <foreach collection="remove" item="item" separator="," >
+              #{item}
+            </foreach>
+          )
+  </delete>
+
+  <insert id='setSchedule'>
+  INSERT INTO INPUT_SCHEDULE (
+    IS_CD,
+    SCHEDULE,
+    USE_YN,
+    CRN_DTM
+  )
+  VALUES (
+    #{IS_CD},
+    #{SCHEDULE},
+    #{USE_YN},
+    now()
+  )
+  </insert>
+
+  <delete id = "deleteSchedule">
+    DELETE FROM INPUT_SCHEDULE WHERE IS_CD = ${IS_CD}
+  </delete>
+
+  <delete id = "deleteCamListIsCd">
+    UPDATE CAM_LIST set IS_CD = null WHERE IS_CD = ${IS_CD}
+  </delete>
+
+  <delete id = "deleteISByIS_CD">
+    DELETE FROM INPUT_SOURCE WHERE IS_CD = ${IS_CD}
+  </delete>
+
+  <delete id = "deleteFilesByIS_CD">
+    DELETE FROM FILE_LIST WHERE IS_CD = ${IS_CD}
+  </delete>
+
+  <delete id = "deleteOutPutByIS_CD">
+    DELETE FROM OUTPUT_TYPE WHERE IS_CD = ${IS_CD}
+  </delete>
+
+  <select id="getIsCamList">
+  SELECT * from CAM_LIST WHERE IS_CD IS NOT NULL
+  </select>
+
+  <select id="getActiveIsList">
+  SELECT * FROM INPUT_SOURCE where IS_TYPE = 'R' AND (SRV_PID IS NOT NULL OR HW_PID IS NOT NULL)
+  </select>
+
+  <select id="getServicePid">
+  SELECT SRV_PID FROM INPUT_SOURCE where IS_CD = #{IS_CD}
+  </select>
+
+
+
+
+ <update id="updateISStatus">
+    UPDATE INPUT_SOURCE
+    SET STATUS_TIME = now()
+        ,UPT_DTM = now()
+        ,STATUS_MSG = #{STATUS_MSG}
+        ,STATUS = ${STATUS}
+        ,STATUS_CODE = #{STATUS_CODE}
+        ,ERR_MSG = #{ERR_MSG}
+        <if test="HW_PID != null and HW_PID != ''">
+          ,HW_PID = ${HW_PID}
+        </if>
+        <if test="SRV_PID != null and SRV_PID != ''">
+          ,SRV_PID = ${SRV_PID}
+        </if>
+    WHERE IS_CD = ${IS_CD}
+  </update>
+
+  <select id="getBaseModelDistinct">
+
+    SELECT
+       a.NETWORK_NAME AS AI_CD, a.OBJECT_TYPE,-1 AS MDL_IDX, a.DATA_TYPE, 'DEFAULT MODEL' AS TITLE, NETWORK_PATH AS PATH, -1 AS EPOCH
+    FROM BASE_MODELS a
+    JOIN PRE_TRAINED_CLASS b
+    on a.NETWORK_NAME = b.BASE_MDL
+    WHERE a.PIRIORITY = 2
+    GROUP by AI_CD
+  </select>
+
+
+  <select id="getBaseModelClasses">
+    SELECT CLASS_CD, CLASS_DB_NAME as CLASS_NAME from PRE_TRAINED_CLASS where BASE_MDL = #{BASE_MDL}
+  </select>
+
+  <select id="getBaseModeInfo">
+    SELECT * FROM BASE_MODELS where NETWORK_NAME = #{NETWORK_NAME}
+  </select>
+
+  <select id="getModelPath">
+    SELECT PATH from AI_PROJECT where AI_CD = #{AI_CD}
+  </select>
+
+  <insert id='setUserScript'>
+  INSERT INTO USER_SERVICE_SCRIPT (
+      IS_CD,
+      SCRIPT_PATH,
+      UPT_DTM,
+      CRN_USER,
+      USER_SCRIPT,
+      STATE
+  )
+  VALUES (
+      ${IS_CD},
+      #{SCRIPT_PATH},
+      now(),
+      #{CRN_USER},
+      #{USER_SCRIPT},
+      #{STATE}
+  )
+  </insert>
+
+
+  <delete id = "removeUserScript">
+    DELETE FROM USER_SERVICE_SCRIPT WHERE IS_CD = #{IS_CD}
+  </delete>
+
+  <select id="getUsedServicePort">
+    select SERVICE_PORT FROM INPUT_SOURCE WHERE SERVICE_PORT IS NOT NULL
+  </select>
+
+  <select id="getActiveService">
+    select * FROM INPUT_SOURCE a
+             LEFT JOIN USER_SERVICE_SCRIPT b on a.IS_CD = b.IS_CD
+     WHERE SERVICE_PORT IS NOT NULL AND a.IS_CD = ${IS_CD}
+  </select>
+
+  
+  <update id="stopService">
+    UPDATE INPUT_SOURCE
+    SET UPT_DTM = now()
+        ,IS_STS = #{IS_STS}
+        ,SRV_PID = NULL
+        ,SERVICE_PORT = NULL
+    WHERE IS_CD = ${IS_CD}
+  </update>
+
+
+  
+
+
+</mapper>

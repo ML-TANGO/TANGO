@@ -1,0 +1,110 @@
+@import url("https://fonts.googleapis.com/css2?family=Nunito+Sans:wght@400;600&display=swap");
+:root {
+  --blue: #007bff;
+  --indigo: #6610f2;
+  --purple: #6f42c1;
+  --pink: #e83e8c;
+  --red: #d9534f;
+  --orange: #fd7e14;
+  --yellow: #f0ad4e;
+  --green: #4bbf73;
+  --teal: #20c997;
+  --cyan: #1f9bcf;
+  --white: #fff;
+  --gray: #919aa1;
+  --gray-dark: #343a40;
+  --primary: #1a1a1a;
+  --secondary: #fff;
+  --success: #4bbf73;
+  --info: #1f9bcf;
+  --warning: #f0ad4e;
+  --danger: #d9534f;
+  --light: #fff;
+  --dark: #343a40;
+  --breakpoint-xs: 0;
+  --breakpoint-sm: 576px;
+  --breakpoint-md: 768px;
+  --breakpoint-lg: 992px;
+  --breakpoint-xl: 1200px;
+  --font-family-sans-serif: "Nunito Sans", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif, "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol";
+  --font-family-monospace: SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+}
+
+
+.Tool-Box {
+
+  width: 12.2%;
+  height: 5.4%;
+  margin: 43.5px 79px 15px 90px;
+  font-family: NotoSansKR;
+  font-size: 20px;
+  font-weight: bold;
+  text-align: left;
+  color: #fff;
+}
+
+.Activations {
+  width: 60px;
+  height: 18px;
+  margin: 0 auto;
+  font-family: NotoSansKR;
+  font-size: 12.5px;
+  font-weight: 100;
+  text-align: left;
+  color: #fff;
+}
+
+
+
+.container {
+      position:relative;
+      margin:0 auto;
+      width: 177px;
+      display:flex; /* 플렉스 컨테이너 지정 */
+      padding: 9px 14.5px 13px;
+      border-radius: 15px;
+      border:1px solid #fff;
+      margin: 15px 20px 0 60px;
+      margin-bottom:30px;
+      float:left;
+
+    }
+
+.box {
+    width: 148px;
+    height: 38.5px;
+    /*padding:5px 45px;
+    margin:15px 0; */
+    border-radius: 5px;
+    background-color:#434854;
+    font-family: NotoSansKR;
+    font-size: 12.5px;
+    font-weight: 200;
+    text-align: center;
+
+    color: #fff;
+    }
+
+
+#opt3{
+      flex-direction: column;         /* 위에서 아래로 */
+    }
+
+
+.sketch{
+      width: 72%;
+      height: 500px;
+      text-align: left;
+      padding-left: 30px;
+      border-radius: 10px;
+      float:left;
+      background-color: #434854;
+      }
+
+#margin1 {margin:50px;}
+#margin2 {margin:50px;}
+#margin3 {width:100px; height:500px;}
+#margin4 {width:74%; height:100px; float:left;}
+#margin5 {width:50%; height:100px;float:left;}
+#button1 {float:left;}
+

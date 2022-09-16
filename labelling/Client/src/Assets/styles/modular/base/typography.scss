@@ -1,0 +1,228 @@
+p,
+h1,
+h2,
+h3,
+h4,
+h5,
+h6 {
+  margin-top: 0;
+  font-weight: 400;
+  margin-bottom: 0;
+
+  @include themify($themes) {
+    color: themed("colorText");
+  }
+}
+
+p {
+  margin: 10px 0 0 0;
+
+  &:first-child {
+    margin: 0;
+  }
+}
+
+h1 {
+  font-size: 36px;
+  line-height: 48px;
+
+  &.subhead {
+    font-size: 30px;
+    color: $color-additional;
+    line-height: 36px;
+  }
+}
+
+h2 {
+  font-size: 30px;
+  line-height: 36px;
+
+  &.subhead {
+    font-size: 24px;
+    color: $color-additional;
+    line-height: 32px;
+  }
+}
+
+h3 {
+  font-size: 24px;
+  line-height: 32px;
+
+  &.subhead {
+    font-size: 18px;
+    color: $color-additional;
+    line-height: 24px;
+  }
+}
+
+h4 {
+  font-size: 18px;
+  line-height: 24px;
+
+  &.subhead {
+    font-size: 12px;
+    color: $color-additional;
+    line-height: 16px;
+  }
+}
+
+h5 {
+  font-size: 14px;
+  line-height: 18px;
+
+  &.subhead {
+    font-size: 10px;
+    color: $color-additional;
+    line-height: 12px;
+  }
+}
+
+h6 {
+  font-size: 12px;
+  line-height: 16px;
+
+  &.subhead {
+    font-size: 8px;
+    color: $color-additional;
+    line-height: 10px;
+  }
+}
+
+.bold-text {
+  @include directify($directions) {
+    text-align: directed("left");
+  }
+  font-weight: 700;
+}
+
+.text-modal {
+  font-weight: 700;
+}
+
+.typography--inline {
+  display: flex;
+  flex-wrap: wrap;
+
+  * {
+    margin-top: auto;
+    @include directify($directions) {
+      #{directed('margin-right')}: 15px;
+    }
+  }
+}
+
+.typography-card {
+  @include directify($directions) {
+    text-align: directed("left");
+  }
+
+  h1,
+  h2,
+  h3,
+  h4,
+  h5,
+  h6 {
+    margin-bottom: 10px;
+  }
+}
+
+blockquote {
+  font-size: 13px;
+  font-style: italic;
+  @include directify($directions) {
+    #{directed('border-left')}: 3px solid $color-accent;
+  }
+  margin-bottom: 0;
+  @include directify($directions) {
+    text-align: directed("left");
+    #{directed('padding-left')}: 10px;
+  }
+}
+
+.highlight {
+  background-color: $color-accent;
+  color: #494444;
+}
+
+.typography-message {
+  @include directify($directions) {
+    text-align: directed("left");
+  }
+}
+
+.red-text {
+  color: #ad4444;
+}
+
+.orange-text {
+  color: #ff6c1c !important;
+}
+
+.white-text {
+  color: white !important;
+}
+
+.text-center {
+  text-align: center;
+}
+.bg-orange-outer {
+  margin-top: 2px;
+  background-color: #ff6c1c;
+  padding: 0px 2px 0px 2px;
+  border: 1px solid #ff6c1c;
+  border-radius: 2px;
+}
+
+.green-text {
+  color: #5cb85c !important;
+}
+
+.blue-text {
+  color: #428bca !important;
+}
+
+.skyblue-text {
+  color: skyblue !important;
+}
+
+.grey-text {
+  color: #aaaaaa !important;
+}
+
+.cursor-pointer {
+  cursor: pointer;
+}
+
+.page-title {
+  @include directify($directions) {
+    text-align: directed("left");
+  }
+  font-weight: 500;
+  text-transform: capitalize;
+  font-size: 20px;
+
+  &:last-child {
+    margin-bottom: 30px;
+  }
+
+  &.page-title--not-last {
+    margin-top: 20px;
+  }
+}
+
+.page-subhead {
+  @include directify($directions) {
+    text-align: directed("left");
+  }
+  margin-bottom: 20px;
+
+  &.subhead {
+    font-size: 14px;
+    opacity: 0.7;
+  }
+}
+
+::selection {
+  color: #ffffff;
+  background: $color-accent;
+}

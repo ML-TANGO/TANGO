@@ -1,0 +1,136 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="System">
+  <select id="getAiPrjList">
+    SELECT a.* 
+    FROM AI_PROJECT as a
+    LEFT JOIN (select AI_CD, min(DATASET_CD) as DATASET_CD from TRAIN_DATALIST group by AI_CD ) as b ON a.AI_CD = b.AI_CD
+  </select>
+
+  <select id="getDataSetList">
+     SELECT A.* 
+    FROM DATASET AS A
+    LEFT JOIN DATA_ELEMENT AS B ON A.THUM_NAIL_CD = B.DATA_CD AND B.DATASET_CD = A.DATASET_CD AND B.DATA_STATUS = 'THUM'
+  </select>
+
+  <select id="getIsList">
+     SELECT * from INPUT_SOURCE
+  </select>
+
+  <select id="getQiPrjList">
+     SELECT * 
+     from Q_PROJECT Q
+     LEFT JOIN (SELECT QP_CD, COUNT(*) as IS_COUNT FROM PRJINPUT_LIST GROUP BY QP_CD) as I
+     ON Q.QP_CD = I.QP_CD
+  </select>
+
+  <select id="getGpuResource">
+      SELECT
+         date_format(A.MRM_DTM,'%m-%d %H') as MRM_DTM,
+         GPU_NM,
+         SUM(GPU_FULL_VOL) as GPU_FULL_VOL,
+         SUM(GPU_USED_VOL) as GPU_USED_VOL,
+         AVG(GPU_USED_RATE) as GPU_USED_RATE
+      FROM
+            (SELECT * FROM SYSTEM_RESOURCE WHERE MRM_DTM > DATE_ADD(now(), INTERVAL -12 HOUR)) as A
+      GROUP BY
+            GPU_NM,
+            date_format(A.MRM_DTM,'%H')
+      ORDER BY
+            1,2;
+  </select>
+
+  <select id="getCurGpuResource">
+     SELECT
+      date_format(MRM_DTM, '%Y-%m-%d %H:%i:%S') AS MRM_DTM,
+      GPU_NM,
+      GPU_FULL_VOL,
+      GPU_USED_VOL,
+      GPU_USED_RATE
+   FROM SYSTEM_RESOURCE
+     WHERE MRM_DTM > DATE_ADD(NOW(), INTERVAL -11 MINUTE)
+  </select>
+
+
+
+  <insert id='setGpuResource'>
+    INSERT INTO SYSTEM_RESOURCE (
+      MRM_DTM,
+      GPU_NM,
+      GPU_FULL_VOL,
+      GPU_USED_VOL,
+      GPU_USED_RATE
+    )
+    VALUES
+    <foreach collection="DATA" item="item" separator=",">
+    (
+      now(6),
+      #{item.GPU_NAME},
+      ${item.MEM_TOTAL},
+      ${item.MEM_USED},
+      ${item.GPU_USED_RATE}
+    )
+    </foreach>
+  </insert>
+
+  <select id="getSourceTreeMap">
+   SELECT b.IS_TITLE, a.*  
+   FROM (
+      SELECT IS_CD, DP_LABEL, SUM(CLASS_CNT) as COUNT
+      FROM PRJ_REPORT a
+      GROUP BY IS_CD, DP_LABEL
+   ) a
+   JOIN INPUT_SOURCE b 
+   ON a.IS_CD = b.IS_CD
+  </select>
+
+  <select id="getSidebarInfo">
+    SELECT 
+      (SELECT COUNT(1) FROM DATASET) as DS_CNT,
+      (SELECT COUNT(1) FROM AI_PROJECT) as AI_CNT,
+      (SELECT COUNT(1) FROM INPUT_SOURCE) as IS_CNT,
+      (SELECT COUNT(1) FROM Q_PROJECT) as PRJ_CNT
+  </select>
+
+
+  <select id="getSidebarInfo">
+    SELECT 
+      (SELECT COUNT(1) FROM DATASET) as DS_CNT,
+      (SELECT COUNT(1) FROM AI_PROJECT) as AI_CNT,
+      (SELECT COUNT(1) FROM INPUT_SOURCE) as IS_CNT,
+      (SELECT COUNT(1) FROM Q_PROJECT) as PRJ_CNT
+  </select>
+
+  <update id="initDataSetSTS">
+    UPDATE DATASET
+      SET PID = null
+        ,DATASET_STS = 'CRN_FAIL'
+    WHERE DATASET_STS = 'CREATE'
+  </update>
+
+  <update id="initAiPrjSTS">
+    UPDATE AI_PROJECT
+    SET   AI_PID = null
+         ,AI_STS = 'FAIL'
+    WHERE AI_STS = 'READY' OR AI_STS = 'LEARN' OR AI_STS = 'STOP'
+  </update>
+
+  <update id="initServiceSTS">
+    UPDATE INPUT_SOURCE
+    SET SRV_PID = null
+        ,IS_STS = 'ACT_FAIL'
+        ,STATUS_MSG = 'Server Restarted..'
+    WHERE IS_STS = 'ACTIVE'
+  </update>
+
+  <update id="initServiceCreateSTS">
+    UPDATE INPUT_SOURCE
+      SET SRV_PID = null
+          ,IS_STS = 'CRN_FAIL'
+          ,STATUS_MSG = 'Server Restarted..'
+    WHERE IS_STS = 'CREATE'
+  </update>
+
+  
+
+</mapper>

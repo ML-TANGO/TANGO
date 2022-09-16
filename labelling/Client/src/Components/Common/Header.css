@@ -1,0 +1,80 @@
+.header {
+  margin-top: 20px;
+  margin-bottom: 20px;
+  padding-bottom: 10px;
+  border-bottom: 4px solid rgb(72, 72, 72);
+}
+
+.header-title {
+  font-size: 30px;
+  color: rgb(218, 218, 218);
+  text-align: left !important;
+}
+
+.header-subtitle {
+  font-size: 15px;
+  color: rgb(165, 165, 165);
+  text-align: left !important;
+  display: flex;
+  align-items: center;
+}
+
+.header-add,
+.header-add-over {
+  text-align: right;
+  margin-top: 35px;
+  padding-right: 10px;
+  height: 32px;
+  float: right;
+}
+
+.header-add > svg > path {
+  fill: rgb(55, 181, 13);
+}
+
+.header-add-over > svg > path {
+  fill: rgb(106, 255, 57);
+}
+
+.header-edit,
+.header-edit-over {
+  text-align: right;
+  margin-top: 35px;
+  padding-right: 10px;
+  height: 32px;
+  float: right;
+}
+
+.header-edit > svg > path {
+  fill: rgb(37, 93, 162);
+}
+.header-edit-over > svg > path {
+  fill: rgb(60, 148, 255);
+}
+
+.header-del,
+.header-del-over {
+  text-align: right;
+  margin-top: 35px;
+  padding-right: 10px;
+  height: 32px;
+  float: right;
+}
+
+.header-del > svg > path {
+  fill: rgb(92, 92, 92);
+}
+
+.header-del-over > svg > path {
+  fill: rgb(172, 172, 172);
+}
+
+/* 비디오 프레임 카운트 & Draw Brush 숫자 조절 버튼 */
+.video-control-number-button span,
+.rc-input-number-handler-wrap span {
+  line-height: 9px !important;
+}
+
+.rc-input-number-input-wrap {
+  line-height: 22px !important;
+}

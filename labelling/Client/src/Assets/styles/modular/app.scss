@@ -1,0 +1,86 @@
+@import "settings/variable"; //themes' colors
+
+@import "bootstrap.css";
+
+//vendor...
+@import "./vendor";
+
+//base...
+@import "generic/normalize.scss";
+@import "generic/box-sizing.scss";
+@import "./base/scaffolding"; // styles of base elements
+@import "./base/typography"; // base styles of h1-h6, p, span
+
+//components...
+@import "./component/btn"; // Button from 'reactstrap'
+@import "./component/card"; // Card, CardBody from 'reactstrap'
+@import "./component/check-box"; // components/form/Checkbox.js and other components with checkboxes
+@import "./component/collapse"; // components/Collapse.js ('reactstrap')
+@import "./component/color-picker"; // components/form/*ColorPicker.js ('react-color')
+@import "./component/date-picker"; // components/form/*Date*Picker.js ('react-datepicker')
+@import "./component/form"; // <form> and all types of inputs
+@import "./component/modal"; // components/Modal.js ('reactstrap')
+@import "./component/date-picker";
+@import "./component/notification"; // components/Notification.js ('reactstrap')
+@import "./component/pagination"; // components/Pagination.js ('reactstrap')
+@import "./component/popover"; // Popover from 'reactstrap'
+@import "./component/progress-bar"; // ProgressBar from 'reactstrap'
+@import "./component/react-select";
+@import "./component/scroll";
+@import "./component/select-options"; // <select> and <option>
+@import "./component/sidebar"; // components/sidebar/*
+@import "./component/slider"; // components/range_slider/* ('rc-slider')
+@import "./component/table"; // components/Table.js ('reactstrap')
+@import "./component/tabs"; // Nav, NavItem, NavLink, TabContent, TabPane from 'reactstrap'
+@import "./component/toggle-btn"; // components/form/ToggleButton.js
+@import "./component/tooltip"; // Tooltip from 'reactstrap'
+@import "./component/topbar"; // components/topbar/*
+@import "./component/wizard"; // pages/form/wizard_form/*
+@import "./component/load";
+@import "./component/input.scss";
+@import "./component//cron-builder.scss";
+@import "./component/carousel.scss";
+//objects...
+@import "containers/account";
+@import "containers/monitor";
+
+@import "objects/layout.scss"; // layout settings
+
+// npm package
+@import "~react-virtualized/styles.css";
+@import "~rc-slider/assets/index.css";
+@import "~react-toastify/dist/ReactToastify.css";
+@import "~react-video-seek-slider/lib/ui-video-seek-slider.css";
+@import "~react-confirm-alert/src/react-confirm-alert.css";
+@import "~rc-input-number/assets/index.css";
+@import "~react-grid-layout/css/styles.css";
+@import "~react-resizable/css/styles.css";
+@import "~react-calendar-timeline/lib/Timeline.css";
+@import "~react-tabs/style/react-tabs.css";
+// @import "~slick-carousel/slick/slick.css";
+// @import "~slick-carousel/slick/slick-theme.css";
+@import "~uplot/dist/uPlot.min.css";
+@import "~react-circular-progressbar/dist/styles.css";
+
+// @import "~react-flow-renderer/dist/style.css";
+@import "~react-flow-renderer/dist/theme-default.css";
+
+@import "./../../../Components/component.scss";
+
+@import "mixins.scss";
+@import "common.scss";
+@import "video.scss";
+
+@import "./../../../Components/Common/Header.css";
+@import "./../../../Components/Cards/Cards.css";
+@import "./../../../app.css";
+
+@import "./../../../Layouts/Contents/DataSets/Labelling/Label.scss";
+@import "./../../../Layouts/Contents/DashBoard/DashBoard.css";
+// @import "./../../../Layouts/Contents/AiModels/AiModels.scss";
+@import "./../../../Layouts/Contents/DataSets/DataSets.scss";
+@import "./../../../Layouts/SideBar/SideBar.scss";
+@import "./../../../Components/Common/Header.scss";
+@import "./../../../Components/Cards/CardList.scss";
+//font
+@import "../../fonts/font.css";

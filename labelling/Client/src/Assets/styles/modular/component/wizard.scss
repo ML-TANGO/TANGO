@@ -1,0 +1,107 @@
+.wizard {
+  @include themify($themes) {
+    background-color: themed("colorBackground");
+  }
+  .wizard__form {
+    // max-width: 610px;
+    width: 100%;
+
+    .wizard__toolbar {
+      margin-left: auto;
+      margin-right: auto;
+    }
+  }
+}
+
+.wizard__steps {
+  display: flex;
+}
+
+.wizard__step {
+  width: 100%;
+  text-align: center;
+  height: 55px;
+  text-transform: uppercase;
+  display: flex;
+  transition: background 0.3s;
+  border-radius: 5px;
+
+  @include themify($themes) {
+    border: 1px solid themed("colorBorder");
+    background: themed("colorHover");
+  }
+
+  p {
+    font-weight: 400;
+    margin: auto;
+    font-size: 1.5rem;
+    transition: all 0.3s;
+  }
+
+  &.wizard__step--active {
+    background: $color-blue;
+    border-color: $color-blue;
+
+    p {
+      color: #ffffff;
+    }
+  }
+}
+
+.wizard__form-wrapper {
+  display: flex;
+  justify-content: center;
+  height: 100%;
+  width: 100%;
+}
+
+.wizard__title {
+  margin-bottom: 4px;
+  width: 100%;
+  height: 30px;
+  font-size: 18px;
+  padding-bottom: 10px;
+}
+
+.wizard__body {
+  margin-bottom: 4px;
+  width: 100%;
+  height: calc(100% - 60px);
+}
+
+.wizard__button {
+  position: inherit;
+  bottom: 0px;
+  width: 100%;
+  height: 30px;
+  bottom: 5px;
+  border-top: 1px solid #ddd;
+  padding-top: 5px;
+}
+
+.wizard__button .button-pre {
+  float: left;
+  width: 50%;
+}
+
+.wizard__button .button-next {
+  float: right;
+  width: 50%;
+  text-align: right;
+}
+
+.wizard__description {
+  color: $color-additional;
+  margin: 0;
+  max-width: 410px;
+}
+
+.wizard .card-body {
+  padding: 0;
+}
+
+.squared-corner-theme {
+  .wizard__step {
+    border-radius: 0;
+  }
+}
