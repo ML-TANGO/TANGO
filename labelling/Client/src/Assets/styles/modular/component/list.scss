@@ -1,0 +1,37 @@
+.list {
+  @include directify($directions) {
+    text-align: directed('left');
+  }
+
+  &.list--icon {
+    list-style: none;
+    padding: 0;
+
+    span {
+      position: relative;
+      bottom: -2px;
+      @include directify($directions) {
+        #{directed('margin-right')}: 8px;
+        float: directed('left');
+      }
+    }
+
+    &.list--icon-green {
+
+      span {
+        color: $color-accent;
+      }
+    }
+  }
+
+  li {
+    margin-bottom: 10px;
+
+    &:last-child {
+      margin-bottom: 0;
+    }
+  }
+}
+.li-title {
+  margin-bottom: 15px;
+}

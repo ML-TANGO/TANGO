@@ -1,0 +1,269 @@
+.toolbar_wrap {
+  flex: 0 0 3%;
+  max-width: 3%;
+  //border-right: 1px solid #0050f8;
+  padding-top: 20px;
+  background-color: rgb(21, 21, 21);
+}
+
+.toolbar_abs_wrap {
+  // width: 2%;
+  position: absolute;
+  left: 10px;
+  top: 9%;
+  // background: black;
+  z-index: 100;
+}
+
+.label_wrap {
+  flex: 0 0 85%;
+  max-width: 85%;
+  position: relative;
+}
+
+.info_wrap {
+  flex: 0 0 15%;
+  max-width: 15%;
+  background-color: rgb(21, 21, 21);
+}
+
+.label_top_wrap {
+  width: 100%;
+  height: 5%;
+  padding: 0.5rem;
+  background-color: #232329;
+}
+
+.label_main_wrap {
+  width: 100%;
+  height: 95%;
+  // padding: 0.5rem;
+  // background-color: black;
+}
+
+.toolbar_icon_wrap {
+  height: 30px;
+  width: 30px;
+  margin: 1.2rem auto;
+  border: 1px solid rgb(204, 202, 202);
+  display: flex;
+  background-color: black;
+
+  & .toolbar_icon {
+    font-size: 20px;
+    align-content: center;
+    align-items: center;
+    align-self: center;
+    display: flex;
+    margin: auto;
+  }
+
+  &:hover {
+    cursor: pointer;
+  }
+}
+
+.toolbar_icon_click {
+  background-color: rgba(1, 90, 167, 0.686);
+}
+
+.tooltip_color {
+  background-color: red;
+}
+
+.image-table-font {
+  font-size: 12px;
+}
+
+.ReactVirtualized__Table__Grid {
+  background-color: #060606;
+  color: #ffffff;
+}
+
+.ReactVirtualized__Table__headerRow {
+  text-transform: none !important;
+}
+
+.ReactVirtualized__Table__headerRow.vt-header {
+  border-bottom: 1px groove #bbbbbb;
+  background-color: #1f1f1f;
+  color: white;
+}
+
+.ReactVirtualized__Table__headerRow.image-table-header {
+  background-color: #303030;
+  color: white;
+}
+
+.ReactVirtualized__Table__headerRow.test-table-header {
+  background-color: #181818;
+  color: white;
+  height: 30px;
+  margin-top: -8px !important;
+}
+
+.list-thumbnail {
+  background-color: #fff;
+  border-radius: 0.15rem;
+  max-width: 100%;
+  width: 100px;
+  height: 40px;
+}
+
+.label-title {
+  font-size: 17px;
+  font-weight: 600;
+}
+
+.label-arrow {
+  font-size: 18px;
+  margin: 0 0.5rem;
+  vertical-align: text-bottom;
+
+  &:hover {
+    cursor: pointer;
+  }
+}
+
+.close {
+  color: white !important;
+  opacity: 0.7;
+}
+
+.frames {
+  width: 100%;
+  padding: 10px;
+}
+.image-frames {
+  width: 200px;
+  height: 50px;
+  float: left;
+  border: 1px solid #333;
+  margin-right: 5px;
+}
+.slider {
+  margin: 0 auto;
+  width: 80%;
+
+  padding: 20px;
+  color: #fff;
+}
+
+.btn-center {
+  & > p {
+    flex-direction: column;
+  }
+}
+
+.custom {
+  padding-top: 30px !important;
+}
+
+.custom > button {
+  margin-bottom: 0px !important;
+}
+
+.tooltip-size {
+  font-size: 13px !important;
+  padding: 0.3rem 0.8rem !important;
+}
+
+.__react_component_tooltip {
+  border-radius: 3px;
+  display: inline-block;
+  font-size: 13px;
+  left: -999em;
+  opacity: 0;
+  padding: 8px 21px;
+  position: fixed;
+  pointer-events: none;
+  transition: opacity 0.3s ease-out;
+  top: -999em;
+  visibility: hidden;
+  z-index: 999;
+}
+
+.animated-label {
+  background-color: rgb(255, 255, 255);
+  border-radius: 10px;
+  border: 8px solid rgb(253, 88, 101);
+  width: 100px;
+  height: 100px;
+  position: absolute;
+  top: calc(50% - 50px);
+  left: calc(50% - 50px);
+  -webkit-animation-duration: 2s;
+  animation-duration: 2s;
+  -webkit-animation-fill-mode: both;
+  animation-fill-mode: both;
+  -webkit-animation-name: fadeOut;
+  animation-name: fadeOut;
+  pointer-events: none;
+  z-index: 999;
+  color: rgb(253, 88, 101);
+  padding: 10px;
+  font-weight: bold;
+}
+
+.animated-label {
+  .icon-area {
+    position: relative;
+    color: rgb(253, 88, 101);
+    width: 50px;
+    height: 50px;
+    margin: 0 auto;
+    text-align: center;
+    .icon {
+      width: 50px;
+      height: 50px;
+      color: rgb(253, 88, 101);
+    }
+  }
+}
+
+.animated-label-disable {
+  visibility: hidden;
+}
+
+@-webkit-keyframes fadeOut {
+  0% {
+    opacity: 1;
+  }
+  30% {
+    opacity: 0.9;
+  }
+  100% {
+    opacity: 0;
+  }
+}
+
+@keyframes fadeOut {
+  0% {
+    opacity: 1;
+  }
+  30% {
+    opacity: 0.9;
+  }
+  100% {
+    opacity: 0;
+  }
+}
+
+.videoList-index {
+  color: #888888;
+  font-style: italic;
+  & span {
+    font-size: 1rem;
+    font-weight: bold;
+  }
+}
+
+.videoList-fileName {
+  font-size: 14px;
+}
+
+.videoList-fileName-sub {
+  font-size: 8px;
+  margin-top: -3px;
+  color: #888888;
+}

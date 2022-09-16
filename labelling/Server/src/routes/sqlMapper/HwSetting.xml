@@ -1,0 +1,108 @@
+<?xml version:"1.0" encoding:"UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="HwSetting">  
+
+  <select id='getLastInsert'>
+      SELECT HW_CD AS ID FROM CAM_LIST ORDER BY HW_CD DESC LIMIT 1
+    </select>
+
+  <select id='getHwList'>
+    SELECT a.*, b.IS_TITLE 
+    FROM CAM_LIST a
+    LEFT OUTER JOIN INPUT_SOURCE b 
+    ON a.IS_CD = b.IS_CD 
+  </select>
+
+  <select id='getHwInfo'>
+      SELECT * FROM CAM_LIST WHERE HW_CD = ${HW_CD}
+  </select>
+
+  <select id='getOutTypeByHwcd'>
+      SELECT * FROM OUTPUT_TYPE WHERE HW_CD = ${HW_CD}
+  </select>
+
+  <select id='removeCamInfo'>
+      DELETE FROM CAM_LIST  WHERE HW_CD = ${HW_CD}
+  </select>
+
+  <insert id='setHwInfo'>
+    INSERT INTO CAM_LIST(
+      HW_TYPE,
+      CAM_SERIAL,
+      SRV_IP,
+      SRV_PORT,
+      HW_TITLE,
+      DESC_TXT,
+      HW_IP,
+      HW_PORT
+    ) VALUES(
+      #{HW_TYPE},
+      #{CAM_SERIAL},
+      #{SRV_IP},
+      #{SRV_PORT},
+      #{HW_TITLE},
+      #{DESC_TXT},
+      #{HW_IP},
+      #{HW_PORT}
+    )
+  </insert>
+
+  <update id='updateHwInfo'>
+    INSERT INTO CAM_LIST(
+      HW_TYPE,
+      CAM_SERIAL,
+      SRV_IP,
+      SRV_PORT,
+      HW_TITLE,
+      DESC_TXT,
+      HW_IP,
+      HW_PORT
+    ) VALUES(
+      #{HW_TYPE},
+      #{CAM_SERIAL},
+      #{SRV_IP},
+      #{SRV_PORT},
+      #{HW_TITLE},
+      #{DESC_TXT},
+      #{HW_IP},
+      #{HW_PORT}
+    )
+  </update>
+
+  <insert id='setOutputType'>
+  INSERT INTO OUTPUT_TYPE (
+    HW_CD,
+    CLASS_CD,
+    CLASS_NAME,
+    DP_LABEL,
+    COLOR,
+    ACC_SCOPE,
+    LOCATION
+  )
+  VALUES 
+    <foreach collection="DATA" item="item" separator="," >
+    (
+      ${HW_CD},
+      #{item.CLASS_CD},
+      #{item.CLASS_NAME},
+      #{item.DP_LABEL},
+      #{item.COLOR},
+      #{item.ACC_SCOPE},
+      #{item.LOCATION}
+    )
+    </foreach>
+  </insert>
+
+  <delete id = "deleteOutTypeByHWCD">
+    DELETE FROM OUTPUT_TYPE WHERE HW_CD = ${HW_CD} 
+  </delete>
+
+  <delete id = "deleteHWInfoByHWCD">
+    DELETE FROM CAM_LIST WHERE HW_CD = ${HW_CD} 
+  </delete>
+
+</mapper>
+
+
+
+     

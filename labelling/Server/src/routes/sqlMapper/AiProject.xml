@@ -1,0 +1,579 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="AiProject">
+
+  <select id="getLastEpoch">
+    SELECT MAX(EPOCH) AS LAST_EPOCH FROM TRAIN_LOG WHERE AI_CD = #{AI_CD}
+  </select>
+
+  <select id="getAiPid">
+    SELECT AI_PID FROM AI_PROJECT WHERE AI_CD = #{AI_CD}
+  </select>
+
+  <select id="getAiPath">
+    SELECT PATH FROM AI_PROJECT WHERE AI_CD = #{AI_CD}
+  </select>
+
+  <select id="getAiPrjList">
+     SELECT
+        a.AI_CD,
+        AI_TYPE,
+        AI_VER,
+        TITLE,
+        OBJECT_TYPE,
+        DATA_TYPE,
+        DESC_TXT,
+        PATH,
+        AI_ACC,
+        CRN_USR,
+        a.CRN_DTM,
+        a.UPT_DTM,
+        AI_STS,
+        SET_DATASET,
+        SET_CLASSINFO,
+        TRAIN_SRT_DTM,
+        TRAIN_END_DTM,
+        TRAIN_TIME,
+        (SELECT COUNT(*) FROM TRAIN_CLASSINFO WHERE AI_CD=a.AI_CD) AS TAGS,
+        (SELECT COUNT(*) FROM TRAIN_CLASSINFO WHERE AI_CD=a.AI_CD) AS CLASS_CNT,
+        (SELECT COUNT(*) FROM TAB_TRAINFEATURE WHERE AI_CD=a.AI_CD) AS COL_CNT,
+        (SELECT SUM(ROW_CNT) FROM TAB_ANALYSIS WHERE DATASET_CD=c.T_DATASET_CD) AS ROW_CNT,
+        COALESCE(GPU_RATE, 0) AS GPU_RATE,
+        AI_PID,
+        (SELECT COUNT(*) FROM TRAIN_MODELINFO WHERE AI_CD=a.AI_CD) AS MODEL_CNT,
+        IFNULL(c.FILE_PATH, "null") as THUM_NAIL,
+        LAST_MSG,
+        AI_SIZE,
+        (d.REMANING_TIME/60) as REMANING_TIME
+    FROM AI_PROJECT as a
+    LEFT JOIN (select AI_CD, min(DATASET_CD) as DATASET_CD from TRAIN_DATALIST group by AI_CD ) as b ON a.AI_CD = b.AI_CD
+    LEFT JOIN (select AI_CD, min(DATASET_CD) as T_DATASET_CD from TAB_TRAINSET group by AI_CD ) as c ON a.AI_CD = c.AI_CD
+    LEFT JOIN DATA_ELEMENT as c ON c.DATASET_CD = b.DATASET_CD and DATA_STATUS = 'THUM'
+    LEFT JOIN (select AI_CD, max(REMANING_TIME) as REMANING_TIME from TRAIN_LOG group by AI_CD ) as d ON a.AI_CD = d.AI_CD
+    <where>
+      <if test="AI_CD != null and AI_CD != ''">
+        a.AI_CD = #{AI_CD}
+      </if>
+    </where>
+    ORDER BY CRN_DTM DESC
+  </select>
+
+  <insert id="setNewPrjNumber">
+  INSERT INTO
+      AI_PROJECT_NUMBER (
+        OBJECT_TYPE,
+        DATA_TYPE,
+        YEAR_NUM,
+        SEQ,
+        CRN_DTM
+      )
+   VALUES (
+      #{OBJECT_TYPE},
+      #{DATA_TYPE},
+      #{YEAR},
+      1,
+      now()
+   )
+   ON
+      DUPLICATE KEY
+   UPDATE
+   		SEQ = SEQ+1,
+   		CRN_DTM = now()
+  </insert>
+
+  <select id="getNewPrjNumber">
+    SELECT CONCAT(OBJECT_TYPE, DATA_TYPE , YEAR_NUM, LPAD(SEQ, 4, 0)) AS PRJ_NUMBER
+    FROM AI_PROJECT_NUMBER
+    WHERE
+      OBJECT_TYPE = #{OBJECT_TYPE}
+      and	DATA_TYPE = #{DATA_TYPE}
+      and YEAR_NUM = #{YEAR}
+  </select>
+
+  <insert id="setAiPrj">
+    INSERT INTO
+      AI_PROJECT (
+        AI_CD,
+        AI_TYPE,
+        AI_VER,
+        TITLE,
+        OBJECT_TYPE,
+        DATA_TYPE,
+        DESC_TXT,
+        CRN_USR,
+        CRN_DTM,
+        AI_STS,
+        THUM_NAIL_CD,
+        TRAIN_TIME,
+        PATH
+        <if test="NETWORK_NAME != null and NETWORK_NAME != ''">
+        ,NETWORK_NAME
+        </if>
+      )
+      VALUES (
+        #{AI_CD},
+        #{AI_TYPE},
+        1,
+        #{TITLE},
+        #{OBJECT_TYPE},
+        #{DATA_TYPE},
+        #{DESC_TXT},
+        #{CRN_USR},
+        now(),
+        'NONE',
+        NULL,
+        0,
+        #{PATH}
+        <if test="NETWORK_NAME != null and NETWORK_NAME != ''">
+        ,#{NETWORK_NAME}
+        </if>
+      )
+  </insert>
+
+  <update id="updateAiPrj">
+    UPDATE AI_PROJECT
+    set UPT_DTM = now()
+      <if test="TITLE != null and TITLE != ''">
+        ,TITLE = #{TITLE}
+      </if>
+      <if test="DESC_TXT != null and DESC_TXT != ''">
+        ,DESC_TXT = #{DESC_TXT}
+      </if>
+      <if test="TRAIN_SRT_DTM != null and TRAIN_SRT_DTM != ''">
+        ,TRAIN_SRT_DTM = ${TRAIN_SRT_DTM}
+      </if>
+      <if test="TRAIN_END_DTM != null and TRAIN_END_DTM != ''">
+        ,TRAIN_END_DTM = ${TRAIN_END_DTM}
+      </if>
+      <if test="TRAIN_END_DTM != null and TRAIN_END_DTM != ''">
+        ,TRAIN_TIME = TIMESTAMPDIFF(minute, TRAIN_SRT_DTM, now()) + TRAIN_TIME
+      </if>
+      <if test="SET_DATASET != null and SET_DATASET != ''">
+        ,SET_DATASET = ${SET_DATASET}
+      </if>
+      <if test="SET_CLASSINFO != null and SET_CLASSINFO != ''">
+        ,SET_CLASSINFO = ${SET_CLASSINFO}
+      </if>
+      <if test="AI_STS != null and AI_STS != ''">
+        ,AI_STS = #{AI_STS}
+      </if>
+      <if test="AI_PID != null and AI_PID != ''">
+        ,AI_PID = ${AI_PID}
+      </if>
+      <if test="NETWORK_NAME != null and NETWORK_NAME != ''">
+        ,NETWORK_NAME = #{NETWORK_NAME}
+      </if>
+      <if test="LAST_MSG != null and LAST_MSG != ''">
+        ,LAST_MSG = #{LAST_MSG}
+      </if>
+    WHERE AI_CD = #{AI_CD}
+  </update>
+
+  <update id="updateAiPrjbyPid">
+  UPDATE AI_PROJECT
+    set UPT_DTM = now()
+      <if test="AI_STS != null and AI_STS != ''">
+        ,AI_STS = #{AI_STS}
+      </if>
+  WHERE AI_PID = #{AI_PID}
+  </update>
+
+  <select id = "getActiveTrain">
+    SELECT count(*) as ACTIVE_TRAIN from AI_PROJECT WHERE  AI_STS = 'LEARN' OR AI_STS = 'READY'
+  </select>
+
+  <insert id="setTrainDataset">
+    INSERT INTO TRAIN_DATALIST
+    (
+      AI_CD,
+      DATASET_CD,
+      DATA_CD,
+      UPT_DTM
+    )
+      SELECT
+        #{AI_CD} AS AI_CD,
+        DATASET_CD,
+        DATA_CD,
+        now() AS UPT_DTM
+			FROM DATA_ELEMENT
+      WHERE DATASET_CD IN(
+        <foreach collection="DATA" item="item" separator="," >
+        #{item.DATASET_CD}
+        </foreach>
+        )
+        AND DATA_STATUS = 'ORG'
+  </insert>
+
+  <delete id = "removeDataSet">
+		DELETE FROM DATASET WHERE DATASET_CD = #{DATASET_CD}
+	</delete>
+
+  <delete id="removeTrainDataSet">
+    DELETE FROM TRAIN_DATALIST
+           WHERE AI_CD = #{AI_CD}
+  </delete>
+
+
+  <delete id="removeTrainClassInfo">
+    DELETE FROM TRAIN_CLASSINFO
+           WHERE AI_CD = #{AI_CD}
+  </delete>
+
+  <delete id="removeAi">
+    DELETE FROM AI_PROJECT
+           WHERE AI_CD = #{AI_CD}
+  </delete>
+
+  <select id="getTrainDataSetList">
+  SELECT DISTINCT(DATASET_CD) FROM TRAIN_DATALIST WHERE AI_CD = #{AI_CD}
+  </select>
+
+  <select id="getDataSetListByTrain">
+  SELECT DISTINCT(DATASET_CD) FROM TRAIN_DATALIST WHERE AI_CD = #{AI_CD}
+  </select>
+
+  <select id="getDistinctTrainDataSetList">
+  SELECT  *,
+      (SELECT count(*) FROM DATA_ELEMENT WHERE DATASET_CD = a.DATASET_CD AND DATA_STATUS='ORG' ) AS FILE_COUNT,
+      (SELECT count(*) FROM DATASET_TAGINFO WHERE DATASET_CD = a.DATASET_CD ) AS CLASS_COUNT,
+      (SELECT sum(FILE_SIZE ) FROM DATA_ELEMENT WHERE DATASET_CD = a.DATASET_CD AND DATA_STATUS='ORG') AS DATA_SIZE
+   FROM DATASET a WHERE DATASET_CD IN (
+    <foreach collection="DATA" item="item" separator="," >
+    #{item}
+    </foreach>
+  )
+  </select>
+
+  <select id="getTrainDataElement">
+        SELECT * FROM DATA_ELEMENT WHERE
+          <foreach collection="DATA" item="item" separator="OR" >
+          (
+            DATASET_CD = #{item.DATASET_CD}
+            AND DATA_CD IN ( SELECT DATA_CD
+                              FROM TRAIN_DATALIST
+                              WHERE AI_CD = #{item.AI_CD}
+                              AND DATASET_CD = #{item.DATASET_CD}
+                            )
+          )
+          </foreach>
+  </select>
+
+  <select id="getTrainClassList">
+        SELECT * FROM TRAIN_CLASSINFO WHERE AI_CD = #{AI_CD}
+  </select>
+
+  <select id="getTagListByTagCD">
+        SELECT *,
+            #{TRAIN_CLASS_CD} AS TRAIN_CLASS_CD,
+            #{TRAIN_CLASS} AS TRAIN_CLASS,
+            #{TRAIN_COLOR} AS TRAIN_COLOR
+         FROM DATASET_TAGINFO WHERE TAG_CD IN (
+          <foreach collection="DATA" item="item" separator="," >
+            #{item}
+          </foreach>
+        )
+  </select>
+
+  <select id="getTagListByDataSetCD">
+        SELECT * FROM DATASET_TAGINFO WHERE DATASET_CD IN (
+          <foreach collection="DATA" item="item" separator="," >
+            #{item}
+          </foreach>
+        )
+  </select>
+
+  <select id="getTagListByDataSetCD_single">
+    SELECT
+     	  *,
+    	  IF(CLASS_CD IS NULL,NULL,
+          (SELECT BASE_MDL FROM PRE_TRAINED_CLASS WHERE CLASS_CD = a.CLASS_CD ) )
+          AS BASE_MDL
+    FROM DATASET_TAGINFO a WHERE DATASET_CD = #{DATASET_CD}
+  </select>
+
+  <delete id="removeTrainClasses">
+    DELETE FROM TRAIN_CLASSINFO WHERE AI_CD = #{AI_CD}
+  </delete>
+
+  <insert id="setTrainClassInfo">
+    INSERT INTO TRAIN_CLASSINFO (
+      AI_CD,
+      NAME,
+      DESC_TXT,
+      COLOR,
+      ELEMENT_TAGS
+    ) VALUES
+    <foreach collection="DATA" item="item" separator="," >
+      (
+        #{AI_CD},
+        #{item.NAME},
+        #{item.DESC_TXT},
+        #{item.COLOR},
+        #{item.ELEMENT_TAGS}
+      )
+    </foreach>
+  </insert>
+
+  <select id="getFileListCLF">
+    SELECT * FROM DATA_ELEMENT
+      WHERE DATASET_CD IN (
+                            (SELECT DATASET_CD FROM DATASET_TAGINFO
+                             WHERE TAG_CD IN(
+                              <foreach collection="DATA" item="item" separator="," >
+                                ${item}
+                              </foreach>
+                             )
+                            )
+                          )
+        AND DATA_STATUS = 'ORG'
+        AND TAG_CD IN(
+          <foreach collection="DATA" item="item" separator="," >
+                                ${item}
+          </foreach>
+        )
+  </select>
+
+  <select id="getFileList">
+    SELECT * FROM DATA_ELEMENT
+      WHERE DATASET_CD IN (
+                            (SELECT DATASET_CD FROM DATASET_TAGINFO
+                             WHERE TAG_CD IN(
+                              <foreach collection="DATA" item="item" separator="," >
+                                ${item}
+                              </foreach>
+                             )
+                            )
+                          )
+        AND DATA_STATUS = 'ORG'
+  </select>
+
+  <select id="getDataSetListByAICD">
+    SELECT * FROM DATASET
+    WHERE DATASET_CD IN ( (SELECT DATASET_CD FROM TRAIN_DATALIST WHERE AI_CD = #{AI_CD} GROUP BY DATASET_CD) )
+  </select>
+
+  <select id="getModelDataByAICD">
+    SELECT *
+    FROM TRAIN_MODELINFO
+    WHERE AI_CD = #{AI_CD}
+  </select>
+
+  <select id="getClassListByAICD">
+    SELECT * FROM DATASET
+    WHERE DATASET_CD IN ( (SELECT DATASET_CD FROM TRAIN_DATALIST WHERE AI_CD = #{AI_CD} GROUP BY DATASET_CD) )
+  </select>
+
+  <select id="getMdlIdxList">
+  SELECT DISTINCT(MDL_IDX) MDL_IDX FROM TRAIN_LOG WHERE AI_CD = #{AI_CD}
+  </select>
+
+  <select id="getTrainResult">
+    SELECT
+      AI_CD,
+      EPOCH,
+      date_format(UPT_DTM,'%Y-%m-%d %T') AS UPT_DTM,
+      OBJECT_TYPE,
+      DATA_TYPE,
+      GPU_RATE,
+      CRN_USR,
+      AI_LOSS,
+      AI_ACC,
+      AI_VAL_LOSS,
+      AI_VAL_ACC,
+      R2_SCORE,
+	    MSE,
+	    MAE,
+	    RMSE,
+	    AI_PRECISION,
+	    AI_RECALL,
+	    F1,
+	    MDL_IDX
+  FROM TRAIN_LOG WHERE AI_CD = #{AI_CD}
+   AND IS_PREDICT = FALSE
+  ORDER BY MDL_IDX, EPOCH
+  </select>
+
+  <select id="getCodeInfoByLocation">
+  SELECT ci.*, ck.CODE_KIND
+  FROM CODE_INFO ci , CODE_KIND ck
+  WHERE ci.CODE_TYPE = ck.CODE_TYPE
+    AND CODE_LOCATION IN (#{CODE_LOCATION})
+  </select>
+
+  <select id="getBaseModelByObjectType">
+  SELECT * from BASE_MODELS WHERE OBJECT_TYPE = #{OBJECT_TYPE} AND DATA_TYPE = #{DATA_TYPE}
+    <if test="PIRIORITY != null and PIRIORITY != ''">
+      AND PIRIORITY = ${PIRIORITY}
+    </if>
+    <if test="NETWORK_NAME != null and NETWORK_NAME != ''">
+      AND NETWORK_NAME = #{NETWORK_NAME}
+    </if>
+  </select>
+
+  <select id="getMyModelByObjectType">
+  SELECT TITLE, AI_CD, CRN_DTM, NETWORK_NAME FROM AI_PROJECT WHERE OBJECT_TYPE = #{OBJECT_TYPE} AND DATA_TYPE = #{DATA_TYPE} and NETWORK_NAME is not null
+  </select>
+
+  <select id="getMyModelClassList">
+  SELECT AI_CD, NAME from TRAIN_CLASSINFO WHERE AI_CD in (
+    <foreach collection="DATA" item="item" separator="," >
+        #{item.AI_CD}
+    </foreach>
+  )
+  </select>
+
+  <insert id="setTrainModelInfo">
+    INSERT INTO TRAIN_MODELINFO (
+      AI_CD,
+      IS_AUTO,
+      EPOCH,
+      BATCH_SIZE,
+      ACTIVE_FUNC,
+      OPTIMIZER,
+      LOSS_FUNC,
+      IS_TRANSFER,
+      BASE_AI_CD,
+      NETWORK_NAME,
+      NETWORK_PATH,
+      GPU_INDEX,
+      GPU_LIMIT,
+      MAX_TRIAL,
+      IS_EARLYSTOP,
+      EARLY_MONITOR,
+      EARLY_MODE,
+      IMG_SIZE,
+      IMG_CHANNEL
+    ) VALUES (
+    #{AI_CD},
+    ${IS_AUTO},
+    ${EPOCH},
+    ${BATCH_SIZE},
+    #{ACTIVE_FUNC},
+    #{OPTIMIZER},
+    #{LOSS_FUNC},
+    ${IS_TRANSFER},
+    #{BASE_AI_CD},
+    #{NETWORK_NAME},
+    #{NETWORK_PATH},
+    #{GPU_INDEX},
+    ${GPU_LIMIT},
+    ${MAX_TRIAL},
+    ${IS_EARLYSTOP},
+    #{EARLY_MONITOR},
+    #{EARLY_MODE},
+    ${IMG_SIZE},
+    ${IMG_CHANNEL}
+    )
+  </insert>
+
+ <select id="getTrainModelInfo">
+    SELECT *
+    FROM TRAIN_MODELINFO
+    WHERE AI_CD = #{AI_CD}
+  </select>
+
+  <update id="updateAiInfo">
+    UPDATE AI_PROJECT
+    set UPT_DTM = now()
+      <if test="TITLE != null and TITLE != ''">
+        ,TITLE = #{TITLE}
+      </if>
+      <if test="DESC_TXT != null and DESC_TXT != ''">
+        ,DESC_TXT = #{DESC_TXT}
+      </if>
+    WHERE AI_CD = #{AI_CD}
+  </update>
+
+  <update id="updateTrainModelInfo">
+    UPDATE TRAIN_MODELINFO
+    set AI_CD = #{AI_CD}
+      <if test="GPU_LIMIT != null and GPU_LIMIT != ''">
+        ,GPU_LIMIT = ${GPU_LIMIT}
+      </if>
+      <if test="EPOCH != null and EPOCH != ''">
+        ,EPOCH = ${EPOCH}
+      </if>
+      <if test="BATCH_SIZE != null and BATCH_SIZE != ''">
+        ,BATCH_SIZE = ${BATCH_SIZE}
+      </if>
+      <if test="IS_AUTO != null and IS_AUTO != ''">
+        ,IS_AUTO = ${IS_AUTO}
+      </if>
+      <if test="GPU_INDEX != null and GPU_INDEX != ''">
+        ,GPU_INDEX = #{GPU_INDEX}
+      </if>
+    WHERE AI_CD = #{AI_CD}
+  </update>
+
+  <select id="getTrainedModelList">
+  SELECT A.*, B.MDL_ALIAS, 
+          CASE
+            WHEN C.MDL_IDX IS NULL THEN 0
+            ELSE 1
+          END AS SELECTED_YN
+    FROM TRAIN_LOG A
+         LEFT JOIN TRAIN_MODELINFO B on A.AI_CD = B.AI_CD and A.MDL_IDX = B.MDL_IDX
+         LEFT JOIN SELECTED_MODEL C on A.AI_CD  = C.AI_CD and
+         <choose>
+            <when test="DATA_TYPE == 'T'">
+              A.MDL_IDX = C.MDL_IDX
+            </when>
+            <otherwise>
+              A.EPOCH = C.EPOCH
+            </otherwise>
+          </choose>
+  WHERE A.AI_CD =#{AI_CD}
+    <choose>
+      <when test="DATA_TYPE == 'T'">
+        GROUP by MDL_IDX
+      </when>
+      <otherwise>
+        GROUP by EPOCH
+      </otherwise>
+    </choose>
+  </select>
+
+
+  <insert id="setTrainedModel">
+    INSERT INTO SELECTED_MODEL (
+      AI_CD,
+      OBJECT_TYPE,
+      DATA_TYPE,
+      EPOCH,
+      MDL_IDX,
+      UPT_DTM
+    ) VALUES
+    (
+      #{AI_CD},
+      #{OBJECT_TYPE},
+      #{DATA_TYPE},
+      ${EPOCH},
+      ${MDL_IDX},
+      now()
+    )
+  </insert>
+
+  <select id="getSelectedModel">
+    SELECT 
+      C.*, 
+      B.MDL_ALIAS, 
+      B.NETWORK_NAME AS NETWORK_NAME,
+      CASE
+        WHEN A.MDL_IDX IS NULL THEN 0
+        ELSE 1
+      END AS SELECTED_YN,
+      A.UPT_DTM AS SELECTED_DATE,
+      D.TITLE 
+    FROM SELECTED_MODEL A
+    LEFT JOIN TRAIN_MODELINFO B on A.AI_CD = B.AI_CD and A.MDL_IDX = B.MDL_IDX
+    LEFT JOIN TRAIN_LOG C on A.AI_CD = C.AI_CD and A.EPOCH = C.EPOCH and A.MDL_IDX = C.MDL_IDX
+    JOIN AI_PROJECT D on A.AI_CD = D.AI_CD 
+    ORDER BY A.UPT_DTM DESC
+  </select>
+
+  <delete id="removeSelectedModel">
+    DELETE FROM SELECTED_MODEL
+           WHERE AI_CD = #{AI_CD}
+  </delete>
+
+</mapper>

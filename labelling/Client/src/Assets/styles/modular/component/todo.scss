@@ -1,0 +1,425 @@
+.todo {
+  margin-bottom: 15px;
+}
+
+.todo__checkbox {
+
+  input:checked ~ .todo__checkbox-label {
+    color: $color-additional;
+    text-decoration: line-through;
+  }
+  .todo__checkbox-label {
+    @include directify($directions) {
+      text-align: #{directed('left')};
+    }
+  }
+}
+
+.todo-app {
+
+  .card {
+    padding-bottom: 20px;
+  }
+
+  .todo-app__divider {
+    padding-bottom: 20px;
+    text-align: center;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+  }
+
+  .todo-app__divider-title {
+    text-transform: uppercase;
+    color: rgba(92, 104, 156, 0.6);
+    margin: 0 10px;
+  }
+
+  .todo-app__divider-line {
+    height: 1px;
+    background-color: rgba(92, 104, 156, 0.6);
+    opacity: 0.15;
+    flex-grow: 1;
+  }
+
+  .todo__item {
+    display: flex;
+    @media screen and (max-width: 450px){
+      padding-bottom: 50px;
+    }
+
+    .todo__info {
+      flex-grow: 1;
+
+      .todo__header {
+        display: flex;
+        margin-bottom: 10px;
+
+        h3 {
+          font-size: 16px;
+          line-height: 18px;
+          font-weight: 700;
+        }
+
+        .todo__additional {
+          @include directify($directions) {
+            #{directed('margin-left')}: auto;
+          }
+          display: flex;
+          @media screen and (max-width: 450px){
+            position: absolute;
+            bottom: 40px;
+            left: 50px;
+            right: auto;
+          }
+        }
+
+        .todo__priority-indicator {
+          background-color: $color-accent;
+          height: 10px;
+          width: 10px;
+          border-radius: 50%;
+          display: inline-block;
+          vertical-align: middle;
+          align-self: center;
+          flex-shrink: 0;
+
+          &.low {
+            background-color: $color-accent;
+          }
+
+          &.medium {
+            background-color: $color-yellow;
+          }
+
+          &.high {
+            background-color: $color-red;
+          }
+        }
+
+        .todo__due-date, .todo__priority {
+          padding: 0 5px;
+
+          @include themify($themes) {
+            background-color: themed('colorHover');
+          }
+        }
+
+        .todo__due-date {
+          @include directify($directions) {
+            #{directed('margin-right')}: 15px;
+          }
+        }
+
+        .todo__priority {
+          @include directify($directions) {
+            #{directed('margin-right')}: 5px;
+          }
+          @include themify($themes) {
+            color: themed('colorText');
+          }
+        }
+      }
+
+      .todo__content {
+        @include directify($directions) {
+          text-align: directed('left');
+        }
+        display: flex;
+        justify-content: space-between;
+
+        .todo__description {
+          @include themify($themes) {
+            color: themed('colorText');
+          }
+          max-width: 65%;
+          @media screen and (max-width: 450px){
+            max-width: 100%;
+          }
+        }
+
+        .todo__delete-btn {
+          border: none;
+          position: relative;
+          color: #999999;
+          cursor: pointer;
+          align-self: flex-end;
+          padding: 5px;
+          @include themify($themes) {
+            background-color: themed('colorHover');
+          }
+          @media screen and (max-width: 450px){
+            bottom: -30px;
+          }
+
+          svg {
+            height: 16px;
+            width: 16px;
+            fill: $color-additional;
+          }
+
+          &:hover {
+            color: $color-red-hover;
+
+            svg {
+              fill: $color-red-hover;
+            }
+          }
+        }
+      }
+
+    }
+
+  }
+
+  .todo__item-comleted {
+
+    h3 {
+      text-decoration: line-through;
+    }
+
+    h3, .todo__content {
+      color: #999999;
+    }
+  }
+
+  .todo__input-new {
+    text-align: center;
+  }
+
+  .todo__sidebar {
+    background-color: $color-blue;
+    min-height: 710px;
+    padding: 30px 20px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    border-radius: 5px;
+
+    .todo_sidebar-image {
+      width: 130px;
+      margin-bottom: 20px;
+    }
+
+    .todo__date-filter,
+    .todo__priority-filter {
+      align-self: flex-start;
+      @include directify($directions) {
+        text-align: directed('left');
+      }
+      margin-bottom: 20px;
+
+      .title {
+        font-size: 12px;
+        margin-bottom: 15px;
+        color: white;
+        opacity: 0.6;
+      }
+    }
+
+    .todo__date-filter-list,
+    .todo__priority-filter-list {
+      list-style: none;
+      padding: 0;
+      margin: 0;
+
+      li:not(:last-child) {
+        margin-bottom: 10px;
+      }
+
+      label {
+        margin: 0;
+        color: white;
+        font-size: 12px;
+      }
+    }
+
+    .todo__filter-radio {
+      display: none;
+    }
+
+    .todo__filter-radio + label {
+      position: relative;
+      @include directify($directions) {
+        #{directed('padding-right')}: 0px;
+        #{directed('padding-left')}: 25px;
+      }
+      padding-top: 0px;
+      padding-bottom: 0px;
+      cursor: pointer;
+    }
+
+    .todo__filter-radio + label:before {
+      content: "";
+      position: absolute;
+      @include directify($directions) {
+        #{directed('left')}: 0px;
+      }
+      width: 15px;
+      height: 15px;
+      border: 1px solid #fafbfe;
+      border-radius: 50%;
+    }
+
+    .todo__filter-radio + label:after {
+      content: "";
+      position: absolute;
+      top: 3px;
+      @include directify($directions) {
+        #{directed('left')}: 3px;
+      }
+      width: 9px;
+      height: 9px;
+      border-radius: 50%;
+      background-color: #fafbfe;
+      opacity: 0;
+      transition: .2s;
+    }
+
+    .todo__filter-radio:checked + label:after {
+      opacity: 1;
+    }
+  }
+
+  .todo__btn-add-new {
+    color: white;
+    cursor: pointer;
+    padding: 5px 10px;
+    min-width: 130px;
+    background-color: $color-blue;
+    margin: 0;
+    border: 2px solid white;
+    border-radius: 100px;
+    margin-bottom: 20px;
+
+    &:before {
+      background-color: lighten($color-blue, 10%);
+    }
+
+    &:hover {
+      color: white;
+    }
+
+    svg {
+      height: 16px;
+      width: 16px;
+      margin: 0;
+      fill: white;
+    }
+  }
+
+  .todo__label-checkbox {
+    position: relative;
+    @include directify($directions) {
+      #{directed('margin-right')}: 10px;
+    }
+    width: 25px;
+    flex-shrink: 0;
+
+    .todo__complete-toggle {
+      display: none;
+    }
+
+    .todo__complete-toggle + .checkbox-indicator {
+      position: absolute;
+      top: 0;
+      @include directify($directions) {
+        #{directed('left')}: 0px;
+      }
+
+      width: 19px;
+      height: 18px;
+
+      border: 1px solid;
+      border-color: #dddddd;
+      border-radius: 3px;
+      display: block;
+      cursor: pointer;
+    }
+
+    .todo__complete-toggle:checked + .checkbox-indicator {
+      border-color: $color-accent;
+      background-color: $color-accent;
+    }
+
+    .todo__complete-toggle + .checkbox-indicator::before,
+    .todo__complete-toggle + .checkbox-indicator::after {
+      content: "";
+      position: absolute;
+      opacity: 0;
+    }
+
+    .todo__complete-toggle:checked + .checkbox-indicator::before,
+    .todo__complete-toggle:checked + .checkbox-indicator::after {
+      content: "";
+
+      position: absolute;
+      top: 8px;
+      @include directify($directions) {
+        #{directed('left')}: 1px;
+      }
+
+      width: 15px;
+      height: 2px;
+
+      background-color: white;
+      opacity: 1;
+      transition: 0.2s;
+    }
+
+    .todo__complete-toggle:checked + .checkbox-indicator::before {
+      transform: rotate(45deg);
+      @include directify($directions) {
+        #{directed('left')}: 2px;
+      }
+      top: 9px;
+      height: 1px;
+      width: 6px;
+    }
+
+    .todo__complete-toggle:checked + .checkbox-indicator::after {
+      transform: rotate(-45deg);
+      @include directify($directions) {
+        #{directed('left')}: 6px;
+      }
+      top: 7px;
+      height: 1px;
+      width: 10px;
+    }
+  }
+
+}
+
+.todo__add-modal {
+  max-width: 500px;
+
+  .modal-content {
+    @include themify($themes) {
+      background-color: themed('colorBackgroundBody');
+    }
+  }
+
+  .modal__footer {
+    justify-content: flex-start;
+  }
+
+  .form__form-group {
+    @include directify($directions) {
+      text-align: directed('left');
+    }
+
+    .form__form-group-field input,
+    .form__form-group-field textarea {
+
+      @include themify($themes) {
+        border: 1px solid themed('colorFieldsBorder');
+        color: themed('colorText');
+      }
+    }
+
+    .form__form-group-field.priority {
+      display: block;
+    }
+  }
+
+}
