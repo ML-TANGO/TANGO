@@ -1,0 +1,250 @@
+@import '~react-draft-wysiwyg/dist/react-draft-wysiwyg.css';
+
+.text-editor {
+  @include directify($directions) {
+    direction: directed('direction');
+  }
+  position: relative;
+  .rdw-editor-toolbar {
+    margin: 0;
+    background: transparent;
+    border-radius: 0;
+
+    @include themify($themes) {
+      border: solid 1px themed('colorFieldsBorder');
+    }
+  }
+
+  .rdw-emoji-modal, .rdw-link-modal, .rdw-image-modal {
+    @include themify($themes) {
+      background: themed('colorBackground');
+      color: themed('colorText');
+    }
+    @media screen and (max-width: 360px) {
+      left: 15px;
+    }
+    @media screen and (max-width: 460px) {
+      left: 0;
+    }
+    @media screen and (max-width: 662px) {
+      left: -140px;
+    }
+
+    @media screen and (min-width: 663px) and (max-width: 727px) {
+      left: -30px;
+    }
+
+
+    @media screen and (min-width: 850px) and (max-width: 942px) {
+      left: 10px;
+    }
+
+    @media screen and (min-width: 943px) and (max-width: 1025px) {
+      left: -175px;
+    }
+    @media screen and (min-width: 1026px) and (max-width: 1187px) {
+      left: 10px;
+    }
+
+    left: -175px;
+  }
+
+  .rdw-image-modal-url-input {
+    @include directify($directions) {
+      text-align: directed('left');
+    }
+  }
+
+  .rdw-link-modal-input {
+    width: auto;
+    @include directify($directions) {
+      text-align: directed('left');
+    }
+  }
+
+  .rdw-link-modal-input:last-of-type {
+    margin-bottom: 10px;
+  }
+
+  .rdw-link-modal-target-option {
+    margin-bottom: 0;
+  }
+
+  #openLinkInNewWindow {
+    width: auto;
+    height: auto;
+  }
+
+  .rdw-emoji-icon {
+    background: white;
+  }
+
+  .rdw-editor-toolbar {
+    padding: 0;
+
+    & > div {
+      height: 40px;
+      border: none;
+      background: transparent;
+      cursor: pointer;
+      margin: 0;
+
+      img {
+        @include themify($themes) {
+          fill: themed('colorText');
+        }
+      }
+    }
+
+    .rdw-option-active {
+      box-shadow: none;
+
+      @include themify($themes) {
+        background-color: themed('colorBorder');
+      }
+    }
+  }
+
+  .DraftEditor-root {
+    width: 100%;
+    min-height: 180px;
+
+    @include themify($themes) {
+      border: solid 1px themed('colorFieldsBorder');
+    }
+
+    border-top: none;
+  }
+
+  .public-DraftEditor-content {
+    padding: 6px 10px;
+
+    @include themify($themes) {
+      color: themed('colorText');
+    }
+
+  }
+
+  .draftJsMentionPlugin__input__1Wxng {
+    width: 100%;
+    padding: 10px;
+  }
+
+  .public-DraftEditorPlaceholder-root {
+    position: absolute;
+    color: $color-additional;
+  }
+
+  .rdw-option-wrapper, .rdw-dropdown-wrapper {
+    border: none;
+    border-radius: 0;
+    transition: background 0.3s;
+    background: transparent;
+
+    &:hover {
+      box-shadow: none;
+
+      @include themify($themes) {
+        background: themed('colorHover');
+      }
+    }
+
+    img {
+
+      @include themify($themes) {
+        filter: themed('imgInvert');
+      }
+    }
+  }
+
+  .rdw-option-wrapper {
+    min-width: 10px!important;
+    width: auto!important;
+  }
+
+  .rdw-dropdown-wrapper {
+
+    @include themify($themes) {
+      color: themed('colorText');
+    }
+
+    .rdw-dropdown-carettoclose {
+      @include directify($directions) {
+       #{directed('right')}: 0px;
+        #{directed('left')}: auto;
+      }
+
+      @include themify($themes) {
+        border-bottom-color: themed('colorText');
+      }
+    }
+
+    .rdw-dropdown-carettoopen {
+      @include directify($directions) {
+        #{directed('right')}: 0px;
+        #{directed('left')}: auto;
+      }
+
+      @include themify($themes) {
+        border-top-color: themed('colorText');
+      }
+    }
+  }
+
+  .rdw-dropdown-optionwrapper {
+    overflow: auto;
+
+    @include themify($themes) {
+      background-color: themed('colorBackground');
+      border-color: themed('colorBorder');
+    }
+
+    &:hover {
+      box-shadow: none;
+    }
+  }
+
+  .rdw-dropdownoption-default {
+    transition: background-color 0.3s;
+
+    &:hover {
+
+      @include themify($themes) {
+        background-color: themed('colorHover');
+      }
+    }
+
+    &.rdw-dropdownoption-active {
+
+      @include themify($themes) {
+        background-color: themed('colorHover');
+      }
+    }
+  }
+
+  button {
+
+    &:hover {
+      box-shadow: none;
+
+      @include themify($themes) {
+        background-color: themed('colorHover');
+      }
+    }
+
+    &[disabled] {
+      pointer-events: none;
+    }
+  }
+}
+
+.public-DraftStyleDefault-ltr {
+  @include directify($directions) {
+    direction: #{directed('direction')};
+    text-align: #{directed('left')};
+  }
+}
+
+.rdw-image-modal-size-input {
+  min-width: 0;
+}

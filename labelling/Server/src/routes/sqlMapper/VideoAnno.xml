@@ -1,0 +1,45 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="VideoAnno">  
+  <select id="getImageList">
+    SELECT * FROM DATA_ELEMENT WHERE DATASET_CD = #{DATASET_CD} AND DATA_STATUS =#{DATA_STATUS}
+  </select>
+
+  <select id="getVideo">
+    SELECT * FROM DATA_ELEMENT WHERE DATASET_CD = #{DATASET_CD} AND DATA_CD =#{DATA_CD}
+  </select>
+
+  <select id="getDataTags">
+    SELECT * FROM DATASET_TAGINFO WHERE DATASET_CD = #{DATASET_CD}
+		<if test="NAME != null and NAME != ''">
+                    AND NAME = #{NAME}
+		</if>           
+  </select>
+
+	<delete id = "removeDataTag">
+		DELETE FROM DATASET_TAGINFO WHERE DATASET_CD = #{DATASET_CD} and NAME = #{NAME}
+	</delete>
+
+  <insert id="setDataTag">
+    INSERT INTO DATASET_TAGINFO (
+		DATASET_CD,
+		NAME,
+		CLASS_CD,
+		DESC_TXT,
+		COLOR,
+		PRE_MDL_CD,
+		PRE_CLASS_CD,
+		CLASS_SUFFIX
+	) VALUES (
+		#{DATASET_CD},
+		#{NAME},
+		#{CLASS_CD},
+		#{DESC_TXT},
+		#{COLOR},
+		NULL,
+		NULL,
+		NULL
+	)
+  </insert>
+
+</mapper>

@@ -1,0 +1,82 @@
+.material-form {
+  @include directify($directions) {
+    text-align: directed('left');
+  }
+
+  .material-form__field {
+    width: 100%;
+    margin-bottom: 20px;
+
+    div {
+      @include themify($themes) {
+        color: themed('colorText');
+      }
+    }
+
+    & > div:before {
+
+      @include themify($themes) {
+        border-bottom-color: themed('colorFieldsBorder');
+      }
+    }
+
+    & > div:hover:before {
+      border-bottom: 1px solid $color-accent !important;
+    }
+
+    & > div:after {
+      border-color: $color-accent;
+    }
+
+    input, textarea {
+      font-size: 12px;
+
+      @include themify($themes) {
+        color: themed('colorText');
+      }
+    }
+    label {
+      @include directify($directions) {
+        #{directed('left')}: 0px;
+        #{directed('right')}: auto;
+      }
+    }
+
+    svg {
+      @include directify($directions) {
+        #{directed('left')}: auto;
+        #{directed('right')}: 0;
+      }
+
+      @include themify($themes) {
+        fill: themed('colorText');
+      }
+    }
+  }
+
+  .material-form__label {
+    margin: 0;
+    font-size: 12px;
+
+    @include themify($themes) {
+      color: themed('colorText');
+    }
+  }
+
+  label {
+    font-size: 12px;
+
+    @include themify($themes) {
+      color: themed('colorText');
+    }
+
+    &[data-shrink="true"] {
+      transform: translate(0, 1.5px) scale(0.85);
+    }
+  }
+}
+
+.material-form__option {
+  font-size: 13px !important;
+  height: 18px !important;
+}

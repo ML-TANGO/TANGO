@@ -1,0 +1,59 @@
+.cron_builder_bordering {
+  border: 1px solid #ddd;
+  border-top: none;
+  text-align: center;
+  padding: 10px;
+  background: #fff;
+}
+
+.cron_builder_bordering input,
+.cron_builder_bordering select {
+  width: 100px;
+  margin-right: 10px;
+  margin-left: 10px;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  outline: none;
+  padding-left: 5px;
+  cursor: pointer;
+}
+
+.df {
+  display: flex;
+}
+.cron-builder-bg {
+  background-color: #086090;
+  color: white;
+  text-align: center;
+  margin-bottom: 4px;
+  padding: 8px 0px;
+}
+.cron_builder_bordering select {
+  background-color: white;
+  width: 75px;
+  cursor: pointer;
+  padding: 4px 0px;
+  border-radius: 4px;
+}
+.cron_builder_bordering select option:hover {
+  background-color: #086090;
+}
+.well-small input {
+  width: auto !important;
+}
+.cron_builder_bordering input[type="radio"] {
+  margin-top: 0px;
+  vertical-align: middle;
+}
+.cron_builder {
+  border: 1px solid #d0cbcb;
+  padding: 5px;
+  background-color: #dddef13d;
+  width: 50%;
+}
+.text_align_left {
+  text-align: left;
+}
+.nav li {
+  cursor: pointer;
+}

@@ -1,0 +1,98 @@
+.pagination {
+
+}
+
+.pagination__link {
+  background: transparent;
+  border: none;
+  color: $color-additional;
+  height: 28px;
+  font-size: 10px;
+  padding: 5px;
+  text-align: center;
+  min-width: 28px;
+  transition: all 0.3s;
+  @include directify($directions) {
+    #{directed('margin-right')}: 2px;
+  }
+
+  &:hover {
+    color: $color-accent;
+    background: transparent;
+  }
+
+  &:focus, &:active {
+    box-shadow: none;
+  }
+
+  svg {
+    transition: 0.3s;
+  }
+
+  &.pagination__link--arrow {
+    border-radius: 50% !important;
+    width: 28px;
+    height: 28px;
+
+    @include themify($themes) {
+      background: themed('colorFieldsBorder');
+    }
+
+    &:hover {
+      background: $color-accent;
+
+      svg {
+        fill: white;
+      }
+    }
+  }
+}
+
+.pagination__item {
+
+  &.active .pagination__link {
+    background-color: transparent;
+    font-weight: bold;
+
+    @include themify($themes) {
+      color: themed('colorText');
+    }
+  }
+
+  &.disabled {
+
+    .pagination__link svg {
+
+      @include themify($themes) {
+        fill: themed('colorIcon');
+      }
+    }
+  }
+}
+
+.pagination__link-icon {
+  width: 13px;
+  height: 13px;
+  fill: $color-additional;
+}
+
+.pagination__wrap {
+  display: flex;
+  margin-top: 15px;
+
+  &.pagination__wrap--small {
+    margin-top: 0;
+    display: block;
+  }
+}
+
+.pagination-info {
+  color: $color-additional;
+  font-size: 12px;
+  @include directify($directions) {
+    #{directed('margin-right')}: 0px;
+    #{directed('margin-left')}: 10px;
+  }
+  margin-top: auto;
+  margin-bottom: auto;
+}

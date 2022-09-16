@@ -1,0 +1,42 @@
+{
+  "database": {
+		"address": "localhost",
+		"port": "3306",
+		"dbname": "labelling",
+		"user": "username",
+		"password": "password",
+		"maxConnection": 10
+	},
+  "email": {
+    "host": "202.31.6.155",
+    "port": "25"
+  },
+  "binPython": {
+    "port": "4864",
+    "parallel": 3
+  },
+  "QI_SET": {
+    "isPath": "/Users/dmshin/onion/etl/bluaiInputSources",
+    "prjPath": "/Users/dmshin/onion/etl/bluaiQI_Projects"
+  },
+  "Log": {
+    "level": "debug",
+    "save": "true",
+    "dirPath": "/Users/dmshin/onion/etl/bluailogs"
+  },
+  "port": 10236,
+  "ip": "127.0.0.1",
+  "masterIp": "0.0.0.0",
+  "soc_port": 3000,
+  "masterPort": 5638,
+  "edgePort": 5637,
+  "tempPath": "/Users/dmshin/onion/etl/bluaiTempPath",
+  "datasetPath": "/Users/dmshin/onion/etl/bluaiDataSets",
+  "aiPath": "/Users/dmshin/onion/etl/bluaiAiModel",
+  "checkSchedule": "* * * * *",
+  "maxModelCnt": 5,
+  "auth": {
+    "tokenExpireTime": "30m",
+    "refreshTokenExpireTime": "3h"
+  }
+}
