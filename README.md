@@ -38,10 +38,10 @@ The source tree is organized with the MSA principles: each subdirectory contains
 ```bash
 $ tree -d -L 2
 .
-├── ui_manager            # front-end server for TANGO
+├── project_manager            # front-end server for TANGO
 │   ├── backend
 │   ├── data
-│   ├── deep_framework
+│   ├── tango
 │   ├── frontend
 │   └── static
 │

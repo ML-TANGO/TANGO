@@ -1,0 +1,148 @@
+{/* ------------------------------ */}
+{/* ---- 프로젝트 생성 팝업 CSS ---- */}
+{/* ------------------------------ */}
+
+.popup {
+  position: fixed;
+  width: 100%;
+  height: 100%;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  border: none;
+  background-color: rgba(0,0,0, 0.5);
+  z-index:11;
+  display: none;
+}
+
+.popup_inner {
+  min-width:600px;
+  min-height:auto;
+  width:600px;
+  height:auto;
+
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+
+  padding: 25px 30px 25px 30px;
+  margin: auto;
+  background: white;
+  border: none;
+  border-radius: 7px;
+  background-color: white;
+  color:black;
+}
+
+.popup_header
+{
+    margin:0px;
+    font-size: 25px;
+    color: #ffffff;
+    line-height:1.0;
+}
+
+.popup_label
+{
+    font-size: 12px;
+    color: black;
+}
+
+.popup_body{
+    margin-top:30px;
+    font-size:0px;
+}
+.popup_body input {
+    margin-top:6px;
+    width: 100%;
+    height: 35px;
+    font-size: 16px;
+    border: none;
+    color: black;
+    border-radius: 3px;
+
+    background-color: lightgrey;
+}
+
+.popup_button_list button {
+    margin-top: 20px;
+    font-size: 15px;
+    font-weight: 50;
+    border: none;
+    color: white;
+    border-radius: 3px;
+}
+
+
+{/* 타겟 고급 설정 팝업 */}
+.target_popup_inner {
+  min-width:370px;
+  min-height:auto;
+  width:370px;
+  height:auto;
+
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+
+  padding: 25px 30px 25px 30px;
+  margin: auto;
+  background: white;
+  border: none;
+  border-radius: 7px;
+  background-color: #242933;
+}
+
+.target_popup_header
+{
+    margin:0px;
+    font-size: 25px;
+    color: #ffffff;
+    line-height:1.0;
+}
+
+.target_popup_label
+{
+    font-size: 16px;
+    color: #BDBFC2;
+}
+
+.target_popup_body input {
+    margin-top:6px;
+    width: 100%;
+    height: 35px;
+    font-size: 16px;
+    border: none;
+    color: white;
+    border-radius: 3px;
+    background-color: #2f343f;
+}
+
+
+.target_filebox label {
+    display: inline-block;
+    text-align: center;
+    color: white;
+    font-size: 15px;
+    vertical-align: middle;
+    line-height:200%;
+    background-color: #4A80FF;
+    border-radius: 3px;
+    cursor: pointer;
+    height: 35px;
+    width: 100px;
+    margin: 10px;
+}
+
+.target_filebox input[type="file"] {
+    position: absolute;
+    width: 0;
+    height: 0;
+    padding: 0;
+    overflow: hidden;
+    border: 0;
+}
+

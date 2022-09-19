@@ -1,0 +1,40 @@
+[
+  {
+    "model": "tango.authuser",
+    "pk": 1,
+    "fields": {
+      "password": "pbkdf2_sha256$260000$8j6HyvCpg4qRQROjrgDwqi$OfreUWwZivzAGRX7UR7+mFPw3NZt+gS5xOTsk8lRaTw=",
+      "last_login": null,
+      "is_superuser": true,
+      "username": "admin",
+      "first_name": "",
+      "last_name": "",
+      "email": "",
+      "is_staff": true,
+      "is_active": true,
+      "date_joined": "2022-03-28T02:59:43.662Z"
+    }
+  },
+  {
+    "model": "tango.oauth2providerapplication",
+    "pk": 1,
+    "fields": {
+      "client_id": "2qjnKMYiPssSGf4QOt1IcBW1cx2D031uXuxqWdQe",
+      "redirect_uris": "http://0.0.0.0:8085",
+      "client_type": "public",
+      "authorization_grant_type": "password",
+      "client_secret": "6pKTC5rWAajcLSMeGc13wEueHSfCEXImEVYoT2afv4aygno088YUNOqFBuE2CR2fKDWmvsNsWW9h9j7Wp7XL3JLzEwjNSiH0fKrJT0HUJGyZIzLY2CI058Yf5JW2E1fJ",
+      "name": "deep_framework",
+      "user": null,
+      "skip_authorization": false,
+      "created": "2022-03-28T03:15:13.760Z",
+      "updated": "2022-03-28T03:15:13.760Z",
+      "algorithm": ""
+    }
+  }
+]
+
+
+
+
+

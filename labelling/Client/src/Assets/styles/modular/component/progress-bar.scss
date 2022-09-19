@@ -1,0 +1,190 @@
+.progress-wrap {
+  margin-bottom: 20px;
+  position: relative;
+
+  &:last-child {
+    margin-bottom: 0;
+  }
+
+  .progress {
+    height: fit-content;
+    border-radius: 10px;
+    box-shadow: none;
+    background-color: #dddddd;
+    margin-bottom: 0;
+  }
+
+  .progress-bar {
+    background-color: $color-accent;
+    color: #646777;
+    box-shadow: none;
+    height: 4px;
+    @include directify($directions) {
+      text-align: directed('right');
+      #{directed('padding-right')}: 10px;
+    }
+    font-size: 9px;
+    line-height: 13px;
+  }
+
+  p {
+    margin-bottom: 5px;
+  }
+
+  .progress__label {
+    color: $color-accent;
+    font-size: 10px;
+    bottom: 16px;
+    margin: 0;
+  }
+
+  &.progress-wrap--small {
+    @include directify($directions) {
+      text-align: directed('left');
+    }
+
+    .progress-bar {
+      height: 8px;
+    }
+  }
+
+  &.progress-wrap--middle {
+
+    .progress-bar {
+      height: 12px;
+    }
+  }
+
+  &.progress-wrap--big {
+
+    .progress-bar {
+      height: 16px;
+    }
+  }
+  &.progress-wrap--rounded {
+
+    .progress-bar {
+      border-radius: 5px;
+    }
+  }
+
+  &.progress-wrap--yellow {
+
+    .progress-bar {
+      background-color: $color-yellow;
+    }
+
+    .progress__label {
+      color: $color-yellow;
+    }
+  }
+
+  &.progress-wrap--violet {
+
+    .progress-bar {
+      background-color: $color-violet;
+    }
+
+    .progress__label {
+      color: $color-violet;
+    }
+  }
+
+  &.progress-wrap--pink {
+
+    .progress-bar {
+      background-color: $color-red;
+    }
+
+    .progress__label {
+      color: $color-red;
+    }
+  }
+
+  &.progress-wrap--blue {
+
+    .progress-bar {
+      background-color: $color-blue;
+    }
+
+    .progress__label {
+      color: $color-blue;
+    }
+  }
+
+  &.progress-wrap--red {
+
+    .progress-bar {
+      background-color: $color-red;
+    }
+
+    .progress__label {
+      color: $color-red;
+    }
+  }
+
+  &.progress-wrap--green {
+
+    .progress-bar {
+      background-color: $color-green;
+    }
+
+    .progress__label {
+      color: $color-green;
+    }
+  }
+
+  &.progress-wrap--label-top {
+
+    .progress__label {
+      position: absolute;
+      @include directify($directions) {
+        #{directed('right')}: 0px;
+      }
+    }
+  }
+
+  &.progress-wrap--pink-gradient {
+    .progress-bar {
+      background-color: unset;
+      background-image: linear-gradient(to left, #ff7e9a, #ff4861);
+    }
+
+    .progress__label {
+      color: $color-red;
+    }
+  }
+
+  &.progress-wrap--lime-gradient {
+    .progress-bar {
+      background-color: unset;
+      background-image: linear-gradient(to left, #d8efc1, #b8e986);
+    }
+
+    .progress__label {
+      color: $color-green;
+    }
+  }
+
+  &.progress-wrap--blue-gradient {
+    .progress-bar {
+      background-color: unset;
+      background-image: linear-gradient(to left, #7edbff, #48b5ff);
+    }
+
+    .progress__label {
+      color: $color-blue;
+    }
+  }
+
+  &.progress-wrap--turquoise-gradient {
+    .progress-bar {
+      background-color: unset;
+      background-image: linear-gradient(to left, #a6efda, #4ce1b6);
+    }
+
+    .progress__label {
+      color: #4ce1b6;
+    }
+  }
+}

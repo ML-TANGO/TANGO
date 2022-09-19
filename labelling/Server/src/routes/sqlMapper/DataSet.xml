@@ -1,0 +1,355 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="DataSet">
+  <select id="getLog">
+    SELECT * FROM SYSTEM_LOG WHERE LOG_CD = #{LOG_CD}
+  </select>
+
+  <select id="getDataSetList">
+    SELECT
+      A.DATASET_CD,
+      A.TITLE,
+      A.DESC_TXT,
+      A.OBJECT_TYPE,
+      A.DATA_TYPE,
+      A.CRN_USR,
+      A.CRN_DTM,
+      A.UPT_DTM,
+      IF(A.THUM_NAIL_CD IS NULL,NULL, B.FILE_PATH) AS THUM_NAIL,
+      CATEGORY1,
+      CATEGORY2,
+      CATEGORY3,
+      (SELECT count(*) FROM DATA_ELEMENT WHERE DATASET_CD = A.DATASET_CD AND DATA_STATUS='ORG' ) AS FILE_COUNT,
+      (SELECT count(*) FROM DATASET_TAGINFO WHERE DATASET_CD = A.DATASET_CD ) AS CLASS_COUNT,
+      (SELECT CLASS_CNT FROM TAB_ANALYSIS WHERE DATASET_CD = A.DATASET_CD LIMIT 1) AS T_CLASS_COUNT,
+      (SELECT sum(FILE_SIZE ) FROM DATA_ELEMENT WHERE DATASET_CD = A.DATASET_CD AND DATA_STATUS='ORG') AS DATA_SIZE,
+      DATASET_STS,
+      (SELECT round(count(ANNO_CNT)/count(*) * 100) from DATA_ELEMENT where DATASET_CD =A.DATASET_CD AND DATA_STATUS ='ORG') AS PERCENT,
+      (SELECT sum(ANNO_CNT) as TAGS from DATA_ELEMENT where DATASET_CD =A.DATASET_CD AND DATA_STATUS ='ORG') AS TAGS,
+      (SELECT count(*) from TAB_FEATUREINFO where DATASET_CD=A.DATASET_CD) AS COL_CNT,
+      (SELECT count(*) from TAB_FEATUREINFO where DATASET_CD=A.DATASET_CD) AS RECORDS,
+      (SELECT SUM(ROW_CNT) from TAB_ANALYSIS where DATASET_CD=A.DATASET_CD) AS ROW_CNT,
+      (SELECT COLUMN_NM from TAB_FEATUREINFO where DATASET_CD=A.DATASET_CD and IS_CLASS = 1) AS ROW_TARGET,
+      PID,
+      LAST_MSG,
+      A.AUTO_ACC,
+      A.AUTO_MODEL,
+      A.AUTO_EPOCH,
+      A.UPLOAD_TYPE
+    FROM DATASET AS A
+    LEFT JOIN DATA_ELEMENT AS B ON A.THUM_NAIL_CD = B.DATA_CD AND B.DATASET_CD = A.DATASET_CD AND B.DATA_STATUS = 'THUM'
+    <if test="DATA_TYPE != null and DATA_TYPE != ''">
+        WHERE DATA_TYPE = #{DATA_TYPE}
+    </if>
+    order by CRN_DTM DESC
+  </select>
+
+
+
+  <insert id="setNewDataSetNumber">
+  INSERT INTO
+      DATASET_NUMBER (
+        OBJECT_TYPE,
+        DATA_TYPE,
+        YEAR_NUM,
+        SEQ,
+        CRN_DTM
+      )
+   VALUES (
+      #{OBJECT_TYPE},
+      #{DATA_TYPE},
+      #{YEAR},
+      1,
+      now()
+   )
+   ON
+      DUPLICATE KEY
+   UPDATE
+   		SEQ = SEQ+1,
+   		CRN_DTM = now()
+  </insert>
+
+  <select id="getNewDataSetNumber">
+    SELECT CONCAT(OBJECT_TYPE, DATA_TYPE , YEAR_NUM, LPAD(SEQ, 4, 0)) AS DATASET_NUMBER
+    FROM DATASET_NUMBER
+    WHERE
+      OBJECT_TYPE = #{OBJECT_TYPE}
+      AND	DATA_TYPE = #{DATA_TYPE}
+      AND YEAR_NUM = #{YEAR}
+  </select>
+
+  <update id="setBulkUpdateDataElement">
+      UPDATE DATA_ELEMENT 
+      set FILE_PATH = CASE
+      <foreach collection="DATAS" item="item">
+          WHEN FILE_NAME = #{item.FILE_NAME} THEN #{item.FILE_PATH}
+      </foreach>
+      ELSE FILE_PATH
+      END, 
+      TAG_CD = CASE
+      <foreach collection="DATAS" item="item">
+          WHEN FILE_NAME = #{item.FILE_NAME} THEN #{item.TAG_CD}
+      </foreach>
+      ELSE TAG_CD
+      END
+      WHERE DATASET_CD = #{DATASET_CD} AND FILE_NAME IN(
+      <foreach collection="DATAS" item="item" separator="," >
+          #{item.FILE_NAME}
+      </foreach>
+      )
+  </update>
+
+  <insert id="setDataElement">
+    INSERT INTO DATA_ELEMENT (
+      DATASET_CD,
+      DATA_CD,
+      DATA_STATUS,
+      FILE_NAME,
+      FILE_EXT,
+      FILE_TYPE,
+      FILE_PATH,
+      FILE_RELPATH,
+      FILE_SIZE,
+      CRN_DTM,
+      UPT_DTM,
+      FPS,
+      TAG_CD
+    )
+    VALUES
+      <foreach collection="DATA" item="item" separator="," >
+          (#{item.DATASET_CD},
+          #{item.DATA_CD},
+          #{item.DATA_STATUS},
+          #{item.FILE_NAME},
+          #{item.FILE_EXT},
+          #{item.FILE_TYPE},
+          #{item.FILE_PATH},
+          #{item.FILE_RELPATH},
+          ${item.FILE_SIZE},
+          now(),
+          NULL,
+          ${item.FPS},
+          ${item.TAG_CD})
+      </foreach>
+  </insert>
+
+  <insert id="setNewDataSet">
+    	INSERT INTO DATASET(
+        DATASET_CD,
+        TITLE,
+        DESC_TXT,
+        OBJECT_TYPE,
+        DATA_TYPE,
+        CRN_USR,
+        CRN_DTM,
+        UPT_DTM,
+        THUM_NAIL_CD,
+        CATEGORY1,
+        CATEGORY2,
+        CATEGORY3,
+        DATASET_STS
+        <if test="UPLOAD_TYPE != null and UPLOAD_TYPE != ''">
+        ,UPLOAD_TYPE
+        </if>
+      ) VALUES (
+          #{DATASET_CD},
+          #{TITLE},
+          #{DESC_TXT},
+          #{OBJECT_TYPE},
+          #{DATA_TYPE},
+          #{CRN_USR},
+          now(),
+          NULL,
+          #{THUM_NAIL_CD},
+          #{CATEGORY1},
+          NULL,
+          NULL,
+          'Y'
+          <if test="UPLOAD_TYPE != null and UPLOAD_TYPE != ''">
+            ,#{UPLOAD_TYPE}
+          </if>
+   	)
+  </insert>
+
+  <insert id="setNewTag">
+    INSERT INTO DATASET_TAGINFO (
+      DATASET_CD,
+      NAME,
+      CLASS_SUFFIX
+    )
+    VALUES
+      <foreach collection="TAG" item="item" separator="," >
+          (
+          #{item.DATASET_CD},
+          #{item.NAME},
+          #{item.CLASS_SUFFIX}
+          )
+      </foreach>
+  </insert>
+
+    <select id="getExistTag">
+      SELECT TAG_CD, NAME FROM DATASET_TAGINFO WHERE DATASET_CD = #{DATASET_CD}
+    </select>
+
+  <select id="getTagCD">
+    SELECT TAG_CD, NAME FROM DATASET_TAGINFO WHERE DATASET_CD = #{DATASET_CD}
+    AND NAME IN (
+      <foreach collection="TAG" item="item" separator="," >
+        #{item.NAME}
+      </foreach>
+    )
+  </select>
+
+  <update id="updaeFailDataSet">
+    UPDATE DATASET
+    set UPT_DTM = now()
+        ,DATASET_STS = #{DATASET_STS}
+        <if test="LAST_MSG != null and LAST_MSG != ''">
+        ,LAST_MSG = #{LAST_MSG}
+        </if>
+    WHERE DATASET_CD IN (
+      <foreach collection="FAIL_LIST" item="item" separator="," >
+        #{item}
+      </foreach>
+      )
+  </update>
+
+  <update id="setUpdateDataset">
+    UPDATE DATASET
+    set UPT_DTM = now()
+      <if test="TITLE != null and TITLE != ''">
+        ,TITLE = #{TITLE}
+      </if>
+      <if test="DESC_TXT != null and DESC_TXT != ''">
+        ,DESC_TXT = #{DESC_TXT}
+      </if>
+        <if test="OBJECT_TYPE != null and OBJECT_TYPE != ''">
+        ,OBJECT_TYPE = #{OBJECT_TYPE}
+      </if>
+        <if test="DATA_TYPE != null and DATA_TYPE != ''">
+        ,DATA_TYPE = #{DATA_TYPE}
+      </if>
+        <if test="DATASET_STS != null and DATASET_STS != ''">
+        ,DATASET_STS = #{DATASET_STS}
+      </if>
+      <if test="PID != null and PID != ''">
+        ,PID = ${PID}
+      </if>
+      <if test="LAST_MSG != null and LAST_MSG != ''">
+        ,LAST_MSG = #{LAST_MSG}
+        </if>
+      <if test="AUTO_TYPE == 'Y'">
+        ,AUTO_ACC = ${AUTO_ACC}
+        ,AUTO_MODEL = #{AUTO_MODEL}
+        ,AUTO_EPOCH = #{AUTO_EPOCH}
+      </if>
+      <if test="AUTO_TYPE == 'N'">
+        ,AUTO_ACC = null
+        ,AUTO_MODEL = null
+        ,AUTO_EPOCH = 0
+      </if>
+    WHERE DATASET_CD = #{DATASET_CD}
+  </update>
+
+  <select id="getDataSetByPid">
+    SELECT DATASET_CD FROM DATASET WHERE PID =  ${PID}
+  </select>
+
+  <select id="getDataSet">
+    SELECT * FROM DATASET WHERE DATASET_CD =  #{DATASET_CD}
+  </select>
+
+  <delete id = "removeDataSet">
+		DELETE FROM DATASET WHERE DATASET_CD = #{DATASET_CD}
+	</delete>
+
+  <delete id = "removeAnalysis">
+		DELETE FROM TAB_ANALYSIS WHERE DATASET_CD = #{DATASET_CD}
+	</delete>
+
+  <delete id = "removeFeatures">
+		DELETE FROM TAB_FEATUREINFO WHERE DATASET_CD = #{DATASET_CD}
+	</delete>
+
+  <delete id = "removeDataSet">
+		DELETE FROM DATASET WHERE DATASET_CD = #{DATASET_CD}
+	</delete>
+
+  <delete id = "removeDataElements">
+		DELETE FROM DATA_ELEMENT WHERE DATASET_CD = #{DATASET_CD}
+	</delete>
+
+  <delete id = "removeDataElementsByName">
+		DELETE FROM DATA_ELEMENT WHERE DATASET_CD = #{DATASET_CD} AND FILE_NAME IN(${FILE_NAMES})
+	</delete>
+
+  <select id="getFileList">
+    SELECT * FROM DATA_ELEMENT WHERE DATASET_CD =  #{DATASET_CD} AND DATA_STATUS = 'ORG' ORDER BY DATA_CD
+  </select>
+
+  <select id="getAutoLabelInfo">
+    SELECT DATASET_CD, AUTO_ACC, AUTO_MODEL, AUTO_EPOCH FROM DATASET WHERE DATASET_CD =  #{DATASET_CD}
+  </select>
+
+  <select id="getMaxDataCd">
+    SELECT MAX(DATA_CD) as DATA_CD FROM DATA_ELEMENT where DATASET_CD = #{DATASET_CD} and DATA_STATUS ='ORG'
+  </select>
+
+  <select id="getThumnNail">
+    SELECT FILE_NAME, FILE_EXT FROM DATA_ELEMENT where DATASET_CD = #{ORG_DATASET_CD} and DATA_STATUS ='THUM'
+  </select>
+
+  <select id="getBaseModel">
+    SELECT * FROM BASE_MODELS WHERE PIRIORITY = 2
+  </select>
+
+  <select id="getUserModel">
+    SELECT B.*
+    FROM (SELECT AI_CD from TRAIN_LOG tl GROUP BY AI_CD) as A
+    JOIN AI_PROJECT as B
+    ON A.AI_CD = B.AI_CD
+    ORDER BY TRAIN_END_DTM desc
+  </select>
+
+  <select id="getModelEpochs">
+    SELECT * FROM TRAIN_LOG WHERE AI_CD=#{AI_CD}
+  </select>
+
+
+
+    <update id="updateDataSetStatus">
+      UPDATE DATASET
+      SET UPT_DTM = now(),
+        DATASET_STS = #{DATASET_STS}
+        <if test="PID != null and PID != ''">
+            ,PID = ${PID}
+        </if>
+      WHERE DATASET_CD = #{DATASET_CD}
+    </update>
+  <insert id="setAnalysis">
+    INSERT INTO TAB_ANALYSIS (
+      DATASET_CD,
+      ROW_CNT,
+      COL_CNT,
+      COLS,
+      COL_INFO,
+      TARGET,
+      SAMPLES,
+      CLASS_CNT
+    )
+    VALUES (
+      #{DATASET_CD},
+      ${ROW_CNT},
+      ${COL_CNT},
+      #{COLUMNS},
+      #{COL_INFO},
+      #{TARGET},
+      #{SAMPLES},
+      #{CLASS_CNT}
+    )
+  </insert>
+
+  <select id="getAnalysis">
+    SELECT * FROM TAB_ANALYSIS WHERE DATASET_CD=#{DATASET_CD}
+  </select>
+</mapper>

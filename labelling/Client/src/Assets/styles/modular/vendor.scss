@@ -1,0 +1,249 @@
+// @import '~react-vis/dist/styles/plot';
+// @import '~react-vis/dist/styles/legends';
+// @import '~react-vis/dist/styles/radial-chart';
+// @import '~react-vis/dist/styles/treemap';
+// @import '~react-vis/dist/styles/examples';
+
+//recharts
+
+path.recharts-sector {
+  @include themify($themes) {
+    stroke: themed("colorBackground");
+  }
+}
+
+.recharts-legend-item-text {
+  @include themify($themes) {
+    color: themed("colorText");
+  }
+}
+
+.recharts-text {
+  fill: $color-additional;
+  opacity: 0.6;
+}
+
+.recharts-cartesian-axis-line {
+  opacity: 0;
+}
+
+.recharts-cartesian-grid-horizontal line,
+.recharts-cartesian-grid-vertical line {
+  fill: $color-additional;
+  opacity: 0.2;
+}
+
+.recharts-brush-slide {
+  @include themify($themes) {
+    fill: themed("colorBackgroundBody");
+  }
+  //fill: #dee3eb;
+  fill-opacity: 1;
+}
+
+.recharts-brush-traveller {
+  transform: translateX(-8px);
+
+  rect {
+    @include themify($themes) {
+      fill: themed("colorBackground");
+    }
+    width: 12px;
+    stroke: #dee3eb;
+  }
+
+  line {
+    @include themify($themes) {
+      stroke: themed("colorText");
+    }
+    stroke: #dee3eb;
+    transform: translateX(4px);
+  }
+
+  &:first-of-type {
+    transform: translateX(0);
+  }
+}
+
+.recharts-tooltip-cursor {
+  fill-opacity: 0.2;
+}
+
+//chartsjs
+
+.card {
+  .chartjs-size-monitor {
+    & + .card__title:not(:first-child) {
+      margin-top: 0;
+    }
+  }
+}
+
+// rc-notification
+.rc-notification {
+  position: fixed;
+  z-index: 100;
+}
+
+.rc-notification-notice {
+  display: block;
+  width: auto;
+  line-height: 1.5;
+  vertical-align: middle;
+  position: relative;
+}
+
+.rc-notification-notice-close {
+  position: absolute;
+  cursor: pointer;
+  outline: none;
+  font-weight: 700;
+  line-height: 1;
+  opacity: 0.2;
+  text-decoration: none;
+}
+
+.rc-notification-notice-close-x:after {
+  content: "×";
+}
+
+.rc-notification-fade-enter {
+  opacity: 0;
+  animation-duration: 0.3s;
+  animation-fill-mode: both;
+  animation-timing-function: cubic-bezier(0.55, 0, 0.55, 0.2);
+  animation-play-state: paused;
+}
+
+.rc-notification-fade-leave {
+  animation-duration: 0.3s;
+  animation-fill-mode: both;
+  animation-timing-function: cubic-bezier(0.55, 0, 0.55, 0.2);
+  animation-play-state: paused;
+}
+
+.rc-notification-fade-enter.rc-notification-fade-enter-active {
+  animation-name: rcNotificationFadeIn;
+  animation-play-state: running;
+
+  &.right-up {
+    animation-name: rcNotificationRightFadeIn;
+  }
+
+  &.left-up {
+    animation-name: rcNotificationLeftFadeIn;
+  }
+}
+
+.rc-notification-fade-leave.rc-notification-fade-leave-active {
+  animation-name: rcDialogFadeOut;
+  animation-play-state: running;
+}
+
+@keyframes rcNotificationFadeIn {
+  0% {
+    transform: translateY(-100%);
+    opacity: 0;
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes rcNotificationLeftFadeIn {
+  0% {
+    transform: translateX(-100%);
+    opacity: 0;
+  }
+  100% {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+@keyframes rcNotificationRightFadeIn {
+  0% {
+    transform: translateX(100%);
+    opacity: 0;
+  }
+  100% {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+@keyframes rcDialogFadeOut {
+  0% {
+    transform: translateY(0);
+    opacity: 1;
+  }
+  100% {
+    transform: translateY(-100%);
+    opacity: 0;
+  }
+}
+
+.rc-notification {
+  @include directify($directions) {
+    #{directed('left')}: auto !important;
+  }
+  top: 60px !important;
+  height: 0;
+
+  & > span {
+    height: 0;
+    display: block;
+  }
+}
+
+.rc-notification-notice-close {
+  @include directify($directions) {
+    #{directed('right')}: 45px;
+  }
+  top: 15px;
+  font-size: 26px;
+  line-height: 1;
+  font-weight: 300;
+  color: #646777;
+  text-shadow: none;
+  opacity: 0.2;
+
+  &:hover {
+    opacity: 0.5;
+    color: #646777;
+  }
+}
+.project-summary__statistic {
+  .recharts-wrapper {
+    direction: ltr;
+    .recharts-legend-wrapper {
+      ul.recharts-default-legend {
+        text-align: center;
+        line-height: 24px;
+
+        .recharts-legend-item {
+          .recharts-surface {
+            @include directify($directions) {
+              #{directed('margin-right')}: 4px;
+            }
+          }
+        }
+      }
+    }
+  }
+}
+
+.recharts-cartesian-axis-ticks {
+  direction: ltr;
+}
+
+.recharts-default-legend {
+  @include directify($directions) {
+    direction: #{directed("direction")};
+  }
+}
+// Forms
+.react-select__value-container {
+  padding: 0 8px !important;
+}

@@ -1,0 +1,36 @@
+{
+
+  "dependencies": {
+
+    "@babel/runtime": "^7.17.9",
+
+    "@babel/standalone": "^7.17.9",
+
+    "axios": "^0.27.2",
+
+    "classnames": "^2.3.1",
+
+    "react": "^17.0.2",
+    "react-beautiful-dnd": "^13.1.0",
+    "react-canvas-draw": "^1.1.1",
+    "react-dom": "^17.0.2",
+    "react-draggable": "^4.4.4",
+    "react-dropbox-chooser": "^0.0.5",
+    "react-edit-text": "^4.4.0",
+    "react-flow-renderer": "^9.6.7",
+    "react-google-picker": "^0.1.0",
+    "react-router-dom": "^6.3.0",
+    "react-scripts": "5.0.0",
+    "reactjs-popup": "^2.0.5",
+    "styled-components": "^5.3.5",
+    "sweetalert2": "^11.2.0",
+    "web-vitals": "^2.1.4"
+  },
+
+  "devDependencies": {
+
+    "@types/react-edit-text": "^4.4.0"
+
+  }
+
+}

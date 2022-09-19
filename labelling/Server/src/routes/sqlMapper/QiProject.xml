@@ -1,0 +1,358 @@
+<?xml version:"1.0" encoding:"UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="QiProject">
+
+  <select id='getLastInsert'>
+      SELECT QP_CD AS ID FROM Q_PROJECT ORDER BY QP_CD DESC LIMIT 1
+    </select>
+
+  <insert id='setNewProject'>
+    INSERT INTO Q_PROJECT (
+      QP_TITLE,
+      DESC_TXT,
+      CRN_USR,
+      CRN_DTM,
+      UPT_DTM
+    )
+    VALUES (
+      #{QP_TITLE},
+      #{DESC_TXT},
+      #{CRN_USR},
+      now(),
+      now()
+    )
+  </insert>
+
+  <insert id='setPrjISList'>
+    INSERT INTO PRJINPUT_LIST (
+      QP_CD,
+      IS_CD,
+      UPT_DTM
+    )
+    VALUES
+      <foreach collection="IS_LIST" item="item" separator="," >
+      (
+        ${QP_CD},
+        ${item.IS_CD},
+        now()
+      )
+      </foreach>
+  </insert>
+
+  <select id='getPrjList'>
+    SELECT
+      *,
+      (SELECT COUNT(*) FROM PRJ_LAYOUT WHERE QP_CD=Q.QP_CD) AS LAYOUT_CNT
+    FROM Q_PROJECT Q
+    LEFT JOIN (SELECT QP_CD, COUNT(*) as IS_COUNT FROM PRJINPUT_LIST GROUP BY QP_CD) as I
+    ON Q.QP_CD = I.QP_CD
+    ORDER BY Q.QP_CD DESC
+  </select>
+
+  <select id='getPrjByQP_CD'>
+      SELECT * FROM Q_PROJECT WHERE QP_CD = ${QP_CD}
+  </select>
+
+  <select id='getISListByQP_CD'>
+      select * from PRJINPUT_LIST a JOIN INPUT_SOURCE AS b on a.IS_CD = b.IS_CD WHERE QP_CD = ${QP_CD}
+  </select>
+ 
+  <select id='getOutputList'>
+      SELECT * FROM OUTPUT_TYPE WHERE IS_CD = ${IS_CD}
+  </select>
+
+  <select id='getOutputListByHWCD'>
+      SELECT * FROM OUTPUT_TYPE WHERE HW_CD = ${HW_CD}
+  </select>
+
+  <select id='getFileList'>
+      SELECT * from FILE_LIST where IS_CD = ${IS_CD}
+  </select>
+
+  <select id='getFileListNotPredicted'>
+      SELECT * from FILE_LIST where IS_CD = ${IS_CD} and IS_PREDICT = 0
+  </select>
+
+  <delete id = "deleteQProject">
+    DELETE FROM Q_PROJECT WHERE QP_CD = ${QP_CD}
+  </delete>
+
+  <delete id = "deleteISList">
+    DELETE FROM PRJINPUT_LIST WHERE QP_CD = ${QP_CD}
+  </delete>
+
+  <update id="updatePrj">
+    UPDATE Q_PROJECT
+    SET QP_TITLE = #{QP_TITLE},
+        DESC_TXT = #{DESC_TXT},
+        UPT_DTM = now()
+    WHERE QP_CD = ${QP_CD}
+  </update>
+
+  <select id='getISHWInfo'>
+      SELECT * FROM INPUT_SOURCE a LEFT JOIN CAM_LIST b ON a.IS_CD = b.IS_CD
+              left join USER_SERVICE_SCRIPT c on a.IS_CD  = c.IS_CD 
+     WHERE a.IS_CD = ${IS_CD}
+  </select>
+
+  <select id='getISInfo'>
+      SELECT * FROM INPUT_SOURCE WHERE IS_CD = ${IS_CD}
+  </select>
+
+  <select id="getFileInfo">
+    SELECT a.*, b.OBJECT_TYPE FROM FILE_LIST a JOIN INPUT_SOURCE AS b on a.IS_CD = b.IS_CD WHERE FILE_SEQ = ${FILE_SEQ}
+  </select>
+
+<update id="updatePid">
+    UPDATE INPUT_SOURCE
+       SET HW_PID = ${HW_PID}
+          ,SRV_PID = ${SRV_PID}
+    WHERE IS_CD = ${IS_CD}
+  </update>
+
+  <update id="updateIsSts">
+    UPDATE INPUT_SOURCE
+       SET IS_STS = #{IS_STS}
+            ,HW_PID = ${HW_PID}
+            ,SRV_PID = ${SRV_PID}
+            <if test="STATUS_MSG != null and STATUS_MSG != ''">
+                    ,STATUS_MSG = #{STATUS_MSG}
+		        </if>
+            <if test="IS_STS != null and IS_STS == 'ACTIVE'">
+            ,SERVICE_AUTH = HEX(AES_ENCRYPT(now(), ${IS_CD}))
+            </if>
+    WHERE IS_CD = ${IS_CD}
+  </update>
+
+  <update id="updateCamInfo">
+    UPDATE CAM_LIST
+       SET HW_PORT = ${HW_PORT}
+    WHERE IS_CD = ${IS_CD}
+  </update>
+
+  <select id = "getComponentDef">
+  SELECT * from COMPONENT_DEF
+  </select>
+
+  <select id = "getObjectCount">
+  SELECT CLASS_CD, sum(CLASS_CNT) as CLASS_CNT , DP_LABEL from PRJ_REPORT where IS_CD = ${IS_CD} GROUP by CLASS_CD
+  </select>
+
+  <select id = "getRecentTime">
+  SELECT UPT_DTM from FILE_LIST WHERE IS_CD = ${IS_CD} ORDER BY UPT_DTM DESC LIMIT 1
+  </select>
+
+  <delete id = "deletePrjLayout">
+    DELETE FROM PRJ_LAYOUT WHERE QP_CD =${QP_CD}
+  </delete>
+
+  <insert id='setPrjLayout'>
+    INSERT INTO PRJ_LAYOUT (
+      QP_CD,
+      SEQ,
+      IS_CD,
+      IS_TITLE,
+      LAYOUT
+    )
+    VALUES
+      <foreach collection="DATA" item="item" separator="," >
+      (
+        #{item.QP_CD},
+        #{item.SEQ},
+        #{item.IS_CD},
+        #{item.IS_TITLE},
+        #{item.LAYOUT}
+      )
+      </foreach>
+  </insert>
+
+  <select id = "getPrjLayout">
+  SELECT * from PRJ_LAYOUT WHERE QP_CD = ${QP_CD}
+  </select>
+
+
+  <select id="getReportByTime">
+  <![CDATA[
+     SELECT
+        date_format(a.INS_TIME, '%Y-%m-%d %H:%i:%S') AS INS_TIME,
+        a.SEQ,
+        a.IS_TYPE,
+        a.IS_CD,
+        a.CLASS_CD,
+        date_format(a.RAW_TIME, '%Y-%m-%d %H:%i:%S')AS RAW_TIME ,
+        a.COLOR,
+        a.DP_LABEL,
+        a.CLASS_CNT,
+        a.LOCATION,
+        a.ACCURACY,
+        a.RESULT_MSG,
+        a.RESULT_PATH,
+        a.OUTPUT_PATH,
+        a.RESULT_URL,
+        a.OBJECT_TYPE,
+        a.FILE_INFO,
+        a.PRC_TIME,
+        a.REQ_DATA,
+        a.RESULT_DATA,
+        a.RS_STATUS,
+        b.OUT_CD,
+        a.REQ_NO
+     FROM PRJ_REPORT a
+     join OUTPUT_TYPE b on a.IS_CD = b.IS_CD 
+     WHERE a.IS_CD = ${IS_CD}
+     AND DATE(a.RAW_TIME) between #{START_DATE} and #{END_DATE}
+     group by date_format(a.RAW_TIME, '%Y-%m-%d %H:%i'), a.OUT_CD
+   ]]>
+  </select>
+
+  <select id="getTimeLineByDate">
+    <![CDATA[
+    SELECT
+        date_format(a.INS_TIME, '%Y-%m-%d %H:%i:%S') AS INS_TIME,
+        a.SEQ,
+        a.IS_TYPE,
+        a.IS_CD,
+        a.CLASS_CD,
+        date_format(a.RAW_TIME, '%Y-%m-%d %H:%i:%S')AS RAW_TIME ,
+        a.COLOR,
+        a.DP_LABEL,
+        a.CLASS_CNT,
+        a.LOCATION,
+        a.ACCURACY,
+        a.RESULT_MSG,
+        a.RESULT_PATH,
+        a.OUTPUT_PATH,
+        a.RESULT_URL,
+        a.OBJECT_TYPE,
+        a.FILE_INFO,
+        a.PRC_TIME,
+        a.REQ_DATA,
+        a.RESULT_DATA,
+        a.RS_STATUS,
+        b.OUT_CD,
+        a.REQ_NO
+     FROM PRJ_REPORT a
+     join OUTPUT_TYPE b on a.IS_CD = b.IS_CD 
+     WHERE a.IS_CD = ${IS_CD}
+     AND b.OUT_CD = ${OUT_CD}
+     AND DATE_FORMAT(a.RAW_TIME, '%Y-%m-%d %H:%i:%S') LIKE '${SEARCH_DATE}%'
+     ]]>
+  </select>
+
+  <select id = "getCamByIp">
+    SELECT * from CAM_LIST WHERE HW_IP = #{HW_IP}
+  </select>
+
+  <select id = "getPpm">
+    SELECT * from CAM_LIST WHERE IS_CD = #{IS_CD}
+  </select>
+
+  <select id = "getDailyTotalReport">
+    SELECT
+    DATE_FORMAT(RAW_TIME,'%Y-%m-%d') AS DATE,
+    sum(CLASS_CNT) as CLASS_CNT , DP_LABEL from PRJ_REPORT
+     where IS_CD = ${IS_CD} AND DATE(RAW_TIME) between #{START_DATE} and #{END_DATE}
+     GROUP by CLASS_CD,DATE_FORMAT(RAW_TIME,'%Y-%m-%d') ORDER BY date
+  </select>
+
+  <select id = "getTotalReport">
+    SELECT CLASS_CD, sum(CLASS_CNT) as CLASS_CNT , DP_LABEL
+    FROM PRJ_REPORT
+    WHERE IS_CD = ${IS_CD} AND DATE(RAW_TIME) between #{START_DATE} and #{END_DATE}
+    GROUP by CLASS_CD
+  </select>
+
+  <select id = "getDayofWeekReport">
+    SELECT CASE WHEN DAYOFWEEK(RAW_TIME) = 1 THEN '1'
+    WHEN DAYOFWEEK(RAW_TIME) = 2 THEN '2'
+    WHEN DAYOFWEEK(RAW_TIME) = 3 THEN '3'
+    WHEN DAYOFWEEK(RAW_TIME) = 4 THEN '4'
+    WHEN DAYOFWEEK(RAW_TIME) = 5 THEN '5'
+    WHEN DAYOFWEEK(RAW_TIME) = 6 THEN '6'
+    WHEN DAYOFWEEK(RAW_TIME) = 7 THEN '7'
+    ELSE '오류' END WEEK_NAME
+    ,DATE_FORMAT(RAW_TIME,'%Y-%m-%d %H') DATE
+    , sum(CLASS_CNT) as CLASS_CNT
+    FROM PRJ_REPORT
+    WHERE IS_CD = ${IS_CD} AND RAW_TIME between DATE_FORMAT(#{START_DATE},'%Y-%m-%d') and DATE_FORMAT(#{END_DATE},'%Y-%m-%d')
+    group by DATE_FORMAT(RAW_TIME,'%Y-%m-%d %H')
+    ORDER BY DATE
+  </select>
+
+  <select id = "getTimeSeriesReport">
+    SELECT DATE_FORMAT(RAW_TIME,#{TIME_FORMAT}) DATE
+    , sum(CLASS_CNT) as CLASS_CNT
+    , DP_LABEL
+    from PRJ_REPORT
+    where IS_CD = ${IS_CD} AND RAW_TIME between #{START_DATE} and DATE_ADD(#{END_DATE}, INTERVAL 1 DAY)
+    group by CLASS_CD, DATE_FORMAT(RAW_TIME,#{TIME_FORMAT})
+    ORDER BY DATE
+  </select>
+
+  <select id = "getLagacyModelInfo">
+    SELECT * FROM LEGACY_MODELS 
+    WHERE MDL_NM = #{NETWORK_NAME}
+      AND OBJECT_TYPE = #{OBJECT_TYPE}
+  </select>
+
+  <select id = "getBaseModelInfo">
+    SELECT * FROM BASE_MODELS 
+    WHERE NETWORK_NAME = #{NETWORK_NAME}
+      AND OBJECT_TYPE = #{OBJECT_TYPE}
+  </select>
+
+
+  <select id = "getHeaderList">
+  SELECT B.COLUMN_NM AS COLUMN_NAMES, C.IS_CLASS from INPUT_SOURCE A
+           JOIN TAB_TRAINFEATURE B ON A.AI_CD = B.AI_CD 
+           JOIN  TAB_FEATUREINFO C on C.DATASET_CD = B.DATASET_CD and B.COLUMN_IDX = C.COLUMN_IDX
+           WHERE IS_CD = ${IS_CD}
+   	     ORDER BY B.COLUMN_IDX 
+  </select>
+
+  <select id = "getTableResult">
+  select * from PRJ_REPORT
+  		   WHERE IS_CD  = ${IS_CD}
+         <if test="START_DATE != null and START_DATE != ''">
+  		   and DATE(INS_TIME) between #{START_DATE} and #{END_DATE}
+         </if>
+         <if test="DP_LABEL != null and DP_LABEL != ''">
+  		   and DP_LABEL = #{DP_LABEL}
+         </if>
+  order by INS_TIME DESC
+  </select>
+
+  <select id="getTabularInfo">
+    SELECT 
+      A.TOTAL_CNT, 
+      A.SUCCESS_CNT, 
+      A.FAIL_CNT, 
+      A.TOTAL_CNT - A.SUCCESS_CNT - A.FAIL_CNT as NOTFOUND_CNT,
+      B.PRC_TIME,
+      B.PRC_COUNT
+    FROM 
+      (SELECT 
+        sum(total) as TOTAL_CNT,
+        sum(SUCCESS_CNT) as SUCCESS_CNT,
+        sum(FAIL_CNT) as FAIL_CNT
+      FROM (
+        SELECT 
+          1 as total,
+          IFNULL(case when RS_STATUS=1 then 1 end, 0) as SUCCESS_CNT,
+          IFNULL(case when RS_STATUS=0 then 1 end, 0) as FAIL_CNT
+        FROM PRJ_REPORT pr
+        where is_cd = #{IS_CD}
+        group by INS_TIME, REQ_NO) as a
+      ) AS A,
+      (
+        SELECT 
+          SUM(PRC_TIME) as PRC_TIME,
+          COUNT(*) as PRC_COUNT
+        FROM PRJ_REPORT pr
+        where is_cd = #{IS_CD}
+        and RS_STATUS != 0
+      ) AS B
+  </select>
+
+
+</mapper>
