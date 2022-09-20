@@ -7,7 +7,7 @@ services:
       context: ./project_manager
     command: >
       sh -c "chmod 777 ./wait_for_postgres.sh &&
-	 ./wait_for_postgres.sh &&
+             ./wait_for_postgres.sh &&
              python manage.py makemigrations &&
              python manage.py migrate &&
              python manage.py loaddata base_model_data.json &&
