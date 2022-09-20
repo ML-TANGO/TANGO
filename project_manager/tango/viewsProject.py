@@ -30,6 +30,36 @@ from .models import Project
 # @permission_classes([AllowAny])
 
 
+# 서버 IP
+@api_view(['GET', 'POST'])
+@authentication_classes([OAuth2Authentication])   # 토큰 확인
+def get_server_ip(request):
+    """
+    _summary_
+
+    Args:
+        request (_type_): _description_
+
+    Returns:
+        _type_: _description_
+    """
+
+    try:
+        # weda_port_num = 8090
+        # return Response({'port': weda_port_num})
+
+        s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        s.connect(("8.8.8.8", 80))
+        print(s.getsockname()[0])
+
+        host = s.getsockname()[0]
+
+        return Response({'host': host})
+
+    except Exception as e:
+        print(e)
+
+
 # Project 리스트 요청
 @api_view(['GET', 'POST'])
 @authentication_classes([OAuth2Authentication])   # 토큰 확인
