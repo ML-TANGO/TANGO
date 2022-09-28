@@ -20,15 +20,15 @@ from rest_framework import routers
 from main import views
 
 router = routers.DefaultRouter()
-router.register('node',views.NodeView,'node')
-router.register('edge',views.EdgeView,'edge')
-router.register('architecture', views.ArchitectureView,'architecture')
-#router.register('pth',views.PthView,'pth')
+router.register('node', views.NodeView, 'node')
+router.register('edge', views.EdgeView, 'edge')
+router.register('architecture', views.ArchitectureView, 'architecture')
+# router.register('pth',views.PthView,'pth')
 
 urlpatterns = [
     path('api/', include(router.urls)),
     # path('', include('main.urls')),
-    path('api/pth/', views.pthList),
+    path('api/pth/', views.pthlist),
     path('admin/', admin.site.urls),
     # 220623 merge
     re_path('', TemplateView.as_view(template_name='index.html')),
