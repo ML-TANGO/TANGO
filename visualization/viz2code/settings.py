@@ -100,7 +100,7 @@ WSGI_APPLICATION = 'viz2code.wsgi.application'
 TIME_ZONE = 'Asia/Seoul'
 
 DATABASES = {
-	'default': {
+    'default': {
         'ENGINE': 'django.db.backends.postgresql',
         'NAME': 'postgres',
         'USER': 'postgres',
