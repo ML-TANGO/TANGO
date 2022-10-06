@@ -321,10 +321,9 @@ docker run -d --name target_deploy -p 8089:8089 target_deploy:latest
 
 ## Developer Guides and References<a name="dev_guides"></a>
 
-* [TANGO Architecture Overview](https://github.com/ML-TANGO/TANGO/wiki/References-%7C-Tango-Architecture)
+* [TANGO Architecture Overview](https://github.com/ML-TANGO/TANGO/wiki/Guides-%7C-TANGO-Architecture)
 * [TANGO Container Port Mapping guide](https://github.com/ML-TANGO/TANGO/wiki/Guides-%7C-Container-Port-Map)
-* [TANGO YAML File Guide](https://github.com/ML-TANGO/TANGO/wiki/Reference-%7C-YAML)
-* [TANGO REST API Guide](https://github.com/ML-TANGO/TANGO/wiki/Guides-%7C-TANGO-Restful-API)
+* [TANGO REST API Guide](https://github.com/ML-TANGO/TANGO/wiki/Guides-%7C-Rest-API)
 
 ----
 
