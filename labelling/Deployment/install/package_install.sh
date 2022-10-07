@@ -54,3 +54,4 @@ do
   pip install $line
 done
 pip install git+https://github.com/philferriere/cocoapi.git#subdirectory=PythonAPI
+pip install MarkupSafe==2.0.1
