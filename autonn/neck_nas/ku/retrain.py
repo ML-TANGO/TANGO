@@ -13,12 +13,13 @@ from torch.cuda import amp
 # from torch.nn.parallel import DistributedDataParallel as DDP
 from tqdm import tqdm
 
-import test
-from syolo_utils.general \
+# import test
+from .test import test
+from .syolo_utils.general \
     import (labels_to_class_weights, plot_labels, check_anchors,
             strip_optimizer, plot_results, labels_to_image_weights,
             plot_images, fitness)
-from syolo_utils.torch_utils import init_seeds, ModelEMA, intersect_dicts
+from .syolo_utils.torch_utils import init_seeds, ModelEMA, intersect_dicts
 
 
 class Retrain:

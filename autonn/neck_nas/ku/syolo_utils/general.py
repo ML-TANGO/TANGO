@@ -22,7 +22,8 @@ from scipy.cluster.vq import kmeans
 from scipy.signal import butter, filtfilt
 from tqdm import tqdm
 
-from syolo_utils.torch_utils import init_seeds, is_parallel
+# from syolo_utils.torch_utils import init_seeds, is_parallel
+from .torch_utils import init_seeds, is_parallel
 
 # Set printoptions
 torch.set_printoptions(linewidth=320, precision=5, profile='long')

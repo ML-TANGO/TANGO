@@ -12,7 +12,9 @@ from PIL import Image, ExifTags
 from torch.utils.data import Dataset
 from tqdm import tqdm
 
-from syolo_utils.general \
+# from syolo_utils.general \
+#     import xyxy2xywh, xywh2xyxy, torch_distributed_zero_first
+from .general \
     import xyxy2xywh, xywh2xyxy, torch_distributed_zero_first
 
 help_url = ''
