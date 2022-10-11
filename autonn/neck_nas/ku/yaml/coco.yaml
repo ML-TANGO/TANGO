@@ -1,7 +1,7 @@
 # train and val datasets (image directory or *.txt file with image paths)
-train: /raid/YK/data/COCO/images/train2017  # path to train set, 118k images
-val: /raid/YK/data/COCO/images/val2017  # path to validation set, 5k images
-test: /raid/YK/data/COCO/images/test2017 
+train: /shared/datasets/coco/images/train2017  # path to train set, 118k images
+val: /shared/datasets/coco/images/val2017  # path to validation set, 5k images
+test: /shared/datasets/coco/images/test2017
 
 # number of classes
 nc: 80

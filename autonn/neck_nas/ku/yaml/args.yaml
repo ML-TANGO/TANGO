@@ -1,21 +1,21 @@
 # YAML for search/retraining parameters
 # args for model
 model_name: 'yolov4'    # name of model
-model_cfg: 'yaml/yolov4-p5.yaml'      # model config yaml
-weights: 'weights/yolov4-p5.pt'   # initial weights path
+model_cfg: 'neck_nas/ku/yaml/yolov4-p5.yaml'      # model config yaml
+weights: 'neck_nas/ku/weights/yolov4-p5.pt'   # initial weights path
 # args for dataloader
 dataset: 'coco'         # name of dataset
-data_cfg: 'yaml/coco.yaml'           # dataset info yaml
-batch_size: 16          # batch size
+data_cfg: 'neck_nas/ku/yaml/coco.yaml'           # dataset info yaml
+batch_size: 8          # batch size
 img_size: [512, 512]           # input image resoultion
 # args for common (wegiths) training
 train_task: 'detection'       # target task
 train_mode: 'search'          # train mode i.e., ['search', 'retrain']
-train_hyp: 'yaml/hyp.finetune.yaml'   # hyperparams for training yaml
+train_hyp: 'neck_nas/ku/yaml/hyp.finetune.yaml'   # hyperparams for training yaml
 resume: False           # resume from given path/last.pt, or more recent run if blank
 weight_optim: 'sgd'     # optimizer for weight training i.e., ['sgd', 'adam']
 epoch: 30               # number of epochs for search/retrain
-gpu_device: '3'         # gpu device number
+gpu_device: '0'         # gpu device number
 # defualt
 name: ''                # renames results.txt to results_name.txt if supplied
 log_dir: 'runs/'        # logging directory
