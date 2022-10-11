@@ -33,14 +33,17 @@ from .syolo_utils.torch_utils import select_device
 logger = logging.getLogger('nni_proxylessnas')
 
 def run_nas():
-    parser = ArgumentParser("proxylessnas")
-    parser.add_argument("--args-yaml", default='yaml/args.yaml',
-                        type=str, help='search/retrain args yaml')
+    print("__________run_nas__________________")
+    # parser = ArgumentParser("proxylessnas")
+    # parser.add_argument("--args-yaml", default='yaml/args.yaml',
+    #                     type=str, help='search/retrain args yaml')
 
-    opts = parser.parse_args()
+    # opts = parser.parse_args()
 
     # load search/retrain arguments from yaml
-    with open(opts.args_yaml, encoding='utf8') as f:
+    # with open(opts.args_yaml, encoding='utf8') as f:
+    #     args = yaml.load(f, Loader=yaml.FullLoader)
+    with open('neck_nas/ku/yaml/args.yaml', encoding='utf8') as f:
         args = yaml.load(f, Loader=yaml.FullLoader)
 
     # Resume
@@ -97,7 +100,7 @@ def run_nas():
         sys.exit(-1)
 
     if args['model_name'] == 'yolov4':
-        from model import SearchYolov4
+        from .model import SearchYolov4
 
         # model generation
         if args['train_mode'] == 'retrain':    # for retrain
@@ -208,7 +211,7 @@ def run_nas():
     if args['train_mode'] == 'search':
         if args['train_task'] == 'detection':
             # for object detection model
-            from search import ProxylessDetTrainer
+            from .search import ProxylessDetTrainer
             trainer = ProxylessDetTrainer(model,
                                           args=args,
                                           hyp=hyp,

@@ -8,13 +8,13 @@ import torch.nn as nn
 # import nni.retiarii.nn.pytorch as nn
 from nni.retiarii.nn.pytorch import LayerChoice
 
-from models.ops_syolov4 \
+from .models.ops_syolov4 \
     import (OPS, MBottleneckCSP2, ActConv, MBottleneck, Conv,
             Bottleneck, BottleneckCSP, BottleneckCSP2, SPP,
             SPPCSP, Concat)
 
-from syolo_utils.general import check_anchor_order, make_divisible
-from syolo_utils.torch_utils \
+from .syolo_utils.general import check_anchor_order, make_divisible
+from .syolo_utils.torch_utils \
     import (time_synchronized, fuse_conv_and_bn, model_info, scale_img)
 
 

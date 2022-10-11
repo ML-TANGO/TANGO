@@ -22,13 +22,14 @@ import torch.distributed as dist
 # from torch.nn.parallel import DistributedDataParallel as DDP
 
 import yaml
-import test    # import test.py to get mAP after each epoch
-from model import SearchYolov4
-from syolo_utils.general \
+# import test    # import test.py to get mAP after each epoch
+from .test import test
+from .model import SearchYolov4
+from .syolo_utils.general \
     import (labels_to_class_weights, labels_to_image_weights,
             check_anchors, plot_images, fitness, strip_optimizer,
             plot_results, plot_labels)
-from syolo_utils.torch_utils \
+from .syolo_utils.torch_utils \
     import init_seeds, ModelEMA, intersect_dicts, is_parallel
 from tqdm import tqdm
 
@@ -230,7 +231,6 @@ class ProxylessDetTrainer(BaseOneShotTrainer):
                              self.nas_modules)
         for _, module in self.nas_modules:
             module.to(self.device)
-
         # we do not support deduplicate control parameters
         # with same label (like DARTS) yet.
         self.ctrl_optim = \
@@ -238,7 +238,7 @@ class ProxylessDetTrainer(BaseOneShotTrainer):
                              arc_learning_rate, weight_decay=0,
                              betas=(0, 0.999), eps=1e-8)
         # Resume
-        pretrained = self.args['weights'].endswith('.pt')
+        pretrained = os.path.isfile(self.args['weights']) and self.args['weights'].endswith('.pt')
         self.start_epoch, self.best_fitness = 0, 0.0
         if pretrained:
             ckpt = torch.load(self.args['weights'], map_location=self.device)
@@ -531,16 +531,15 @@ class ProxylessDetTrainer(BaseOneShotTrainer):
                                                 strict=False)   # load
 
                 self.results, self.maps, _ = \
-                    test.test(self.args['data_cfg'],
-                              batch_size=self.batch_size,
-                              imgsz=self.image_size_test,
-                              save_json=final_epoch and
-                              self.args['data_cfg'].endswith(os.sep +
-                                                             'coco.yaml'),
-                              model=self.model_test,
-                              single_cls=self.args['single_cls'],
-                              dataloader=self.test_loader,
-                              save_dir=self.log_dir)
+                    test(self.args['data_cfg'],
+                         batch_size=self.batch_size,
+                         imgsz=self.image_size_test,
+                         save_json=final_epoch and
+                         self.args['data_cfg'].endswith(os.sep + 'coco.yaml'),
+                         model=self.model_test,
+                         single_cls=self.args['single_cls'],
+                         dataloader=self.test_loader,
+                         save_dir=self.log_dir)
 
             # Write
             with open(self.results_file, 'a') as f:
