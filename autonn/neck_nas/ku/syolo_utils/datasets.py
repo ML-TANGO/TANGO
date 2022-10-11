@@ -317,8 +317,8 @@ class LoadImagesAndLabels(Dataset):  # for training/testing
                 # os.system("rm '%s' '%s'" %
                 #           (self.img_files[i], self.label_files[i]))  # remove
 
-            pbar.desc = 'Scanning labels %s (%g found, %g missing, %g empty, \
-                %g duplicate, for %g images)' % (cache_path, nf, nm, ne, nd, n)
+            pbar.desc = 'Scanning labels %s (%g found, %g missing, %g empty, %g duplicate, for %g images)' \
+                % (cache_path, nf, nm, ne, nd, n)
         if nf == 0:
             s = 'WARNING: No labels found in %s. See %s' % \
                 (os.path.dirname(file) + os.sep, help_url)

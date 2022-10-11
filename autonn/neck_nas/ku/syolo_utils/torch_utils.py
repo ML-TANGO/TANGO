@@ -48,9 +48,8 @@ def select_device(device='', batch_size=None):
             # print("%sdevice%g _CudaDeviceProperties(name='%s', \
             #       total_memory=%dMB)" %
             #       (s, i, x[i].name, x[i].total_memory / c))
-            print("%sdevice%g _CudaDeviceProperties(name='%s', \
-                  total_memory=%dMB)" %
-                  (s, int(device), x[i].name, x[i].total_memory / c))
+            print("%sdevice%g _CudaDeviceProperties(name='%s', total_memory=%dMB)" \
+                % (s, int(device), x[i].name, x[i].total_memory / c))
     else:
         print('Using CPU')
 
