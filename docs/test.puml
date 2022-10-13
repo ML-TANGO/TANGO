@@ -1,0 +1,11 @@
+@startuml
+'https://plantuml.com/class-diagram
+
+interface MemberService
+interface MemberRepository
+class MemoryMemberRepository
+
+MemberRepository -- MemberService
+MemberRepository <|-- MemoryMemberRepository
+
+@enduml

@@ -1,21 +1,19 @@
-# import argparse
+import argparse
 import math
 from copy import deepcopy
 from pathlib import Path
 
 import torch
 import torch.nn as nn
-# import nni.retiarii.nn.pytorch as nn
-from nni.retiarii.nn.pytorch import LayerChoice
 
-from models.ops_syolov4 \
-    import (OPS, MBottleneckCSP2, ActConv, MBottleneck, Conv,
-            Bottleneck, BottleneckCSP, BottleneckCSP2, SPP,
-            SPPCSP, Concat)
-
-from syolo_utils.general import check_anchor_order, make_divisible
+from models.common \
+    import (Conv, DWConv, Bottleneck, BottleneckCSP, BottleneckCSP2, VoVCSP,
+            SPP, SPPCSP, Focus, Concat, HarDBlock, HarDBlock2)
+from models.experimental import MixConv2d, CrossConv, C3
+from syolo_utils.general import check_anchor_order, make_divisible, check_file
 from syolo_utils.torch_utils \
-    import (time_synchronized, fuse_conv_and_bn, model_info, scale_img)
+    import (time_synchronized, fuse_conv_and_bn, model_info, scale_img,
+            initialize_weights, select_device)
 
 
 class Detect(nn.Module):
@@ -66,32 +64,26 @@ class Detect(nn.Module):
         return torch.stack((xv, yv), 2).view((1, 1, ny, nx, 2)).float()
 
 
-class SearchYolov4(nn.Module):
-    def __init__(self, cfg='yolov4-p5.yaml', names=None, hyp=None, weights='',
-                 ch=3, nc=None):
-        super(SearchYolov4, self).__init__()
+class Model(nn.Module):
+    # model, input channels, number of classes
+    def __init__(self, cfg='yolov4-p5.yaml', ch=3, nc=None):
+        super(Model, self).__init__()
         if isinstance(cfg, dict):
-            self.yaml = cfg
-        else:
-            import yaml
+            self.yaml = cfg  # model dict
+        else:  # is *.yaml
+            import yaml  # for torch hub
             self.yaml_file = Path(cfg).name
             with open(cfg) as f:
-                # model dict
-                self.yaml = yaml.load(f, Loader=yaml.FullLoader)
+                self.yaml = yaml.load(f, Loader=yaml.FullLoader)  # model dict
 
         # Define model
         if nc and nc != self.yaml['nc']:
             print('Overriding %s nc=%g with nc=%g' %
                   (cfg, self.yaml['nc'], nc))
-            self.yaml['nc'] = nc    # override yaml value
+            self.yaml['nc'] = nc  # override yaml value
         # model, savelist, ch_out
-        self.model, self.save = self._parse_model(deepcopy(self.yaml), ch=[ch])
-        self.weights = weights
-
-        # Model parameters
-        self.nc, self.names = nc, names  # attach number of classes to model
-        self.hyp = hyp  # attach hyperparameters to model
-        self.gr = 1.0   # giou loss ratio (obj_loss = 1.0 or giou)
+        self.model, self.save = parse_model(deepcopy(self.yaml), ch=[ch])
+        # print([x.shape for x in self.forward(torch.zeros(1, ch, 64, 64))])
 
         # Build strides, anchors
         m = self.model[-1]  # Detect()
@@ -107,91 +99,10 @@ class SearchYolov4(nn.Module):
             self._initialize_biases()  # only run once
             # print('Strides: %s' % m.stride.tolist())
 
+        # Init weights, biases
+        initialize_weights(self)
         self.info()
         print('')
-
-    def _parse_model(self, d, ch):  # model_dict, input_channels(3)
-        print('\n%3s%18s%3s%10s  %-40s%-30s' % ('', 'from', 'n', 'params',
-                                                'module', 'arguments'))
-        anchors, nc, gd, gw = \
-            d['anchors'], d['nc'], d['depth_multiple'], d['width_multiple']
-        # number of anchors
-        na = (len(anchors[0]) // 2) if isinstance(anchors, list) else anchors
-        no = na * (nc + 5)  # number of outputs = anchors * (classes + 5)
-
-        layers, save, c2 = [], [], ch[-1]  # layers, savelist, ch out
-        # from, number, module, args
-        for i, (f, n, m, args) in enumerate(d['backbone'] + d['head']):
-            m = eval(m) if isinstance(m, str) else m  # eval strings
-            for j, a in enumerate(args):
-                try:
-                    # eval strings
-                    args[j] = eval(a) if isinstance(a, str) else a
-                except Exception:
-                    pass
-
-            n = max(round(n * gd), 1) if n > 1 else n  # depth gain
-            if m in [nn.Conv2d, Conv, ActConv, Bottleneck, MBottleneck, SPP,
-                     BottleneckCSP, BottleneckCSP2, MBottleneckCSP2, SPPCSP]:
-                c1, c2 = ch[f], args[0]
-
-                # Normal
-                # if i > 0 and args[0] != no:  # channel expansion factor
-                #     ex = 1.75  # exponential (default 2.0)
-                #     e = math.log(c2 / ch[1]) / math.log(2)
-                #     c2 = int(ch[1] * ex ** e)
-                # if m != Focus:
-
-                c2 = make_divisible(c2 * gw, 8) if c2 != no else c2
-
-                # Experimental
-                # if i > 0 and args[0] != no:  # channel expansion factor
-                #     ex = 1 + gw  # exponential (default 2.0)
-                #     ch1 = 32  # ch[1]
-                #     e = math.log(c2 / ch1) / math.log(2)  # level 1-n
-                #     c2 = int(ch1 * ex ** e)
-                # if m != Focus:
-                #     c2 = make_divisible(c2, 8) if c2 != no else c2
-
-                args = [c1, c2, *args[1:]]
-                if m in [BottleneckCSP, BottleneckCSP2,
-                         MBottleneckCSP2, SPPCSP]:
-                    args.insert(2, n)
-                    n = 1
-            elif m is nn.BatchNorm2d:
-                args = [ch[f]]
-            elif m is Concat:
-                c2 = sum([ch[-1 if x == -1 else x + 1] for x in f])
-            elif m is Detect:
-                args.append([ch[x + 1] for x in f])
-                if isinstance(args[1], int):  # number of anchors
-                    args[1] = [list(range(args[1] * 2))] * len(f)
-            else:
-                c2 = ch[f]
-
-            if m is MBottleneckCSP2:
-                op_candidates = [OPS['3x3_relu_BNCSP2'](*args),
-                                 OPS['3x3_leaky_BNCSP2'](*args),
-                                 OPS['3x3_mish_BNCSP2'](*args),
-                                 OPS['5x5_relu_BNCSP2'](*args),
-                                 OPS['5x5_leaky_BNCSP2'](*args),
-                                 OPS['5x5_mish_BNCSP2'](*args)]
-                layer_op = LayerChoice(op_candidates, label="m_{}".format(i))
-                m_ = m(layer_op, op_candidates)
-            else:
-                m_ = nn.Sequential(*[m(*args) for _ in range(n)]) if n > 1 \
-                    else m(*args)  # module
-            t = str(m)[8:-2].replace('__main__.', '')  # module type
-            np = sum([x.numel() for x in m_.parameters()])  # number params
-            # attach index, 'from' index, type, number params
-            m_.i, m_.f, m_.type, m_.np = i, f, t, np
-            # print
-            print('%3s%18s%3s%10.0f  %-40s%-30s' % (i, f, n, np, t, args))
-            save.extend(x % i for x in ([f] if isinstance(f, int) else f)
-                        if x != -1)  # append to savelist
-            layers.append(m_)
-            ch.append(c2)
-        return nn.Sequential(*layers), sorted(save)
 
     def forward(self, x, augment=False, profile=False):
         if augment:
@@ -202,7 +113,7 @@ class SearchYolov4(nn.Module):
             for si, fi in zip(s, f):
                 xi = scale_img(x.flip(fi) if fi else x, si)
                 yi = self.forward_once(xi)[0]  # forward
-                # save
+                # # save
                 # cv2.imwrite('img%g.jpg' % s, 255 *
                 #             xi[0].numpy().transpose((1, 2, 0))[:, :, ::-1])
                 yi[..., :4] /= si  # de-scale
@@ -286,16 +197,114 @@ class SearchYolov4(nn.Module):
     def info(self):  # print model information
         model_info(self)
 
-    def init_model(self):
-        # Model init
-        for m in self.modules():
-            t = type(m)
-            if t is nn.Conv2d:
-                # nn.init.kaiming_normal_(m.weight, mode='fan_out',
-                #                         nonlinearity='relu')
+
+def parse_model(d, ch):  # model_dict, input_channels(3)
+    print('\n%3s%18s%3s%10s  %-40s%-30s' %
+          ('', 'from', 'n', 'params', 'module', 'arguments'))
+    anchors, nc, gd, gw = \
+        d['anchors'], d['nc'], d['depth_multiple'], d['width_multiple']
+    # number of anchors
+    na = (len(anchors[0]) // 2) if isinstance(anchors, list) else anchors
+    no = na * (nc + 5)  # number of outputs = anchors * (classes + 5)
+
+    layers, save, c2 = [], [], ch[-1]  # layers, savelist, ch out
+    # from, number, module, args
+    for i, (f, n, m, args) in enumerate(d['backbone'] + d['head']):
+        m = eval(m) if isinstance(m, str) else m  # eval strings
+        for j, a in enumerate(args):
+            try:
+                args[j] = eval(a) if isinstance(a, str) else a  # eval strings
+            except Exception:
                 pass
-            elif t is nn.BatchNorm2d:
-                m.eps = 1e-3
-                m.momentum = 0.03
-            elif t in [nn.LeakyReLU, nn.ReLU, nn.ReLU6]:
-                m.inplace = True
+
+        n = max(round(n * gd), 1) if n > 1 else n  # depth gain
+        if m in [nn.Conv2d, Conv, Bottleneck, SPP, DWConv, MixConv2d, Focus,
+                 CrossConv, BottleneckCSP, BottleneckCSP2, SPPCSP, VoVCSP, C3]:
+            c1, c2 = ch[f], args[0]
+
+            # Normal
+            # if i > 0 and args[0] != no:  # channel expansion factor
+            #     ex = 1.75  # exponential (default 2.0)
+            #     e = math.log(c2 / ch[1]) / math.log(2)
+            #     c2 = int(ch[1] * ex ** e)
+            # if m != Focus:
+
+            c2 = make_divisible(c2 * gw, 8) if c2 != no else c2
+
+            # Experimental
+            # if i > 0 and args[0] != no:  # channel expansion factor
+            #     ex = 1 + gw  # exponential (default 2.0)
+            #     ch1 = 32  # ch[1]
+            #     e = math.log(c2 / ch1) / math.log(2)  # level 1-n
+            #     c2 = int(ch1 * ex ** e)
+            # if m != Focus:
+            #     c2 = make_divisible(c2, 8) if c2 != no else c2
+
+            args = [c1, c2, *args[1:]]
+            if m in [BottleneckCSP, BottleneckCSP2, SPPCSP, VoVCSP, C3]:
+                args.insert(2, n)
+                n = 1
+        elif m in [HarDBlock, HarDBlock2]:
+            c1 = ch[f]
+            args = [c1, *args[:]]
+        elif m is nn.BatchNorm2d:
+            args = [ch[f]]
+        elif m is Concat:
+            c2 = sum([ch[-1 if x == -1 else x + 1] for x in f])
+        elif m is Detect:
+            args.append([ch[x + 1] for x in f])
+            if isinstance(args[1], int):  # number of anchors
+                args[1] = [list(range(args[1] * 2))] * len(f)
+        else:
+            c2 = ch[f]
+
+        m_ = nn.Sequential(*[m(*args) for _ in range(n)]) if n > 1 \
+            else m(*args)  # module
+        t = str(m)[8:-2].replace('__main__.', '')  # module type
+        np = sum([x.numel() for x in m_.parameters()])  # number params
+        # attach index, 'from' index, type, number params
+        m_.i, m_.f, m_.type, m_.np = i, f, t, np
+        print('%3s%18s%3s%10.0f  %-40s%-30s' % (i, f, n, np, t, args))  # print
+        save.extend(x % i for x in ([f] if isinstance(f, int) else f)
+                    if x != -1)  # append to savelist
+        layers.append(m_)
+        if m in [HarDBlock, HarDBlock2]:
+            c2 = m_.get_out_ch()
+            ch.append(c2)
+        else:
+            ch.append(c2)
+    return nn.Sequential(*layers), sorted(save)
+
+
+if __name__ == '__main__':
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--cfg', type=str, default='yolov4-p5.yaml',
+                        help='model.yaml')
+    parser.add_argument('--device', default='',
+                        help='cuda device, i.e. 0 or 0,1,2,3 or cpu')
+    opt = parser.parse_args()
+    opt.cfg = check_file(opt.cfg)  # check file
+    device = select_device(opt.device)
+
+    # Create model
+    model = Model(opt.cfg).to(device)
+    model.train()
+
+    # Profile
+    # img = torch.rand(8 if torch.cuda.is_available()
+    #                  else 1, 3, 640, 640).to(device)
+    # y = model(img, profile=True)
+
+    # ONNX export
+    # model.model[-1].export = True
+    # torch.onnx.export(model, img, opt.cfg.replace('.yaml', '.onnx'),
+    #                   verbose=True, opset_version=11)
+
+    # Tensorboard
+    # from torch.utils.tensorboard import SummaryWriter
+    # tb_writer = SummaryWriter()
+    # print("Run 'tensorboard --logdir=models/runs' \
+    #       to view tensorboard at http://localhost:6006/")
+    # tb_writer.add_graph(model.model, img)  # add model to tensorboard
+    # # add model to tensorboard
+    # tb_writer.add_image('test', img[0], dataformats='CWH')
