@@ -55,11 +55,13 @@ router.get("/stop", async (req, res, next) => {
 
 
 router.get("/test", async (req, res, next) => {
+	console.log("!!!!!!!")
 	let option = {}
 			option.source = CC.MAPPER.TANGO
 			option.queryId = "getProjectInfo"
 			let list = await DH.executeQuery(option)
 			console.log(list[0])
+			res.status(200).send("finished")
 })
 
 export default router

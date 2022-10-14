@@ -210,6 +210,32 @@ exports.sendRequest = (ip, port, rName, msg) => {
   })
 }
 
+exports.sendGetRequest = (ip, port, rName, msg) => {
+
+  rName += "?"
+  Object.keys(msg).map((key) => {
+    rName += `${key}=${msg[key]}&`
+  })
+
+  rName = rName.substr(0, rName.length-1)
+
+  let url = "http://" + ip + ":" + port + rName
+  console.log(url)
+
+  let options = {
+    uri: url,
+    method: "GET",
+    json: false //json으로 보낼경우 true로 해주어야 header값이 json으로 설정됩s니다.
+  }
+  // console.log("go aSync" + options.uri)
+  request.get(options, (err, httpResponse, body) => {
+    if (err) {
+      logger.error(`fail to Send Status ${url}\n${err.stack}`)
+    }
+    // else console.log(body.STATE)
+  })
+}
+
 exports.sendRequestRes = (ip, port, rName, msg) => {
   return new Promise((resolve, reject) => {
     try {
