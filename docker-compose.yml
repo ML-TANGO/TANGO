@@ -58,6 +58,7 @@ services:
       - ./labelling/datadb:/var/lib/mysql
     ports:
       - "8086:80"
+      - "8095:10236"
 
   # 신경망 생성 dummy 서버
   autonn:
