@@ -459,6 +459,10 @@ router.post("/setNewDataSets", async (req, res, next) => {
   try {
     // !fs.existsSync(datasetDir) && fs.mkdirSync(datasetDir)
     logger.info(`${tempDir}    ->>     ${datasetDir}`)
+    console.log(tempDir)
+    console.log(fs.existsSync(tempDir))
+    console.log(datasetDir)
+    console.log(fs.existsSync(datasetDir))
     fs.renameSync(tempDir, datasetDir)
     let resultPath = path.join(datasetDir, "result")
     !fs.existsSync(resultPath) && fs.mkdirSync(resultPath)
@@ -539,6 +543,20 @@ router.post("/setNewDataSets", async (req, res, next) => {
   await DH.executeQuery(option)
 
   _createDataSets(req.body, 0)
+
+  option.source = CC.MAPPER.TANGO
+  option.queryId = "getProjectInfo"
+  let list = await DH.executeQuery(option)
+  console.log("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!")
+  console.log(list[0])
+  var os = require('os');
+
+  var networkInterfaces = os.networkInterfaces();
+
+  console.log(networkInterfaces);
+  logger.info("IP INFO")
+  logger.info(networkInterfaces)
+  
 
   res.json({ status: 1 })
 })
@@ -691,6 +709,7 @@ const _createDataSets = async (data, dataCd) => {
           DATASET_CD : DATASET_CD,
           DATAS
         }
+        console.log(DATAS)
         optionTemp.queryId = "setBulkUpdateDataElement"
         await DH.executeQuery(optionTemp)
       }
