@@ -4,6 +4,6 @@ admin.py
 
 from django.contrib import admin
 
-# from .models import URS
+from .models import Info
 
-# admin.site.register(URS)
+admin.site.register(Info)

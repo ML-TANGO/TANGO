@@ -2,14 +2,14 @@
 serializers.py
 '''
 
-# from rest_framework import serializers
+from rest_framework import serializers
 
-# from .models import URS
+from .models import Info
 
 
-# class URSSerializer(serializers.ModelSerializer):
-#     '''URS'''
-#     class Meta:
-#         '''meta'''
-#         model = URS
-#         fields = '__all__'
+class InfoSerializer(serializers.ModelSerializer):
+    '''Neck-NAS Info'''
+    class Meta:
+        '''meta'''
+        model = Info
+        fields = '__all__'

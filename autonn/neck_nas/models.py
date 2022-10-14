@@ -5,7 +5,7 @@ models.py
 from django.db import models
 
 
-class NasContainerInfo(models.Model):
+class Info(models.Model):
     '''Neck NAS Container Information'''
     id = models.AutoField(primary_key=True)
 
@@ -16,7 +16,7 @@ class NasContainerInfo(models.Model):
     project_id = models.CharField(blank=True, null=True, max_length=50, default='')
 
     # target device
-    target_device = models.CharField(blank=True, null=True, max_length=100, default='rk3399pro')
+    target_yaml = models.FileField(upload_to="temp_files/", default='')
 
     # datasets
     data_yaml = models.FileField(upload_to="temp_files/", default='')
@@ -25,4 +25,10 @@ class NasContainerInfo(models.Model):
     task = models.CharField(blank=True, null=True, max_length=50, default='detection')
 
     # status ( ready, running, stopped, finished )
-    status = models.CharField(blank=True, null=True, max_length=100, default='ready')
+    status = models.CharField(blank=True, null=True, max_length=10, default='ready')
+
+    # # thread index ( 0, 1, ..., N )
+    # thread_id = models.IntegerField(blank=True, null=True)
+
+    # process index ( 0, 1, ..., N )
+    process_id = models.IntegerField(blank=True, null=True)
