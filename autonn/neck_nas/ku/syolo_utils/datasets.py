@@ -105,9 +105,9 @@ class LoadImages:  # for inference
             self.new_video(videos[0])  # new video
         else:
             self.cap = None
-        assert self.nf > 0, 'No images or videos found in %s. \
-            Supported formats are:\nimages: %s\nvideos: %s' % \
-                            (p, img_formats, vid_formats)
+        assert self.nf > 0, \
+            'No images or videos found in %s. Supported formats are:\nimages: %s\nvideos: %s' \
+            % (p, img_formats, vid_formats)
 
     def __iter__(self):
         self.count = 0
@@ -317,8 +317,10 @@ class LoadImagesAndLabels(Dataset):  # for training/testing
                 # os.system("rm '%s' '%s'" %
                 #           (self.img_files[i], self.label_files[i]))  # remove
 
-            pbar.desc = 'Scanning labels %s (%g found, %g missing, %g empty, %g duplicate, for %g images)' \
+            pbar.desc = 'Scanning labels %s' \
+                ' (%g found, %g missing, %g empty, %g duplicate, for %g images)' \
                 % (cache_path, nf, nm, ne, nd, n)
+
         if nf == 0:
             s = 'WARNING: No labels found in %s. See %s' % \
                 (os.path.dirname(file) + os.sep, help_url)

@@ -99,11 +99,11 @@ def check_anchors(dataset, model, thr=4.0, imgsz=640):
         return bpr, aat
 
     bpr, aat = metric(m.anchor_grid.clone().cpu().view(-1, 2))
-    print('anchors/target = %.2f, Best Possible Recall (BPR) = %.4f' %
-          (aat, bpr), end='')
+    print('anchors/target = %.2f, Best Possible Recall (BPR) = %.4f' \
+        % (aat, bpr), end='')
     if bpr < 0.98:  # threshold to recompute
-        print('. Attempting to generate improved anchors, please wait...' %
-              bpr)
+        print('. Attempting to generate improved anchors, please wait...' \
+            % bpr)
         na = m.anchor_grid.numel() // 2  # number of anchors
         new_anchors = kmean_anchors(dataset, n=na, img_size=imgsz, thr=thr,
                                     gen=1000, verbose=False)
@@ -116,11 +116,11 @@ def check_anchors(dataset, model, thr=4.0, imgsz=640):
             m.anchors[:] = new_anchors.clone().view_as(m.anchors) / \
                 m.stride.to(m.anchors.device).view(-1, 1, 1)  # loss
             check_anchor_order(m)
-            print('New anchors saved to model. Update model *.yaml \
-                  to use these anchors in the future.')
+            print('New anchors saved to model.' \
+                +' Update model *.yaml to use these anchors in the future.')
         else:
-            print('Original anchors better than new anchors. \
-                  Proceeding with original anchors.')
+            print('Original anchors better than new anchors.' \
+                  + ' Proceeding with original anchors.')
     print('')  # newline
 
 
@@ -1242,11 +1242,18 @@ def output_to_target(output, width, height):
 def increment_dir(dir, comment=''):
     # Increments a directory runs/exp1 --> runs/exp2_comment
     n = 0  # number
-    dir = str(Path(dir))  # os-agnostic
+    dir = str(Path(dir))  # os-agnostic; dir = neck_nas/ku/runs/ScaledYolov4/exp
     d = sorted(glob.glob(dir + '*'))  # directories
-    if len(d):
-        n = max([int(x[len(dir):x.find('_') if '_' in x else None]) for x
-                 in d]) + 1  # increment
+    if len(d): # increment
+        for x in d:
+            if '_' in x:
+                endpoint = x.find('_')
+                if endpoint < len(dir): # ignore '_' in 'neck_nas'
+                    endpoint = None
+            else:
+                endpoint = None
+        n = max([int(x[len(dir):endpoint])]) + 1
+        # n = max([int(x[len(dir):x.find('_') if '_' in x else None]) for x in d]) + 1
     return dir + str(n) + ('_' + comment if comment else '')
 
 

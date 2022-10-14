@@ -194,7 +194,12 @@ class ProxylessDetTrainer(BaseOneShotTrainer):
                                    else 'cpu') if device is None else device
         self.num_workers = self.train_loader.num_workers
 
-        print(f'Hyperparameters {self.hyp}')
+        # print(f'Hyperparameters {self.hyp}')
+        print('Hyperparameters----------------------')
+        for k, v in self.hyp.items():
+            print(f'{str(k):>20} : {str(v)}')
+        print('-------------------------------------')
+
         self.log_dir = Path(self.writer.logdir)
         # weights directory
         self.wdir = str(self.log_dir / 'weights') + os.sep
@@ -205,16 +210,28 @@ class ProxylessDetTrainer(BaseOneShotTrainer):
         self.batch_size, self.total_batch_size, self.rank = \
             args['batch_size'], args['total_batch_size'], args['global_rank']
 
+        print('\nResult directories'+'-'*50)
+        print(f' weights directory : {self.wdir}')
+        print(f' the last weights  : {self.last}')
+        print(f' the best weights  : {self.best}')
+        print(f' result file       : {self.results_file}')
+
         # Save run settings
         with open(self.log_dir / 'hyp.yaml', 'w') as f:
             yaml.dump(self.hyp, f, sort_keys=False)
         with open(self.log_dir / 'args.yaml', 'w') as f:
             yaml.dump(self.args, f, sort_keys=False)
 
+        hyp_path = self.log_dir / 'hyp.yaml'
+        arg_path = self.log_dir / 'args.yaml'
+        print(f'\n- save current hyperparameters to {str(hyp_path)}')
+        print(f'- save current arguments to {str(arg_path)}')
+
         self.cuda = self.device.type != 'cpu'
         init_seeds(2 + self.rank)
         with open(args['data_cfg']) as f:
             data_dict = yaml.load(f, Loader=yaml.FullLoader)
+        print('- load dataset yaml file')
 
         # number classes, names
         self.nc, self.names = (1, ['item']) if self.args['single_cls'] \
@@ -229,6 +246,7 @@ class ProxylessDetTrainer(BaseOneShotTrainer):
                              self.nas_modules)
         replace_input_choice(self.model, ProxylessInputChoice,
                              self.nas_modules)
+
         for _, module in self.nas_modules:
             module.to(self.device)
         # we do not support deduplicate control parameters
@@ -240,6 +258,8 @@ class ProxylessDetTrainer(BaseOneShotTrainer):
         # Resume
         pretrained = os.path.isfile(self.args['weights']) and self.args['weights'].endswith('.pt')
         self.start_epoch, self.best_fitness = 0, 0.0
+        print(f'- resume mode? {pretrained}')
+
         if pretrained:
             ckpt = torch.load(self.args['weights'], map_location=self.device)
 
@@ -280,6 +300,7 @@ class ProxylessDetTrainer(BaseOneShotTrainer):
         # DP mode
         if self.cuda and self.rank == -1 and torch.cuda.device_count() > 1:
             self.model = torch.nn.DataParallel(self.model)
+            print('- DP mode enabled')
 
         # SyncBatchNorm
         convert_sync_batchnorm = nn.SyncBatchNorm.convert_sync_batchnorm
@@ -296,6 +317,7 @@ class ProxylessDetTrainer(BaseOneShotTrainer):
         if self.rank in [-1, 0]:
             self.ema.updates = self.start_epoch * self.nb \
                                 // self.accumulate    # set EMA updates ***
+        print('- set EMA')
 
         # Model parameters
         # scale coco-tuned hyp['cls'] to current dataset
@@ -304,6 +326,7 @@ class ProxylessDetTrainer(BaseOneShotTrainer):
         self.model.class_weights = \
             labels_to_class_weights(self.dataset.labels,
                                     self.nc).to(self.device)
+        print('- attach class weights')
 
         # Class frequency
         if self.rank in [-1, 0]:
@@ -312,13 +335,17 @@ class ProxylessDetTrainer(BaseOneShotTrainer):
             # cf = torch.bincount(c.long(), minlength=nc) + 1.
             # model._initialize_biases(cf.to(device))
             plot_labels(labels, save_dir=self.log_dir)
+            print(f'- plot labels to {self.log_dir}')
             if self.writer:
                 self.writer.add_histogram('classes', c, 0)
+                print(f'- add histogram')
 
             # Check anchors
             if not self.args['noautoanchor']:
+                print('- check anchors')
                 check_anchors(self.dataset, model=self.model,
                               thr=self.hyp['anchor_t'], imgsz=self.image_size)
+
 
         # number of warmup iterations, max(3 epochs, 1k iterations)
         self.nw = max(3 * self.nb, 1e3)
@@ -350,6 +377,9 @@ class ProxylessDetTrainer(BaseOneShotTrainer):
 
         # Update image weights (optional)
         if self.dataset.image_weights:
+            if stop.isSet():
+                sys.exit(0)
+
             # Generate indices
             if self.rank in [-1, 0]:
                 w = self.model.class_weights.cpu().numpy() * \

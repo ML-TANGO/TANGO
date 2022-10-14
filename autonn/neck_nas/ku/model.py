@@ -280,7 +280,7 @@ class SearchYolov4(nn.Module):
                 m.conv = fuse_conv_and_bn(m.conv, m.bn)  # update conv
                 m.bn = None  # remove batchnorm
                 m.forward = m.fuseforward  # update forward
-        self.info()
+        # self.info()
         return self
 
     def info(self):  # print model information

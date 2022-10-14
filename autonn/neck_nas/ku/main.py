@@ -5,8 +5,10 @@ import logging
 import math
 import os
 import sys
+import threading
 from argparse import ArgumentParser
 from pathlib import Path
+
 
 import torch
 from torch import optim
@@ -30,10 +32,12 @@ from .syolo_utils.general import (
     check_file, increment_dir)
 from .syolo_utils.torch_utils import select_device
 
-logger = logging.getLogger('nni_proxylessnas')
-
 def run_nas():
     print("__________run_nas__________________")
+    logger = logging.getLogger('autonn_ku_neck')
+    logger.setLevel(logging.DEBUG)
+    logger.info('run nas start')
+
     # parser = ArgumentParser("proxylessnas")
     # parser.add_argument("--args-yaml", default='yaml/args.yaml',
     #                     type=str, help='search/retrain args yaml')
@@ -45,6 +49,9 @@ def run_nas():
     #     args = yaml.load(f, Loader=yaml.FullLoader)
     with open('neck_nas/ku/yaml/args.yaml', encoding='utf8') as f:
         args = yaml.load(f, Loader=yaml.FullLoader)
+
+    # if data:
+    #     args['data_cfg'] = data
 
     # Resume
     if args['resume']:
@@ -88,7 +95,10 @@ def run_nas():
             '--batch-size must be multiple of CUDA device count'
         args['batch_size'] = args['total_batch_size'] // args['world_size']
 
-    print(args)
+    # print(args)
+    for k,v in args.items():
+        print(f'{str(k):>20} : {str(v):15}')
+
     with open(args['train_hyp'], encoding='utf8') as f:
         hyp = yaml.load(f, Loader=yaml.FullLoader)  # load hyps
     with open(args['data_cfg'], encoding='utf8') as f:
@@ -121,7 +131,6 @@ def run_nas():
                 log_path = increment_dir(
                     Path(args['exported_arch_path'].split('search')[0])
                     / 'retrain', args['name'])
-
         else:   # for search
             model = SearchYolov4(cfg=args['model_cfg'],
                                  names=(data_dict['item'] if args['single_cls']
@@ -135,32 +144,39 @@ def run_nas():
                 log_path = increment_dir(
                     Path(args['log_dir'] + 'ScaledYolov4/')
                     / 'exp', args['name']) + "/search"
+
+        print(f' log path       : {log_path}')
+
         writer = SummaryWriter(log_dir=log_path)
         logger.info('SearchYolov4 model create done')
+        print('SearchYolov4 model create done')
 
     # initialize or load model weights
     model.init_model()
     logger.info('Model init done')
+    print('Model init done')
 
     logger.info('Creating data provider...')
+    print('Creating data provider...')
     # create data loaders
-    if args['dataset'] == 'coco':
-        gs = int(max(model.stride))     # grid size (max stride)
-        # verify imgsz are gs-multiples
-        imgsz, imgsz_test = [check_img_size(x, gs) for x in args['img_size']]
-        train_loader, dataset = \
-            create_dataloader(data_dict['train'], imgsz, args['batch_size'],
-                              gs, args['single_cls'], hyp=hyp, augment=True,
-                              cache=args['cache_images'], rect=args['rect'],
-                              local_rank=args['global_rank'],
-                              world_size=args['world_size'])
-        test_loader = \
-            create_dataloader(data_dict['val'], imgsz_test, args['batch_size'],
-                              gs, args['single_cls'], hyp=hyp, augment=False,
-                              cache=args['cache_images'], rect=True,
-                              local_rank=-1, world_size=args['world_size'])[0]
+    # if args['dataset'] == 'coco':
+    gs = int(max(model.stride))     # grid size (max stride)
+    # verify imgsz are gs-multiples
+    imgsz, imgsz_test = [check_img_size(x, gs) for x in args['img_size']]
+    train_loader, dataset = \
+        create_dataloader(data_dict['train'], imgsz, args['batch_size'],
+                          gs, args['single_cls'], hyp=hyp, augment=True,
+                          cache=args['cache_images'], rect=args['rect'],
+                          local_rank=args['global_rank'],
+                          world_size=args['world_size'])
+    test_loader = \
+        create_dataloader(data_dict['val'], imgsz_test, args['batch_size'],
+                          gs, args['single_cls'], hyp=hyp, augment=False,
+                          cache=args['cache_images'], rect=True,
+                          local_rank=-1, world_size=args['world_size'])[0]
 
     logger.info('Creating data provider done')
+    print('Creating data provider done')
 
     # Optimizer
     NBS = 64    # nominal batch size
@@ -193,8 +209,7 @@ def run_nas():
     optimizer.add_param_group({'params': pg1,
                                'weight_decay': hyp['weight_decay']})
     optimizer.add_param_group({'params': pg2})  # add pg2 (biases)
-    print(f'Optimizer groups: {len(pg2)} .bias, {len(pg1)} \
-          conv.weight, {len(pg0)} other')
+    print(f'Optimizer groups: {len(pg2)} .bias, {len(pg1)} conv.weight, {len(pg0)} other')
     del pg0, pg1, pg2
 
     epochs = args['epoch']
@@ -231,9 +246,12 @@ def run_nas():
 
         trainer.fit()
         print('Final architecture:', trainer.export())
-        with open(Path(writer.logdir) / 'final_arch.json',
-                  'w', encoding='utf8') as f:
+
+        final_arch_file = Path(writer.logdir) / 'final_arch.json'
+        with open(final_arch_file, 'w', encoding='utf8') as f:
             json.dump(trainer.export(), f)
+        print(f' save final architecture to file : {str(final_arch_file)}')
+        return 0
 
     elif args['train_mode'] == 'retrain':
         # this is retrain, TODO
