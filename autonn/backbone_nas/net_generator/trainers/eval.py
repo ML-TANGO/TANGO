@@ -11,7 +11,8 @@ import torch
 import torch.nn as nn
 from tqdm import tqdm
 
-from ..utils.general import (check_amp, non_max_suppression, scale_coords,
+from ..utils.accelerate import check_amp
+from ..utils.general import (non_max_suppression, scale_coords,
                              xywh2xyxy)
 from ..utils.loss import ComputeLoss
 from ..utils.metrics import ap_per_class, box_iou

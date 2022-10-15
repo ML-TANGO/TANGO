@@ -6,9 +6,9 @@ import os
 
 import torch
 
-from ..utils.downloads import attempt_download
-from ..utils.general import check_suffix, intersect_dicts
-from ..utils.torch_utils import torch_distributed_zero_first
+from utils.downloads import attempt_download
+from utils.general import check_suffix, intersect_dicts
+from utils.torch_utils import torch_distributed_zero_first
 
 from .supernet.model_zoo import ofa_net
 from .yolo import Model
@@ -29,8 +29,7 @@ def load_models(weights, _nc, device):
         weights = attempt_download(weights)  # download if not found locally
     # load checkpoint to CPU to avoid CUDA memory leak
     ckpt = torch.load(weights, map_location='cpu')
-    model = Model(ckpt['model'].yaml, _ch=3, _nc=_nc,
-                  anchors=3).to(device)  # create
+    model = Model(ckpt['model'].yaml, _ch=3, _nc=_nc).to(device)  # create
     exclude = ['anchor']  # exclude keys
     csd = ckpt['model'].float().state_dict()  # checkpoint state_dict as FP32
     csd = intersect_dicts(csd, model.state_dict(),

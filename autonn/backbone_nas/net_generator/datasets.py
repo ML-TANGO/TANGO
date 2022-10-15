@@ -20,14 +20,13 @@ from PIL import ExifTags, Image, ImageOps
 from torch.utils.data import DataLoader, Dataset, distributed
 from tqdm import tqdm
 
-from .utils.augmentations import letterbox
-from .utils.general import (LOGGER, NUM_THREADS, segments2boxes, xywhn2xyxy,
-                            xyxy2xywhn)
-from .utils.torch_utils import torch_distributed_zero_first
-
 # net_generator Path 등록
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 
+from utils.augmentations import letterbox
+from utils.general import (LOGGER, NUM_THREADS, segments2boxes, xywhn2xyxy,
+                            xyxy2xywhn)
+from utils.torch_utils import torch_distributed_zero_first
 
 HELP_URL = 'https://github.com/ultralytics/yolov5/wiki/Train-Custom-Data'
 # include image suffixes
@@ -88,31 +87,6 @@ def get_hash(paths):
     _h = hashlib.md5(str(size).encode())  # hash sizes
     _h.update(''.join(paths).encode())  # hash paths
     return _h.hexdigest()  # return hash
-
-
-def exif_transpose(image):
-    """
-    Transpose a PIL image accordingly if it has an EXIF Orientation tag.
-    Inplace version of Pillow exif_transpose()
-    :param image: The image to transpose.
-    :return: An image.
-    """
-    exif = image.getexif()
-    orient = exif.get(0x0112, 1)  # default 1
-    if orient > 1:
-        method = {
-            2: Image.FLIP_LEFT_RIGHT,
-            3: Image.ROTATE_180,
-            4: Image.FLIP_TOP_BOTTOM,
-            5: Image.TRANSPOSE,
-            6: Image.ROTATE_270,
-            7: Image.TRANSVERSE,
-            8: Image.ROTATE_90, }.get(orient)
-        if method is not None:
-            image = image.transpose(method)
-            del exif[0x0112]
-            image.info["exif"] = exif.tobytes()
-    return image
 
 
 def exif_size(img):

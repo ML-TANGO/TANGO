@@ -8,7 +8,7 @@ from . import views
 
 # from rest_framework import routers
 
-app_name = 'backboneNAS'
+app_name = 'backbone_nas'
 
 # router = routers.DefaultRouter()
 # router.register('URS', views.URSView, basename='user_reqs')

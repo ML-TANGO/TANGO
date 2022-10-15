@@ -249,17 +249,22 @@ class LatencyTable:
 
     def __init__(self, device="note10", resolutions=224):
         self.latency_tables = {}
-        resolutions = list(resolutions)
+        if not isinstance(resolutions, list):
+            if isinstance(resolutions, int):
+                resolutions = [resolutions]
+            else:
+                resolutions = list(resolutions)
         self.get_lut(device, resolutions)
 
     def get_lut(self, device, resolutions):
         '''
         get lut
         '''
+        prefix = "https://hanlab.mit.edu/files/OnceForAll/tutorial/"
         for image_size in resolutions:
             self.latency_tables[image_size] = LatencyEstimator(
-                url="https://hanlab.mit.edu/files/OnceForAll/\
-                    tutorial/latency_table@%s/%d_lookup_table.yaml"
+                url=prefix + \
+                    "latency_table@%s/%d_lookup_table.yaml"
                 % (device, image_size)
             )
             print("Built latency table for image size: %d." % image_size)

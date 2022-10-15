@@ -17,12 +17,36 @@ from easydict import EasyDict as edict
 from PIL import Image
 from torch.cuda import amp
 
-from ..datasets import exif_transpose, letterbox
-from ..utils.general import (LOGGER, increment_path, make_divisible,
+from datasets import letterbox
+from utils.general import (LOGGER, increment_path, make_divisible,
                              non_max_suppression, scale_coords, xyxy2xywh)
-from ..utils.plots import Annotator, save_one_box
-from ..utils.torch_utils import copy_attr, time_sync
+from utils.plots import Annotator, save_one_box
+from utils.torch_utils import copy_attr, time_sync
 
+
+def exif_transpose(image):
+    """
+    Transpose a PIL image accordingly if it has an EXIF Orientation tag.
+    Inplace version of Pillow exif_transpose()
+    :param image: The image to transpose.
+    :return: An image.
+    """
+    exif = image.getexif()
+    orient = exif.get(0x0112, 1)  # default 1
+    if orient > 1:
+        method = {
+            2: Image.FLIP_LEFT_RIGHT,
+            3: Image.ROTATE_180,
+            4: Image.FLIP_TOP_BOTTOM,
+            5: Image.TRANSPOSE,
+            6: Image.ROTATE_270,
+            7: Image.TRANSVERSE,
+            8: Image.ROTATE_90, }.get(orient)
+        if method is not None:
+            image = image.transpose(method)
+            del exif[0x0112]
+            image.info["exif"] = exif.tobytes()
+    return image
 
 def autopad(k, _p=None):  # kernel, padding
     '''

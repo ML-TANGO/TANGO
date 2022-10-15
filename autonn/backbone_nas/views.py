@@ -18,7 +18,7 @@ from . import models
 
 def index(request):
     '''index'''
-    return render(request, 'backboneNAS/index.html')
+    return render(request, 'backbone_nas/index.html')
 
 
 @api_view(['POST'])
@@ -34,7 +34,7 @@ def URSList(request):
         )
         urs.save()
         # urss = models.URS.objects.all()
-        return render(request, "backboneNAS/index.html")
+        return render(request, "backbone_nas/index.html")
         # user_reqs = models.URS.objects.all()
         # serializer = URSSerializer(user_reqs, many=True)
         # return Response(serializer.data)
@@ -56,7 +56,7 @@ def create_net(request):
             "/media/temp_files/model/" + created_model_name)
         torch.save(created_model.state_dict(), created_model_path)
 
-        return render(request, "backboneNAS/index.html",
+        return render(request, "backbone_nas/index.html",
                       context={"path": created_model_path})
 
         # file_path = (os.getcwd()+ '/model_'+ \

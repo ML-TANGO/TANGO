@@ -1,0 +1,30 @@
+version: "3"
+
+
+services:
+  db:
+    image: postgres:latest
+    restart: always
+    volumes:
+      - postgreSQL:/var/lib/postgresql/data
+    environment:
+      - POSTGRES_NAME=postgres
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=postgres
+
+  backbone_nas:
+    build:
+      context: ./
+      dockerfile: Dockerfile
+    command: >
+      sh -c "python manage.py makemigrations &&
+             python manage.py migrate &&
+             python manage.py runserver 0.0.0.0:8087"
+    volumes:
+      - ./backbone_nas:/source
+    ports:
+      - "8087:8087"
+    depends_on:
+      - db
+volumes:
+  postgreSQL:

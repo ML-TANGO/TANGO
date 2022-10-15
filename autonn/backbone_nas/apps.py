@@ -10,4 +10,4 @@ class BackbonenasConfig(AppConfig):
     BackbonenasConfig
     '''
     default_auto_field = 'django.db.models.BigAutoField'
-    name = 'backboneNAS'
+    name = 'backbone_nas'

@@ -18,6 +18,6 @@ from django.urls import path, include
 
 urlpatterns = [
     path('admin/', admin.site.urls),
-    path('', include('autonn.urls')),
-    path('backbone/', include('backboneNAS.urls'))
+    #path('', include('autonn.urls')),
+    path('', include('backbone_nas.urls'))
 ]

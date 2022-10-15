@@ -32,7 +32,7 @@
 
         <div id="margin2"></div>
 
-        <form action="{% url 'backboneNAS:URSList' %}" method="POST" enctype="multipart/form-data">
+        <form action="{% url 'backbone_nas:URSList' %}" method="POST" enctype="multipart/form-data">
             <!-- <input type="file" name="other input files" placeholder="Enter a title"> -->
             <input type="file" name="data_yaml" accept=".yaml">
             {% csrf_token %}
@@ -46,7 +46,7 @@
     <div id="margin1"></div>
 
     <div class="reports">
-        <form action="{% url 'backboneNAS:create_net' %}" method="GET" enctype="multipart/form-data">
+        <form action="{% url 'backbone_nas:create_net' %}" method="GET" enctype="multipart/form-data">
             {% csrf_token %}
             <input type="submit" style="margin-left: 40%; margin-top: 10%;" value = "Backbone Search">
         </form>
