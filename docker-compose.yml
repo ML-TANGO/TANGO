@@ -60,15 +60,30 @@ services:
       - "8086:80"
 
   # 신경망 생성 dummy 서버
-  autonn:
+  # autonn:
+  #   build:
+  #     context: ./autonn
+  #   command: >
+  #     sh -c "python manage.py makemigrations &&
+  #            python manage.py migrate &&
+  #            python manage.py runserver 0.0.0.0:8087"
+  #   volumes:
+  #     - ./autonn:/source
+  #   ports:
+  #     - "8087:8087"
+  #   depends_on:
+  #     - postgresql
+
+  backbone_nas:
     build:
-      context: ./autonn
+      context: ./autonn/backbone_nas
+      dockerfile: Dockerfile
     command: >
       sh -c "python manage.py makemigrations &&
              python manage.py migrate &&
              python manage.py runserver 0.0.0.0:8087"
     volumes:
-      - ./autonn:/source
+      - ./bnas:/source
     ports:
       - "8087:8087"
     depends_on:

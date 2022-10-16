@@ -22,6 +22,7 @@ services:
              python manage.py runserver 0.0.0.0:8087"
     volumes:
       - ./backbone_nas:/source
+      - ../shared:/shared
     ports:
       - "8087:8087"
     depends_on:
