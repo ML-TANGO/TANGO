@@ -54,5 +54,5 @@ And run using CURL 'curl -v http://localhost:8089/start?userid=root\&project_id=
 ---
 ### DB
     ~/autonn/neck_nas/backend/setting.py 파일 수정
-    단위테스트시 : sqlite3 사용 (./db.sqlite3/)
-    통합테스트시 : poestgres 사용 (포트 5432)
+    Django 기본 DB인 sqlite3 사용 (./db.sqlite3/)
+

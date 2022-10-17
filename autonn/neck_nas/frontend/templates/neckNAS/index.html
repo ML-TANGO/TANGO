@@ -1,0 +1,71 @@
+<!DOCTYPE html>
+{% load static %}
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>TANGO</title>
+    <link rel="stylesheet" href="{% static 'css/style.css' %}">
+</head>
+<body>
+    <div id="margin1"></div>
+
+    <div class="main">
+        <div class="Title">
+            Neck-NAS
+        </div>
+
+        <div class="reports">
+            <form action="{% url 'neckNAS:StartNeckNAS' %}" method="GET" enctype="multipart/form-data">
+                {% csrf_token %}
+                <input type="submit" style="margin-left: 40%; margin-top: 10%;" value = "Neck-NAS Search">
+            </form>
+        </div>
+
+        <div id="margin3"></div>
+
+        <div class="net2viz">
+            <p>{{ path }}</p>
+        </div>
+
+        <div id="margin1"></div>
+    </div>
+
+    <div class="container" id="Info">
+        <div class="Sub_title">
+            <p>Target Device</p>
+        </div>
+
+        <div id="margin2"></div>
+
+        <img src="{% static 'images/tar_rk3399pro.jpg' %}">
+
+        <div id="margin4"></div>
+
+        <form action="{% url 'neckNAS:InfoList' %}" method="POST" enctype="multipart/form-data">
+            <input type="file" name="target_yaml" accept=".yaml">
+            {% csrf_token %}
+            <input type="submit" value="UPLOAD">
+        </form>
+
+        <!-- <div id="margin2"></div> -->
+
+        <div class="Sub_title">
+            <p>Dataset</p>
+        </div>
+
+        <div id="margin2"></div>
+
+        <img src="{% static 'images/data_det.PNG' %}">
+
+        <div id="margin4"></div>
+
+        <form action="{% url 'neckNAS:InfoList' %}" method="POST" enctype="multipart/form-data">
+            <input type="file" name="data_yaml" accept=".yaml">
+            {% csrf_token %}
+            <input type="submit" value="Upload">
+        </form>
+    </div>
+
+</body>
+</html>
