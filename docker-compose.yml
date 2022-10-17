@@ -32,32 +32,32 @@ services:
       - POSTGRES_PASSWORD=postgres
 
    # 테스트용
-  mariadb:
-      container_name: "mariadb"
-      image: mariadb:10
-      restart: always
-      ports:
-        - 3306:3306
-      volumes:
-        - "./labelling/Deployment/db/my.cnf:/etc/mysql/my.cnf"
-        - "./labelling/data:/var/lib/mysql"
-        - "./labelling/Deployment/test/:/docker-entrypoint-initdb.d/"
-      environment:
-        MARIADB_DATABASE: labelling
-        MARIADB_USER: username
-        MARIADB_PASSWORD: password
-        MARIADB_ROOT_PASSWORD: password
-      restart: always
+  # mariadb:
+  #     container_name: "mariadb"
+  #     image: mariadb:10
+  #     restart: always
+  #     ports:
+  #       - 3306:3306
+  #     volumes:
+  #       - "./labelling/Deployment/db/my.cnf:/etc/mysql/my.cnf"
+  #       - "./labelling/data:/var/lib/mysql"
+  #       - "./labelling/Deployment/test/:/docker-entrypoint-initdb.d/"
+  #     environment:
+  #       MARIADB_DATABASE: labelling
+  #       MARIADB_USER: username
+  #       MARIADB_PASSWORD: password
+  #       MARIADB_ROOT_PASSWORD: password
+  #     restart: always
 
   # 레이블링 dummy 서버
-  labelling:
-    build:
-      context: ./labelling
-    volumes:
-      - ./labelling/dataset:/var/appdata
-      - ./labelling/datadb:/var/lib/mysql
-    ports:
-      - "8086:80"
+  # labelling:
+  #   build:
+  #     context: ./labelling
+  #   volumes:
+  #     - ./labelling/dataset:/var/appdata
+  #     - ./labelling/datadb:/var/lib/mysql
+  #   ports:
+  #     - "8086:80"
 
   # 신경망 생성 dummy 서버
   # autonn:
@@ -79,54 +79,54 @@ services:
       context: ./autonn/backbone_nas
       dockerfile: Dockerfile
     command: >
-      sh -c "python manage.py makemigrations &&
-             python manage.py migrate &&
-             python manage.py runserver 0.0.0.0:8087"
-    volumes:
-      - ./bnas:/source
+      sh -c "python3 manage.py makemigrations &&
+             python3 manage.py migrate &&
+             python3 manage.py runserver 0.0.0.0:8087"
+    # volumes:
+    #   - ./bnas:/source
     ports:
       - "8087:8087"
     depends_on:
       - postgresql
 
-  # 이미지 생성 dummy 서버
-  target_image_build:
-    build:
-      context: ./target_image_build
-    command: >
-      sh -c "python manage.py runserver 0.0.0.0:8088"
-    volumes:
-      - ./target_image_build:/source
-    ports:
-      - "8088:8088"
+  # # 이미지 생성 dummy 서버
+  # target_image_build:
+  #   build:
+  #     context: ./target_image_build
+  #   command: >
+  #     sh -c "python manage.py runserver 0.0.0.0:8088"
+  #   volumes:
+  #     - ./target_image_build:/source
+  #   ports:
+  #     - "8088:8088"
 
-  # 이미지 배포 dummy 서버
-  target_deploy:
-    build:
-      context: ./target_deploy
-    command: >
-      sh -c "python manage.py runserver 0.0.0.0:8089"
-    volumes:
-      - ./target_deploy:/source
-    ports:
-      - "8089:8089"
+  # # 이미지 배포 dummy 서버
+  # target_deploy:
+  #   build:
+  #     context: ./target_deploy
+  #   command: >
+  #     sh -c "python manage.py runserver 0.0.0.0:8089"
+  #   volumes:
+  #     - ./target_deploy:/source
+  #   ports:
+  #     - "8089:8089"
 
-  viz2code:
-    build:
-      context: ./visualization
-    command: >
-      sh -c "cd ./visualization/frontend &&
-             npm run build &&
-             cd ..
-             python manage.py makemigrations &&
-             python manage.py migrate &&
-             python manage.py runserver 0.0.0.0:8091"
-    volumes:
-      - ./viz2code:/source
-    ports:
-      - "8091:8091"
-    depends_on:
-      - postgresql
+  # viz2code:
+  #   build:
+  #     context: ./visualization
+  #   command: >
+  #     sh -c "cd ./visualization/frontend &&
+  #            npm run build &&
+  #            cd ..
+  #            python manage.py makemigrations &&
+  #            python manage.py migrate &&
+  #            python manage.py runserver 0.0.0.0:8091"
+  #   volumes:
+  #     - ./viz2code:/source
+  #   ports:
+  #     - "8091:8091"
+  #   depends_on:
+  #     - postgresql
 
 volumes:
   postgreSQL:

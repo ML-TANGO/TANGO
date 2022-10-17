@@ -20,7 +20,7 @@ from .net_generator.run_nas import run_nas
 from . import models
 
 PROCESSES = []
-COMMON_ROOT = Path('/shared/common/')
+COMMON_ROOT = Path('./shared/common/')
 
 # cpath = os.getcwd()
 # cpath = cpath.split("/")
@@ -86,7 +86,7 @@ def start(request):
     
     if request.method == 'GET':
         data_yaml, target_yaml = get_user_requirements(userid, project_id)
-        print(data_yaml, target_yaml)
+        # print(data_yaml, target_yaml)
 
         pr = multiprocessing.Process(target = process_nas, args=(userid, project_id, request))
         PROCESSES.append(pr)
@@ -111,6 +111,12 @@ def get_user_requirements(userid, projid):
 def process_nas(userid, project_id, req):
     proj_path = COMMON_ROOT / userid / project_id
     dataset_yaml_path = proj_path / 'datasets.yaml'
+
+    # folder = os.getcwd()
+    # print('folder: %s' % folder)
+    # for filename in os.listdir(folder):
+    #     print(filename)
+
     run_nas(dataset_yaml_path)
     status_report(userid, project_id, req)
 

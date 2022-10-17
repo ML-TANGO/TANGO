@@ -32,7 +32,7 @@ def run_nas(
     # print(data_path)
     # data_path = str(BASEPATH / data_path)
     # data_path
-    base_model_weights = '/temp_files/model/yolov5s.pt'
+    base_model_weights = 'bnas/media/temp_files/model/yolov5s.pt'
     best_det_model = arch_search(
         data_path, base_model_weights, batch_size, device)
     # torch.save(best_det_model.state_dict(), save_path)
