@@ -2,6 +2,9 @@ version: "3"
 
 
 services:
+  #---------------------------------
+  # Project Manager
+  #---------------------------------
   project_manager:
     build:
       context: ./project_manager
@@ -23,6 +26,9 @@ services:
     depends_on:
       - postgresql
 
+  #---------------------------------
+  # DB for Project Manager
+  #---------------------------------
   postgresql:
     image: postgres:latest
     restart: always
@@ -33,7 +39,9 @@ services:
       - POSTGRES_USER=postgres
       - POSTGRES_PASSWORD=postgres
 
-   # 테스트용
+  #---------------------------------
+  # DB for labelling tool
+  #---------------------------------
   mariadb:
       container_name: "mariadb"
       image: mariadb:10
@@ -51,7 +59,9 @@ services:
         MARIADB_ROOT_PASSWORD: password
       restart: always
 
-  # 레이블링 dummy 서버
+  #---------------------------------
+  # labelling tool server
+  #---------------------------------
   labelling:
     build:
       context: ./labelling
@@ -59,10 +69,12 @@ services:
       - ./labelling/dataset:/var/appdata
       - ./labelling/datadb:/var/lib/mysql
     ports:
-      - "8086:80"
-      - "8095:10236"
+      - "8086:80"    # for Web UI
+      - "8095:10236" # for Rest API 
 
-  # 신경망 생성 dummy 서버
+  #---------------------------------
+  # AutoNN 
+  #---------------------------------
   autonn:
     build:
       context: ./autonn
@@ -77,7 +89,9 @@ services:
     depends_on:
       - postgresql
 
-  # 이미지 생성 dummy 서버
+  #---------------------------------
+  # Target Image Build 
+  #---------------------------------
   target_image_build:
     build:
       context: ./target_image_build
@@ -88,7 +102,9 @@ services:
     ports:
       - "8088:8088"
 
-  # 이미지 배포 dummy 서버
+  #---------------------------------
+  # Image Deployment 
+  #---------------------------------
   target_deploy:
     build:
       context: ./target_deploy
@@ -99,6 +115,9 @@ services:
     ports:
       - "8089:8089"
 
+  #---------------------------------
+  # Visualizer 
+  #---------------------------------
   viz2code:
     build:
       context: ./visualization
@@ -116,5 +135,8 @@ services:
     depends_on:
       - postgresql
 
+#---------------------------------
+# Volumes 
+#---------------------------------
 volumes:
-  postgreSQL:
+  postgreSQL:  # for Proejct Manager
