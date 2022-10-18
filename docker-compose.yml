@@ -74,16 +74,22 @@ services:
   #   depends_on:
   #     - postgresql
 
-  backbone_nas:
+  autonn_bb:
     build:
       context: ./autonn/backbone_nas
-      dockerfile: Dockerfile
+    shm_size: '5gb'
     command: >
-      sh -c "python3 manage.py makemigrations &&
-             python3 manage.py migrate &&
-             python3 manage.py runserver 0.0.0.0:8087"
-    # volumes:
-    #   - ./bnas:/source
+      sh -c "python manage.py makemigrations &&
+             python manage.py migrate &&
+             python manage.py runserver 0.0.0.0:8087"
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - capabilities: [gpu]
+    volumes:
+      - ./autonn/backbone_nas:/source
+      - ./shared:/shared
     ports:
       - "8087:8087"
     depends_on:

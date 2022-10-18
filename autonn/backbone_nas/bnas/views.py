@@ -6,7 +6,6 @@ import os
 import json
 import torch
 import requests
-# import threading
 import multiprocessing
 
 from django.shortcuts import render
@@ -20,17 +19,7 @@ from .net_generator.run_nas import run_nas
 from . import models
 
 PROCESSES = []
-COMMON_ROOT = Path('./shared/common/')
-
-# cpath = os.getcwd()
-# cpath = cpath.split("/")
-# print(cpath)
-# par = len(cpath) - cpath.index("TANGO")
-# if par > 1:
-#     cr = ''
-#     for i in range(par):
-#         cr = cr + '.'
-#     COMMON_ROOT = cr + COMMON_ROOT
+COMMON_ROOT = Path('/shared/common/')
 
 def index(request):
     '''index'''
@@ -70,11 +59,11 @@ def InfoList(request):
 
 @api_view(['GET'])
 def start(request):
-    # params = request.query_params
-    # userid = params['userid']
-    # project_id = params['project_id']
-    userid = 'jgp0566'
-    project_id = 'test1'
+    params = request.query_params
+    userid = params['userid']
+    project_id = params['project_id']
+    # userid = 'jgp0566'
+    # project_id = 'test1'
 
     # check user id & project id
     try:
@@ -88,7 +77,7 @@ def start(request):
         data_yaml, target_yaml = get_user_requirements(userid, project_id)
         # print(data_yaml, target_yaml)
 
-        pr = multiprocessing.Process(target = process_nas, args=(userid, project_id, request))
+        pr = multiprocessing.Process(target = process_nas, args=(userid, project_id))
         PROCESSES.append(pr)
         print(f'{len(PROCESSES)}-th process is starting')
         PROCESSES[-1].start()
@@ -101,6 +90,50 @@ def start(request):
         nasinfo.save()
         return Response("started", status=200, content_type="text/plain")
 
+@api_view(['GET'])
+def stop(request):
+    print("_________GET /stop_____________")
+    params = request.query_params
+    userid = params['user_id']
+    project_id = params['project_id']
+    try:
+        nasinfo = models.Info.objects.get(userid=userid,
+                                          project_id=project_id)
+    except models.Info.DoesNotExist:
+        return Response('failed', status=200, content_type='text/plain')
+
+    PROCESSES[nasinfo.process_id].terminate()
+    PROCESSES.pop(nasinfo.process_id)
+    nasinfo.status = "stopped"
+    nasinfo.save()
+
+    return Response("stopped", status=200, content_type="text/plain")
+
+@api_view(['GET'])
+def status_request(request):
+    print("_________GET /status_request_____________")
+    params = request.query_params
+    userid = params['user_id']
+    project_id = params['project_id']
+    try:
+        nasinfo = models.Info.objects.get(userid=userid,
+                                          project_id=project_id)
+        if PROCESSES[nasinfo.process_id].is_alive():
+            print("found thread running nas")
+            nasinfo.status = "running"
+            nasinfo.save()
+            return Response("running", status=200, content_type='text/plain')
+        else:
+            nasinfo.status = "stopped"
+            nasinfo.save()
+            return Response("stopped", status=200, content_type='text/plain')
+    except models.Info.DoesNotExist:
+        nasinfo = models.Info(userid=userid,
+                      project_id=project_id)
+        nasinfo.status = "ready"
+        nasinfo.save()
+        return Response("ready", status=200, content_type='text/plain')
+
 def get_user_requirements(userid, projid):
     common_root = Path('/shared/common/')
     proj_path = common_root / userid / projid
@@ -108,28 +141,44 @@ def get_user_requirements(userid, projid):
     dataset_yaml_path = proj_path / 'datasets.yaml'
     return dataset_yaml_path, target_yaml_path
 
-def process_nas(userid, project_id, req):
+def process_nas(userid, project_id):
     proj_path = COMMON_ROOT / userid / project_id
     dataset_yaml_path = proj_path / 'datasets.yaml'
-
+    run_nas(dataset_yaml_path)
+    status_report(userid, project_id, status="success")
+    
     # folder = os.getcwd()
     # print('folder: %s' % folder)
     # for filename in os.listdir(folder):
     #     print(filename)
 
-    run_nas(dataset_yaml_path)
-    status_report(userid, project_id, req)
+def status_report(userid, project_id, status="success"):
+    try:
+        url = 'http://0.0.0.0:8085/status_report'
+        headers = {
+            'Content-Type' : 'text/plain'
+        }
+        payload = {
+            'container_id' : "backbone_nas",
+            'user_id' : userid,
+            'project_id' : project_id,
+            'status' : status
+        }
+        response = requests.get(url, headers=headers, params=payload)
+        print(response.text)
 
-def status_report(userid, project_id, req):
-    text = userid + project_id + "success"
-    render(req, "bnas/index.html",
-                    context={"path": text})
+        nasinfo = models.Info.objects.get(userid=userid,
+                                      project_id=project_id)
+        nasinfo.status = "ready"
+        nasinfo.save()
+        PROCESSES.pop(-1)
+    except ValueError as e:
+        print(e)
 
 # @api_view(['GET'])
 # def create_net(request):
 #     '''create_net'''
 #     if request.method == 'GET':
-#         # URS id 관리 추가 예정
 #         # models.URS.objects.filter
 #         user_reqs = models.URS.objects.all()
 #         data_path = user_reqs[0].data_yaml.url

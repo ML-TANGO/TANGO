@@ -178,3 +178,6 @@ cython_debug/
 !labelling/Deployment/lib/oracle/lib/libsqlplus.so
 !labelling/Deployment/lib/oracle/lib/libsqlplusic.so
 !labelling/Server/src/lib
+
+# shared data
+shared
