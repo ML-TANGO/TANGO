@@ -25,7 +25,7 @@ router.get("/start", async (req, res, next) => {
 			USER_ID : userId,
 		}
 		await DH.executeQuery(option)
-
+		res.set("Content-Type", "text/plain")
 		res.status(200).send("starting")
 	} catch (error) {
 		res.status(200).send("error\n"+error)
@@ -47,6 +47,7 @@ router.get("/stop", async (req, res, next) => {
 			let list = await DH.executeQuery(option)
 			console.log(list[0])
 	
+			res.set("Content-Type", "text/plain")
 			res.status(200).send("finished")
 		} catch (error) {
 			res.status(200).send("error\n"+error)
@@ -61,6 +62,7 @@ router.get("/test", async (req, res, next) => {
 			option.queryId = "getProjectInfo"
 			let list = await DH.executeQuery(option)
 			console.log(list[0])
+			res.set("Content-Type", "text/plain")
 			res.status(200).send("finished")
 })
 
