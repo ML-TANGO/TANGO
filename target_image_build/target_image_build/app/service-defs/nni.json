@@ -1,0 +1,18 @@
+{
+  "prestart": [
+    {
+      "action": "mkdir",
+      "args": {
+        "path": "/home/work/.config/nni"
+      }
+    }
+  ],
+  "command": [
+    "{runtime_path}",
+    "-m", "nni.main",
+      "--logdir", "/home/work/logs",
+      "--create", "/home/work/.config/nni/config.yml",
+    "--host", "0.0.0.0",
+    "--port", "{ports[0]}"
+  ]
+}
