@@ -26,7 +26,7 @@ RUN apt-get update && \
         python3 python3-pip \
         libssl-dev libgl1-mesa-glx \
         proj-bin libproj-dev \
-        libgeos-dev libgeos++-dev \
+        libgeos-dev libgeos++-dev libglib2.0-0 \
         mime-support ncurses-term \
 {%- if packages['apt']|length == 0 %}
         gcc g++ && \
@@ -50,6 +50,9 @@ RUN echo "work ALL=(ALL:ALL) NOPASSWD:ALL" >> /etc/sudoers
 {% endif -%}
 RUN ln -sf /usr/share/terminfo/x/xterm-color /usr/share/terminfo/x/xterm-256color
 
+COPY {{ copy_path }} {{ workdir }}
+WORKDIR {{ workdir }}
+
 RUN python3 -m pip install -U pip setuptools && \
     python3 -m pip install Pillow && \
     python3 -m pip install h5py && \
@@ -68,6 +71,8 @@ RUN python3 -m pip install -U pip setuptools && \
     {%- endif %}
 {%- endfor %}
 
+RUN python3 -m pip install -r requirements.txt
+
 {% if packages['conda']|length > 0 -%}
 RUN {% for custom in packages['conda'] -%}
         {% if loop.index0 != (loop.length)-1 -%}
@@ -78,7 +83,7 @@ RUN {% for custom in packages['conda'] -%}
     {% endfor %}
 {%- endif %}
 
-COPY { path } /etc/backend.ai/service-defs # This will be only used in demo
+
 """  # noqa
 
 DOCKERFILE_TEMPLATE_APP = r"""# syntax = docker/dockerfile:1.0-experimental
