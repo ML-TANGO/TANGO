@@ -60,6 +60,8 @@ class Forklift:
                     "architecture": info["build"]["architecture"],
                     # "envs": yaml_contents["build"]["components"]["environments"],
                     "packages": info["build"]["components"]["custom_packages"],
+                    "copy_path": "nn_model",
+                    "workdir": info["build"]["workdir"],
                 }
             )
             log.info("==Dockerfile created!==")
@@ -149,12 +151,12 @@ class Forklift:
                 status=status,
                 logs=ac_log,
             )
-            if task["requested_info"]["build"]:
+            if task["requested_info"]["build"] and status == "complete":
                 log.debug(
-                    f'Send running for {task["requested_info"]["target"]} container message.'
+                    f'Send running for {task["requested_target_img"]} container message.'
                 )
                 await self._handle_preset_result(
-                    settings.DEPLOY_SERVER_URL, task["requested_info"]["build"]
+                    settings.DEPLOY_SERVER_URL, task["requested_info"]
                 )
             # await self.aclose()
         except DockerError as docker_error:
