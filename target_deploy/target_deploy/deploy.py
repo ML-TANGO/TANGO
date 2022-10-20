@@ -10,7 +10,7 @@ class ManipulateContainer:
         try:
             config = {
                 "Cmd": data["deploy"]["entrypoint"],
-                "Image": "yolov3:1.0v",
+                "Image": f'{data["build"]["target_name"]}',
                 "AttachStdin": False,
                 "AttachStdout": False,
                 "AttachStderr": False,
