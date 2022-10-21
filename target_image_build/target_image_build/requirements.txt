@@ -1,0 +1,16 @@
+aiodocker
+fastapi
+uvicorn
+sqlalchemy
+jinja2
+python-multipart
+toml
+trafaret
+coloredlogs
+bcrypt
+pydantic[email]
+python-jose[cryptography]
+passlib[bcrypt]
+sse-starlette
+aiohttp-sse
+aioredis
