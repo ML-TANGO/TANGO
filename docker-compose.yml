@@ -60,20 +60,28 @@ services:
       - "8086:80"
       - "8095:10236"
 
-  # 신경망 생성 dummy 서버
-  autonn:
+  # 신경망 생성 Neck-NAS 서버
+  autonn_nk:
     build:
-      context: ./autonn
+      context: ./autonn/neck_nas
+    shm_size: '256M'
     command: >
-      sh -c "python manage.py makemigrations &&
-             python manage.py migrate &&
-             python manage.py runserver 0.0.0.0:8087"
+      sh -c "python manage.py makemigrations
+             && python manage.py migrate
+             && python manage.py runserver 0.0.0.0:8089"
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              capabilities: [gpu]
+
     volumes:
-      - ./autonn:/source
+      - ./autonn/neck_nas:/source
+      - ./shared:/shared
+      # - /Data:/shared/datasets # for local tests
     ports:
-      - "8087:8087"
-    depends_on:
-      - postgresql
+      - "8089:8089"
 
   # 이미지 생성 dummy 서버
   target_image_build:
