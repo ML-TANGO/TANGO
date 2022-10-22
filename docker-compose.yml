@@ -60,7 +60,7 @@ services:
       restart: always
 
   #---------------------------------
-  # labelling tool server
+  # Labelling tool 
   #---------------------------------
   labelling:
     build:
@@ -86,8 +86,8 @@ services:
       - ./autonn:/source
     ports:
       - "8087:8087"
-    depends_on:
-      - postgresql
+        # depends_on:
+        #- postgresql
 
   #---------------------------------
   # Target Image Build 
@@ -132,8 +132,8 @@ services:
       - ./viz2code:/source
     ports:
       - "8091:8091"
-    depends_on:
-      - postgresql
+        #depends_on:
+        #- postgresql
 
 #---------------------------------
 # Volumes 
