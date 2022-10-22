@@ -1,0 +1,44 @@
+<Deployment>
+
+□ Funtionality of this folder
+   o Generate template code for the target device and the inference engine
+   o call a container that is responsible for its deploy device such as cloud, edge cloud, or ondevice
+
+□ Folder structure
+-----------------------------------------------------------------------------------------
+|  Folder name         |   Functionality                                                      |
+|  (Container name)   |                                                                         |
+-----------------------------------------------------------------------------------------
+|   code_gen           |   Generate template code for neural network execution  |
+-----------------------------------------------------------------------------------------
+|  cloud_deploy       |   Deploy docker image to cloud, edge cloud base        |
+-----------------------------------------------------------------------------------------
+|  ondevice_deploy   |   Deploy neural network code to PC or on-devices       |
+-----------------------------------------------------------------------------------------
+
+□ Operation Flow
+   o Receive a neural network model from previous pipeline(AutoNN)
+   o Check the types of target device and inference engine
+   o Generate template code that makes the neural network model run
+   o If the target device is cloud or edge cloud, then cloud_deploy container will be called
+   o else ondevice_deploy container will be called
+
+□ Supported Targets
+------------------------------------------------------------------------------------------------------------------------------
+|  Type          |   CPU   |  Accelerator   |   OS           |  Neural Network Engine   |   Chip/Board/System Name  |
+------------------------------------------------------------------------------------------------------------------------------
+|  Cloud         |   x64   |  CUDA          |   Linux        |   PyTorch                      |  Goolge Cloud Platform      |
+------------------------------------------------------------------------------------------------------------------------------|
+|  Edge Cloud  |   x64   |   CUDA         |   Windows  |   Linux  |   PyTorch           |   PC                               |
+------------------------------------------------------------------------------------------------------------------------------
+|  OnDevice    |  ARM   |   Mali GPU     |   Linux       |   ACL/ARMNN/PyARMNN  |  ODROID-N2+                  | 
+|                  |           |                    |                 |                                    |  (Mali-G52 GPU)                |
+|                  --------------------------------------------------------------------------------------------------------------|
+|                  |   ARM  |   RKNN NPU  |   Linux        |  RKNN                          |  ODROID-M1                    | 
+|                  |           |                    |                 |                                    |  Firefly-RK3399PRO            | 
+|                  |           |                    |                 |                                    |  Firefly-RK3399                 |  
+------------------------------------------------------------------------------------------------------------------------------|
+* Jetson Nano, Anroid Smartphone will be added in the next release version.
+
+
+

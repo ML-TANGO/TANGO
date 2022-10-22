@@ -1,0 +1,25 @@
+build:
+  accelerator: opencl
+  architecture: arm
+  components:
+    custom_packages:
+      atp:
+      - clinfo
+      - ocl-icd-libopnecl1
+      - ocl-icd-opencl-dev
+      - python3-opencv
+      - python3-pip
+      pypi: []
+    engine: pytorch
+    libs:
+    - mali-fbdev
+  os: ubuntu
+deploy:
+  entrypoint:
+  - output.py
+  type: Odroid-M1
+  work_dir: /yolov3
+optional:
+  annotation_file: labelmap.yaml
+  nn_file: output.py
+  weight_file: yolo_v3_tiny_darknet_fp32.tflite

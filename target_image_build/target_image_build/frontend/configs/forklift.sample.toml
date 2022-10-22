@@ -1,0 +1,23 @@
+[server]
+addr = { "host": "backend_host", "port": backend_server_port }
+bind_addr = { "bind_host": "bind_host_example", "bind_port": bind_port_example }
+
+[webui]
+addr = { "host": "frondend_host", "port": frontend_port }
+
+[allow-ip]
+addr = ["allow_host"]
+
+[docker.auth]
+username = "your_user_name"
+password = "your_password" 
+
+[auth]
+FORKLIFT_SECRET_KEY = "your_secret_key"
+
+[maxImageRequest]
+max_num = 1
+
+[general]
+signupSupport = true
+maskUserInfo = true

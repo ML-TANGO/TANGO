@@ -44,6 +44,7 @@ INSTALLED_APPS = [
     'corsheaders',
     'autonn',
     'backboneNAS',
+    'neckNAS',
     'rest_framework'
 ]
 
