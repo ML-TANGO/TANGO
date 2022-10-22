@@ -1,0 +1,25 @@
+# common
+task_type : detection          # classification/detection
+target_info : Odroid-M1        # /pc/Odroid-N2/Odroid-M1/cloud
+cpu : arm                      # arm/x86
+acc : opencl                  # cuda/opencl/cpu
+memory: 32                     # MB unit
+os : ubuntu                    # windows/ubuntu/android
+engine : acl                  # acl/rknn/pytorch
+target_hostip : 0.0.0.0        # optional
+target_hostport : 8887         # optional
+target_serviceport : 5051      # optional
+
+
+# for autonn
+dataset : dataset.yaml         # dataset path info for this project
+basemodel: basemodel.yaml      # base model
+
+# for deploy  (optional)
+lightweight_level : 5          # 0 .. 10
+precision_level : 5            # 0 .. 10
+preprocessing_lib : cv2        # cv2
+input_method : mp4             # camera/mp4/picture/folder
+input_data_location : /data
+output_method : graphic        # console/graphic/mp4
+user_editing : no              # allow users to modify code

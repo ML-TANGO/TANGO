@@ -20,4 +20,5 @@ urlpatterns = [
     path('admin/', admin.site.urls),
     path('', include('autonn.urls')),
     path('backbone/', include('backboneNAS.urls'))
+    path('neck/', include('neckNAS.urls'))
 ]

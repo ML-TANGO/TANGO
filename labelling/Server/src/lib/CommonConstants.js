@@ -38,7 +38,8 @@ define("MAPPER", {
   QP: "QiProject",
   HS: "HwSetting",
   RPT: "Report",
-  AUTH: "Auth"
+  AUTH: "Auth",
+  TANGO: "Tango"
 })
 
 define("BIN", {
