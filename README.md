@@ -217,6 +217,9 @@ When you want remove all the images and containers prviously built and run, you 
 # tear down all containers and remove all docker images created and volumes.
 $ docker-compose down --rmi all --volumes
 
+# remove all images in the local docker host for preventing cached image layers side ffect
+docker system prune -a
+
 # remove labelling data folders if you have created any annotations
 $ sudo rm -rf ./labelling/data/
 $ sudo rm -rf ./labelling/datadb/
