@@ -26,7 +26,7 @@
     "axios": "0.21.1",
     "base64-arraybuffer": "0.2.0",
     "bootstrap": "4.4.1",
-    "browserify-css": "^0.12.0",
+    "browserify-css": "^0.15.0",
     "chart.js": "^2.9.4",
     "classnames": "2.2.6",
     "copy-to-clipboard": "^3.3.1",
@@ -48,7 +48,7 @@
     "konva": "6.0.0",
     "lodash-es": "^4.17.15",
     "mini-svg-data-uri": "^1.2.3",
-    "moment": "2.24.0",
+    "moment": "^2.29.4",
     "object-hash": "^2.0.3",
     "path": "0.12.7",
     "pretty-bytes": "^5.6.0",
@@ -74,7 +74,7 @@
     "react-flow-renderer": "^9.1.0",
     "react-force-graph": "^1.40.3",
     "react-grid-layout": "^1.1.1",
-    "react-highlight": "0.12.0",
+    "react-highlight": "^0.14.0",
     "react-highlight-words": "^0.17.0",
     "react-hook-form": "5.5.3",
     "react-hot-loader": "4.12.20",
@@ -120,7 +120,7 @@
     "uplot-react": "^1.0.2",
     "uuid": "8.0.0",
     "video.js": "^7.8.4",
-    "xlsx": "^0.15.6"
+    "xlsx": "^0.18.5"
   },
   "devDependencies": {
     "@babel/cli": "7.13.14",

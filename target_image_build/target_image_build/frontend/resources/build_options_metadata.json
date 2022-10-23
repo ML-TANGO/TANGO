@@ -1,0 +1,64 @@
+{
+  "buildOptionInfo": {
+    "src": {
+      "name": "Source Docker image",
+      "description": "The full Docker image name to import from. The registry must be accessible by the client.",
+      "icon": "source"
+    },
+    "target": {
+      "name": "Target Docker image",
+      "description": "The full Docker image name of the imported image.The registry must be accessible by the client.",
+      "icon": "adjust"
+    },
+    "min-cpu": {
+      "name": "Minimum required CPU core(s)",
+      "description": "The minimum number of CPU cores required by the image.",
+      "icon": "developer_board"
+    },
+    "min-mem": {
+      "name": "Minimum required memory size",
+      "description": "The minimum size of the main memory required by the image.",
+      "icon": "memory"
+    },
+    "runtime-type": {
+      "name": "Runtime type of the image",
+      "description": "The runtime type of the image. Currently, the source image must have installed Python 2.7, 3.5, 3.6, or 3.7 at least to import. This will be used as the kernel of Jupyter service in this image.",
+      "icon": "category"
+    },
+    "runtime-path": {
+      "name": "Path of the runtime",
+      "description": "The path to the main executable of runtime language of the image. Even for the same \"python\"-based images, this may differ significantly image by image. (e.g., /usr/bin/python, /usr/local/bin/python, /opt/something/bin/python, ...) Please check this carefully not to get confused with OS-default ones and custom-installed ones.",
+      "icon": "route"
+    },
+    "accelerators": {
+      "name": "Supported accelerators",
+      "description": "The list of accelerators supported by the image.",
+      "icon": "view_module"
+    },
+    "service-ports": {
+      "name": "Supported service ports",
+      "description": "The list of service ports supported by this image. Note that sshd (port 2200) and ttyd (port 7681) are intrinsic; they are always included regardless of the source image. The port number 2000-2003 are reserved by Backend.AI, and all port numbers must be larger than 1024 and smaller than 65535.",
+      "icon": "settings_input_hdmi"
+    },
+    "environment-variables": {
+      "name": "Environment Variables",
+      "description": "Set the environment variable <key> to the value <value>. These variables will persist when a container is run from the resulting image.",
+      "icon": "settings_applications"
+    },
+    "custom-package": {
+      "name": "Custom Packages",
+      "description": "Set the custom packages to be installed in advance when building the image.",
+      "icon": "list_alt"
+    },
+    "auto-push": {
+      "name": "Auto push docker image",
+      "description": "If the switch is on, pushes images for services to their respective 'registry/repository'.",
+      "icon": "hdr_auto"
+    },
+    "privilege": {
+      "name": "Allow root",
+      "description": "If you check Allow root, you can use the sudo command without a password. Otherwise, all commands that require administrator privileges cannot be used.",
+      "icon": "supervisor_account"
+    }
+  }
+}

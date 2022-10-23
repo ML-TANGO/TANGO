@@ -314,6 +314,27 @@ const _removeDataSet = async (data) => {
   }
 }
 
+router.post("/testtest", async (req, res, next) => {
+  console.log("test!")
+  try {
+    let resResult = await CF.sendGetRequest(
+      "0.0.0.0",
+      "10236",
+      "/test",
+        {
+          project_id: "testtest",
+          user_id: "dkdkdkfekjfj"
+        }
+    )
+    console.log("====")
+    console.log(resResult)
+    console.log("====")
+  } catch (error) {
+    console.log("error")
+    console.log(error)
+  }
+})
+
 router.post("/setDupDataset", async (req, res, next) => {
   let option = {}
   const tempDir = path.join(config.datasetPath, req.body.ORG_DATASET_CD)
@@ -459,6 +480,10 @@ router.post("/setNewDataSets", async (req, res, next) => {
   try {
     // !fs.existsSync(datasetDir) && fs.mkdirSync(datasetDir)
     logger.info(`${tempDir}    ->>     ${datasetDir}`)
+    console.log(tempDir)
+    console.log(fs.existsSync(tempDir))
+    console.log(datasetDir)
+    console.log(fs.existsSync(datasetDir))
     fs.renameSync(tempDir, datasetDir)
     let resultPath = path.join(datasetDir, "result")
     !fs.existsSync(resultPath) && fs.mkdirSync(resultPath)
@@ -540,7 +565,50 @@ router.post("/setNewDataSets", async (req, res, next) => {
 
   _createDataSets(req.body, 0)
 
+
   res.json({ status: 1 })
+
+  
+  option.source = CC.MAPPER.TANGO
+  option.queryId = "getProjectInfo"
+  let list = await DH.executeQuery(option)
+  
+  
+  if(list[0] !== undefined) {
+    logger.info("send status request to Project Manager")
+    console.log(list[0])
+    try {
+
+      let resResult = await CF.sendGetRequest(
+        "project_manager",
+        "8085",
+        "/status_request",
+          {
+            project_id: list[0].PROJECT_ID,
+            user_id: list[0].USER_ID
+          }
+      )
+    } catch (error) {
+      console.log("error")
+      console.log(error)
+    }
+    
+  } else
+  logger.info("Fail to send status request to Project Manager : not started")
+  
+  // var os = require('os');
+
+
+  // // http://:project_manager:8085)
+
+  // var networkInterfaces = os.networkInterfaces();
+
+  // console.log(networkInterfaces);
+  // logger.info("IP INFO")
+  // logger.info(networkInterfaces)
+  
+
+  
 })
 
 const _createDataSets = async (data, dataCd) => {
@@ -691,6 +759,7 @@ const _createDataSets = async (data, dataCd) => {
           DATASET_CD : DATASET_CD,
           DATAS
         }
+        console.log(DATAS)
         optionTemp.queryId = "setBulkUpdateDataElement"
         await DH.executeQuery(optionTemp)
       }
@@ -714,6 +783,7 @@ const _createDataSets = async (data, dataCd) => {
       if (data.OBJECT_TYPE === "C") {
         const className = path.basename(path.dirname(ele.path))
         const tag = TAG_CD_LIST.find((item) => item.NAME === className)
+        logger.info(`find TagCD : ${JSON.stringify(tag)}`)
         tempEle.TAG_CD = tag.TAG_CD
       }
 
