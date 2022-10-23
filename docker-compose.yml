@@ -77,7 +77,7 @@ services:
   #---------------------------------
   autonn_bb:
     build:
-      context: ./autonn/bakcbone_nas
+      context: ./autonn/backbone_nas
     shm_size: '256M'
     command: >
       sh -c "python manage.py makemigrations
@@ -91,7 +91,7 @@ services:
               capabilities: [gpu]
 
     volumes:
-      - ./autonn/bakcbone_nas:/source
+      - ./autonn/backbone_nas:/source
       - ./shared:/shared
     ports:
       - "8087:8087"
