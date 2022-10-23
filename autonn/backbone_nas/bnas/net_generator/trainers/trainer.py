@@ -6,7 +6,7 @@ NAS controllor
 
 from .enas import ENAS
 from .eval import fine_tune
-from ..utils.general import check_amp
+from ..utils.accelerate import check_amp
 
 
 def train(

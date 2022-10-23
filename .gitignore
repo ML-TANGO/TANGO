@@ -181,3 +181,6 @@ project_manager/tango/migrations/*.py
 !labelling/Deployment/lib/oracle/lib/libsqlplus.so
 !labelling/Deployment/lib/oracle/lib/libsqlplusic.so
 !labelling/Server/src/lib
+
+# shared data
+shared

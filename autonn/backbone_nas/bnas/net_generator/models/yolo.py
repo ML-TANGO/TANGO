@@ -6,7 +6,7 @@ Usage:
 """
 
 import math
-from ast import literal_eval
+import contextlib
 from copy import deepcopy
 from pathlib import Path
 
@@ -15,13 +15,13 @@ import torch.nn as nn
 import yaml
 from easydict import EasyDict as edict
 
-from ..utils.autoanchor import check_anchor_order
-from ..utils.general import LOGGER, check_version, make_divisible
-from ..utils.plots import feature_visualization
-from ..utils.torch_utils import (fuse_conv_and_bn,  # , time_sync
+from utils.autoanchor import check_anchor_order
+from utils.general import LOGGER, check_version, make_divisible
+from utils.plots import feature_visualization
+from utils.torch_utils import (fuse_conv_and_bn,  # , time_sync
                                  initialize_weights)
 
-from .common import C3, Bottleneck, Concat, Conv, DWConv
+from .common import C3, Bottleneck, Concat, Conv, DWConv, SPPF
 
 # try:
 #     import thop  # for FLOPs computation
@@ -255,11 +255,11 @@ class Model(nn.Module):
         https://arxiv.org/abs/1708.02002 section 3.3
         '''
         _m = self.model[-1]  # Detect() module
-        for _mi, _s in zip(_m.m, _m.stride):  # from
-            _b = _mi.bias.view(_m.na, -1)  # conv.bias(255) to (3,85)
+        for _mi, _s in zip(_m._m, _m.stride):  # from
+            _b = _mi.bias.view(_m.det_dict.na, -1)  # conv.bias(255) to (3,85)
             # obj (8 objects per 640 image)
             _b.data[:, 4] += math.log(8 / (640 / _s) ** 2)
-            _b.data[:, 5:] += (math.log(0.6 / (_m.nc - 0.999999))
+            _b.data[:, 5:] += (math.log(0.6 / (_m.det_dict.nc - 0.999999))
                                if _cf is None
                                else torch.log(_cf / _cf.sum()))  # cls
             _mi.bias = torch.nn.Parameter(_b.view(-1), requires_grad=True)
@@ -311,29 +311,26 @@ def parse_model(_d, _ch):
     model_dict, input_channels(3)
     '''
     vdicts = edict()
-    anchors, vdicts.nc, vdicts.gd, vdicts.gw = \
+    anchors, nc, vdicts.gd, vdicts.gw = \
         _d['anchors'], _d['nc'], _d['depth_multiple'], _d['width_multiple']
     vdicts.na = ((len(anchors[0]) // 2)
                  if isinstance(anchors, list)
                  else anchors)  # number of anchors
     # number of outputs = anchors * (classes + 5)
-    vdicts.no = vdicts.na * (vdicts.nc + 5)
+    vdicts.no = vdicts.na * (nc + 5)
 
     # layers, savelist, ch out
     layers, vdicts.save, vdicts.c2 = [], [], _ch[-1]
     # from, number, module, args
     for i, (_f, _n, _m, args) in enumerate(_d['backbone'] + _d['head']):
-        _m = literal_eval(_m) if isinstance(_m, str) else _m  # eval strings
-        for j, _a in enumerate(args):
-            try:
-                args[j] = (literal_eval(_a)
-                           if isinstance(_a, str) else _a)  # eval strings
-            except NameError:
-                pass
+        _m = eval(_m) if isinstance(_m, str) else _m  # eval strings
+        for j, a in enumerate(args):
+            with contextlib.suppress(NameError):
+                args[j] = eval(a) if isinstance(a, str) else a  # eval strings
 
         _n = max(round(_n * vdicts.gd), 1) if _n > 1 else _n  # depth gain
         if _m in (Conv, Bottleneck, DWConv,
-                  C3, nn.ConvTranspose2d):
+                  C3, nn.ConvTranspose2d, SPPF):
             vdicts.c1, vdicts.c2 = _ch[_f], args[0]
             if vdicts.c2 != vdicts.no:  # if not output
                 vdicts.c2 = make_divisible(vdicts.c2 * vdicts.gw, 8)

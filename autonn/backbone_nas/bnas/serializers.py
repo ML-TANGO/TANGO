@@ -4,12 +4,12 @@ serializers.py
 
 from rest_framework import serializers
 
-from .models import URS
+from .models import Info
 
 
-class URSSerializer(serializers.ModelSerializer):
-    '''URS'''
+class InfoSerializer(serializers.ModelSerializer):
+    '''Backbone-NAS Info'''
     class Meta:
         '''meta'''
-        model = URS
+        model = Info
         fields = '__all__'

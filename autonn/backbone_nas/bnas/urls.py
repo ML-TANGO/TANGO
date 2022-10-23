@@ -8,14 +8,15 @@ from . import views
 
 # from rest_framework import routers
 
-app_name = 'backboneNAS'
+app_name = 'bnas'
 
 # router = routers.DefaultRouter()
 # router.register('URS', views.URSView, basename='user_reqs')
 
 urlpatterns = [
     path('', views.index),
-    # path(r'^', include(router.urls), name = ""),
-    path("api/urs", views.URSList, name="URSList"),
-    path("api/backbone", views.create_net, name="create_net")
+    path("infos", views.InfoList, name="InfoList"),
+    path("start", views.start, name="StartBNAS"),
+    path("stop", views.stop, name="StopBNAS"),
+    path("status_request", views.status_request, name="StatusRequestBNAS")
 ]

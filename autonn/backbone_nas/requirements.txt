@@ -8,22 +8,19 @@ djangorestframework==3.13.1
 easydict
 idna==3.3
 matplotlib==3.5.1
-nni
 numpy==1.22.3
 ofa
 opencv-python
 pandas==1.4.2
 Pillow>=8.4.0
 psycopg2-binary==2.9.3
-pytorch_lightning
 pytz==2022.1
 PyYAML==6.0
 requests==2.27.1
 seaborn==0.11.2
 sqlparse==0.4.2
-tensorboardX
-torch
-torchvision
+# torch
+# torchvision
 tqdm==4.62.3
 typing_extensions==4.1.1
 urllib3==1.26.9

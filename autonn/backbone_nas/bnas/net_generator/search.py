@@ -26,7 +26,6 @@ LOCAL_RANK = int(os.environ.get('LOCAL_RANK', -1))
 
 def arch_search(data_path, weights, batch_size, device):
     '''arch_search'''
-
     data_dict = None
     with torch_distributed_zero_first(LOCAL_RANK):
         data_dict = data_dict or check_dataset(data_path)  # check if None

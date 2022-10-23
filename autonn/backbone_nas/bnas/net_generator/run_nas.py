@@ -8,9 +8,9 @@ from pathlib import Path
 from .search import arch_search
 
 # Path on Current abs. dir.
-PATHA = os.path.dirname(os.path.abspath(__file__))
-# Path on backboneNAS
-BASEPATH = Path(PATHA).parent
+# PATHA = os.path.dirname(os.path.abspath(__file__))
+# # Path on backboneNAS
+# BASEPATH = Path(PATHA).parent
 
 # if str(basePath) not in sys.path:
 #    sys.path.append(str(basePath))
@@ -29,9 +29,11 @@ def run_nas(
     '''
     main func
     '''
-    data_path = str(BASEPATH) + data_path
-    base_model_weights = os.path.dirname(data_path) + '/model/yolov5s.pt'
+    # print(data_path)
+    # data_path = str(BASEPATH / data_path)
+    # data_path
+    base_model_weights = 'bnas/media/temp_files/model/yolov5s.pt'
     best_det_model = arch_search(
         data_path, base_model_weights, batch_size, device)
     # torch.save(best_det_model.state_dict(), save_path)
-    return best_det_model
+    return "success"

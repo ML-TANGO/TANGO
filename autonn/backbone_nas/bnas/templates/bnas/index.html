@@ -15,14 +15,18 @@
         BackboneNAS
     </div>
 
-    <div class="container" id="URS">
+    <div class="container" id="Info">
         <div class="Sub_title">
             <p>Target Device</p>
         </div>
         <div id="margin2"></div>
         <img src="{% static 'images/tar_phone.jpg' %}">
 
-        <div id="margin2"></div>
+        <form action="{% url 'bnas:InfoList' %}" method="POST" enctype="multipart/form-data">
+            <input type="file" name="target_yaml" accept=".yaml">
+            {% csrf_token %}
+            <input type="submit" value="UPLOAD">
+        </form>
 
         <div class="Sub_title">
             <p>Dataset</p>
@@ -32,12 +36,11 @@
 
         <div id="margin2"></div>
 
-        <form action="{% url 'backboneNAS:URSList' %}" method="POST" enctype="multipart/form-data">
-            <!-- <input type="file" name="other input files" placeholder="Enter a title"> -->
+        <form action="{% url 'bnas:InfoList' %}" method="POST" enctype="multipart/form-data">
             <input type="file" name="data_yaml" accept=".yaml">
             {% csrf_token %}
             <input type="submit" value="Upload">
-        </form>
+        </form> 
         
         
         
@@ -46,7 +49,7 @@
     <div id="margin1"></div>
 
     <div class="reports">
-        <form action="{% url 'backboneNAS:create_net' %}" method="GET" enctype="multipart/form-data">
+        <form action="{% url 'bnas:StartBNAS' %}" method="GET" enctype="multipart/form-data">
             {% csrf_token %}
             <input type="submit" style="margin-left: 40%; margin-top: 10%;" value = "Backbone Search">
         </form>
