@@ -1,4 +1,4 @@
-import React, { useState, useRef } from "react";
+import React, { useState, useRef, useEffect } from "react";
 import "../styles.css";
 import Sidebar from "./sidebar";
 import CustomEdge from "./CustomEdge";
@@ -42,6 +42,8 @@ const edgeTypes = {
 };
 let nowp = "";
 var checkFirst = 0;
+let initRunningStateTime = 100;
+var running_id = 0;
 
 function BasicGraph() {
   const reactFlowWrapper = useRef(null);
@@ -49,15 +51,50 @@ function BasicGraph() {
   const [elements, setElements] = useState([]);
   const [modalOpen, setModalOpen] = useState(false);
 
+
   if(checkFirst == 0){
             // Initializate selected architecture
-      var initElement = initialArch();
-      for (var i=0;i<initElement.length;i++) {
-        elements.push(initElement[i]);
-        // setElements((es) => es.concat(initElement[i]));
-      }
-      checkFirst=1;
+    var initElement = initialArch();
+    for (var i=0;i<initElement.length;i++) {
+      elements.push(initElement[i]);
+      // setElements((es) => es.concat(initElement[i]));
+    }
+    checkFirst=1;
   }
+
+  const notRunningState = setInterval(()=>{
+//    console.log("[post] 동작 중지");
+    running_id += 1;
+    axios.post("/api/running/", {
+      id : running_id,
+      running: 0,
+    }).then(function(response){
+        console.log(response)
+        })
+        .catch(e => console.log(e));
+    }, initRunningStateTime * 1000)
+
+  const onRunningState = (()=>{
+//    console.log("[post] 동작 중");
+
+    running_id += 1;
+    axios.post("/api/running/", {
+      id : running_id,
+      running: 1,
+    }).then(function(response){
+      console.log(response)
+      })
+      .catch(e => console.log(e));
+  })
+    
+
+  const onRunningStateClick = (e) => {
+    e.preventDefault();
+    clearInterval(notRunningState);
+    onRunningState();
+    clearInterval(notRunningState);
+    notRunningState();
+  };
 
   const onConnect = async (params) => {
     setElements((els) => addEdge(params, els));
@@ -156,7 +193,7 @@ function BasicGraph() {
   const onNodeClick = (event, node) => {
     setState(node.data.label);
     nowc = node.id;
-    console.log(nowc);
+//    console.log(nowc);
   };
   const onDrop = async (event) => {
     event.preventDefault();
@@ -447,7 +484,7 @@ function BasicGraph() {
   };
 
   return (
-    <div className="dndflow">
+    <div className="dndflow" onClick={onRunningStateClick}>
       <ReactFlowProvider>
 
         <div
@@ -460,10 +497,11 @@ function BasicGraph() {
         </tc>
 
         <br/>
-          <ReactFlow
-            // initElement={initialArch}
-            elements={elements}
+          <ReactFlow 
+//            onClick={onRunningStateClick}
+            initElement={initialArch}
             onConnect={onConnect}
+            elements={elements}
             onLoad={onLoad}
             onDrop={onDrop}
             onDragOver={onDragOver}

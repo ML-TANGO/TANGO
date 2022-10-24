@@ -26,7 +26,6 @@ RUN apt-get install -y postgresql postgresql-contrib
 RUN npm install pnpm -g
 RUN npm install
 WORKDIR /souce/frontend
-RUN npm run build
 WORKDIR /souce/
-CMD ["python3", "./manage.py", "runserver", "0.0.0.0:8091"]
+CMD ["python3", "./manage.py", "runserver", "react", "0.0.0.0:8091"]
 EXPOSE 8091
