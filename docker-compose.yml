@@ -148,6 +148,9 @@ services:
     ports:
       - "8089:8089"  # check the allocated ports!! 8089 is for autonn_nk
 
+  #---------------------------------
+  # Visualizer 
+  #---------------------------------
   viz2code:
     build:
       context: ./visualization
@@ -162,8 +165,8 @@ services:
       - ./viz2code:/source
     ports:
       - "8091:8091"
-    depends_on:
-      - postgresql
+        #depends_on:
+        #- postgresql
 
 #---------------------------------
 # Volumes 

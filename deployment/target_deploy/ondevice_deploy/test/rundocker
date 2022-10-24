@@ -1,0 +1,2 @@
+# sudo docker run -it --rm -v ~/tango:/tango -p 8888:8888  --workdir=/app ondevice_deploy /bin/bash
+sudo docker run -it --rm -v ~/tango:/tango --net=host  --workdir=/app ondevice_deploy /bin/bash
