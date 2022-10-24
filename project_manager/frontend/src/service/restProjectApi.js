@@ -3,6 +3,27 @@ import Cookies from "universal-cookie";
 
 import {server_ip, getHeaderData, tokenExpiredCheck} from "./restApi_Base"
 
+/* 데이터셋 경로 유효성 검사 */
+export function requestGetServerIP()
+{
+    const header_info = getHeaderData()
+    return new Promise( (resolve, reject) =>
+    {
+        axios.get( server_ip + "/api/get_server_ip/", {headers: header_info}).then((response) =>
+        {
+            resolve( response.data )
+        })
+        .catch(error =>
+        {
+            const result = tokenExpiredCheck(error.response)
+
+            if(result === false)
+            {
+                reject(error.response)
+            }
+        });
+    });
+}
 
 /* 프로젝트 리스트 요청 */
 export function requestProjectList()
