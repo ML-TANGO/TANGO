@@ -4,6 +4,12 @@ export const initialArch = () => {
   var checkFirst = 0;
 
   if (checkFirst==0){
+//    axios.post("/api/start/", {
+//      start: 0,
+//    }).then(function(response){
+//        console.log(response)
+//        })
+//        .catch(e => console.log(e));
 
       // 노드와 엣지 삭제하기
     for (var j=0; j<60; j++){
@@ -116,8 +122,6 @@ export const initialArch = () => {
 
     initElements.push(newEdge);
     // _id = _id + 1;
-
-
   }
     checkFirst = 1;
 
