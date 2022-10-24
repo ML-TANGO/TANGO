@@ -4,7 +4,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Deep Framework</title>
+    <title>TANGO</title>
     <link rel="stylesheet" href="{% static 'css/style.css' %}">
 </head>
 <body>
@@ -32,7 +32,7 @@
             <p>Dataset</p>
         </div>
         <div id="margin2"></div>
-        <img src="{% static 'images/data_det.png' %}">
+        <img src="{% static 'images/data_det.PNG' %}">
 
         <div id="margin2"></div>
 
@@ -42,16 +42,69 @@
             <input type="submit" value="Upload">
         </form> 
         
-        
-        
     </div>
 
-    <div id="margin1"></div>
+    <div class="Title2">
+        <p>Parameter Setting</p>
+    </div>
 
     <div class="reports">
+      
+        <div class = 'user-image'>
+       
+            <img src = "{% static 'images/box8.png' %}" 
+            style= 'width:1350px; height : 200px; z-index:1' alt =""/>
+        </div>
         <form action="{% url 'bnas:StartBNAS' %}" method="GET" enctype="multipart/form-data">
+            <div class = 'user-text'>
+                <p>
+                    <!-- <legend>Insert Data...</legend> -->
+                    <br> GPUs<br>
+                    <br>
+                    <label><input type='radio' name='GPUs' value='Single GPU' checked/> Single GPU </label>
+                    <label><input type='radio' name='GPUs' value='Multi-GPUs' />Multi-GPUs</label>
+                </p>   
+            </div>
+                    
+            <div class = 'user-text2'>
+                <p>
+                    <label>Node 수: &nbsp;<input type="number" size="1" value=" " ></label><br>
+                    <label>Node당 GPU 수: &nbsp;<input type="number" size="1" value=" "></label><br>
+                        
+                </p>   
+            </div>
+
+            <div class = 'user-text3'>
+                <p>
+                    <br>Image size<br>
+                    <br>
+                    <label><input type='radio' name='Image size' value='1280*1280' /> 1280*1280</label>
+                    <br><label><input type='radio' name='Image size' value='640*640' checked/> 640*640</label>
+                </p>   
+            </div>
+    
+            <div class = 'user-text4'>
+                <p>
+                    <br>
+                    NAS setting<br>
+                    <br>
+                    <label><input type="radio" name="NAS setting" value="Auto" checked> Automatic</label>
+                    <br><label><input type="radio" name="NAS setting" value=None> Manual</label>
+                    <br>        
+                </p>   
+            </div>
+
+            <div class = 'user-text5'>
+                <p>
+                    <label>Batch size: &nbsp;<input type="number" size="1" value=" "></label><br>
+                    <label>Epoch: &nbsp;<input type="number" size="1" value=" "></label><br>
+                    <label>Population size: &nbsp;<input type="number" size="1" value=" "></label><br>
+                </p>   
+            </div>
+
             {% csrf_token %}
-            <input type="submit" style="margin-left: 40%; margin-top: 10%;" value = "Backbone Search">
+            <input type="submit" style="margin-left: 41%; margin-top: 16%;" value = "Backbone Search">
+            <input type = 'submit' value = '전송'>
         </form>
     </div>
 

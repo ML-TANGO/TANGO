@@ -59,11 +59,11 @@ def InfoList(request):
 
 @api_view(['GET'])
 def start(request):
-    params = request.query_params
-    userid = params['userid']
-    project_id = params['project_id']
-    # userid = 'jgp0566'
-    # project_id = 'test1'
+    # params = request.query_params
+    # userid = params['userid']
+    # project_id = params['project_id']
+    userid = 'jgp0566'
+    project_id = 'test1'
 
     # check user id & project id
     try:

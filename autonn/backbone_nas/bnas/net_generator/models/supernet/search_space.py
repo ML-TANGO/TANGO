@@ -311,7 +311,7 @@ class BackBoneMobileNetV3(MobileNetV3):
         '''
         convert state
         '''
-        model_dict = state_dict()
+        model_dict = self.state_dict()
         for key in state_dict:
             if ".mobile_inverted_conv." in key:
                 new_key = key.replace(".mobile_inverted_conv.", ".conv.")

@@ -40,7 +40,7 @@ def load_dataset(config):
     '''
     load dataset
     '''
-    if config.rect and shuffle:
+    if config.rect and config.shuffle:
         shuffle = False
 
     # init dataset *.cache only once if DDP
@@ -192,11 +192,11 @@ class LoadImagesAndLabels(Dataset):
                         # f += [p.parent / x.lstrip(os.sep) for x in t]
                 else:
                     raise Exception(f'{config.prefix}{_p} does not exist')
-            self.im_files = sorted(x.replace('/', os.sep)
-                                   for x in _f
-                                   if x.split('.')[-1].lower() in IMG_FORMATS)
+            self.im_files = sorted(_x.replace('/', os.sep)
+                                   for _x in _f
+                                   if _x.split('.')[-1].lower() in IMG_FORMATS)
             assert self.im_files, f'{config.prefix}No images found'
-        except ValueError as _e:
+        except Exception as _e:
             raise Exception(
                 f'{config.prefix}Error loading data \
                     from {config.path}: {_e}\nSee {HELP_URL}')
@@ -216,7 +216,7 @@ class LoadImagesAndLabels(Dataset):
             assert cache['version'] == self.cache_version  # same version
             assert cache['hash'] == get_hash(
                 self.label_files + self.im_files)  # same hash
-        except ValueError:
+        except Exception:
             cache, exists = self.cache_labels(cache_path), False  # cache
 
         # Display cache
@@ -509,7 +509,7 @@ def verify_image_label(args):
             _lb = np.zeros((0, 5), dtype=np.float32)
         return (ard.im_file, _lb, shape, ard.segments,
                 _nm, _nf, _ne, _nc, ard.msg)
-    except ValueError as _e:
+    except Exception as _e:
         _nc = 1
         ard.msg = f'{ard.prefix}WARNING: {ard.im_file}: \
             ignoring corrupt image/label: {_e}'

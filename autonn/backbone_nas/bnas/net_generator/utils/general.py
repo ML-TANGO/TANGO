@@ -359,16 +359,28 @@ def check_dataset(data, autodownload=True):
         with open(data, errors='ignore') as _f:
             data = yaml.safe_load(_f)  # dictionary
 
+    # Checks
+    for k in 'train', 'val', 'names':
+        assert k in data, f"data.yaml '{k}:' field missing ❌"
+    if isinstance(data['names'], (list, tuple)):  # old array format
+        data['names'] = dict(enumerate(data['names']))  # convert to dict
+    data['nc'] = len(data['names'])
+
     # Resolve paths
     # optional 'path' default to '.'
     path = Path(extract_dir or data.get('path') or '')
     # if not path.is_absolute():
-    #    path = (ROOT / path).resolve()
+    #     path = (ROOT / path).resolve()
+    #     data['path'] = path  # download scripts
     for k in 'train', 'val', 'test':
         if data.get(k):  # prepend path
-            data[k] = (str(path / data[k])
-                       if isinstance(data[k], str)
-                       else [str(path / x) for x in data[k]])
+            if isinstance(data[k], str):
+                x = (path / data[k]).resolve()
+                if not x.exists() and data[k].startswith('../'):
+                    x = (path / data[k][3:]).resolve()
+                data[k] = str(x)
+            else:
+                data[k] = [str((path / x).resolve()) for x in data[k]]
 
     # Parse yaml
     assert 'nc' in data, "Dataset 'nc' key missing."

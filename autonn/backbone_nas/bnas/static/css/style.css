@@ -13,6 +13,17 @@ body {
     color: #fff;
 }
 
+.Title2 {
+  width: 30.2%;
+  height: 1.4%;
+  margin: 43.5px 79px 15px 90px;
+  font-family: NotoSansKR;
+  font-size: 20px;
+  font-weight: bold;
+  text-align: left;
+  color: #fff;
+}
+
 .Sub_title {
     position:relative;
     width: 60px;
@@ -59,6 +70,77 @@ body {
     border-radius: 10px;
     float:left;
     background-color: #434854;
+}
+
+.user-image {
+  width: 10%;
+  vertical-align: left;
+  position:absolute;
+  z-index:2
+}
+
+.user-text {
+  position: absolute;
+  top: 26%;
+  left: 55%;
+  width: 100%;
+  transform: translate(-50%, -50%);
+  font-size: 20px;
+  font-family: NotoSansKR ;
+  text-align: left;
+  z-index: 2;
+  color: whitesmoke;
+}
+.user-text2 {
+  position: absolute;
+  top: 70%;
+  left: -21.5%;
+  width: 100%;
+  transform: translate(-50%, -50%);
+  font-size: 20px;
+  font-family: NotoSansKR ;
+  text-align: right;
+  z-index: 2;
+  color: whitesmoke;
+}
+
+.user-text3 {
+  position: absolute;
+  top: 32%;
+  left: 84%;
+  width: 100%;
+  transform: translate(-50%, -50%);
+  font-size: 20px;
+  font-family: NotoSansKR ;
+  text-align: left;
+  z-index: 2;
+  color: whitesmoke;
+}
+
+.user-text4 {
+  position: absolute;
+  top: 33%;
+  left: 103%;
+  width: 100%;
+  transform: translate(-50%, -50%);
+  font-size: 20px;
+  font-family: NotoSansKR ;
+  text-align: left;
+  z-index: 2;
+  color: whitesmoke;
+}
+
+.user-text5 {
+  position: absolute;
+  top: 52%;
+  left: 40%;
+  width: 100%;
+  transform: translate(-50%, -50%);
+  font-size: 20px;
+  font-family: NotoSansKR ;
+  text-align: right;
+  z-index: 2;
+  color: whitesmoke;
 }
 
 .button {

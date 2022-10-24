@@ -130,7 +130,7 @@ class ENAS:
         # self.max_time_budget = kwargs.get("max_time_budget", 500)
         # testing
         self.population_size = kwargs.get("population_size", 4)
-        self.max_time_budget = kwargs.get("max_time_budget", 1)
+        self.max_time_budget = kwargs.get("max_time_budget", 500)
 
         self.parent_ratio = kwargs.get("parent_ratio", 0.25)
         self.mutation_ratio = kwargs.get("mutation_ratio", 0.5)
