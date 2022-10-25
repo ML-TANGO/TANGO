@@ -14,6 +14,12 @@
 
 ----
 
+> **Announcement**  
+> * [2022  Fall TANGO Community Conference](https://github.com/ML-TANGO/TANGO/discussions/31)
+> * [2022  Fall TANGO Release]()  - to be announced.
+
+----
+
 ## Introduction to TANGO <a name="intro"></a>
 
 TANGO (**T**arget **A**daptive  **N**o-code neural network **G**eneration and **O**peration framework) is code name of project for Integrated Machine Learning Framework.
