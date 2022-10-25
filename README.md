@@ -33,7 +33,7 @@ TANGO uses container technology and MSA (Micro Service Architecture). Containers
 Each component of TANGO is self-contained service component implemented with container technology.
 The component interacts with other component via REST APIs as depicted in the following image;
 
-<img src="./docs/media/TANGO_structure_v1.png" alt="TANGO Project Overview" style="width: 1200px;"/>
+<img src="./docs/media/TANGO_structure_v1.png" alt="TANGO Project Overview" width="800px"/>
 
 ----
 
@@ -225,7 +225,7 @@ Now you can launch web browser and open URL `http://localhost:8085` or `http://a
 
 Then you can see the login page of TANGO as follows:
 
-<img src="./docs/media/TANGO_init_screen.png" alt="TANGO Screenshot" style="width:800px;"/>
+<img src="./docs/media/TANGO_init_screen.png" alt="TANGO Screenshot" width="600px"/>
 
 Once you can find the login page in the web browser, register new account and password and use the newly created account and password to login.
 
