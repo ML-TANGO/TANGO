@@ -27,6 +27,7 @@ RUN npm install pnpm -g
 RUN npm install
 WORKDIR /souce/frontend
 RUN npm install --save react-router-dom@6.3.0
+RUN npm run build
 WORKDIR /souce/
 CMD ["python3", "./manage.py", "runserver", "react", "0.0.0.0:8091"]
 EXPOSE 8091
