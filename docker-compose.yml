@@ -73,6 +73,30 @@ services:
       - "8095:10236" # for Rest API 
 
   #---------------------------------
+  # Base Model Selector
+  #---------------------------------
+  bms:
+    build:
+      context: ./base_model_select
+    shm_size: '256M'
+    command: >
+      sh -c "python generate_txt_file.py &&
+             python manage.py runserver 0.0.0.0:8081"
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              capabilities: [gpu]
+    environment:
+      - NVIDIA_VISIBLE_DEVICES=all
+    volumes:
+      - ./base_model_select:/source
+      - ./shared:/shared
+    ports:
+      - "8081:8081"
+
+  #---------------------------------
   # AutoNN: Bakcbone-NAS
   #---------------------------------
   autonn_bb:

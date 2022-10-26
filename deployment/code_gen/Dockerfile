@@ -3,10 +3,13 @@ WORKDIR /app
 COPY . /app
 COPY lib/. /app
 COPY lib/libprotobuf.so.10 /lib/x86_64-linux-gnu
-COPY db/. /app
-COPY db/yolov3.body /db
-COPY db/yolov3.head /db
-COPY db/yolo_v3_tiny_darknet_fp32.tflite /db
+COPY db/. /app/db
+COPY db/yolov3.body /app/db
+COPY db/yolov3.head /app/db
+COPY db/yolo_v3_tiny_darknet_fp32.tflite /app/db
+COPY db/odroid-m1-manual.txt /app/db
+COPY db/odroid-n2-manual.txt /app/db
+COPY db/yolov3/. /app/db/yolov3
 RUN pip3 install --upgrade pip
 RUN apt-get update
 RUN apt-get install -y libgl1-mesa-glx vim gedit

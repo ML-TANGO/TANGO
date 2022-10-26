@@ -9,6 +9,8 @@ This module generates template code for RKNN, PyTorch, and ArmNN based on AutoNN
 import os
 import socket
 import shutil
+import sys
+#  from distutils.dir_util import copy_tree
 import time
 import yaml
 # for web service
@@ -26,13 +28,13 @@ import requests
 
 # for docker and project manager
 # "." for test /tango for docker container
-# def_top_folder = "/home/khlee/Desktop/deploy_workspace/tango/common/"  # for test
-#def_top_folder = "C:/Users/giant/Desktop/tango/common/"  # for test on Windows PC
+# def_top_folder = "/home/khlee/Desktop/deploy_workspace/tango/common"  # for test
+# def_top_folder = "C:/Users/giant/Desktop/tango/common/"  # for test on Windows PC
 def_top_folder = "/tango/common"    # for docker
 def_code_folder_name = "nn_model"
 
 # for rknn
-# for test
+# for test  # khlee test
 from rknn.api import RKNN
 def_rknn_file = "yolov5.rknn"
 def_rknn_template = "yolov5.template"
@@ -68,6 +70,9 @@ def_newline = '\n'
 def_4blank = "    "
 
 def_codegen_port = 8888
+
+def_n2_manual = './db/odroid-n2-manual.txt'
+def_m1_manual = './db/odroid-m1-manual.txt'
 
 
 ####################################################################
@@ -404,9 +409,9 @@ class CodeGen:
 
         # python
         elif self.m_sysinfo_engine_type == 'pytorch':
-            self.m_sysinfo_libs = ['python==3.9', 'torch>=1.1.0']
-            self.m_sysinfo_apt = ['vim']
-            self.m_sysinfo_papi = ['flask==1.2.3']
+            self.m_sysinfo_libs = []
+            self.m_sysinfo_apt = ['vim', 'python3.9']
+            self.m_sysinfo_papi = []
             self.m_deploy_entrypoint = self.m_deploy_python_file
             self.gen_python_code()
             if self.m_deploy_type == 'cloud':
@@ -515,6 +520,7 @@ class CodeGen:
         self.m_converted_file = "%s%s" % (self.m_current_file_path, def_rknn_file)
         # comment out for test only -> uncomment needed
         # Create RKNN object
+        # khlee test
         rknn = RKNN(verbose=True)
 
         # pre-process config
@@ -556,7 +562,7 @@ class CodeGen:
         tmp_str = "%s%s%s" % (tmp_str, "import time", def_newline)
         tmp_str = "%s%s" % (tmp_str, def_newline)
 
-        tmp_str = "%s%s%s%s" % (tmp_str, "rknn_model_file = ", self.m_converted_file, def_newline)
+        tmp_str = "%s%s%s%s" % (tmp_str, "rknn_model_file = ", def_rknn_file, def_newline)
         # for test change the file name
         tmp_str = "%s%s%s" % (tmp_str, "input_file = '480.mp4'", def_newline)
         tmp_str = "%s%s%s%s" % (tmp_str, def_newline, def_newline, def_newline)
@@ -860,6 +866,11 @@ class CodeGen:
         tmp_str = "%s%s" % (tmp_str, def_newline)
 
         tmp_str = "%s%s%s" % (tmp_str, "if __name__ == '__main__':", def_newline)
+        # parsing parameter
+        tmp_str = "%s%s%s" % (tmp_str, "    if len(sys.argv) < 2:", def_newline)
+        tmp_str = "%s%s%s" % (tmp_str, "        print('%s%s' % ('input_file = ', input_file))", def_newline)
+        tmp_str = "%s%s%s" % (tmp_str, "    else:", def_newline)
+        tmp_str = "%s%s%s" % (tmp_str, "        input_file = sys.argv[1]", def_newline)
         tmp_str = "%s%s%s" % (tmp_str, "    rknn_lite = RKNNLite()", def_newline)
         tmp_str = "%s%s" % (tmp_str, def_newline)
         tmp_str = "%s%s%s" % (tmp_str, "    # load RKNN model", def_newline)
@@ -967,6 +978,10 @@ class CodeGen:
             return -1
         outf.write(tmp_str)
         outf.close()
+
+        # manual copy
+        if os.path.isfile(def_m1_manual):
+            shutil.copy(def_m1_manual, self.m_current_code_folder)
         return 0
 
     ####################################################################
@@ -984,68 +999,69 @@ class CodeGen:
         else:
             self.m_converted_file = "%s%s%s" % (self.m_current_file_path, "/", self.m_nninfo_weight_pt_file)
 
-        # convert  and copy .pt file to nn_model folder 
-        if os.path.isfile(self.m_converted_file):
-            shutil.copy(self.m_converted_file, self.m_current_code_folder)
+        if self.m_deploy_type == 'cloud':
+            if sys.version_info.major == 3 and sys.version_info.minor > 7:
+                shutil.copytree('./db/yolov3/', self.m_current_code_folder, dirs_exist_ok=True)
+            else:
+                if os.path.exists('./db/yolov3/'):
+                    for file in os.scandir('./db/yolov3/'):
+                        if os.path.isfile(file.path):
+                            shutil.copy(file.path, self.m_current_code_folder)
+                        else:
+                            tname = "%s/%s" % (self.m_current_code_folder, file.name)
+                            shutil.copytree(file.path, tname)
+        else:
+            # convert  and copy .pt file to nn_model folder
+            if os.path.isfile(self.m_converted_file):
+                shutil.copy(self.m_converted_file, self.m_current_code_folder)
 
-        tmp_str = "%s%s%s%s%s%s" % ('\"\"\"', def_newline, self.m_deploy_python_file,
+            tmp_str = "%s%s%s%s%s%s" % ('\"\"\"', def_newline, self.m_deploy_python_file,
                                     def_newline, '\"\"\"', def_newline)
-        tmp_str = "%s%s%s" % (tmp_str, "import torch", def_newline)
-        tmp_str = "%s%s%s" % (tmp_str, "import cv2", def_newline)
-        tmp_str = "%s%s%s" % (tmp_str, "import numpy as np", def_newline)
-        tmp_str = "%s%s%s" % (tmp_str, "import time", def_newline)
-        tmp_str = "%s%s%s" % (tmp_str, def_newline, def_newline)
+            tmp_str = "%s%s%s" % (tmp_str, "import torch", def_newline)
+            tmp_str = "%s%s%s" % (tmp_str, "import cv2", def_newline)
+            tmp_str = "%s%s%s" % (tmp_str, "import numpy as np", def_newline)
+            tmp_str = "%s%s%s" % (tmp_str, "import time", def_newline)
+            tmp_str = "%s%s%s" % (tmp_str, def_newline, def_newline)
 
-        # pytorch file
-        # 가속기 gpu, npu 고려 사항 입력
-        tmp_str = "%s%s%s" % (tmp_str,
+            # pytorch file
+            # 가속기 gpu, npu 고려 사항 입력
+            tmp_str = "%s%s%s" % (tmp_str,
                               "model = torch.hub.load('ultralytics/yolov5', 'yolov5s')", def_newline)
 
-        # input method
-        tmp_str = "%s%s%s" % (tmp_str, "cap = cv2.VideoCapture('480.mp4')", def_newline)
-        tmp_str = "%s%s%s" % (tmp_str, def_newline, def_newline)
+            # input method
+            tmp_str = "%s%s%s" % (tmp_str, "cap = cv2.VideoCapture('480.mp4')", def_newline)
+            tmp_str = "%s%s%s" % (tmp_str, def_newline, def_newline)
 
-        tmp_str = "%s%s%s" % (tmp_str, "while True:", def_newline)
-        tmp_str = "%s%s%s%s" % (tmp_str, def_4blank, "ret, img = cap.read()", def_newline)
-        tmp_str = "%s%s" % (tmp_str, def_newline)
-        tmp_str = "%s%s%s%s" % (tmp_str, def_4blank, "# Inference", def_newline)
-        tmp_str = "%s%s%s%s" % (tmp_str, def_4blank, "start_time = time.time()", def_newline)
-        tmp_str = "%s%s%s%s" % (tmp_str, def_4blank, "results = model(img)", def_newline)
-        tmp_str = "%s%s%s%s" % (tmp_str, def_4blank, "end_time = time.time()", def_newline)
-        tmp_str = "%s%s" % (tmp_str, def_newline)
-        tmp_str = "%s%s%s%s" % (tmp_str, def_4blank, "fps = 1 / (end_time - start_time)",
+            tmp_str = "%s%s%s" % (tmp_str, "while True:", def_newline)
+            tmp_str = "%s%s%s%s" % (tmp_str, def_4blank, "ret, img = cap.read()", def_newline)
+            tmp_str = "%s%s" % (tmp_str, def_newline)
+            tmp_str = "%s%s%s%s" % (tmp_str, def_4blank, "# Inference", def_newline)
+            tmp_str = "%s%s%s%s" % (tmp_str, def_4blank, "start_time = time.time()", def_newline)
+            tmp_str = "%s%s%s%s" % (tmp_str, def_4blank, "results = model(img)", def_newline)
+            tmp_str = "%s%s%s%s" % (tmp_str, def_4blank, "end_time = time.time()", def_newline)
+            tmp_str = "%s%s" % (tmp_str, def_newline)
+            tmp_str = "%s%s%s%s" % (tmp_str, def_4blank, "fps = 1 / (end_time - start_time)",
                                 def_newline)
-        tmp_str = "%s%s%s" % (tmp_str,
+            tmp_str = "%s%s%s" % (tmp_str,
                               def_4blank, 'cv2.putText(img, f"{fps:.3f} FPS", (20,35),')
-        tmp_str = "%s%s%s" % (tmp_str,
+            tmp_str = "%s%s%s" % (tmp_str,
                               " cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 255, 0), 2)", def_newline)
-        tmp_str = "%s%s%s%s" % (tmp_str, def_4blank,
+            tmp_str = "%s%s%s%s" % (tmp_str, def_4blank,
                                 "cv2.imshow('YoloV5 Test...', np.squeeze(results.render()))", def_newline)
-        tmp_str = "%s%s%s%s" % (tmp_str,
+            tmp_str = "%s%s%s%s" % (tmp_str,
                                 def_4blank, "if cv2.waitKey(1) & 0xFF == ord('q'):", def_newline)
-        tmp_str = "%s%s%s%s%s" % (tmp_str, def_4blank, def_4blank, "break", def_newline)
-        tmp_str = "%s%s" % (tmp_str, def_newline)
-        tmp_str = "%s%s%s" % (tmp_str, "cap.release()", def_newline)
-        tmp_str = "%s%s%s" % (tmp_str, "cv2.destroyAllWindows()", def_newline)
+            tmp_str = "%s%s%s%s%s" % (tmp_str, def_4blank, def_4blank, "break", def_newline)
+            tmp_str = "%s%s" % (tmp_str, def_newline)
+            tmp_str = "%s%s%s" % (tmp_str, "cap.release()", def_newline)
+            tmp_str = "%s%s%s" % (tmp_str, "cv2.destroyAllWindows()", def_newline)
 
-        # 폴더입력
-        # 동영상 입력
-        # 카메라 입력
-        # 폴더 입력
-        # url 입력
-        # prepocessing
-        # 데이타 resize 포맷 변환
-        # o ne time or continuous detection
-        # 텍스트 출력
-        # 그래픽 출력
-
-        try:
-            f = open(self.get_code_filepath(self.m_deploy_python_file), 'w')
-        except IOError as err:
-            print("Python File Write Error", err)
-            return -1
-        f.write(tmp_str)
-        f.close()
+            try:
+                f = open(self.get_code_filepath(self.m_deploy_python_file), 'w')
+            except IOError as err:
+                print("Python File Write Error", err)
+                return -1
+            f.write(tmp_str)
+            f.close()
 
         # copy annotation file
         # self.m_nninfo_annotation_file
@@ -1117,6 +1133,11 @@ class CodeGen:
         f2.close()
 
         f.close()
+
+        # manual copy
+        if os.path.isfile(def_n2_manual):
+            shutil.copy(def_n2_manual, self.m_current_code_folder)
+
         return
 
     ####################################################################
@@ -1135,7 +1156,10 @@ class CodeGen:
 
         if os.path.exists(self.m_current_code_folder):
             for file in os.scandir(self.m_current_code_folder):
-                os.remove(file.path)
+                if os.path.isfile(file.path):
+                    os.remove(file.path)
+                else:
+                    shutil.rmtree(file.path)
 
         if os.path.isfile(self.get_real_filepath(self.m_requirement_file)):
             os.remove(self.get_real_filepath(self.m_requirement_file))
@@ -1164,26 +1188,42 @@ class CodeGen:
         else:  #  .pt file
             w_filw = self.m_nninfo_weight_pt_file
 
-        my_entry = ['run.sh', 'inference']
+        my_entry = ['python3', 'deploy_server.py']
         #my_entry = self.m_deploy_entrypoint
 
-        t_pkg = {"atp": self.m_sysinfo_apt, "pypi": self.m_sysinfo_papi}
-        t_com = {"engine": "pytorch",
+        if self.m_deploy_type == 'cloud':
+            t_pkg = {"atp": ['vim', 'python3.9'], "pypi": []}
+            t_com = {"custom_packages": t_pkg}
+            t_build = {'architecture': 'linux/amd64',
+                    "accelerator": 'cpu',
+                    "os": 'ubuntu',
+                    "target_name": 'yolov3:latest',
+                    "components": t_com,
+                    "workdir": '/yolov3'}
+            t_deploy = {"entrypoint": my_entry,
+                        "network": {"service_host_ip": self.m_deploy_network_hostip,
+                                    "service_host_port": self.m_deploy_network_hostport,
+                                    "service_container_port": self.m_deploy_network_serviceport}}
+            t_total = {"build": t_build, "deploy": t_deploy}
+        else:
+            t_pkg = {"atp": self.m_sysinfo_apt, "pypi": self.m_sysinfo_papi}
+            t_com = {"engine": "pytorch",
                  "custom_packages": t_pkg}
-        t_build = {'architecture': self.m_sysinfo_cpu_type,
+            t_build = {'architecture': self.m_sysinfo_cpu_type,
                    "accelerator": self.m_sysinfo_acc_type,
                    "os": self.m_sysinfo_os_type, "components": t_com,
-                   "workdir": self.m_deploy_work_dir}
-        t_deploy = {"type": dep_type, "work_dir": self.m_deploy_work_dir,
+                   "workdir": self.m_deploy_work_dir,
+                   "target_name": "yolov3:latest"}
+            t_deploy = {"type": dep_type, "work_dir": self.m_deploy_work_dir,
                     "entrypoint": my_entry,
                     "network": {"service_host_ip": self.m_deploy_network_hostip,
                                 "service_host_port": self.m_deploy_network_hostport,
                                 "service_container_port": self.m_deploy_network_serviceport}}
-        t_opt = {"nn_file": self.m_deploy_python_file,
-                 "weight_file": w_filw,
+            t_opt = {"nn_file": 'yolo.py',
+                 "weight_file": 'yolov3.pt',
                  "annotation_file": self.m_nninfo_annotation_file}
 
-        t_total = {"build": t_build, "deploy": t_deploy, "optional": t_opt}
+            t_total = {"build": t_build, "deploy": t_deploy, "optional": t_opt}
 
         try:
             f = open(self.get_real_filepath(self.m_requirement_file), 'w')
