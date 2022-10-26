@@ -184,3 +184,6 @@ project_manager/tango/migrations/*.py
 
 # shared data
 shared
+
+# AutoNN
+autonn/neck_nas/neckNAS/ku/runs/
