@@ -20,7 +20,7 @@ from .yolo import Model
 LOCAL_RANK = int(os.environ.get('LOCAL_RANK', -1))
 
 
-def load_models(weights, _nc, device):
+def load_models(weights, nc, device):
     '''
     Load supernet and head
     '''
@@ -30,7 +30,7 @@ def load_models(weights, _nc, device):
     # load checkpoint to CPU to avoid CUDA memory leak
     ckpt = torch.load(weights, map_location='cpu')
     
-    model = Model(ckpt['model'].yaml, _ch=3, _nc=_nc).to(device)  # create
+    model = Model(ckpt['model'].yaml, ch=3, nc=nc).to(device)  # create
     exclude = ['anchor']  # exclude keys
     csd = ckpt['model'].float().state_dict()  # checkpoint state_dict as FP32
     csd = intersect_dicts(csd, model.state_dict(),

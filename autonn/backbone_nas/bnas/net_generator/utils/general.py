@@ -236,60 +236,15 @@ set_logging()  # run before defining LOGGER
 LOGGER = logging.getLogger("yolov5")
 
 
-def intersect_dicts(_da, _db, exclude=()):
+def intersect_dicts(da, db, exclude=()):
     '''
     Dictionary intersection of matching keys and shapes,
     omitting 'exclude' keys, using da values
     '''
-    return {k: v for k, v in _da.items()
-            if ((k in _db and
+    return {k: v for k, v in da.items()
+            if ((k in db and
                  not any(x in k for x in exclude) and
-                 v.shape == _db[k].shape))}
-
-
-# def colorstr(*input):
-#     '''
-#     Colors a string https://en.wikipedia.org/wiki/ANSI_escape_code,
-#     i.e.  colorstr('blue', 'hello world')
-#     '''
-#     *args, string = input if len(input) > 1 else ('blue', 'bold', input[0])
-#     colors = {
-#         'black': '\033[30m',  # basic colors
-#         'red': '\033[31m',
-#         'green': '\033[32m',
-#         'yellow': '\033[33m',
-#         'blue': '\033[34m',
-#         'magenta': '\033[35m',
-#         'cyan': '\033[36m',
-#         'white': '\033[37m',
-#         'bright_black': '\033[90m',  # bright colors
-#         'bright_red': '\033[91m',
-#         'bright_green': '\033[92m',
-#         'bright_yellow': '\033[93m',
-#         'bright_blue': '\033[94m',
-#         'bright_magenta': '\033[95m',
-#         'bright_cyan': '\033[96m',
-#         'bright_white': '\033[97m',
-#         'end': '\033[0m',  # misc
-#         'bold': '\033[1m',
-#         'underline': '\033[4m'}
-#     return ''.join(colors[x] for x in args) + f'{string}' + colors['end']
-
-
-# def print_args(args: Optional[dict] = None, show_file=True, show_fcn=False):
-#     '''
-#     Print function arguments (optional args dict)
-#     '''
-#     _x = inspect.currentframe().f_back  # previous frame
-#     file, _, fcn, _, _ = inspect.getframeinfo(_x)
-#     if args is None:  # get args automatically
-#         args, _, _, frm = inspect.getargvalues(_x)
-#         args = {k: v for k, v in frm.items() if k in args}
-#     _s = (f'{Path(file).stem}: ' if show_file else '') + \
-#         (f'{fcn}: ' if show_fcn else '')
-#     LOGGER.info(colorstr(_s) + ', '.join(
-#       f'{k}={v}' for k, v in args.items()))
-
+                 v.shape == db[k].shape))}
 
 def user_config_dir(dirt='Ultralytics', env_var='YOLOV5_CONFIG_DIR'):
     '''
@@ -333,10 +288,10 @@ def check_suffix(file='yolov5s.pt', suffix=('.pt',), msg=''):
     if file and suffix:
         if isinstance(suffix, str):
             suffix = [suffix]
-        for _f in file if isinstance(file, (list, tuple)) else [file]:
-            _s = Path(_f).suffix.lower()  # file suffix
-            if _s:
-                assert _s in suffix, f"{msg}{_f} acceptable suffix is {suffix}"
+        for f in file if isinstance(file, (list, tuple)) else [file]:
+            s = Path(f).suffix.lower()  # file suffix
+            if s:
+                assert s in suffix, f"{msg}{f} acceptable suffix is {suffix}"
 
 
 def check_dataset(data, autodownload=True):
@@ -356,8 +311,8 @@ def check_dataset(data, autodownload=True):
 
     # Read yaml (optional)
     if isinstance(data, (str, Path)):
-        with open(data, errors='ignore') as _f:
-            data = yaml.safe_load(_f)  # dictionary
+        with open(data, errors='ignore') as f:
+            data = yaml.safe_load(f)  # dictionary
 
     # Checks
     for k in 'train', 'val', 'names':
@@ -387,7 +342,7 @@ def check_dataset(data, autodownload=True):
     if 'names' not in data:
         # assign class names if missing
         data['names'] = [f'class{i}' for i in range(data['nc'])]
-    _, val, _, _s = (data.get(x)
+    _, val, _, s = (data.get(x)
                      for x in ('train', 'val', 'test', 'download'))
     if val:
         val = val if isinstance(val, list) else [val]
@@ -396,29 +351,29 @@ def check_dataset(data, autodownload=True):
         if not all(x.exists() for x in val):
             LOGGER.info(emojis('\nDataset not found ⚠, missing paths %s' % [
                 str(x) for x in val if not x.exists()]))
-            if not _s or not autodownload:
+            if not s or not autodownload:
                 raise Exception(emojis('Dataset not found ❌'))
-            _t = time.time()
+            t = time.time()
             # unzip directory i.e. '../'
             root = path.parent if 'path' in data else '..'
-            if _s.startswith('http') and _s.endswith('.zip'):  # URL
-                _f = Path(_s).name  # filename
-                LOGGER.info('Downloading %s to %s...', _s, _f)
-                torch.hub.download_url_to_file(_s, _f)
+            if s.startswith('http') and s.endswith('.zip'):  # URL
+                f = Path(s).name  # filename
+                LOGGER.info('Downloading %s to %s...', s, f)
+                torch.hub.download_url_to_file(s, f)
                 Path(root).mkdir(parents=True, exist_ok=True)  # create root
-                ZipFile(_f).extractall(path=root)  # unzip
-                Path(_f).unlink()  # remove zip
-                _r = None  # success
-            elif _s.startswith('bash '):  # bash script
-                LOGGER.info('Running %s ...', _s)
-                _r = os.system(_s)
+                ZipFile(f).extractall(path=root)  # unzip
+                Path(f).unlink()  # remove zip
+                r = None  # success
+            elif s.startswith('bash '):  # bash script
+                LOGGER.info('Running %s ...', s)
+                r = os.system(s)
             else:  # python script
                 # _r = exec(_s, {'yaml': data})  # return None
-                _r = None
-            _dt = f'({round(time.time() - _t, 1)}s)'
-            _s = f"success ✅ {_dt}, saved to {str(root)}" if _r in (
-                0, None) else f"failure {_dt} ❌"
-            LOGGER.info(emojis(f"Dataset download {_s}"))
+                r = None
+            dt = f'({round(time.time() - t, 1)}s)'
+            s = f"success ✅ {dt}, saved to {str(root)}" if r in (
+                0, None) else f"failure {dt} ❌"
+            LOGGER.info(emojis(f"Dataset download {s}"))
     check_font('Arial.ttf'
                if is_ascii(data['names'])
                else 'Arial.Unicode.ttf',
@@ -435,22 +390,22 @@ def download(url, dirt='.', unzip=True,
     def download_one(url, dirt):
         '''Download 1 file'''
         success = True
-        _f = dirt / Path(url).name  # filename
+        f = dirt / Path(url).name  # filename
         if Path(url).is_file():  # exists in current path
-            Path(url).rename(_f)  # move to dir
-        elif not _f.exists():
-            LOGGER.info('Downloading %s to %s...', url, _f)
+            Path(url).rename(f)  # move to dir
+        elif not f.exists():
+            LOGGER.info('Downloading %s to %s...', url, f)
             for i in range(retry + 1):
                 if curl:
-                    _s = 'sS' if threads > 1 else ''  # silent
+                    s = 'sS' if threads > 1 else ''  # silent
                     # curl download with retry, continue
-                    _r = os.system(
-                        f'curl -{_s}L "{url}" -o "{_f}" --retry 9 -C -')
-                    success = _r == 0
+                    r = os.system(
+                        f'curl -{s}L "{url}" -o "{f}" --retry 9 -C -')
+                    success = r == 0
                 else:
                     torch.hub.download_url_to_file(
-                        url, _f, progress=threads == 1)  # torch download
-                    success = _f.is_file()
+                        url, f, progress=threads == 1)  # torch download
+                    success = f.is_file()
                 if success:
                     break
                 if i < retry:
@@ -460,14 +415,14 @@ def download(url, dirt='.', unzip=True,
                 else:
                     LOGGER.warning('Failed to download %s...', url)
 
-        if unzip and success and _f.suffix in ('.zip', '.gz'):
-            LOGGER.info('Unzipping %s...', _f)
-            if _f.suffix == '.zip':
-                ZipFile(_f).extractall(path=dirt)  # unzip
-            elif _f.suffix == '.gz':
-                os.system(f'tar xfz {_f} --directory {_f.parent}')  # unzip
+        if unzip and success and f.suffix in ('.zip', '.gz'):
+            LOGGER.info('Unzipping %s...', f)
+            if f.suffix == '.zip':
+                ZipFile(f).extractall(path=dirt)  # unzip
+            elif f.suffix == '.gz':
+                os.system(f'tar xfz {f} --directory {f.parent}')  # unzip
             if delete:
-                _f.unlink()  # remove zip
+                f.unlink()  # remove zip
 
     dirt = Path(dirt)
     dirt.mkdir(parents=True, exist_ok=True)  # make directory
@@ -481,23 +436,23 @@ def download(url, dirt='.', unzip=True,
         for _u in [url] if isinstance(url, (str, Path)) else url:
             download_one(_u, dirt)
 
-def check_img_size(imgsz, _s=32, floor=0):
+def check_img_size(imgsz, s=32, floor=0):
     '''
     Verify image size is a multiple of stride s in each dimension
     '''
     if isinstance(imgsz, int):  # integer i.e. img_size=640
-        new_size = max(make_divisible(imgsz, int(_s)), floor)
+        new_size = max(make_divisible(imgsz, int(s)), floor)
     else:  # list i.e. img_size=[640, 480]
         imgsz = list(imgsz)  # convert to list if tuple
-        new_size = [max(make_divisible(x, int(_s)), floor) for x in imgsz]
+        new_size = [max(make_divisible(x, int(s)), floor) for x in imgsz]
     if new_size != imgsz:
         LOGGER.warning(
             'WARNING: --img-size %s must be \
                 multiple of max stride %s, updating to %s',
-            imgsz, _s, new_size)
+            imgsz, s, new_size)
     return new_size
 
-def labels_to_class_weights(labels, _nc=80):
+def labels_to_class_weights(labels, nc=80):
     '''
     Get class weights (inverse frequency) from training labels
     '''
@@ -506,15 +461,15 @@ def labels_to_class_weights(labels, _nc=80):
 
     labels = np.concatenate(labels, 0)  # labels.shape = (866643, 5) for COCO
     classes = labels[:, 0].astype(np.int)  # labels = [class xywh]
-    weights = np.bincount(classes, minlength=_nc)  # occurrences per class
+    weights = np.bincount(classes, minlength=nc)  # occurrences per class
 
     # replace empty bins with 1
     _weights = []
-    for _w in weights:
-        if _w == 0:
+    for w in weights:
+        if w == 0:
             _weights.append(1)
         else:
-            _weights.append(_w)
+            _weights.append(w)
     weights = np.array(_weights).astype(np.int)
     weights = 1 / weights  # number of targets per class
     weights /= weights.sum()  # normalize
@@ -555,9 +510,9 @@ def non_max_suppression(prediction,
          list of detections, on (n,6) tensor per image [xyxy, conf, cls]
     """
 
-    _bs = prediction.shape[0]  # batch size
-    _nc = prediction.shape[2] - 5  # number of classes
-    _xc = prediction[..., 4] > conf_thres  # candidates
+    bs = prediction.shape[0]  # batch size
+    nc = prediction.shape[2] - 5  # number of classes
+    xc = prediction[..., 4] > conf_thres  # candidates
 
     # Checks
     assert 0 <= conf_thres <= 1, f'Invalid Confidence threshold \
@@ -569,86 +524,86 @@ def non_max_suppression(prediction,
     # min_wh = 2  # (pixels) minimum box width and height
     max_wh = 7680  # (pixels) maximum box width and height
     max_nms = 30000  # maximum number of boxes into torchvision.ops.nms()
-    time_limit = 0.3 + 0.03 * _bs  # seconds to quit after
+    time_limit = 0.3 + 0.03 * bs  # seconds to quit after
     redundant = True  # require redundant detections
-    multi_label &= _nc > 1  # multiple labels per box (adds 0.5ms/img)
+    multi_label &= nc > 1  # multiple labels per box (adds 0.5ms/img)
     merge = False  # use merge-NMS
 
-    _t = time.time()
-    output = [torch.zeros((0, 6), device=prediction.device)] * _bs
-    for _xi, _x in enumerate(prediction):  # image index, image inference
+    t = time.time()
+    output = [torch.zeros((0, 6), device=prediction.device)] * bs
+    for xi, x in enumerate(prediction):  # image index, image inference
         # Apply constraints
         # x[((x[..., 2:4] < min_wh) | \
         # (x[..., 2:4] > max_wh)).any(1), 4] = 0  # width-height
-        _x = _x[_xc[_xi]]  # confidence
+        x = x[xc[xi]]  # confidence
 
         # Cat apriori labels if autolabelling
-        if labels and labels[_xi]:
-            _lb = labels[_xi]
-            _v = torch.zeros((len(_lb), _nc + 5), device=_x.device)
-            _v[:, :4] = _lb[:, 1:5]  # box
-            _v[:, 4] = 1.0  # conf
-            _v[range(len(_lb)), _lb[:, 0].long() + 5] = 1.0  # cls
-            _x = torch.cat((_x, _v), 0)
+        if labels and labels[xi]:
+            lb = labels[xi]
+            v = torch.zeros((len(lb), nc + 5), device=_x.device)
+            v[:, :4] = lb[:, 1:5]  # box
+            v[:, 4] = 1.0  # conf
+            v[range(len(lb)), lb[:, 0].long() + 5] = 1.0  # cls
+            x = torch.cat((x, v), 0)
 
         # If none remain process next image
-        if not _x.shape[0]:
+        if not x.shape[0]:
             continue
 
         # Compute conf
-        _x[:, 5:] *= _x[:, 4:5]  # conf = obj_conf * cls_conf
+        x[:, 5:] *= x[:, 4:5]  # conf = obj_conf * cls_conf
 
         # Box (center x, center y, width, height) to (x1, y1, x2, y2)
-        box = xywh2xyxy(_x[:, :4])
+        box = xywh2xyxy(x[:, :4])
 
         # Detections matrix nx6 (xyxy, conf, cls)
         if multi_label:
-            _i, _j = (_x[:, 5:] > conf_thres).nonzero(as_tuple=False).T
-            _x = torch.cat((box[_i], _x[_i, _j + 5, None],
-                            _j[:, None].float()), 1)
+            i, j = (x[:, 5:] > conf_thres).nonzero(as_tuple=False).T
+            x = torch.cat((box[i], x[i, j + 5, None],
+                            j[:, None].float()), 1)
         else:  # best class only
-            conf, _j = _x[:, 5:].max(1, keepdim=True)
-            _x = torch.cat((box, conf, _j.float()), 1)[
+            conf, j = x[:, 5:].max(1, keepdim=True)
+            x = torch.cat((box, conf, j.float()), 1)[
                 conf.view(-1) > conf_thres]
 
         # Filter by class
         if classes is not None:
-            _x = _x[
-                (_x[:, 5:6] == torch.Tensor(classes,
-                                            device=_x.device)).any(1)]
-            print('ch4', _x)
+            x = x[
+                (x[:, 5:6] == torch.Tensor(classes,
+                                            device=x.device)).any(1)]
+            print('ch4', x)
 
         # Apply finite constraint
         # if not torch.isfinite(x).all():
         #     x = x[torch.isfinite(x).all(1)]
 
         # Check shape
-        _n = _x.shape[0]  # number of boxes
-        if not _n:  # no boxes
+        n = x.shape[0]  # number of boxes
+        if not n:  # no boxes
             continue
-        if _n > max_nms:  # excess boxes
+        if n > max_nms:  # excess boxes
             # sort by confidence
-            _x = _x[_x[:, 4].argsort(descending=True)[:max_nms]]
+            x = x[x[:, 4].argsort(descending=True)[:max_nms]]
 
         # Batched NMS
-        _c = _x[:, 5:6] * (0 if agnostic else max_wh)  # classes
+        c = x[:, 5:6] * (0 if agnostic else max_wh)  # classes
         # boxes (offset by class), scores
-        boxes, scores = _x[:, :4] + _c, _x[:, 4]
-        _i = torchvision.ops.nms(boxes, scores, iou_thres)  # NMS
-        if _i.shape[0] > max_det:  # limit detections
-            _i = _i[:max_det]
+        boxes, scores = x[:, :4] + c, x[:, 4]
+        i = torchvision.ops.nms(boxes, scores, iou_thres)  # NMS
+        if i.shape[0] > max_det:  # limit detections
+            i = i[:max_det]
         # Merge NMS (boxes merged using weighted mean)
-        if merge and (1 < _n < 3E3):
+        if merge and (1 < n < 3E3):
             # update boxes as boxes(i,4) = weights(i,n) * boxes(n,4)
-            iou = box_iou(boxes[_i], boxes) > iou_thres  # iou matrix
+            iou = box_iou(boxes[i], boxes) > iou_thres  # iou matrix
             weights = iou * scores[None]  # box weights
-            _x[_i, :4] = torch.mm(weights, _x[:, :4]).float(
+            x[i, :4] = torch.mm(weights, x[:, :4]).float(
             ) / weights.sum(1, keepdim=True)  # merged boxes
             if redundant:
-                _i = _i[iou.sum(1) > 1]  # require redundancy
+                i = i[iou.sum(1) > 1]  # require redundancy
 
-        output[_xi] = _x[_i]
-        if (time.time() - _t) > time_limit:
+        output[xi] = x[i]
+        if (time.time() - t) > time_limit:
             LOGGER.warning(
                 'WARNING: NMS time limit %.3fs exceeded',
                 time_limit)
@@ -668,11 +623,11 @@ def increment_path(path, exist_ok=False, sep='', mkdir=False):
             ''), path.suffix) if path.is_file() else (path, '')
 
         # Method 1
-        for _n in range(2, 9999):
-            _p = f'{path}{sep}{_n}{suffix}'  # increment path
-            if not os.path.exists(_p):  #
+        for n in range(2, 9999):
+            p = f'{path}{sep}{n}{suffix}'  # increment path
+            if not os.path.exists(p):  #
                 break
-        path = Path(_p)
+        path = Path(p)
 
         # Method 2 (deprecated)
         # dirs = glob.glob(f"{path}{sep}*")  # similar paths
@@ -738,12 +693,12 @@ def check_version(current='0.0.0', minimum='0.0.0',
     current, minimum = (pkg.parse_version(x) for x in (current, minimum))
     result = (current == minimum) if pinned else (current >= minimum)  # bool
     # string
-    _s = f'{name}{minimum} required by YOLOv5, \
+    s = f'{name}{minimum} required by YOLOv5, \
         but {name}{current} is currently installed'
     if hard:
-        assert result, _s  # assert min requirements met
+        assert result, s  # assert min requirements met
     if verbose and not result:
-        LOGGER.warning(_s)
+        LOGGER.warning(s)
     return result
 
 
@@ -768,3 +723,48 @@ def threaded(func):
         return thread
 
     return wrapper
+
+def clip_boxes(boxes, shape):
+    # Clip boxes (xyxy) to image shape (height, width)
+    if isinstance(boxes, torch.Tensor):  # faster individually
+        boxes[:, 0].clamp_(0, shape[1])  # x1
+        boxes[:, 1].clamp_(0, shape[0])  # y1
+        boxes[:, 2].clamp_(0, shape[1])  # x2
+        boxes[:, 3].clamp_(0, shape[0])  # y2
+    else:  # np.array (faster grouped)
+        boxes[:, [0, 2]] = boxes[:, [0, 2]].clip(0, shape[1])  # x1, x2
+        boxes[:, [1, 3]] = boxes[:, [1, 3]].clip(0, shape[0])  # y1, y2
+
+def scale_boxes(img1_shape, boxes, img0_shape, ratio_pad=None):
+    # Rescale boxes (xyxy) from img1_shape to img0_shape
+    if ratio_pad is None:  # calculate from img0_shape
+        gain = min(img1_shape[0] / img0_shape[0], img1_shape[1] / img0_shape[1])  # gain  = old / new
+        pad = (img1_shape[1] - img0_shape[1] * gain) / 2, (img1_shape[0] - img0_shape[0] * gain) / 2  # wh padding
+    else:
+        gain = ratio_pad[0][0]
+        pad = ratio_pad[1]
+
+    boxes[:, [0, 2]] -= pad[0]  # x padding
+    boxes[:, [1, 3]] -= pad[1]  # y padding
+    boxes[:, :4] /= gain
+    clip_boxes(boxes, img0_shape)
+    return boxes
+
+class Profile(contextlib.ContextDecorator):
+    # YOLOv5 Profile class. Usage: @Profile() decorator or 'with Profile():' context manager
+    def __init__(self, t=0.0):
+        self.t = t
+        self.cuda = torch.cuda.is_available()
+
+    def __enter__(self):
+        self.start = self.time()
+        return self
+
+    def __exit__(self, type, value, traceback):
+        self.dt = self.time() - self.start  # delta-time
+        self.t += self.dt  # accumulate dt
+
+    def time(self):
+        if self.cuda:
+            torch.cuda.synchronize()
+        return time.time()

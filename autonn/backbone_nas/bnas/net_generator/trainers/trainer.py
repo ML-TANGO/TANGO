@@ -3,35 +3,43 @@ NAS controllor
 '''
 
 # import time
+import torch.onnx
 
 from .enas import ENAS
 from .eval import fine_tune
-from ..utils.accelerate import check_amp
+from ..utils.accelerate import check_amp, check_train_batch_size
 
 
 def train(
-        _,
+        train_loader,
         val_loader,
         base_model,
         supernet,
-        _nc,
+        nc,
         names,
+        max_latency,
+        pop_size,
+        niter,
         device):
     '''
     NAS controllor
     '''
 
     # ENAS ######  --> final net
-    enas = ENAS(val_loader, base_model, supernet, device, _nc, names)
+    enas = ENAS(val_loader, 
+                base_model, 
+                supernet, 
+                device, 
+                nc, 
+                names,
+                max_latency,
+                pop_size,
+                niter)
 
-    # enas.initialize()
-    # enas.search()
-    # best_net, _ = enas.get_best()
-    # st = time.time()
     _, best_net = enas.run_evolution_search()
-    # ed = time.time()
 
-    amp = check_amp(best_net)
-    best_net = fine_tune(val_loader, best_net, amp)
+    amp = check_amp(best_net, final=True)  # check AMP
+    best_net = fine_tune(train_loader, best_net, amp)
+    best_net.eval()
 
-    return best_net.eval()  # final net
+    return best_net  

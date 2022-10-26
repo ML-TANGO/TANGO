@@ -8,7 +8,6 @@ It is modified by Wonseon-Lim and based on Once for ALL Paper code.
 import json
 
 import torch
-from easydict import EasyDict as edict
 from ofa.imagenet_classification.elastic_nn.networks \
     import (OFAProxylessNASNets, OFAResNets)
 from ofa.imagenet_classification.networks import (get_net_by_name,
@@ -76,26 +75,22 @@ def ofa_net(net_id, pretrained=True, model_dir=''):
             depth_list=[2, 3, 4],
         )
     elif net_id == "ofa_mbv3_d234_e346_k357_w1.0":
-        args = edict()
-        args.width_mult = 1.0
-        args.ks_list = [3, 5, 7]
-        args.expand_ratio_list = [3, 4, 6]
-        args.depth_list = [2, 3, 4]
-        args.n_classes = 1000
         net = BackBoneMobileNetV3(
             dropout_rate=0,
-            args=args
+            width_mult = 1.0,
+            ks_list = [3, 5, 7],
+            expand_ratio_list = [3, 4, 6],
+            depth_list = [2, 3, 4],
+            n_classes = 1000,
         )
     elif net_id == "ofa_mbv3_d234_e346_k357_w1.2":
-        args = edict()
-        args.width_mult = 1.2
-        args.ks_list = [3, 5, 7]
-        args.expand_ratio_list = [3, 4, 6]
-        args.depth_list = [2, 3, 4]
-        args.n_classes = 1000
         net = BackBoneMobileNetV3(
             dropout_rate=0,
-            args=args
+            width_mult = 1.2,
+            ks_list = [3, 5, 7],
+            expand_ratio_list = [3, 4, 6],
+            depth_list = [2, 3, 4],
+            n_classes = 1000
         )
     elif net_id == "ofa_resnet50":
         net = OFAResNets(

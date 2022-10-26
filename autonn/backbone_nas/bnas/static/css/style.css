@@ -2,6 +2,11 @@ body {
 	background-color: #343a40;
 }
 
+table {
+  border-spacing: 20px;
+  border-collapse: separate;
+}
+
 .Title {
     width: 12.2%;
     height: 5.4%;
@@ -26,8 +31,8 @@ body {
 
 .Sub_title {
     position:relative;
-    width: 60px;
-    height: 18px;
+    width: 100%;
+    height: 10px;
     margin: 0 auto;
     font-family: NotoSansKR;
     font-size: 18px;
@@ -53,12 +58,17 @@ body {
 .reports{
     position:relative;
     width: 72%;
-    height: 200px;
+    line-height: 30px;
+    /* height: 20%; */
     text-align: left;
     padding-left: 30px;
     border-radius: 10px;
     float:left;
     background-color: #434854;
+    display:flex;
+    flex-direction: column;
+    
+    
 }
 
 .net2viz{
@@ -76,103 +86,69 @@ body {
   width: 10%;
   vertical-align: left;
   position:absolute;
-  z-index:2
+}
+
+.param_back {
+  position: relative;
+  width: 100%;
+  /* margin: 15px 20px 0 60px;
+  margin-bottom:30px; */
+  float:left;
+  /* flex-direction: column;  */
+  background-color: #061452;
+  border-radius: 10px;
+  display:flex;
+  flex-direction: column; 
 }
 
 .user-text {
-  position: absolute;
-  top: 26%;
-  left: 55%;
+  position: relative;
   width: 100%;
-  transform: translate(-50%, -50%);
-  font-size: 20px;
+  padding-left: 30px;
+  font-size: 18px;
   font-family: NotoSansKR ;
   text-align: left;
-  z-index: 2;
   color: whitesmoke;
 }
 .user-text2 {
-  position: absolute;
-  top: 70%;
-  left: -21.5%;
-  width: 100%;
-  transform: translate(-50%, -50%);
-  font-size: 20px;
+  position: relative;
+  width: 95%;
+  font-size: 18px;
   font-family: NotoSansKR ;
   text-align: right;
-  z-index: 2;
   color: whitesmoke;
+
 }
 
 .user-text3 {
-  position: absolute;
-  top: 32%;
-  left: 84%;
+  position: relative;
   width: 100%;
-  transform: translate(-50%, -50%);
-  font-size: 20px;
+  padding-left: 30px;
+  font-size: 18px;
   font-family: NotoSansKR ;
   text-align: left;
-  z-index: 2;
   color: whitesmoke;
 }
 
 .user-text4 {
-  position: absolute;
-  top: 33%;
-  left: 103%;
+  position: relative;
   width: 100%;
-  transform: translate(-50%, -50%);
-  font-size: 20px;
+  font-size: 18px;
+  padding-left: 25px;
   font-family: NotoSansKR ;
   text-align: left;
-  z-index: 2;
   color: whitesmoke;
 }
 
 .user-text5 {
-  position: absolute;
-  top: 52%;
-  left: 40%;
+  position: relative;
   width: 100%;
-  transform: translate(-50%, -50%);
-  font-size: 20px;
+  font-size: 18x;
   font-family: NotoSansKR ;
   text-align: right;
-  z-index: 2;
   color: whitesmoke;
 }
-
-.button {
-    background-color: white;
-    border: none;
-    color: black;
-    padding: 10px 30px;
-    text-align: center;
-    text-decoration: none;
-    display: inline-block;
-    font-family: NotoSansKR;
-    font-weight: bold;
-    font-size: 16px;
-    margin: 1px 2px;
-    cursor: pointer;
-  }
-
-  .button2 {
-    background-color: gray;
-    border: none;
-    color: whitesmoke;
-    padding: 5px 10px;
-    text-align: center;
-    text-decoration: none;
-    font-family: NotoSansKR;
-    font-weight: bold;
-    font-size: 14px;
-    margin: 0px 5px;
-    cursor: pointer;
-  }
 
 #margin1 {margin:50px;}
 #margin2 {margin:29px;}
 #margin3 {width:100px; height:250px;}
-#button1 {float:left;}
