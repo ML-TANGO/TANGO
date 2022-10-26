@@ -29,6 +29,10 @@ import numpy as np
 import torch
 from tqdm import tqdm
 
+import json
+from torch.utils.data import Dataset
+from json import JSONEncoder
+
 FILE = Path(__file__).resolve()
 ROOT = FILE.parents[0]  # YOLOv5 root directory
 if str(ROOT) not in sys.path:
@@ -178,7 +182,7 @@ def run(
         print("data check", imgsz, stride)
 
         path = (ROOT).resolve()       
-        data['evaluate'] = os.path.join(path, '../datasets/coco/evaluate2017.txt')
+        data['evaluate'] = Path('evaluate2017.txt')
         
         dataloader = create_dataloader(data[task],
                                        imgsz,
@@ -336,6 +340,12 @@ def run(
 
     # Return results
     model.float()  # for training
+    
+    # MARK save model as json file
+    # torch.save(model.state_dict(), os.path.join(Path.cwd(), ROOT, "models/"+ weights[:-2]  + "pth"))
+    #with open('torch_weights.json', 'w') as json_file:
+    #    json.dump(model.state_dict(), json_file,cls=EncodeTensor)
+    
     if not training:
         s = f"\n{len(list(save_dir.glob('labels/*.txt')))} labels saved to {save_dir / 'labels'}" if save_txt else ''
         LOGGER.info(f"Results saved to {colorstr('bold', save_dir)}{s}")
@@ -344,6 +354,14 @@ def run(
         maps[c] = ap[i]
     return (mp, mr, map50, map, *(loss.cpu() / len(dataloader)).tolist()), maps, t
 
+# MARK Temporary: for saving model as json file
+"""
+class EncodeTensor(JSONEncoder,Dataset):
+    def default(self, obj):
+        if isinstance(obj, torch.Tensor):
+            return obj.cpu().detach().numpy().tolist()
+        return super(NpEncoder, self).default(obj)
+"""
 
 def parse_opt(docker):
     parser = argparse.ArgumentParser()
@@ -434,7 +452,8 @@ def main(opt, userid="", project_id=""):
             print("Starting the main inference with the best model, ", total_model[max_index])
             if os.path.isfile(total_model[max_index]):
                 shutil.copy(total_model[max_index], Path('/shared/common/')/ userid / project_id)
-                shutil.copy(os.path.join(Path.cwd(), ROOT, "models/", total_model[max_index][:-2]  + "yaml"),  Path('/shared/common/')/ userid / project_id)
+                shutil.copy(os.path.join(Path.cwd(), ROOT, "models/", total_model[max_index][:-3]  + "_TANGO.yaml"),  Path('/shared/common/')/ userid / project_id)
+                os.rename(os.path.join(Path('/shared/common/')/ userid / project_id), "/" , total_model[max_index][:-3]  + "_TANGO.yaml", os.path.join(Path('/shared/common/')/ userid / project_id), "/basemodel.yaml")
                 #shutil.copy(os.path.join(Path.cwd(), ROOT, "models/", total_model[max_index][:-2]  + "yaml"),  Path.cwd() / userid / project_id)
             
             # choose the one that gave the best result, currently turned off

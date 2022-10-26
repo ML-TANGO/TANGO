@@ -58,7 +58,6 @@ services:
       - ./labelling/datadb:/var/lib/mysql
     ports:
       - "8086:80"
-      - "8095:10236"
 
   # 신경망 생성 dummy 서버
   autonn:
@@ -96,6 +95,27 @@ services:
       - ./target_deploy:/source
     ports:
       - "8089:8089"
+
+  # MARK: pre_model_select server
+  bms:
+    build:
+      context: ./base_model_select
+    shm_size: '256M'
+    command: >
+      sh -c "python generate_txt_file.py &&
+             python manage.py runserver 0.0.0.0:8081"
+    #deploy:
+    #  resources:
+    #    reservations:
+    #      devices:
+    #        - driver: nvidia
+    #          capabilities: [gpu]
+    
+    volumes:
+      - ./base_model_select:/source
+    ports:
+      - "8081:8081"
+
 
   viz2code:
     build:
