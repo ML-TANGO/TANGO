@@ -418,6 +418,7 @@ class ProxylessDetTrainer(BaseOneShotTrainer):
             # number integrated batches (since train start)
             ni = i + self.nb * epoch
             # uint8 to float32, 0-255 to 0.0-1.0
+
             imgs = imgs.to(self.device, non_blocking=True).float() / 255.0
 
             # Warmup
@@ -491,14 +492,19 @@ class ProxylessDetTrainer(BaseOneShotTrainer):
             if self.rank in [-1, 0]:
                 # update mean losses
                 mloss = (mloss * i + loss_items) / (i + 1)
-                mem = '%.3gG' % \
-                    (torch.cuda.memory_reserved(device=self.device) /
-                     1E9 if torch.cuda.is_available() else 0)  # (GB)
+                # mem = '%.3gG' % \
+                #     (torch.cuda.memory_reserved(device=self.device) /
+                #      1E9 if torch.cuda.is_available() else 0)  # (GB)
+                if not self.cuda:
+                    mem = 'nan'
+                elif torch.cuda.is_available():
+                    mem = '%.3gG' % (torch.cuda.memory_reserved(device=self.device) / 1E9)
+                else:
+                    mem = 'nan'
                 s = ('%10s' * 2 + '%10.4g' * 6) % \
                     ('%g/%g' % (epoch, self.epochs - 1), mem, *mloss,
                      targets.shape[0], imgs.shape[-1])
                 pbar.set_description(s)
-
                 # Plot
                 if ni < 3:
                     # filename

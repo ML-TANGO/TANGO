@@ -2,11 +2,16 @@ version: "3"
 
 
 services:
+  #---------------------------------
+  # Project Manager
+  #---------------------------------
   project_manager:
     build:
       context: ./project_manager
     command: >
-      sh -c "python manage.py makemigrations &&
+      sh -c "chmod 777 ./wait_for_postgres.sh &&
+             ./wait_for_postgres.sh &&
+             python manage.py makemigrations &&
              python manage.py migrate &&
              python manage.py loaddata base_model_data.json &&
              python manage.py runserver 0.0.0.0:8085"
@@ -21,6 +26,9 @@ services:
     depends_on:
       - postgresql
 
+  #---------------------------------
+  # DB for Project Manager
+  #---------------------------------
   postgresql:
     image: postgres:latest
     restart: always
@@ -31,7 +39,9 @@ services:
       - POSTGRES_USER=postgres
       - POSTGRES_PASSWORD=postgres
 
-   # 테스트용
+  #---------------------------------
+  # DB for labelling tool
+  #---------------------------------
   mariadb:
       container_name: "mariadb"
       image: mariadb:10
@@ -49,7 +59,9 @@ services:
         MARIADB_ROOT_PASSWORD: password
       restart: always
 
-  # 레이블링 dummy 서버
+  #---------------------------------
+  # Labelling tool 
+  #---------------------------------
   labelling:
     build:
       context: ./labelling
@@ -57,46 +69,12 @@ services:
       - ./labelling/dataset:/var/appdata
       - ./labelling/datadb:/var/lib/mysql
     ports:
-      - "8086:80"
+      - "8086:80"    # for Web UI
+      - "8095:10236" # for Rest API 
 
-  # 신경망 생성 dummy 서버
-  autonn:
-    build:
-      context: ./autonn
-    command: >
-      sh -c "python manage.py makemigrations &&
-             python manage.py migrate &&
-             python manage.py runserver 0.0.0.0:8087"
-    volumes:
-      - ./autonn:/source
-    ports:
-      - "8087:8087"
-    depends_on:
-      - postgresql
-
-  # 이미지 생성 dummy 서버
-  target_image_build:
-    build:
-      context: ./target_image_build
-    command: >
-      sh -c "python manage.py runserver 0.0.0.0:8088"
-    volumes:
-      - ./target_image_build:/source
-    ports:
-      - "8088:8088"
-
-  # 이미지 배포 dummy 서버
-  target_deploy:
-    build:
-      context: ./target_deploy
-    command: >
-      sh -c "python manage.py runserver 0.0.0.0:8089"
-    volumes:
-      - ./target_deploy:/source
-    ports:
-      - "8089:8089"
-
-  # MARK: pre_model_select server
+  #---------------------------------
+  # Base Model Selector
+  #---------------------------------
   bms:
     build:
       context: ./base_model_select
@@ -104,19 +82,102 @@ services:
     command: >
       sh -c "python generate_txt_file.py &&
              python manage.py runserver 0.0.0.0:8081"
-    #deploy:
-    #  resources:
-    #    reservations:
-    #      devices:
-    #        - driver: nvidia
-    #          capabilities: [gpu]
-    
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              capabilities: [gpu]
+    environment:
+      - NVIDIA_VISIBLE_DEVICES=all
     volumes:
       - ./base_model_select:/source
+      - ./shared:/shared
     ports:
       - "8081:8081"
 
+  #---------------------------------
+  # AutoNN: Bakcbone-NAS
+  #---------------------------------
+  autonn_bb:
+    build:
+      context: ./autonn/backbone_nas
+    shm_size: '256M'
+    command: >
+      sh -c "python manage.py makemigrations &&
+             python manage.py migrate &&
+             python manage.py runserver 0.0.0.0:8087"
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              capabilities: [gpu]
+    environment:
+      - NVIDIA_VISIBLE_DEVICES=all
+    volumes:
+      - ./autonn/backbone_nas:/source
+      - ../shared:/shared
+    ports:
+      - "8087:8087"
 
+  #---------------------------------
+  # AutoNN: Neck-NAS
+  #---------------------------------
+  autonn_nk:
+    build:
+      context: ./autonn/neck_nas
+    shm_size: '256M'
+    command: >
+      sh -c "python manage.py makemigrations
+             && python manage.py migrate
+             && python manage.py runserver 0.0.0.0:8089"
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              capabilities: [gpu]
+    environment:
+      - NVIDIA_VISIBLE_DEVICES=all
+    volumes:
+      - ./autonn/neck_nas:/source
+      - ./shared:/shared
+      # - /Data:/shared/datasets # for local tests
+    ports:
+      - "8089:8089"
+
+  #---------------------------------
+  # Target Image Build 
+  #---------------------------------
+  target_image_build:
+    build:
+      context: ./target_image_build
+    command: >
+      sh -c "python manage.py runserver 0.0.0.0:8088"
+    volumes:
+      - ./target_image_build:/source
+      - /var/run/docker.sock:/var/run/docker.sock
+    ports:
+      - "8088:8088"
+
+  #---------------------------------
+  # Image Deployment 
+  #---------------------------------
+  target_deploy:
+    build:
+      context: ./target_deploy
+    command: >
+      sh -c "python manage.py runserver 0.0.0.0:8089"
+    volumes:
+      - ./target_deploy:/source
+      - /var/run/docker.sock:/var/run/docker.sock
+    ports:
+      - "8890:8890"
+
+  #---------------------------------
+  # Visualizer 
+  #---------------------------------
   viz2code:
     build:
       context: ./visualization
@@ -126,7 +187,7 @@ services:
              cd ..
              python manage.py makemigrations &&
              python manage.py migrate &&
-             python manage.py runserver 0.0.0.0:8091"
+             python manage.py runserver react 0.0.0.0:8091"
     volumes:
       - ./viz2code:/source
     ports:
@@ -134,5 +195,8 @@ services:
     depends_on:
       - postgresql
 
+#---------------------------------
+# Volumes 
+#---------------------------------
 volumes:
-  postgreSQL:
+  postgreSQL:  # for Proejct Manager

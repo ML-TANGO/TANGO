@@ -32,7 +32,7 @@ from .syolo_utils.general import (
     check_file, increment_dir)
 from .syolo_utils.torch_utils import select_device
 
-def run_nas():
+def run_nas(data=None, target=None, train_mode='search'):
     print("__________run_nas__________________")
     logger = logging.getLogger('autonn_ku_neck')
     logger.setLevel(logging.DEBUG)
@@ -50,8 +50,9 @@ def run_nas():
     with open('neckNAS/ku/yaml/args.yaml', encoding='utf8') as f:
         args = yaml.load(f, Loader=yaml.FullLoader)
 
-    # if data:
-    #     args['data_cfg'] = data
+    if data:
+        args['data_cfg'] = data
+        print(f'read {data}')
 
     # Resume
     if args['resume']:

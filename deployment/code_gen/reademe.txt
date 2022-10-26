@@ -1,0 +1,30 @@
+<Code_gen>
+
+□ Functionality of this folder
+   o Generates template code for the target device and the inference engine
+
+□ Operation Flow of this container
+   o Receives a neural network model from previous pipeline(AutoNN)
+   o Checks the types of target device and inference engine
+   o Generates template code that makes the neural network model run
+   o Generates a yaml file that is used by clode_deploy or ondevice_deploy container
+
+□ Supported Targets
+------------------------------------------------------------------------------------------------------------------------------
+|  Type          |   CPU   |  Accelerator   |   OS           |  Neural Network Engine   |   Chip/Board/System Name  |
+------------------------------------------------------------------------------------------------------------------------------
+|  Cloud         |   x64   |  CUDA          |   Linux        |   PyTorch                      |  Goolge Cloud Platform      |
+------------------------------------------------------------------------------------------------------------------------------|
+|  Edge Cloud  |   x64   |   CUDA         |   Windows  |   Linux  |   PyTorch           |   PC                               |
+------------------------------------------------------------------------------------------------------------------------------
+|  OnDevice    |  ARM   |   Mali GPU     |   Linux       |   ACL/ARMNN/PyARMNN  |  ODROID-N2+                  | 
+|                  |           |                    |                 |                                    |  (Mali-G52 GPU)                |
+|                  --------------------------------------------------------------------------------------------------------------|
+|                  |   ARM  |   RKNN NPU  |   Linux        |  RKNN                          |  ODROID-M1                    | 
+|                  |           |                    |                 |                                    |  Firefly-RK3399PRO            | 
+|                  |           |                    |                 |                                    |  Firefly-RK3399                 |  
+------------------------------------------------------------------------------------------------------------------------------|
+* Jetson Nano, Anroid Smartphone will be added in the next release version.
+
+
+
