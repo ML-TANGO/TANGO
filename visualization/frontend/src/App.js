@@ -19,7 +19,11 @@ class App extends React.Component {
 }
 
 export default App;
-const jsonData= require('./VGG16.json');
+
+
+
+
+// const jsonData= require('./VGG16.json');
 // console.log(jsonData.node[0].layer)
 
 
@@ -59,24 +63,45 @@ const jsonData= require('./VGG16.json');
 //}
 
 // 노드와 엣지 삭제하기
-//for (var j=0; j<60; j++){
+//var e = 0;
+//for (var j=1; e === 1; j++){
 //
-//axios.delete('/api/node/'.concat(j).concat('/'))
+//axios.delete('/api/running/'.concat(j).concat('/'))
 // .then(function (response) {
 //   // handle success
-// })
+////  continue;
+//})
 // .catch(function (error) {
 //   // handle error
+//   console.log("ERORRR@@@@@@@");
+//   e = 1;
 // })
 // .then(function () {
 //   // always executed
 // });
+// }
+
 //}
 //
 ////노드와 엣지 삭제하기
-//for (var j=0; j<60; j++){
+axios.get('/api/running/')
+ .then(function (response) {
+    var k = Object.keys(response.data).length
+   // handle success
+   for (var j=0;j<k+1;j++){
+    axios.delete('/api/running/'.concat(j).concat('/'))
+   }
+ })
+ .catch(function (error) {
+   // handle error
+ })
+ .then(function () {
+   // always executed
+ });
+
+//for (var j=0; j<200; j++){
 //
-//axios.delete('/api/edge/'.concat(j).concat('/'))
+//axios.delete('/api/running/'.concat(j).concat('/'))
 // .then(function (response) {
 //   // handle success
 // })
