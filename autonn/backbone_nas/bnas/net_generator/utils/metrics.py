@@ -124,7 +124,7 @@ def compute_ap(recall, precision):
     mpre = np.concatenate(([1.0], precision, [0.0]))
 
     # Compute the precision envelope
-    mpre = np.flip(scipy.maximum.accumulate(np.flip(mpre)))
+    mpre = np.flip(np.maximum.accumulate(np.flip(mpre)))
 
     # Integrate area under curve
     method = 'interp'  # methods: 'continuous', 'interp'
@@ -204,59 +204,44 @@ class ConfusionMatrix:
         return _tp[:-1], _fp[:-1]  # remove background class
 
 
-def bbox_iou(box1, box2, xywh=True,
-             g_iou=False, d_iou=False,
-             c_iou=False, eps=1e-7):
-    '''
-    Returns Intersection over Union (IoU) of box1(1,4) to box2(n,4)
-    '''
+def bbox_iou(box1, box2, xywh=True, GIoU=False, DIoU=False, CIoU=False, eps=1e-7):
+    # Returns Intersection over Union (IoU) of box1(1,4) to box2(n,4)
 
     # Get the coordinates of bounding boxes
     if xywh:  # transform from xywh to xyxy
-        ((_x1, _y1, _w1, _h1),
-         (_x2, _y2, _w2, _h2)) = box1.chunk(4, 1), box2.chunk(4, 1)
-        __w1, __h1, __w2, __h2 = _w1 / 2, _h1 / 2, _w2 / 2, _h2 / 2
-        b1_x1, b1_x2, b1_y1, b1_y2 = (_x1 - __w1,
-                                      _x1 + __w1, _y1 - __h1, _y1 + __h1)
-        b2_x1, b2_x2, b2_y1, b2_y2 = (_x2 - __w2,
-                                      _x2 + __w2, _y2 - __h2, _y2 + __h2)
+        (x1, y1, w1, h1), (x2, y2, w2, h2) = box1.chunk(4, 1), box2.chunk(4, 1)
+        w1_, h1_, w2_, h2_ = w1 / 2, h1 / 2, w2 / 2, h2 / 2
+        b1_x1, b1_x2, b1_y1, b1_y2 = x1 - w1_, x1 + w1_, y1 - h1_, y1 + h1_
+        b2_x1, b2_x2, b2_y1, b2_y2 = x2 - w2_, x2 + w2_, y2 - h2_, y2 + h2_
     else:  # x1, y1, x2, y2 = box1
         b1_x1, b1_y1, b1_x2, b1_y2 = box1.chunk(4, 1)
         b2_x1, b2_y1, b2_x2, b2_y2 = box2.chunk(4, 1)
-        _w1, _h1 = b1_x2 - b1_x1, b1_y2 - b1_y1 + eps
-        _w2, _h2 = b2_x2 - b2_x1, b2_y2 - b2_y1 + eps
+        w1, h1 = b1_x2 - b1_x1, b1_y2 - b1_y1
+        w2, h2 = b2_x2 - b2_x1, b2_y2 - b2_y1
 
     # Intersection area
     inter = (torch.min(b1_x2, b2_x2) - torch.max(b1_x1, b2_x1)).clamp(0) * \
             (torch.min(b1_y2, b2_y2) - torch.max(b1_y1, b2_y1)).clamp(0)
 
     # Union Area
-    union = _w1 * _h1 + _w2 * _h2 - inter + eps
+    union = w1 * h1 + w2 * h2 - inter + eps
 
     # IoU
     iou = inter / union
-    if c_iou or d_iou or g_iou:
-        # convex (smallest enclosing box) width, height
-        _cw = torch.max(b1_x2, b2_x2) - torch.min(b1_x1, b2_x1)
-        _ch = torch.max(b1_y2, b2_y2) - torch.min(b1_y1, b2_y1)
-        # Distance or Complete IoU https://arxiv.org/abs/1911.08287v1
-        if c_iou or d_iou:
-            _c2 = _cw ** 2 + _ch ** 2 + eps  # convex diagonal squared
-            rho2 = ((b2_x1 + b2_x2 - b1_x1 - b1_x2) ** 2 +
-                    (b2_y1 + b2_y2 - b1_y1 - b1_y2) ** 2) / 4
-            # center dist ** 2
-            # https://github.com/Zzh-tju/DIoU-SSD-pytorch/\
-            # blob/master/utils/box/box_utils.py#L47
-            if c_iou:
-                _v = (4 / math.pi ** 2) * \
-                    torch.pow(torch.atan(_w2 / _h2) - torch.atan(_w1 / _h1), 2)
+    if CIoU or DIoU or GIoU:
+        cw = torch.max(b1_x2, b2_x2) - torch.min(b1_x1, b2_x1)  # convex (smallest enclosing box) width
+        ch = torch.max(b1_y2, b2_y2) - torch.min(b1_y1, b2_y1)  # convex height
+        if CIoU or DIoU:  # Distance or Complete IoU https://arxiv.org/abs/1911.08287v1
+            c2 = cw ** 2 + ch ** 2 + eps  # convex diagonal squared
+            rho2 = ((b2_x1 + b2_x2 - b1_x1 - b1_x2) ** 2 + (b2_y1 + b2_y2 - b1_y1 - b1_y2) ** 2) / 4  # center dist ** 2
+            if CIoU:  # https://github.com/Zzh-tju/DIoU-SSD-pytorch/blob/master/utils/box/box_utils.py#L47
+                v = (4 / math.pi ** 2) * torch.pow(torch.atan(w2 / (h2 + eps)) - torch.atan(w1 / (h1 + eps)), 2)
                 with torch.no_grad():
-                    alpha = _v / (_v - iou + (1 + eps))
-                return iou - (rho2 / _c2 + _v * alpha)  # CIoU
-            return iou - rho2 / _c2  # DIoU
-        c_area = _cw * _ch + eps  # convex area
-        # GIoU https://arxiv.org/pdf/1902.09630.pdf
-        return iou - (c_area - union) / c_area
+                    alpha = v / (v - iou + (1 + eps))
+                return iou - (rho2 / c2 + v * alpha)  # CIoU
+            return iou - rho2 / c2  # DIoU
+        c_area = cw * ch + eps  # convex area
+        return iou - (c_area - union) / c_area  # GIoU https://arxiv.org/pdf/1902.09630.pdf
     return iou  # IoU
 
 

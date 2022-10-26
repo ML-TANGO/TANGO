@@ -6,6 +6,7 @@ django-cors-headers==3.11.0
 django-rest-framework==0.1.0 
 djangorestframework==3.13.1 
 easydict
+# graphviz==0.20.1
 idna==3.3
 matplotlib==3.5.1
 numpy==1.22.3
@@ -21,6 +22,7 @@ seaborn==0.11.2
 sqlparse==0.4.2
 # torch
 # torchvision
+thop
 tqdm==4.62.3
 typing_extensions==4.1.1
 urllib3==1.26.9

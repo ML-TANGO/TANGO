@@ -10,7 +10,6 @@ import sys
 from pathlib import Path
 
 import yaml
-from easydict import EasyDict as edict
 from ofa.utils import download_url
 
 # from utils.arch_utils import MyNetwork, make_divisible
@@ -52,8 +51,8 @@ class LatencyEstimator:
         else:
             fname = ROOT / url
 
-        with open(fname, "r") as _fp:
-            self.lut = yaml.load(_fp, Loader=yaml.FullLoader)
+        with open(fname, "r") as fp:
+            self.lut = yaml.load(fp, Loader=yaml.FullLoader)
 
     @staticmethod
     def repr_shape(shape):
@@ -70,14 +69,16 @@ class LatencyEstimator:
               l_type: str,
               input_shape,
               output_shape,
-              args=None
+              mid=None,
+              ks=None,
+              stride=None,
+              id_skip=None,
+              se=None,
+              h_swish=None,
               ):
         '''
         get latency
         '''
-        if args is None:
-            args.mid = args.ks = args.stride = None
-            args.id_skip = args.se = args.h_swish = None
         infos = [
             l_type,
             "input:%s" % self.repr_shape(input_shape),
@@ -85,15 +86,15 @@ class LatencyEstimator:
         ]
 
         if l_type in ("expanded_conv",):
-            assert None not in (args.mid, args.ks, args.stride,
-                                args.id_skip, args.se, args.h_swish)
+            assert None not in (mid, ks, stride,
+                                id_skip, se, h_swish)
             infos += [
-                "expand:%d" % args.mid,
-                "kernel:%d" % args.ks,
-                "stride:%d" % args.stride,
-                "idskip:%d" % args.id_skip,
-                "se:%d" % args.se,
-                "hs:%d" % args.h_swish,
+                "expand:%d" % mid,
+                "kernel:%d" % ks,
+                "stride:%d" % stride,
+                "idskip:%d" % id_skip,
+                "se:%d" % se,
+                "hs:%d" % h_swish,
             ]
         key = "-".join(infos)
         return self.lut[key]["mean"]
@@ -102,7 +103,6 @@ class LatencyEstimator:
         '''
         get lut
         '''
-        args = edict()
         predicted_latency = 0
         # first conv
         predicted_latency += self.query(
@@ -120,21 +120,20 @@ class LatencyEstimator:
             if mb_conv is None:
                 continue
             if shortcut is None:
-                args.idskip = 0
+                idskip = 0
             else:
-                args.idskip = 1
+                idskip = 1
             out_fz = int((fsize - 1) / mb_conv.stride + 1)
-            args.mid = mb_conv.depth_conv.conv.in_channels
-            args.ks = mb_conv.kernel_size
-            args.stride = mb_conv.stride
-            args.se = 1 if mb_conv.use_se else 0
-            args.h_swish = 1 if mb_conv.act_func == "h_swish" else 0
-
             block_latency = self.query(
                 "expanded_conv",
                 [fsize, fsize, mb_conv.in_channels],
                 [out_fz, out_fz, mb_conv.out_channels],
-                args
+                mid=mb_conv.depth_conv.conv.in_channels,
+                ks=mb_conv.kernel_size,
+                stride=mb_conv.stride,
+                id_skip=idskip,
+                se=1 if mb_conv.use_se else 0,
+                h_swish=1 if mb_conv.act_func == "h_swish" else 0,
             )
             predicted_latency += block_latency
             fsize = out_fz
@@ -167,29 +166,27 @@ class LatencyEstimator:
         '''
         predict latency
         '''
-        args = edict()
-        args.imgsz = spec["r"][0]
+        imgsz = spec["r"][0]
         predicted_latency = 0
         # first conv
         predicted_latency += self.query(
             "Conv",
-            [args.imgsz, args.imgsz, 3],
-            [(args.imgsz + 1) // 2, (args.imgsz + 1) // 2, 24],
+            [imgsz, imgsz, 3],
+            [(imgsz + 1) // 2, (imgsz + 1) // 2, 24],
         )
         # blocks
-        args.fsize = (args.imgsz + 1) // 2
+        fsize = (imgsz + 1) // 2
         # first block
-        args.mid = 24
-        args.ks = 3
-        args.stride = 1
-        args.id_skip = 1
-        args.se = 0
-        args.h_swish = 0
         predicted_latency += self.query(
             "expanded_conv",
-            [args.fsize, args.fsize, 24],
-            [args.fsize, args.fsize, 24],
-            args
+            [fsize, fsize, 24],
+            [fsize, fsize, 24],
+            mid = 24,
+            ks = 3,
+            stride = 1,
+            id_skip = 1,
+            se = 0,
+            h_swish = 0,
         )
         in_channel = 24
         stride_stages = [2, 2, 2, 1, 2]
@@ -197,41 +194,45 @@ class LatencyEstimator:
         act_stages = ["relu", "relu", "h_swish", "h_swish", "h_swish"]
         se_stages = [False, True, False, True, True]
         for i in range(20):
-            depth_max = spec["d"][i // 4]
+            stage = i // 4
+            depth_max = spec["d"][stage]
             if i % 4 + 1 > depth_max:
                 continue
-            args.ks, _e = spec["ks"][i], spec["e"][i]
+            ks, _e = spec["ks"][i], spec["e"][i]
             if i % 4 == 0:
-                args.stride = stride_stages[i // 4]
-                args.idskip = 0
+                stride = stride_stages[stage]
+                idskip = 0
             else:
-                args.stride = 1
-                args.idskip = 1
-            out_channel = width_stages[i // 4]
-            out_fz = int((args.fsize - 1) / args.stride + 1)
+                stride = 1
+                idskip = 1
+            out_channel = width_stages[stage]
+            out_fz = int((fsize - 1) / stride + 1)
 
-            args.mid = round(in_channel * _e)
-            args.se = 1 if se_stages[i // 4] else 0
-            args.h_swish = 1 if act_stages[i // 4] == "h_swish" else 0
+            mid_channel = round(in_channel * _e)
             block_latency = self.query(
                 "expanded_conv",
-                [args.fsize, args.fsize, in_channel],
+                [fsize, fsize, in_channel],
                 [out_fz, out_fz, out_channel],
-                args
+                mid=mid_channel,
+                ks=ks,
+                stride=stride,
+                id_skip=idskip,
+                se=1 if se_stages[stage] else 0,
+                h_swish=1 if act_stages[stage] == "h_swish" else 0,
             )
             predicted_latency += block_latency
-            args.fsize = out_fz
+            fsize = out_fz
             in_channel = out_channel
         # final expand layer
         predicted_latency += self.query(
             "Conv_1",
-            [args.fsize, args.fsize, 192],
-            [args.fsize, args.fsize, 1152],
+            [fsize, fsize, 192],
+            [fsize, fsize, 1152],
         )
         # global average pooling
         predicted_latency += self.query(
             "AvgPool2D",
-            [args.fsize, args.fsize, 1152],
+            [fsize, fsize, 1152],
             [1, 1, 1152],
         )
         # feature mix layer

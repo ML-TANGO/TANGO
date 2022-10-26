@@ -26,143 +26,119 @@ class BackBoneMobileNetV3(MobileNetV3):
     def __init__(self,
                  bn_param=(0.1, 1e-5),
                  dropout_rate=0.1,
-                 args=None
+                 width_mult = 1.0,
+                 ks_list = 3,
+                 expand_ratio_list = 6,
+                 depth_list = 4,
+                 n_classes = 1000
                  ):
-        if args is None:
-            args.width_mult = 1.0
-            args.ks_list = 3
-            args.expand_ratio_list = 6
-            args.depth_list = 4
-            args.n_classes = 1000
+
+        self.width_mult = width_mult
+        self.ks_list = val2list(ks_list, 1)
+        self.expand_ratio_list = val2list(expand_ratio_list, 1)
+        self.depth_list = val2list(depth_list, 1)
+
+        self.ks_list.sort()
+        self.expand_ratio_list.sort()
+        self.depth_list.sort()
 
         self.return_layers = None
 
-        args.ks_list = val2list(args.ks_list, 1)
-        args.expand_ratio_list = val2list(args.expand_ratio_list, 1)
-        args.depth_list = val2list(args.depth_list, 1)
+        base_stage_width = [16, 16, 24, 40, 80, 112, 160, 960, 1280]
 
-        args.ks_list.sort()
-        args.expand_ratio_list.sort()
-        args.depth_list.sort()
-        args.bn_param = bn_param
-        args.dropout_rate = dropout_rate
-        args.base_stage_width = [16, 16, 24, 40, 80, 112, 160, 960, 1280]
-
-        self.args = args
-
-        args.final_expand_width = make_divisible(
-            args.base_stage_width[-2] * args.width_mult,
+        final_expand_width = make_divisible(
+            base_stage_width[-2] * width_mult,
             MyNetwork.CHANNEL_DIVISIBLE
         )
-        args.last_channel = make_divisible(
-            args.base_stage_width[-1] * args.width_mult,
+        last_channel = make_divisible(
+            base_stage_width[-1] * width_mult,
             MyNetwork.CHANNEL_DIVISIBLE
         )
 
-        args.stride_stages = [1, 2, 2, 2, 1, 2]
-        args.act_stages = ["relu", "relu", "relu",
+        stride_stages = [1, 2, 2, 2, 1, 2]
+        act_stages = ["relu", "relu", "relu",
                            "h_swish", "h_swish", "h_swish"]
-        args.se_stages = [False, False, True, False, True, True]
+        se_stages = [False, False, True, False, True, True]
         # [2,3,4] => [4, 4, 4, 4, 4]
-        args.n_block_list = [1] + [max(args.depth_list)] * 5
-        args.width_list = []
-        for base_width in args.base_stage_width[:-2]:
+        n_block_list = [1] + [max(depth_list)] * 5
+        width_list = []
+        for base_width in base_stage_width[:-2]:
             width = make_divisible(
-                base_width * args.width_mult, MyNetwork.CHANNEL_DIVISIBLE
+                base_width * width_mult, MyNetwork.CHANNEL_DIVISIBLE
             )
-            args.width_list.append(width)
+            width_list.append(width)
 
-        args.input_channel, args.first_block_dim = \
-            args.width_list[0], args.width_list[1]
+        input_channel, first_block_dim = \
+            width_list[0], width_list[1]
 
-        (first_conv, blocks, final_expand_layer,
-         feature_mix_layer, classifier) = self.make_layers(args)
-
-        super(BackBoneMobileNetV3, self).__init__(
-            first_conv, blocks, final_expand_layer,
-            feature_mix_layer, classifier
-        )
-
-        # set bn param
-        self.set_bn_param(momentum=self.args.bn_param[0],
-                          eps=self.args.bn_param[1])
-
-        # runtime_depth
-        self.runtime_depth = [len(block_idx)
-                              for block_idx in self.block_group_info]
-
-    def make_layers(self, args):
-        '''
-        make layers
-        '''
         # first conv layer
         first_conv = ConvLayer(
-            3, args.input_channel, kernel_size=3, stride=2, act_func="h_swish"
+            3, input_channel, kernel_size=3, stride=2, act_func="h_swish"
         )
         first_block_conv = MBConvLayer(
-            in_channels=args.input_channel,
-            out_channels=args.first_block_dim,
+            in_channels=input_channel,
+            out_channels=first_block_dim,
             kernel_size=3,
-            stride=args.stride_stages[0],
+            stride=stride_stages[0],
             expand_ratio=1,
-            act_func=args.act_stages[0],
-            use_se=args.se_stages[0],
+            act_func=act_stages[0],
+            use_se=se_stages[0],
         )
         first_block = ResidualBlock(
             first_block_conv,
-            IdentityLayer(args.first_block_dim, args.first_block_dim)
-            if args.input_channel == args.first_block_dim
+            IdentityLayer(first_block_dim, first_block_dim)
+            if input_channel == first_block_dim
             else None,
         )
 
         # inverted residual blocks
         self.block_group_info = []
         blocks = [first_block]
-        args.block_index = 1
-        args.feature_dim = args.first_block_dim
+        block_index = 1
+        feature_dim = first_block_dim
 
-        for args.width, args.n_block, args.s, args.act_func, args.use_se \
-            in zip(args.width_list[2:],
-                   args.n_block_list[1:],  # [4, 4, 4, 4, 4]
-                   args.stride_stages[1:],  # [2, 2, 2, 1, 2]
-                   args.act_stages[1:],
-                   args.se_stages[1:]):
+        for width, n_block, s, act_func, use_se \
+            in zip(width_list[2:],
+                   n_block_list[1:],  # [4, 4, 4, 4, 4]
+                   stride_stages[1:],  # [2, 2, 2, 1, 2]
+                   act_stages[1:],
+                   se_stages[1:]):
             self.block_group_info.append(
-                [args.block_index + i for i in range(args.n_block)])
-            args.block_index += args.n_block
+                [block_index + i for i in range(n_block)])
+            block_index += n_block
 
-            args.output_channel = args.width
-            for i in range(args.n_block):
+            output_channel = width
+            for i in range(n_block):
                 if i == 0:
-                    args.stride = args.s
+                    stride = s
                 else:
-                    args.stride = 1
+                    stride = 1
                 mobile_inverted_conv = DynamicMBConvLayer(
-                    in_channel_list=val2list(args.feature_dim),
-                    out_channel_list=val2list(args.output_channel),
-                    kernel_size_list=self.args.ks_list,
-                    expand_ratio_list=self.args.expand_ratio_list,
-                    stride=args.stride,
-                    act_func=args.act_func,
-                    use_se=args.use_se,
+                    in_channel_list=val2list(feature_dim),
+                    out_channel_list=val2list(output_channel),
+                    kernel_size_list=self.ks_list,
+                    expand_ratio_list=self.expand_ratio_list,
+                    stride=stride,
+                    act_func=act_func,
+                    use_se=use_se,
                 )
-                if ((args.stride == 1 and
-                     args.feature_dim == args.output_channel)):
-                    args.shortcut = IdentityLayer(args.feature_dim,
-                                                  args.feature_dim)
+                if ((stride == 1 and
+                     feature_dim == output_channel)):
+                    shortcut = IdentityLayer(feature_dim,
+                                                  feature_dim)
                 else:
-                    args.shortcut = None
+                    shortcut = None
                 blocks.append(ResidualBlock(mobile_inverted_conv,
-                                            args.shortcut))
-                args.feature_dim = args.output_channel
+                                            shortcut))
+                feature_dim = output_channel
         # final expand layer, feature mix layer & classifier
         final_expand_layer = ConvLayer(
-            args.feature_dim, args.final_expand_width,
+            feature_dim, final_expand_width,
             kernel_size=1, act_func="h_swish"
         )
         feature_mix_layer = ConvLayer(
-            args.final_expand_width,
-            args.last_channel,
+            final_expand_width,
+            last_channel,
             kernel_size=1,
             bias=False,
             use_bn=False,
@@ -170,11 +146,23 @@ class BackBoneMobileNetV3(MobileNetV3):
         )
 
         classifier = LinearLayer(
-            args.last_channel, self.args.n_classes,
-            dropout_rate=self.args.dropout_rate)
+            last_channel, n_classes,
+            dropout_rate=dropout_rate)
 
-        return (first_conv, blocks, final_expand_layer,
-                feature_mix_layer, classifier)
+        super(BackBoneMobileNetV3, self).__init__(
+            first_conv, blocks, final_expand_layer,
+            feature_mix_layer, classifier
+        )
+
+        # set bn param
+        self.set_bn_param(momentum=bn_param[0],
+                          eps=bn_param[1])
+
+        # runtime_depth
+        self.runtime_depth = [len(block_idx)
+                              for block_idx in self.block_group_info]
+
+
 
     @staticmethod
     def name():
@@ -311,7 +299,7 @@ class BackBoneMobileNetV3(MobileNetV3):
         '''
         convert state
         '''
-        model_dict = state_dict()
+        model_dict = self.state_dict()
         for key in state_dict:
             if ".mobile_inverted_conv." in key:
                 new_key = key.replace(".mobile_inverted_conv.", ".conv.")
@@ -343,29 +331,29 @@ class BackBoneMobileNetV3(MobileNetV3):
         set max net
         '''
         self.set_active_subnet(
-            _ks=max(self.ks_list),
-            _e=max(self.expand_ratio_list),
-            _d=max(self.depth_list)
+            ks=max(self.ks_list),
+            e=max(self.expand_ratio_list),
+            d=max(self.depth_list)
         )
 
-    def set_active_subnet(self, _ks=None, _e=None, _d=None):
+    def set_active_subnet(self, ks=None, e=None, d=None, **kwargs):
         '''
         set active subnet
         '''
-        _ks = val2list(_ks, len(self.blocks) - 1)
-        expand_ratio = val2list(_e, len(self.blocks) - 1)
-        depth = val2list(_d, len(self.block_group_info))
+        ks = val2list(ks, len(self.blocks) - 1)
+        expand_ratio = val2list(e, len(self.blocks) - 1)
+        depth = val2list(d, len(self.block_group_info))
 
-        for block, _k, _e in zip(self.blocks[1:], _ks, expand_ratio):
-            if _k is not None:
-                block.conv.active_kernel_size = _k
-            if _e is not None:
-                block.conv.active_expand_ratio = _e
+        for block, k, e in zip(self.blocks[1:], ks, expand_ratio):
+            if k is not None:
+                block.conv.active_kernel_size = k
+            if e is not None:
+                block.conv.active_expand_ratio = e
 
-        for i, _d in enumerate(depth):
-            if _d is not None:
+        for i, d in enumerate(depth):
+            if d is not None:
                 self.runtime_depth[i] = min(
-                    len(self.block_group_info[i]), _d)  # min(5, d)
+                    len(self.block_group_info[i]), d)  # min(5, d)
 
     def set_constraint(self, include_list, constraint_type="depth"):
         '''

@@ -80,19 +80,20 @@ services:
       context: ./autonn/backbone_nas
     shm_size: '256M'
     command: >
-      sh -c "python manage.py makemigrations
-             && python manage.py migrate
-             && python manage.py runserver 0.0.0.0:8087"
+      sh -c "python manage.py makemigrations &&
+             python manage.py migrate &&
+             python manage.py runserver 0.0.0.0:8087"
     deploy:
       resources:
         reservations:
           devices:
             - driver: nvidia
               capabilities: [gpu]
-
+    environment:
+      - NVIDIA_VISIBLE_DEVICES=all
     volumes:
       - ./autonn/backbone_nas:/source
-      - ./shared:/shared
+      - ../shared:/shared
     ports:
       - "8087:8087"
 

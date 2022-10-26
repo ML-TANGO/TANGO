@@ -4,10 +4,14 @@ views.py
 
 import os
 import json
+import shutil
 import torch
 import requests
 import multiprocessing
+import json
+import yaml
 
+from django.conf import settings
 from django.shortcuts import render
 from django.http import HttpResponse
 from rest_framework.response import Response
@@ -62,9 +66,7 @@ def start(request):
     params = request.query_params
     userid = params['userid']
     project_id = params['project_id']
-    # userid = 'jgp0566'
-    # project_id = 'test1'
-
+    
     # check user id & project id
     try:
         nasinfo = models.Info.objects.get(userid=userid,
@@ -175,22 +177,70 @@ def status_report(userid, project_id, status="success"):
     except ValueError as e:
         print(e)
 
-# @api_view(['GET'])
-# def create_net(request):
-#     '''create_net'''
-#     if request.method == 'GET':
-#         # models.URS.objects.filter
-#         user_reqs = models.URS.objects.all()
-#         data_path = user_reqs[0].data_yaml.url
-#         created_model = run_nas(data_path)
+# for Unit Test
+@api_view(['GET'])
+def create_net(request):
+    '''create_net'''
+    userid = 'user_id'
+    project_id = 'project_id'
 
-#         created_model_name = 'best_det_backbone.pth'
-#         created_model_path = (
-#             os.path.dirname(os.path.abspath(__file__)) +
-#             "/media/temp_files/model/" + created_model_name)
-#         torch.save(created_model.state_dict(), created_model_path)
+    proj_path = COMMON_ROOT / userid / project_id
+    dataset_yaml_path = proj_path / 'dataset.yaml'
+    final_pt_path = proj_path / 'best.pt'
+    final_info_path = proj_path / 'neural_net_info.yaml'
+    final_py_path = proj_path / 'model.py'
 
-#         return render(request, "backbone_nas/index.html",
-#                       context={"path": created_model_path})
+    params = request.query_params
+    if params['GPUs'] == '1':
+        return render(request, "bnas/index.html",
+                    context={"path": "Multi-GPUs is not yet supported."})
+    if params['NASset'] == 'auto':
+        batch_size = -1
+        max_latency = 25
+        pop_size = 4
+        niter = 5
+    else:
+        batch_size = int(params["bs"])
+        max_latency = int(params["mlatency"])
+        pop_size = int(params["popsize"])
+        niter = int(params["niter"])
 
+    pt = run_nas(
+        dataset_yaml_path,
+        batch_size=batch_size,
+        max_latency=max_latency,
+        pop_size = pop_size,
+        niter=niter)
+    pt.supernet = pt.supernet.get_active_subnet()
+    
+    torch.save(pt.state_dict(), final_pt_path)
+    shutil.copy("bnas/media/temp_files/model/model.py", final_py_path)
+    create_bb_info(
+                final_info_path,
+                final_pt_path,
+                final_py_path,
+                pt.arch)
 
+    return render(request, "bnas/index.html",
+                    context={"path": str(pt.arch)})
+
+    # return render(request, "bnas/index.html",
+    #                 context={"path": final_pt_path})
+
+def create_bb_info(
+                final_info_path,
+                final_pt_path,
+                final_py_path,
+                arch):
+    nn_info = {
+        "target device": "Android S10",
+        "Application": "Object Detection",
+        'class_file': str(final_py_path),
+        'class_name': "BestModel()",
+        "architecture": json.dumps(arch),
+        'weight_file': str(final_pt_path),
+        "input_shape": str([1, 3, 224, 224]),
+    }
+
+    with open(final_info_path, 'w') as file:
+        yaml.dump(nn_info, file, default_flow_style=False)
