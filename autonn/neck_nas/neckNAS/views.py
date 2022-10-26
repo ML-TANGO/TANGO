@@ -185,7 +185,7 @@ def status_report(userid, project_id, status="success"):
         nasinfo.save()
         PROCESSES.pop(-1)
         print(f'report func: {threading.current_thread()}')
-    except ValueError as e:
+    except BaseException as e:
         print(e)
 
 
