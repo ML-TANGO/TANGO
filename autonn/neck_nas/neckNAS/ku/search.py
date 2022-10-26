@@ -565,13 +565,12 @@ class ProxylessDetTrainer(BaseOneShotTrainer):
                                              exclude=exclude)   # intersect
                 self.model_test.load_state_dict(state_dict,
                                                 strict=False)   # load
-
                 self.results, self.maps, _ = \
                     test(self.args['data_cfg'],
                          batch_size=self.batch_size,
                          imgsz=self.image_size_test,
                          save_json=final_epoch and
-                         self.args['data_cfg'].endswith(os.sep + 'coco.yaml'),
+                            self.args['data_cfg'].endswith(os.sep +'coco.yaml'),
                          model=self.model_test,
                          single_cls=self.args['single_cls'],
                          dataloader=self.test_loader,
@@ -604,14 +603,13 @@ class ProxylessDetTrainer(BaseOneShotTrainer):
                     ckpt = {'epoch': epoch,
                             'best_fitness': self.best_fitness,
                             'training_results': f.read(),
-                            'model': self.ema.ema.module
-                            if hasattr(self.ema.ema, 'module')
-                            else self.ema.ema,
+                            'model': self.ema.ema.module if hasattr(self.ema.ema, 'module')
+                                else self.ema.ema,
                             # 'model': self.model_test,
                             'optimizer': None if final_epoch
-                            else self.optimizer.state_dict(),
+                                else self.optimizer.state_dict(),
                             'ctrl_optimizer': None if final_epoch
-                            else self.ctrl_optim.state_dict()}
+                                else self.ctrl_optim.state_dict()}
 
                 # Save last, best and delete
                 torch.save(ckpt, self.last)

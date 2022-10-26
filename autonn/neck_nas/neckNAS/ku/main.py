@@ -32,7 +32,7 @@ from .syolo_utils.general import (
     check_file, increment_dir)
 from .syolo_utils.torch_utils import select_device
 
-def run_nas(data=None, target=None, train_mode='search'):
+def run_nas(data=None, target=None, train_mode='search', final_arch=None):
     print("__________run_nas__________________")
     logger = logging.getLogger('autonn_ku_neck')
     logger.setLevel(logging.DEBUG)
@@ -47,8 +47,16 @@ def run_nas(data=None, target=None, train_mode='search'):
     # load search/retrain arguments from yaml
     # with open(opts.args_yaml, encoding='utf8') as f:
     #     args = yaml.load(f, Loader=yaml.FullLoader)
-    with open('neckNAS/ku/yaml/args.yaml', encoding='utf8') as f:
+    if train_mode == 'search':
+        args_yaml = 'neckNAS/ku/yaml/args.yaml'
+    elif train_mode == 'retrain':
+        args_yaml = 'neckNAS/ku/yaml/args_retrain.yaml'
+
+    with open(args_yaml, encoding='utf8') as f:
         args = yaml.load(f, Loader=yaml.FullLoader)
+
+    if train_mode == 'retrain':
+        args['exported_arch_path'] = final_arch
 
     if data:
         args['data_cfg'] = data
@@ -252,7 +260,7 @@ def run_nas(data=None, target=None, train_mode='search'):
         with open(final_arch_file, 'w', encoding='utf8') as f:
             json.dump(trainer.export(), f)
         print(f' save final architecture to file : {str(final_arch_file)}')
-        return 0
+        return str(final_arch_file)
 
     elif args['train_mode'] == 'retrain':
         # this is retrain, TODO
@@ -271,7 +279,9 @@ def run_nas(data=None, target=None, train_mode='search'):
                           scheduler=scheduler,
                           num_epochs=epochs,
                           device=device)
-        trainer.run()
+        final_model_file = trainer.run()
+        return str(final_model_file)
+
 
 
 # if __name__ == "__main__":
