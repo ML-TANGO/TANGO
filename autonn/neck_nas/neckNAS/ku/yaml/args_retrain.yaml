@@ -1,0 +1,34 @@
+# YAML for search/retraining parameters
+# args for model
+model_name: 'yolov4'    # name of model
+model_cfg: 'neckNAS/ku/yaml/yolov4-p5.yaml'      # model config yaml
+weights: 'neckNAS/ku/weights/yolov4-p5.pt'   # initial weights path
+# args for dataloader
+dataset: 'coco128'         # name of dataset
+data_cfg: 'neckNAS/ku/yaml/coco128.yaml'           # dataset info yaml
+batch_size: 8          # batch size
+img_size: [512, 512]           # input image resoultion
+# args for common (wegiths) training
+train_task: 'detection'       # target task
+train_mode: 'retrain'          # train mode i.e., ['search', 'retrain']
+train_hyp: 'neckNAS/ku/yaml/hyp.finetune.yaml'   # hyperparams for training yaml
+resume: False           # resume from given path/last.pt, or more recent run if blank
+weight_optim: 'sgd'     # optimizer for weight training i.e., ['sgd', 'adam']
+epoch: 10              # number of epochs for search/retrain
+gpu_device: '0'         # gpu device number
+# defualt
+name: ''                # renames results.txt to results_name.txt if supplied
+log_dir: 'neckNAS/ku/runs/'        # logging directory
+rect: False             # rectangular training
+nosave: False           # if True only save final checkpoint
+notest: False           # if True only test final epoch
+noautoanchor: False     # if True disable autoanchor check
+cache_images: False     # if True cache images for faster training
+multi_scale: False      # if True vary img-size +/- 50%%
+single_cls: False       # if True train as single-class dataset
+sync_bn: False          # if True use SyncBatchNorm, only available in DDP mode
+local_rank: -1          # DDP parameter, do not modify
+# args for search / used only for search
+arch_lr: 0.0001         # initial learning rate for architecture params optimizer
+# args for retrain / used only for retrain
+exported_arch_path: ''  # json for search result i.e., .../final_arch.json

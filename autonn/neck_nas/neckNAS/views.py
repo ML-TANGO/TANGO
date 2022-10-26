@@ -6,6 +6,7 @@ import os
 import json
 import torch
 import requests
+import shutil
 # import threading
 import multiprocessing
 
@@ -191,7 +192,20 @@ def status_report(userid, project_id, status="success"):
 
 def process_nas(userid, project_id):
     try:
-        run_nas()
+        final_arch = run_nas(train_mode='search')
+        print('process_nas: search done')
+
+        final_model = run_nas(train_mode='retrain', final_arch=final_arch)
+        print('process_nas: retrain done')
+
+        common_root = Path('/shared/common/')
+        proj_path = common_root / userid / project_id
+        best_pt_path = proj_path / 'best.pt'
+        Path(proj_path).mkdir(parents=True, exist_ok=True)
+        print(str(best_pt_path))
+        shutil.copyfile(final_model, str(best_pt_path))
+        print(f'saved the best model: {str(best_pt_path)}')
+
         status_report(userid, project_id, status="success")
         print("process_nas ends")
     except ValueError as e:
