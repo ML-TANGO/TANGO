@@ -23,41 +23,14 @@ from rest_framework.response import Response
 from rest_framework.decorators import api_view, permission_classes, authentication_classes
 from oauth2_provider.contrib.rest_framework import OAuth2Authentication
 
-from .models import Project
+from .models import Project, AuthUser, Target
+
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+root_path = os.path.dirname(os.path.dirname(BASE_DIR))
 
 # @permission_classes([IsAuthenticated])                  # 권한 체크 - 로그인 여부
 # @authentication_classes([JSONWebTokenAuthentication])   # 토큰 확인
 # @permission_classes([AllowAny])
-
-
-# 서버 IP
-@api_view(['GET', 'POST'])
-@authentication_classes([OAuth2Authentication])   # 토큰 확인
-def get_server_ip(request):
-    """
-    _summary_
-
-    Args:
-        request (_type_): _description_
-
-    Returns:
-        _type_: _description_
-    """
-
-    try:
-        # weda_port_num = 8090
-        # return Response({'port': weda_port_num})
-
-        s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-        s.connect(("8.8.8.8", 80))
-        print(s.getsockname()[0])
-
-        host = s.getsockname()[0]
-
-        return Response({'host': host})
-
-    except Exception as e:
-        print(e)
 
 
 # Project 리스트 요청
@@ -298,28 +271,172 @@ def project_update(request):
 
     print('project_update')
     try:
-        queryset = Project.objects.get(project_name=request.data['project_name'],
-                                       create_user=request.user)  # 프로젝트 id로 검색
 
-        queryset.target = request.data['selectTarget']
+        print(request.data)
 
-        base_dir = os.path.dirname(os.path.abspath(os.path.dirname(__file__)))
-        # target_sw_path = os.path.join(base_dir, 'data/targets/' + queryset.target + '/SW/sw_info.json')
+        target = str(request.data['project_target'])
+        dataset = str(request.data['project_dataset'])
 
-        queryset.dataset_path = request.data['dataset_path']
+        task_type = str(request.data['task_type'])
+        autonn_dataset_file = str(request.data['autonn_dataset_file'])
+        autonn_basemodel = str(request.data['autonn_base_model'])
+        nas_type = str(request.data['nas_type'])
+        deploy_weight_level = str(request.data['deploy_weight_level'])
+        deploy_precision_level = str(request.data['deploy_precision_level'])
+        deploy_processing_lib = str(request.data['deploy_processing_lib'])
+        deploy_user_edit = str(request.data['deploy_user_edit'])
+        deploy_input_method = str(request.data['deploy_input_method'])
+        deploy_input_data_path = str(request.data['deploy_input_data_path'])
+        deploy_output_method = str(request.data['deploy_output_method'])
 
-        dataset_type_path = os.path.join(base_dir, 'data/datasets/' + request.data['dataset_path'] + '/type.txt')
-        f = open(dataset_type_path, 'r')
-        type = f.read()
-        queryset.type = type
+        queryset = Project.objects.get(id=request.data['project_id'],
+                                       create_user=request.user)
+
+        # 타겟 정보 수신
+        data = Target.objects.get(id=int(target))
+        if data.target_info != 'ondevice':
+
+            queryset.target = target
+            queryset.dataset = dataset
+            queryset.task_type = task_type
+            queryset.autonn_dataset_file = autonn_dataset_file
+            queryset.autonn_basemodel = autonn_basemodel
+            queryset.nas_type = nas_type
+            queryset.deploy_weight_level = deploy_weight_level
+            queryset.deploy_precision_level = deploy_precision_level
+            queryset.deploy_processing_lib = deploy_processing_lib
+            queryset.deploy_user_edit = deploy_user_edit
+            queryset.deploy_input_method = deploy_input_method
+            queryset.deploy_input_data_path = deploy_input_data_path
+            queryset.deploy_output_method = deploy_output_method
+            queryset.step = 0
+            queryset.step_status = ''
+
+            queryset.save()
+        else:
+            queryset.target = target
+            queryset.dataset = dataset
+            queryset.task_type = task_type
+            queryset.autonn_dataset_file = autonn_dataset_file
+            queryset.autonn_basemodel = autonn_basemodel
+            queryset.nas_type = nas_type
+            queryset.deploy_weight_level = ''
+            queryset.deploy_precision_level = ''
+            queryset.deploy_processing_lib = ''
+            queryset.deploy_user_edit = ''
+            queryset.deploy_input_method = ''
+            queryset.deploy_input_data_path = ''
+            queryset.deploy_output_method = ''
+            queryset.step = 0
+            queryset.step_status = ''
+
+            queryset.save()
+
+
+        project_info_content = ""
+        if data.target_info != 'ondevice':
+            # project_info.yaml
+            project_info_content += "# common\n" \
+                                   "task_type : {0}\n" \
+                                   "target_info : {1}\n" \
+                                   "cpu : {2}\n" \
+                                   "acc : {3}\n" \
+                                   "memory : {4}\n" \
+                                   "os : {5}\n" \
+                                   "engine : {6}\n" \
+                                   "target_hostip : {7}\n" \
+                                   "target_hostport : {8}\n" \
+                                   "target_serviceport : {9}\n\n" \
+                                   "#for autonn\n" \
+                                   "dataset : {10}\n" \
+                                   "basemodel : {11}\n" \
+                                   "nas_type : {12}\n\n" \
+                                   "#for deploy\n" \
+                                   "# lightweight_level : {13}\n" \
+                                   "# precision_level : {14}\n" \
+                                   "# preprocessing_lib : {15}\n" \
+                                   "# input_method : {16}\n" \
+                                   "# input_data_location : {17}\n" \
+                                   "# output_method : {18}\n" \
+                                   "# user_editing : {19}\n".format(task_type,
+                                                                  data.target_info,
+                                                                  data.target_cpu,
+                                                                  data.target_acc,
+                                                                  data.target_memory,
+                                                                  data.target_os,
+                                                                  data.target_engine,
+                                                                  data.target_host_ip,
+                                                                  data.target_host_port,
+                                                                  data.target_host_service_port,
+                                                                  autonn_dataset_file,
+                                                                  autonn_basemodel,
+                                                                  nas_type,
+                                                                  deploy_weight_level,
+                                                                  deploy_precision_level,
+                                                                  deploy_processing_lib,
+                                                                  deploy_input_method,
+                                                                  deploy_input_data_path,
+                                                                  deploy_output_method,
+                                                                  deploy_user_edit)
+        else:
+            # project_info.yaml
+            project_info_content += "# common\n" \
+                                    "task_type : {0}\n" \
+                                    "target_info : {1}\n" \
+                                    "cpu : {2}\n" \
+                                    "acc : {3}\n" \
+                                    "memory : {4}\n" \
+                                    "os : {5}\n" \
+                                    "engine : {6}\n" \
+                                    "# target_hostip : {7}\n" \
+                                    "# target_hostport : {8}\n" \
+                                    "# target_serviceport : {9}\n\n" \
+                                    "#for autonn\n" \
+                                    "dataset : {10}\n" \
+                                    "basemodel : {11}\n" \
+                                    "nas_type : {12}\n\n" \
+                                    "#for deploy\n" \
+                                    "# lightweight_level : {13}\n" \
+                                    "# precision_level : {14}\n" \
+                                    "# preprocessing_lib : {15}\n" \
+                                    "# input_method : {16}\n" \
+                                    "# input_data_location : {17}\n" \
+                                    "# output_method : {18}\n" \
+                                    "# user_editing : {19}\n".format(task_type,
+                                                                     data.target_info,
+                                                                     data.target_cpu,
+                                                                     data.target_acc,
+                                                                     data.target_memory,
+                                                                     data.target_os,
+                                                                     data.target_engine,
+                                                                     data.target_host_ip,
+                                                                     data.target_host_port,
+                                                                     data.target_host_service_port,
+                                                                     autonn_dataset_file,
+                                                                     autonn_basemodel,
+                                                                     nas_type,
+                                                                     deploy_weight_level,
+                                                                     deploy_precision_level,
+                                                                     deploy_processing_lib,
+                                                                     deploy_input_method,
+                                                                     deploy_input_data_path,
+                                                                     deploy_output_method,
+                                                                     deploy_user_edit)
+
+        print(project_info_content)
+
+        # project_info.yaml 파일 생성
+        common_path = os.path.join(root_path, "shared/common/{0}/{1}".format(str(request.user), str(request.data['project_id'])))
+
+        print(common_path)
+
+        # 디렉토리 유뮤 확인
+        if os.path.isdir(common_path) is False:
+            os.makedirs(common_path)
+
+        f = open(os.path.join(common_path, 'project_info.yaml'), 'w+')
+        f.write(project_info_content)
         f.close()
-
-        queryset.step = request.data['step']
-
-        # queryset.target_yaml_path = request.data['targetYamlPath']
-        # queryset.data_yaml_path = request.data['dataYamlPath']
-
-        queryset.save()
 
         return Response(status=200)
 

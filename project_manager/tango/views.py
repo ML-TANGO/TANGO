@@ -55,6 +55,30 @@ class GroupViewSet(viewsets.ModelViewSet):
     queryset = Group.objects.all()
     serializer_class = GroupSerializer
 
+
+# 서버 IP
+@api_view(['GET', 'POST'])
+@authentication_classes([OAuth2Authentication])   # 토큰 확인
+def get_server_ip(request):
+    """
+    _summary_
+
+    Args:
+        request (_type_): _description_
+
+    Returns:
+        _type_: _description_
+    """
+
+    try:
+        weda_port_num = 8090
+
+        return Response({'port': weda_port_num})
+
+    except Exception as e:
+        print(e)
+
+
 def create_token(request, r_user_id, r_user_pw):
     """
     _summary_

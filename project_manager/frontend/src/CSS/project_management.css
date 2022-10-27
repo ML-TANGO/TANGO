@@ -24,6 +24,10 @@
     color: black;
 }
 
+.css-b62m3t-container {
+    width:80%;
+}
+
 {/* 프로젝트 메인 - 프로젝트 리스트 컴포넌트
 .manage_list_container
 {
@@ -62,7 +66,7 @@
     width:100%;
     height:auto;
     position:sticky;
-    margin-bottom:20px;
+    margin-bottom:10px;
 }
 
 {/* 프로젝트 생성 - 현재 생성 및 수정 경로 */}
@@ -217,17 +221,36 @@
 }
 */
 
+/*
 .project_manage_content
 {
     height: 100%;
     width: 100%;
     display: grid;
-    grid-template-rows: 40px 350px 1fr;
+    grid-template-rows: 40px 210px 50px 250px 1fr;
 }
+*/
 
-.panel{
+
+.pannel{
     grid-row: 2 / 3;
     width:100%;
+    display: none;
+    background-color: white;
+}
+
+.config_pannel {
+    grid-row: 4 / 5;
+    width:100%;
+    display: none;
+    background-color: pink;
+
+    border-radius: 0px 0px 5px 5px;
+    border-bottom: 5px solid;
+    border-top: 0px solid;
+    border-right: 5px solid;
+    border-left: 5px solid;
+    border-color: #303030;
 }
 
 .project_manage_list
@@ -242,15 +265,15 @@
 
 .project_bottom
 {
-    grid-row: 3 / 4;
     height:auto;
     margin-bottom: 0px;
 }
 
 .project_manage_content .project_user_requirement
 {
-    height:70%;
+    height:100%;
     background-color:white;
+    marin-top:10px;
     /* border-radius: 5px; */
 }
 
@@ -258,6 +281,50 @@
 {
     display: grid;
     grid-template-rows: 0.05fr 0.1fr auto;
+}
+
+.project_user_requirement_task_type input{
+
+   align-items: center;
+   display: inline-flex;
+}
+
+.project_user_requirement_task_type span{
+
+   align-items: center;
+   display: inline-flex;
+}
+
+.project_user_requirement_nas_type input{
+
+   align-items: center;
+   display: inline-flex;
+}
+
+.project_user_requirement_nas_type span{
+
+   align-items: center;
+   display: inline-flex;
+}
+
+
+project_user_requirement_autonn_config input{
+   align-items: center;
+   display: inline-flex;
+}
+
+.deploy-config {
+    grid-template-rows: 1fr 1fr;
+}
+
+.config-input {
+    width: 100%;
+    height: 38px;
+    font-size: 16px;
+    border: 1px solid #303030;
+    color: black;
+    border-radius: 3px;
+    background-color: white;
 }
 
 {/* 프로젝트 메인 - 프로젝트 아이템
@@ -491,6 +558,7 @@
     color: #B7BAC0;
 }
 
+
 .accordion {
   background-color: #eee;
   color: #444;
@@ -508,14 +576,19 @@
   background-color: #ccc;
 }
 
-.panel {
-
-  display: none;
-  background-color: white;
-
+.overall_icon
+{
+   height: 30px;
+   width: 40px;
+   margin-left:0px;
+   background: url("../images/icons/icon_3x/chevron-up.png") no-repeat;
+   background-size: 35px;
+   background-position-y: center;
+   background-position-x: center;
+   transform: translateY(-50%);
 }
 
-.overall_icon
+.config_overall_icon
 {
    height: 30px;
    width: 40px;
@@ -559,12 +632,7 @@
   100% { transform: rotate(360deg); }
 }
 
-.project_description{
-  height: 50px;
-  color: #black;
-  background-color: #DFDFDF;
 
-}
 
 .project_description .description-title {
   margin: 0px 20px;
@@ -573,6 +641,7 @@
   background-color: #DFDFDF;
   align-items: center;
   cursor: pointer;
+
 }
 
 .project_description .description-content{
@@ -581,28 +650,23 @@
   display: flex;
   align-items: center;
   cursor: pointer;
-  background-color: #DFDFDF;
+  background-color: #303030;
+  border-radius: 5px;
 }
 
 .project_description .description-content input{
   width : 100%;
-  height: 80%;
-
+  height: 100%;
   border : 0px;
   border-radius: 5px;
   display: flex;
   align-items: center;
   cursor: pointer;
-  padding : 0 0.857em;
 }
-
-
 
 .dataset_content
 {
-    height: 100%;
     width: 100%;
-
     overflow:auto;
 }
 
@@ -620,8 +684,8 @@
 {
     min-width: 120px;
     max-width: 200px;
-    width: 190px;
-    height: 180px;
+    width: 150px;
+    height: 140px;
     border: 5px solid #707070;
     border-radius: 5px;
     display: flex;
@@ -648,8 +712,8 @@
 {
     min-width: 120px;
     max-width: 200px;
-    width: 190px;
-    height: 180px;
+    width: 150px;
+    height: 140px;
     border: 5px solid #707070;
     border-radius: 5px;
     display: flex;

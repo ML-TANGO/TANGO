@@ -137,13 +137,18 @@ function ProjectMain()
     {
         /* 프로젝트 생성 함수 호출 */
         /* projectName : 사용자가 입력한 프로젝트명 */
+
+        setProjectName('')
+        setProjectDescription('')
+
         createProject(projectName, projectDescription)
     }
 
     /* 생성 팝업 - 취소 버튼 클릭 */
     const popup_Cancel_ButtonClick = () =>
     {
-        document.getElementById('input_project_name').value = ''
+        setProjectName('')
+        setProjectDescription('')
 
         /* 팝업 숨김 */
         document.getElementById('create_project_popup').style.display = 'none';
@@ -301,11 +306,19 @@ function ProjectMain()
                                     <Kebab index={index} page={'project'} itemID={menu.id} itemName={menu.project_name} deleteItem={delProject} modifyItem={modifyProject} deleteAlter={"프로젝트를"} />
                                     <div className='item_title'>{menu.project_name}</div>
 
+                                    {/*
                                     <div id='item_image' className='item_image' style={{backgroundImage:itemBackgroundImage(menu.dataset_path), backgroundColor:'white', borderRadius:'5px'}}>
                                     { menu.dataset_path === '' &&
                                         <div className="image_text">Please complete the project creation</div>
                                     }
                                     </div>
+                                    */}
+
+                                    <div id='item_image' className='item_image' style={{backgroundColor:'white', borderRadius:'5px'}}>
+                                        <div className="image_text">Please complete the project creation</div>
+                                    </div>
+
+
                                     <div className='item_content' style={{backgroundColor:'white', borderRadius:'5px'}}>{menu.type}</div>
                                 </Link>
                             )

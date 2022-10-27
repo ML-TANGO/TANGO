@@ -47,7 +47,7 @@ urlpatterns = [
     url(r'^dataset_check', viewsProject.dataset_check, name='dataset_check'),   # 데이터 셋 유효성 검사
 
 
-    url(r'^get_server_ip', viewsProject.get_server_ip, name='get_server_ip'),          # 서버 IP 정보 획득
+    url(r'^get_server_ip', views.get_server_ip, name='get_server_ip'),          # 서버 IP 정보 획득
 
 
     url(r'^target_create', viewsTarget.target_create, name='target_create'),    # 타겟 생성

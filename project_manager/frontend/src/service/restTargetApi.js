@@ -7,12 +7,16 @@ export function requestTargetCreate(param)
 {
     const formData = new FormData();
     formData.append("name", param.name);
-//    formData.append("image", new Blob([param.image], { type: param.image.type } ) );
     formData.append("image", param.image);
+    formData.append("info", param.info);
+    formData.append("engine", param.engine);
+    formData.append("os", param.os);
     formData.append("cpu", param.cpu);
-    formData.append("gpu", param.gpu);
+    formData.append("acc", param.acc);
     formData.append("memory", param.memory);
-    formData.append("model", param.model);
+    formData.append("host_ip", param.host_ip);
+    formData.append("host_port", param.host_port);
+    formData.append("host_service_port", param.host_service_port);
 
     const header_info = getHeaderData_form()
     return new Promise( (resolve, reject) =>
@@ -61,12 +65,16 @@ export function requestTargetUpdate(param)
     const formData = new FormData();
     formData.append("id", param.id);
     formData.append("name", param.name);
-//    formData.append("image", new Blob([param.image], { type: param.image.type } ) );
     formData.append("image", param.image);
+    formData.append("info", param.info);
+    formData.append("engine", param.engine);
+    formData.append("os", param.os);
     formData.append("cpu", param.cpu);
-    formData.append("gpu", param.gpu);
+    formData.append("acc", param.acc);
     formData.append("memory", param.memory);
-    formData.append("model", param.model);
+    formData.append("host_ip", param.host_ip);
+    formData.append("host_port", param.host_port);
+    formData.append("host_service_port", param.host_service_port);
 
     const header_info = getHeaderData_form()
     return new Promise( (resolve, reject) =>

@@ -56,16 +56,25 @@ class Project(models.Model):
     project_description = models.CharField(blank=True, null=True, max_length=200)              # 프로젝트 설명
     create_user = models.CharField(blank=True, null=True, max_length=50)                       # 생성자
     create_date = models.CharField(blank=True, null=True, max_length=50)                       # 생성 날짜
-    target = models.CharField(blank=True, null=True, max_length=100)                           # 타겟 정보
-    target_yaml_path = models.CharField(blank=True, null=True, max_length=1024, default='')    # 타겟 yaml 파일 경로
-    dataset_path = models.CharField(blank=True, null=True, max_length=200, default='')         # 사용 데이터 셋 경로
-    data_yaml_path = models.CharField(blank=True, null=True, max_length=1024, default='')      # 데이터 셋 yaml 파일 경로
 
-    step = models.IntegerField(blank=True, null=True, default=0)                               # 신경망 생성 단계
-    step_status = models.BooleanField(blank=True, null=True, default=False)                    # 신경망 생성 상태
+    target = models.CharField(blank=True, null=True, max_length=50)
+    dataset = models.CharField(blank=True, null=True, max_length=50)
 
-    # 타입 정보 ( detection, segmentation... )
-    type = models.CharField(blank=True, null=True, max_length=50)
+    task_type = models.CharField(blank=True, null=True, max_length=50)
+    autonn_dataset_file = models.CharField(blank=True, null=True, max_length=50)
+    autonn_basemodel = models.CharField(blank=True, null=True, max_length=50)
+    nas_type = models.CharField(blank=True, null=True, max_length=50)
+    deploy_weight_level = models.CharField(blank=True, null=True, max_length=50)
+    deploy_precision_level = models.CharField(blank=True, null=True, max_length=50)
+    deploy_processing_lib = models.CharField(blank=True, null=True, max_length=50)
+    deploy_user_edit = models.CharField(blank=True, null=True, max_length=50)
+    deploy_input_method = models.CharField(blank=True, null=True, max_length=50)
+    deploy_input_data_path = models.CharField(blank=True, null=True, max_length=50)
+    deploy_output_method = models.CharField(blank=True, null=True, max_length=50)
+
+    step = models.IntegerField(blank=True, null=True)                               # 신경망 생성 단계
+    step_status = models.CharField(blank=True, null=True, max_length=50)                    # 신경망 생성 상태
+
 
     class Meta:
         """Project Meta class
@@ -87,15 +96,20 @@ class Target(models.Model):
         models.Model
     Attributes:
     """
-    id = models.AutoField(primary_key=True)                                        # 타겟 아이디 : 기본키
-    target_name = models.CharField(blank=True, null=True, max_length=30)           # 타겟 이름
-    create_user = models.CharField(blank=True, null=True, max_length=50)           # 생성자
-    create_date = models.CharField(blank=True, null=True, max_length=50)           # 생성 날짜
-    target_cpu = models.CharField(blank=True, null=True, max_length=200)           # 타겟 정보 - cpu
-    target_gpu = models.CharField(blank=True, null=True, max_length=200)           # 타겟 정보 - gpu
-    target_memory = models.CharField(blank=True, null=True, max_length=200)        # 타겟 정보 - memory
-    target_model = models.CharField(blank=True, null=True, max_length=200)         # 타겟 정보 - 하드웨어 모델
-    target_image = models.CharField(blank=True, null=True, max_length=10485760)    # 타겟 이미지
+    id = models.AutoField(primary_key=True)                                             # 타겟 아이디 : 기본키
+    target_name = models.CharField(blank=True, null=True, max_length=30)                # 타겟 이름
+    create_user = models.CharField(blank=True, null=True, max_length=50)                # 생성자
+    create_date = models.CharField(blank=True, null=True, max_length=50)                # 생성 날짜
+    target_info = models.CharField(blank=True, null=True, max_length=30)                # 타겟 정보
+    target_engine = models.CharField(blank=True, null=True, max_length=30)              # 타겟 정보 - engine
+    target_os = models.CharField(blank=True, null=True, max_length=50)                  # 타겟 정보 - os
+    target_cpu = models.CharField(blank=True, null=True, max_length=50)                 # 타겟 정보 - cpu
+    target_acc = models.CharField(blank=True, null=True, max_length=50)                 # 타겟 정보 - acc
+    target_memory = models.CharField(blank=True, null=True, max_length=50)              # 타겟 정보 - memory
+    target_host_ip = models.CharField(blank=True, null=True, max_length=50)             # 타겟 정보 - host_ip
+    target_host_port = models.CharField(blank=True, null=True, max_length=50)           # 타겟 정보 - host_port
+    target_host_service_port = models.CharField(blank=True, null=True, max_length=30)   # 타겟 정보 - host_service_port
+    target_image = models.CharField(blank=True, null=True, max_length=10485760)         # 타겟 이미지
 
     class Meta:
         """Target Meta class

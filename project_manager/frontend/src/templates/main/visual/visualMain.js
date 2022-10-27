@@ -5,8 +5,6 @@ import '../../../CSS/project_management.css'
 
 import graph_Image from "../../../images/bar-graph2x.png";
 
-import * as Request from "../../../service/restProjectApi";
-
 function VisualMain()
 {
     const [server_ip, setServer_ip] = useState();
@@ -14,20 +12,7 @@ function VisualMain()
     /* 페이지 로드 완료시 호출 이벤트 */
     useEffect( () =>
     {
-//        setServer_ip('http://netron.app')
-
-//        Request.requestGetServerIP().then(result =>
-//        {
-//            console.log(result)
-//        })
-//        .catch(error =>
-//        {
-//            alert('get ip info error')
-//        });
-
-        var host = window.location.hostname
-        setServer_ip('http://' + host + ':8091')
-
+        setServer_ip('http://netron.app')
     }, []);
 
 

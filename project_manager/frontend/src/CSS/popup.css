@@ -41,7 +41,7 @@
     margin:0px;
     font-size: 25px;
     color: #ffffff;
-    line-height:1.0;
+    /* line-height:1.0; */
 }
 
 .popup_label
@@ -50,20 +50,24 @@
     color: black;
 }
 
-.popup_body{
-    margin-top:30px;
-    font-size:0px;
-}
-.popup_body input {
-    margin-top:6px;
+.project_input{
     width: 100%;
-    height: 35px;
+    height: 38px;
     font-size: 16px;
-    border: none;
+    border: 1px solid #303030;
     color: black;
     border-radius: 3px;
+    background-color: white;
+}
 
-    background-color: lightgrey;
+.target_input {
+    width: 100%;
+    height: 38px;
+    font-size: 16px;
+    border: 1px solid #303030;
+    color: black;
+    border-radius: 3px;
+    background-color: white;
 }
 
 .popup_button_list button {
@@ -96,6 +100,7 @@
   background-color: #242933;
 }
 
+
 .target_popup_header
 {
     margin:0px;
@@ -109,18 +114,6 @@
     font-size: 16px;
     color: #BDBFC2;
 }
-
-.target_popup_body input {
-    margin-top:6px;
-    width: 100%;
-    height: 35px;
-    font-size: 16px;
-    border: none;
-    color: white;
-    border-radius: 3px;
-    background-color: #2f343f;
-}
-
 
 .target_filebox label {
     display: inline-block;
