@@ -10,6 +10,7 @@ COPY db/yolo_v3_tiny_darknet_fp32.tflite /app/db
 COPY db/odroid-m1-manual.txt /app/db
 COPY db/odroid-n2-manual.txt /app/db
 COPY db/yolov3/. /app/db/yolov3
+ADD https://github.com/ultralytics/yolov3/releases/download/v9.6.0/yolov3.pt  /app/db/yolov3
 RUN pip3 install --upgrade pip
 RUN apt-get update
 RUN apt-get install -y libgl1-mesa-glx vim gedit
