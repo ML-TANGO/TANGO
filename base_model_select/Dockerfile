@@ -15,8 +15,8 @@ COPY . ./
 RUN ls -la
 
 # download the coco dataset (val only)
-RUN wget -q https://ultralytics.com/assets/coco2017val.zip
-RUN unzip -q coco2017val.zip -d datasets && rm coco2017val.zip 
+#RUN wget -q https://ultralytics.com/assets/coco2017val.zip
+#RUN unzip -q coco2017val.zip -d datasets && rm coco2017val.zip 
 #RUN mv evaluate2017.txt datasets/coco/evaluate2017.txt
 RUN python generate_txt_file.py
 

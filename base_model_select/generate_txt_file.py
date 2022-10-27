@@ -8,7 +8,7 @@ target_size = 200
 randidx = np.random.randint(txt_file_size, size=target_size)
 
 # changed to global dataset location
-filename = "/datasets/coco/val.txt"
+filename = "/Data/coco/val.txt"
 generatefile = 'evaluate2017.txt'
 
 with open(generatefile, 'w+') as genfile:
