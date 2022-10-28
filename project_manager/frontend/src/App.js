@@ -15,7 +15,7 @@ import ProjectMain from "./templates/main/project/projectMain";
 import ProjectCreate from "./templates/main/project/projectCreate";
 
 /* 이동 페이지 정보 - 타겟 관리 */
-import TargetMain from "./templates/main/target/targetMain";
+import TargetMain from "./templates/main/project_target/targetMain";
 
 /* 이동 페이지 정보 - 데이터 셋 관리 및 [ Labelling 저작 도구 ] */
 import DataMain from "./templates/main/data/dataMain";
