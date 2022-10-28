@@ -35,7 +35,8 @@ export function requestContainerStart(container, uid, pid)
 
     return new Promise( (resolve, reject) =>
     {
-        axios.get( "0.0.0.0:"+ port + "/start", {
+        var host = window.location.hostname;
+        axios.get( 'http://' + host + ':' + port + "/start", {
             params: {
                 user_id: uid,
                 project_id: pid
@@ -85,7 +86,8 @@ export function requestContainerStatusCheck(container, uid, pid)
 
     return new Promise( (resolve, reject) =>
     {
-        axios.get( "0.0.0.0:"+ port + "/status_request", {
+        var host = window.location.hostname;
+        axios.get( 'http://' + host + ':' + port + "/status_request", {
             params: {
                 user_id: uid,
                 project_id: pid
