@@ -1,4 +1,5 @@
-from aiodocker import Docker
+from aiodocker import Docker, docker
+import crud
 
 
 class ManipulateContainer:
@@ -6,7 +7,7 @@ class ManipulateContainer:
     def __init__(self):
         self._docker = Docker()
 
-    async def run_container(self, data):
+    async def run_container(self, db, data):
         try:
             config = {
                 "Cmd": data["deploy"]["entrypoint"],
@@ -21,9 +22,6 @@ class ManipulateContainer:
                     }
                 },
                 "HostConfig": {
-                    # "Binds": [
-                    #     "/tmp:/tmp",  # host-src:container-dest to bind-mount a host path into the container. Both host-src, and container-dest must be an absolute path.
-                    # ],
                     "PortBindings": {
                         f'{data["deploy"]["network"]["service_container_port"]}/tcp': [
                             {
@@ -33,22 +31,48 @@ class ManipulateContainer:
                     },
                 },
             }
-            await self._docker.containers.run(config=config)
+            container_name = crud.get_container_name(db, data["user"])[0]
+            await self._docker.containers.run(config=config, name=container_name)
+            await _save_container_id(db, container_name, data["user"])
             await self._docker.close()
         except Exception as e:
             raise e
 
     async def stop_container(self, container_id):
         try:
-            await self._docker.containers.container(container_id="5f3e23a63d0d").stop()
+            await self._docker.containers.container(container_id=container_id).stop()
             await self._docker.close()
         except Exception as e:
             raise e
 
     async def get_container(self, container_id):
         try:
-            status = await self._docker.containers.container(container_id="5f3e23a63d0d").show()
+            status = await self._docker.containers.container(container_id=container_id).show()
             await self._docker.close()
             return status["State"]["Status"]
         except Exception as e:
             raise e
+
+
+class CustomDockerContainers(docker.DockerContainers):
+    async def list(self, **kwargs):
+        data = await self.docker._query_json(
+            "containers/json", method="GET", params=kwargs
+        )
+        return data
+
+
+async def _save_container_id(db, container_name, user_input):
+    try:
+        docker_instance = Docker()
+        _docker = CustomDockerContainers(docker_instance)
+        list = await _docker.list()
+        index_num: int = 0
+        for i, v in enumerate(list):
+            if v["Names"] == container_name:
+                index_num = i
+                break
+        container_id = list[index_num]["Id"]
+        crud.modify_container_id(db, project_id=user_input["project_id"], container_id=container_id)
+    except Exception as e:
+        raise(e)
