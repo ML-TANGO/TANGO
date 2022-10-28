@@ -57,23 +57,23 @@ class Project(models.Model):
     create_user = models.CharField(blank=True, null=True, max_length=50)                       # 생성자
     create_date = models.CharField(blank=True, null=True, max_length=50)                       # 생성 날짜
 
-    target = models.CharField(blank=True, null=True, max_length=50)
-    dataset = models.CharField(blank=True, null=True, max_length=50)
+    target = models.CharField(blank=True, null=True, max_length=50, default='')
+    dataset = models.CharField(blank=True, null=True, max_length=50, default='')
 
-    task_type = models.CharField(blank=True, null=True, max_length=50)
-    autonn_dataset_file = models.CharField(blank=True, null=True, max_length=50)
-    autonn_basemodel = models.CharField(blank=True, null=True, max_length=50)
-    nas_type = models.CharField(blank=True, null=True, max_length=50)
-    deploy_weight_level = models.CharField(blank=True, null=True, max_length=50)
-    deploy_precision_level = models.CharField(blank=True, null=True, max_length=50)
-    deploy_processing_lib = models.CharField(blank=True, null=True, max_length=50)
-    deploy_user_edit = models.CharField(blank=True, null=True, max_length=50)
-    deploy_input_method = models.CharField(blank=True, null=True, max_length=50)
-    deploy_input_data_path = models.CharField(blank=True, null=True, max_length=50)
-    deploy_output_method = models.CharField(blank=True, null=True, max_length=50)
+    task_type = models.CharField(blank=True, null=True, max_length=50, default='')
+    autonn_dataset_file = models.CharField(blank=True, null=True, max_length=50, default='')
+    autonn_basemodel = models.CharField(blank=True, null=True, max_length=50, default='')
+    nas_type = models.CharField(blank=True, null=True, max_length=50, default='')
+    deploy_weight_level = models.CharField(blank=True, null=True, max_length=50, default='')
+    deploy_precision_level = models.CharField(blank=True, null=True, max_length=50, default='')
+    deploy_processing_lib = models.CharField(blank=True, null=True, max_length=50, default='')
+    deploy_user_edit = models.CharField(blank=True, null=True, max_length=50, default='')
+    deploy_input_method = models.CharField(blank=True, null=True, max_length=50, default='')
+    deploy_input_data_path = models.CharField(blank=True, null=True, max_length=50, default='')
+    deploy_output_method = models.CharField(blank=True, null=True, max_length=50, default='')
 
-    step = models.IntegerField(blank=True, null=True)                               # 신경망 생성 단계
-    step_status = models.CharField(blank=True, null=True, max_length=50)                    # 신경망 생성 상태
+    container = models.CharField(blank=True, null=True, max_length=50, default='')               # 신경망 생성 단계
+    container_status = models.CharField(blank=True, null=True, max_length=50, default='')        # 신경망 생성 상태
 
 
     class Meta:

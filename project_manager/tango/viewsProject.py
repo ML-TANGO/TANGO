@@ -18,6 +18,7 @@ from datetime import datetime
 
 import django.middleware.csrf
 from django.http import HttpResponse
+from rest_framework.permissions import AllowAny
 
 from rest_framework.response import Response
 from rest_framework.decorators import api_view, permission_classes, authentication_classes
@@ -25,12 +26,77 @@ from oauth2_provider.contrib.rest_framework import OAuth2Authentication
 
 from .models import Project, AuthUser, Target
 
+from django.views.decorators.csrf import csrf_exempt, csrf_protect
+
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 root_path = os.path.dirname(os.path.dirname(BASE_DIR))
 
 # @permission_classes([IsAuthenticated])                  # 권한 체크 - 로그인 여부
 # @authentication_classes([JSONWebTokenAuthentication])   # 토큰 확인
 # @permission_classes([AllowAny])
+
+
+# 컨테이너 상태 결과 응답
+@api_view(['GET'])
+@permission_classes([AllowAny])   # 토큰 확인
+def status_report(request):
+
+    try:
+        container_list = ['bms',
+                          'viz2code',
+                          'autonn',
+                          'code_gen',
+                          'cloud_deployment',
+                          'ondevice_deployment']
+
+        container_id = request.GET['container_id']
+
+        if container_id not in container_list:
+            return HttpResponse(status=400, content={'Container ID Not Find'})
+
+        user_id = request.GET['user_id']
+        project_id = request.GET['project_id']
+        result = request.GET['result']
+
+        queryset = Project.objects.get(id=project_id, create_user=str(user_id))
+        queryset.container = container_id
+        queryset.container_status = result
+
+        queryset.save()
+
+        return HttpResponse(json.dumps({'status':200}))
+
+    except Exception as error:
+        print(error)
+        return HttpResponse(error)
+
+
+# 컨테이너 상태
+@api_view(['GET', 'POST'])
+@authentication_classes([OAuth2Authentication])   # 토큰 확인
+def status_result(request):
+    """
+    project_list_get _summary_
+
+    Args:
+        request (_type_): _description_
+
+    Returns:
+        _type_: _description_
+    """
+
+    try:
+        project_id = request.data['project_id']
+        queryset = Project.objects.get(id=project_id, create_user=str(request.user))
+
+        print(queryset.container)
+        print(queryset.container_status)
+
+        return HttpResponse(json.dumps({'container': queryset.container,
+                                        'container_status': queryset.container_status}))
+
+    except Exception as e:
+        print(e)
 
 
 # Project 리스트 요청
@@ -309,8 +375,8 @@ def project_update(request):
             queryset.deploy_input_method = deploy_input_method
             queryset.deploy_input_data_path = deploy_input_data_path
             queryset.deploy_output_method = deploy_output_method
-            queryset.step = 0
-            queryset.step_status = ''
+            queryset.container = 'init'
+            queryset.container_status = ''
 
             queryset.save()
         else:
@@ -327,8 +393,8 @@ def project_update(request):
             queryset.deploy_input_method = ''
             queryset.deploy_input_data_path = ''
             queryset.deploy_output_method = ''
-            queryset.step = 0
-            queryset.step_status = ''
+            queryset.container = 'init'
+            queryset.container_status = ''
 
             queryset.save()
 

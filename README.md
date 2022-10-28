@@ -14,6 +14,12 @@
 
 ----
 
+> **Announcement**  
+> * [2022  Fall TANGO Community Conference](https://github.com/ML-TANGO/TANGO/discussions/31)
+> * [2022  Fall TANGO Release]()  - to be announced.
+
+----
+
 ## Introduction to TANGO <a name="intro"></a>
 
 TANGO (**T**arget **A**daptive  **N**o-code neural network **G**eneration and **O**peration framework) is code name of project for Integrated Machine Learning Framework.
@@ -27,7 +33,7 @@ TANGO uses container technology and MSA (Micro Service Architecture). Containers
 Each component of TANGO is self-contained service component implemented with container technology.
 The component interacts with other component via REST APIs as depicted in the following image;
 
-<img src="./docs/media/TANGO_structure_v1.png" alt="TANGO Project Overview" style="width: 1200px;"/>
+<img src="./docs/media/TANGO_structure_v1.png" alt="TANGO Project Overview" width="800px"/>
 
 ----
 
@@ -159,40 +165,56 @@ docker-compose up -d --build
 > * run above command at directory where `docker-compose.yml` file is located.
 > * `docker-compose up -d --build` requires a lot of times and sometimes it seems do nothing but it does something. **Be patient!!**
 
+If you're in low bandwith Internet environment or using problematic DNS server, from time to time `docker-compose up -d --build` command would be interrupted by following errors(`Temporary failure in name resolution`):
+```
+failed to solve: rpc error: code = Unknown desc = failed to solve with frontend dockerfile.v0: 
+failed to create LLB definition: 
+failed to do request: Head "https://registry-1.docker.io/al tcp: lookup registry-1.docker.io: 
+Temporary failure in name resolution
+```
+If this is your case, you should repeatedly run  `docker-compose up -d --build`  before to get the following message(**FINISHED**):
+```
+[+] Building 1430.5s (114/114) FINISHED
+...
+...
+Use 'docker scan' to run Snyk tests against images to find vulnerabilities and learn how to fix them
+[+] Running 9/10
+...
+```
 
-Upon the previouse step, following docker container images and containers can be found in your local host system.
+Once previouse step completes successfule, following docker container images and containers can be found in your local host system.
 
 **Example list of Docker images**
 
 ```bash
-$ docker image ls
-REPOSITORY                         TAG       IMAGE ID       CREATED        SIZE
-TANGO_labelling                          latest    68bb17ea706f   15 hours ago   951MB
-TANGO_deploy                       latest    71892e513c5d   15 hours ago   951MB
-TANGO_target_image_build           latest    ec23169deb82   15 hours ago   951MB
-TANGO_labelling                    latest    2617c040ad1c   15 hours ago   951MB
-TANGO_autonn                       latest    8cd2d3427a07   15 hours ago   951MB
-TANGO_web                           latest    8e36357048ae   15 hours ago   1.1GB
-python                             3.7       92838e1e7c64   4 days ago     906MB
-ubuntu                             latest    825d55fb6340   6 days ago     72.8MB
-postgres                           latest    1ee973e26c65   13 days ago    376MB
+$ $ docker image ls
+REPOSITORY                 TAG       IMAGE ID       CREATED              SIZE
+tango_labelling            latest    08b7e0228997   About a minute ago   11.6GB
+tango_viz2code             latest    0ba930ceb8e0   17 minutes ago       7.6GB
+tango_autonn_nk            latest    ae9abca17942   32 minutes ago       10.9GB
+tango_project_manager      latest    a1f70db5ce71   34 minutes ago       1.15GB
+tango_target_deploy        latest    cc61506c133e   34 minutes ago       952MB
+tango_target_image_build   latest    4e383c2f8344   34 minutes ago       957MB
+postgres                   latest    901a82b310d3   7 days ago           377MB
+mariadb                    10        14f1097913ec   2 weeks ago          384MB
 ```
-* Note that the name of the docker images genrated based on `docker-compose.yml` is prefixed by its folder name (e.g, `'TANGO'`)
+* Note that the name of the docker images generated based on `docker-compose.yml` is prefixed by its folder name (e.g, `'tango_'`)
 
 **Example list of Docker containers**
 ```bash
- $ docker container ls
- or 
- $ docker ps 
-CONTAINER ID   IMAGE                              COMMAND                  CREATED        STATUS        PORTS                                       NAMES
-35d63cf11109   TANGO_web                  "sh -c 'python ./ui_…"           15 hours ago   Up 15 hours   0.0.0.0:8085->8085/tcp, :::8085->8085/tcp   TANGO_web_1
-df990d97fddb   TANGO_target_image_build   "sh -c 'python ./tar…"           15 hours ago   Up 15 hours   0.0.0.0:8088->8088/tcp, :::8088->8088/tcp   TANGO_target_image_build_1
-3dafe1a3123e   postgres:latest                    "docker-entrypoint.s…"   15 hours ago   Up 15 hours   5432/tcp                                    TANGO_db_1
-b614f2558961   TANGO_autonn               "sh -c 'python ./aut…"           15 hours ago   Up 15 hours   0.0.0.0:8087->8087/tcp, :::8087->8087/tcp   TANGO_autonn_1
-dfe823b0b618   TANGO_labelling            "sh -c 'python ./lab…"           15 hours ago   Up 15 hours   0.0.0.0:8086->80/tcp, :::8086->80/tcp       TANGO_labelling_1
-55e630b586f7   TANGO_target_deploy        "sh -c 'python ./tar…"           15 hours ago   Up 15 hours   0.0.0.0:8089->8089/tcp, :::8089->8089/tcp   TANGO_target_deploy_1
+$ docker ps -a --format "table {{.Image}}\t{{.Names}}\t{{.Status}}\t{{.Command}}\t{{.Ports}}"
+IMAGE                      NAMES                        STATUS          COMMAND                  PORTS
+tango_project_manager      tango-project_manager-1      Up 51 seconds   "sh -c 'chmod 777 ./…"   0.0.0.0:8085->8085/tcp, :::8085->8085/tcp
+tango_labelling            tango-labelling-1            Up 51 seconds   "./start.sh"             0.0.0.0:8086->80/tcp, :::8086->80/tcp, 0.0.0.0:8095->10236/tcp, :::8095->10236/tcp
+tango_viz2code             tango-viz2code-1             Up 51 seconds   "sh -c 'cd ./visuali…"   0.0.0.0:8091->8091/tcp, :::8091->8091/tcp
+postgres:latest            tango-postgresql-1           Up 52 seconds   "docker-entrypoint.s…"   5432/tcp
+tango_target_image_build   tango-target_image_build-1   Up 52 seconds   "sh -c 'python manag…"   0.0.0.0:8088->8088/tcp, :::8088->8088/tcp
+tango_autonn_nk            tango-autonn_nk-1            Created         "sh -c 'python manag…"
+mariadb:10                 mariadb                      Up 51 seconds   "docker-entrypoint.s…"   0.0.0.0:3306->3306/tcp, :::3306->3306/tcp
+tango_target_deploy        tango-target_deploy-1        Up 52 seconds   "sh -c 'python manag…"   0.0.0.0:8089->8089/tcp, :::8089->8089/tcp
+
 ```
-* Note that the name of the docker containers genrated based on `docker-compose.yml` is prefixed by its folder name (e.g, `'TANGO_'`) and suffixed by the its instance ID (e.g, `'_1'`).
+* Note that the name of the docker containers genrated based on `docker-compose.yml` is prefixed by its folder name (e.g, `'tango_'`) and suffixed by the its instance ID (e.g, `'_1'`).
 
 **TANGO in Web-browser**
 
@@ -203,27 +225,37 @@ Now you can launch web browser and open URL `http://localhost:8085` or `http://a
 
 Then you can see the login page of TANGO as follows:
 
-<img src="./docs/media/TANGO_init_screen.png" alt="TANGO Screenshot" style="width:800px;"/>
+<img src="./docs/media/TANGO_init_screen.png" alt="TANGO Screenshot" width="600px"/>
 
 Once you can find the login page in the web browser, register new account and password and use the newly created account and password to login.
 
 
 ----
 
-## How to cleanup images and container instances <a name="clean_up"></a>
+## How to cleanup docker images and container instances <a name="clean_up"></a>
 
 When you want remove all the images and containers prviously built and run, you can use following commands;
 ```bash
 # tear down all containers and remove all docker images created and volumes.
 $ docker-compose down --rmi all --volumes
 
-# remove labelling data folders if you have created any annotations
+#or tear down all containers and remove all docker images created except for volumes.
+$ docker-compose down --rmi all 
+
+# remove all images in the local docker host for preventing cached image layers side effect
+# when you are to build from the zero base.
+docker system prune -a
+
+# remove labelling dataset related folder if you want to start from the empty datasets
 $ sudo rm -rf ./labelling/data/
 $ sudo rm -rf ./labelling/datadb/
 $ sudo rm -rf ./labelling/dataset/
-
 ```
-* Note: run above command at project root directory (e.g `'TANGO'`) where `docker-compose.yml` file is.
+
+> **Note**  
+> * Run above command at project root directory (e.g `'TANGO'`) where `docker-compose.yml` file is.
+> * Ater running of above commands, your account on project manager as well as datasets prepared with `labelling` tool are removed, due to  `--volumes` option.
+> * Hence, you recreate account for project manager and dataset from the scratch.
 
 ----
 

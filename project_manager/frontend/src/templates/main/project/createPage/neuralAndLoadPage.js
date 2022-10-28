@@ -1,5 +1,5 @@
 import React from "react";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useLocation } from "react-router-dom";
 
 import '../../../../CSS/combo_box.css'
@@ -44,37 +44,39 @@ function NeuralAndLoadPage({project_id, project_name, project_description})
         { value: 'no', label: 'No' },
     ]
 
-    const [step, setStep] = useState(0);                                        // 신경망 생성 단계
-    const [stepText, setStepText] = useState('');                               // 신경망 생성 단계 상황
+    const timerRef = useRef();
 
-    const [pannel, setPannel] = useState(false);                                // panel 창 상태
-    const [config_pannel, setConfig_pannel] = useState(true);                  // config_pannel 창 상태
+    const [container, setContainer] = useState('');                    // 신경망 생성 단계
+    const [container_status, setContainer_status] = useState('');      // 신경망 생성 단계 상황
+
+    const [pannel, setPannel] = useState(false);                       // panel 창 상태
+    const [config_pannel, setConfig_pannel] = useState(true);          // config_pannel 창 상태
 
     /* Information */
-    const [dataset, setDataset] = useState('');                                 // 데이터 셋 경로
-    const [dataset_list, setDataset_list] = useState([]);                       // 데이터 셋 리스트
+    const [dataset, setDataset] = useState('');                        // 데이터 셋 경로
+    const [dataset_list, setDataset_list] = useState([]);              // 데이터 셋 리스트
 
-    const [target, setTarget] = useState('');                                   // 타겟 변경
-    const [target_list, setTarget_list] = useState([]);                         // 타겟 리스트
+    const [target, setTarget] = useState('');                          // 타겟 변경
+    const [target_list, setTarget_list] = useState([]);                // 타겟 리스트
 
     /* Configuration - Task Type*/
-    const [taskType, setTaskType] = useState('');                               // 데이터 셋 경로
+    const [taskType, setTaskType] = useState('');                      // 데이터 셋 경로
 
     /* Configuration - AutoNN */
-    const [datasetFile, setDatasetFile] = useState('dataset.yaml');             // dataset file yaml 파일
-    const [baseModel, setBaseModel] = useState('basemodel.yaml');               // Base Mode yaml 파일
+    const [datasetFile, setDatasetFile] = useState('dataset.yaml');    // dataset file yaml 파일
+    const [baseModel, setBaseModel] = useState('basemodel.yaml');      // Base Mode yaml 파일
 
     /* Configuration - Nas Type */
-    const [nasType, setNasType] = useState('');                                 // 데이터 셋 경로
+    const [nasType, setNasType] = useState('');                        // 데이터 셋 경로
 
     /* Configuration - Deploy Configuration */
-    const [weightLevel, setWeightLevel] = useState(0);                          // weightLevel
-    const [precisionLevel, setPrecisionLevel] = useState(0);                    // precisionLevel
-    const [processingLib, setProcessingLib] = useState('cv2');                  // processingLib
-    const [userEdit, setUserEdit] = useState('');                             // userEdit
-    const [inputMethod, setInputMethod] = useState('');                         // inputMethod
-    const [inputDataPath, setInputDataPath] = useState('/data');                // inputDataPath
-    const [outputMethod, setOutputMethod] = useState('');                       // outputMethod
+    const [weightLevel, setWeightLevel] = useState(0);                 // weightLevel
+    const [precisionLevel, setPrecisionLevel] = useState(0);           // precisionLevel
+    const [processingLib, setProcessingLib] = useState('cv2');         // processingLib
+    const [userEdit, setUserEdit] = useState('');                      // userEdit
+    const [inputMethod, setInputMethod] = useState('');                // inputMethod
+    const [inputDataPath, setInputDataPath] = useState('/data');       // inputDataPath
+    const [outputMethod, setOutputMethod] = useState('');              // outputMethod
 
     /* 타겟 생성 정보 */
     const [targetName, setTargetName] = useState('');                               // 타겟 이름
@@ -95,8 +97,6 @@ function NeuralAndLoadPage({project_id, project_name, project_description})
         // 프로젝트 정보 수신
         Request.requestProjectInfo(project_id).then(result =>
         {
-            console.log(result.data)
-
             // 선택 타겟 정보
             if (result.data['target'] !== '' && target === '')
             {
@@ -130,12 +130,74 @@ function NeuralAndLoadPage({project_id, project_name, project_description})
             // 데이터 셋 정보 수신
             get_dataset_list(result.data['dataset_list']);
 
+            setContainer(result.data['container'])
+            setContainer_status(result.data['container_status'])
+
+            if(result.data['container_status'] === 'running')
+            {
+                startTimer()
+            }
+
         })
         .catch(error =>
         {
             console.log('project info get error')
         });
+
+        // unmount
+        return() => {
+            console.log('unmount')
+            clearInterval(timerRef.current)
+        }
     }, []);
+
+    const test = () => {
+        console.log('test')
+    }
+
+    const startTimer = () =>
+    {
+        if(!timerRef.current)
+        {
+            // 타이머 시작 - 10초 주기
+            timerRef.current = setInterval(test, 10000)
+        }
+    }
+
+    const stopTimer = () =>
+    {
+        if(timerRef.current)
+        {
+            clearInterval(timerRef.current)
+            timerRef.current = null;
+        }
+    }
+
+    // 컨테이너 상태 수신
+    const get_container_status = () =>
+    {
+        const param = {
+            'project_id': project_id,
+        };
+        Request.requestContainerStatus(param).then(result =>
+        {
+            console.log('requestContainerStatus')
+
+            const data = result.data;
+
+            setContainer(data.container)
+            setContainer_status(data.container_status)
+
+            if(data.container_status !== '')
+            {
+                // TODO : 타이머 중지
+            }
+        })
+        .catch(error =>
+        {
+            console.log('container status get error')
+        });
+    }
 
     // 타겟 정보 수신
     const get_target_list = () =>
@@ -211,25 +273,54 @@ function NeuralAndLoadPage({project_id, project_name, project_description})
     };
 
     // 타겟 선택 이벤트
-     const targetClick = (selectTarget, index) =>
-     {
-        setTarget(selectTarget.id)
+    const targetClick = (selectTarget, index) =>
+    {
+       setTarget(selectTarget.id)
 
-        const target_item_box = document.getElementsByClassName("target_item_box");
+       const target_item_box = document.getElementsByClassName("target_item_box");
 
-        for (var i=0; i < target_item_box.length; i++)
+       for (var i=0; i < target_item_box.length; i++)
+       {
+           if (i === index)
+           {
+               target_item_box[i].className = 'target_item_box tooltip select';
+           }
+           else
+           {
+               target_item_box[i].className = 'target_item_box tooltip';
+           }
+       }
+    }
+
+    // Information 창 보이기 숨기기
+    const accordionButtonClick = () =>
+    {
+        if(pannel === true)
         {
-            if (i === index)
-            {
-                target_item_box[i].className = 'target_item_box tooltip select';
-            }
-            else
-            {
-                target_item_box[i].className = 'target_item_box tooltip';
-            }
+            setPannel(false)
+            document.getElementById('overall_icon').style.backgroundImage = "url('" + overall_down + "')";
         }
-     }
+        else{
+            setPannel(true)
+            document.getElementById('overall_icon').style.backgroundImage = "url('" + overall_up + "')";
+        }
+    }
 
+    // Configuration 창 보이기 숨기기
+    const configAccordionButtonClick = () =>
+    {
+        if(config_pannel === true)
+        {
+            setConfig_pannel(false)
+            document.getElementById('config_overall_icon').style.backgroundImage = "url('" + overall_down + "')";
+        }
+        else{
+            setConfig_pannel(true)
+            document.getElementById('config_overall_icon').style.backgroundImage = "url('" + overall_up + "')";
+        }
+    }
+
+    // 타겟 생성 입력 폼 정보 초기화
     const stateInfoInit = () =>
     {
         setTargetName('')
@@ -246,13 +337,13 @@ function NeuralAndLoadPage({project_id, project_name, project_description})
         setTarget_host_service_port('')
     };
 
-
     // 타겟 추가 버튼 클릭
     const target_add_button_click = () =>
     {
        document.getElementById('create_target_popup').style.display = 'block';
     }
 
+    // 타겟 이미지 업로드
     const uploadImageFile = (event) =>
     {
         const file = event.target.files[0];
@@ -310,8 +401,6 @@ function NeuralAndLoadPage({project_id, project_name, project_description})
     // 'Run' 버튼 클릭 이벤트
     const runButtonClick = () =>
     {
-        console.log("runButtonClick")
-
         const param = {
             'project_id' : project_id,
             'project_target' : target,
@@ -329,9 +418,18 @@ function NeuralAndLoadPage({project_id, project_name, project_description})
             'deploy_output_method': outputMethod !== '' ? outputMethod.value : '',
         };
 
-        console.log(param);
-
-        neuralCreate(param)
+        if(container === '' || container === 'init')
+        {
+            neuralCreate(param)
+        }
+        else
+        {
+            var result = window.confirm("새로운 신경망을 생성 하시겠습니까?")
+            if(result === true)
+            {
+                neuralCreate(param)
+            }
+        }
     };
 
     // 신경망 생성 시작
@@ -340,7 +438,7 @@ function NeuralAndLoadPage({project_id, project_name, project_description})
         // 데이터베이스 업데이트
         Request.requestProjectUpdate(param).then(result =>
         {
-            console.log('Complete Database Upload');
+            console.log('신경망 생성 준비 완료');
         })
         .catch(error =>
         {
@@ -348,67 +446,32 @@ function NeuralAndLoadPage({project_id, project_name, project_description})
         });
     }
 
-
-    // select 창 보이기 숨기기
-    const accordionButtonClick = () =>
-    {
-        if(pannel === true)
-        {
-            setPannel(false)
-            document.getElementById('overall_icon').style.backgroundImage = "url('" + overall_down + "')";
-        }
-        else{
-            setPannel(true)
-            document.getElementById('overall_icon').style.backgroundImage = "url('" + overall_up + "')";
-        }
-    }
-
-    // select 창 보이기 숨기기
-    const configAccordionButtonClick = () =>
-    {
-        if(config_pannel === true)
-        {
-            setConfig_pannel(false)
-            document.getElementById('config_overall_icon').style.backgroundImage = "url('" + overall_down + "')";
-        }
-        else{
-            setConfig_pannel(true)
-            document.getElementById('config_overall_icon').style.backgroundImage = "url('" + overall_up + "')";
-        }
-    }
-
-    // 단계 별 버튼 클릭
-    const progress_button_click = (num) =>
-    {
-        console.log("progress_button_click")
-    }
-
     // Base Model Select: 9000 port
-    const baseModelSelect = () =>
+    const bmsButtonClick = () =>
     {
         console.log("baseModelSelect")
     }
 
-    // 신경망 생성: 9001 port
-    const createNeuralNetwork = () =>
+    // Auto NN : 9001 port
+    const autoNNButtonClick = () =>
     {
         console.log("createNeuralNetwork")
     }
 
-    // 실행 이미지 생성: 9002 port
-    const createRunImageFile = () =>
+    // Image Gen : 9002 port
+    const imageGenButtonClick = () =>
     {
         console.log("createRunImageFile")
     }
 
-    // 실행 이미지 탑재: 9003 port
-    const deployRunImage = () =>
+    // Image Deploy : 9003 port
+    const imageDeployButtonClick = () =>
     {
         console.log("deployRunImage")
     }
 
-    // 신경망 실행: 9004 port
-    const runNeuralNetwork = () =>
+    // Run Image : 9004 port
+    const runImageButtonClick = () =>
     {
         console.log("runNeuralNetwork")
     }
@@ -688,12 +751,12 @@ function NeuralAndLoadPage({project_id, project_name, project_description})
                     </div>
                 </Collapse>
 
-                <div id='runButtonArea' style={{marginTop:'20px', textAlign:'center'}}>
+                <div id='runButtonArea' className='button' style={{marginTop:'20px', textAlign:'center'}}>
 
                     {get_target_info(target) === 'pc' || get_target_info(target) === 'cloud' ?
                         <>
                         { target !== '' && dataset !== '' && taskType !== '' && nasType !== '' && userEdit !== '' && inputMethod !== '' && outputMethod !== ''?
-                            <button onClick={ ()=> runButtonClick() } style={{height:'42px', width:'30%', borderRadius:'3px', border:'0', fontSize:'16px', backgroundColor:'#4A80FF', color:'white'}}>신경망 자동 생성</button>
+                            <button onClick={ ()=> runButtonClick() } style={{height:'42px', width:'30%', borderRadius:'3px', border:'0', fontSize:'16px', backgroundColor: '#4A80FF', color:'white'}}>신경망 자동 생성</button>
                         :
                             <button style={{height:'42px', width:'30%', borderRadius:'3px', border:'0', fontSize:'16px', backgroundColor:'#707070', color:'white'}} readOnly>신경망 자동 생성</button>
                         }
@@ -716,26 +779,26 @@ function NeuralAndLoadPage({project_id, project_name, project_description})
                         <div style={{marginBottom:'10px', display:'flex'}}>
                             <span style={{fontSize:'16px', color:'white'}}>Current Work - </span>
                             <span style={{color:'white', marginLeft:'10px', marginRight:'10px'}}>[ </span>
-                            <span style={{color:'#4A80FF'}}>{stepText}</span>
+                            <span style={{color:'#4A80FF'}}></span>
                             <span style={{color:'white', marginLeft:'10px', marginRight:'10px'}}> ]</span>
                         </div>
 
                         <div className='status_level' style={{backgroundColor:'white', padding:'20px 0px', borderRadius:'5px'}}>
                             <div className="stepper-wrapper2" id='progressbar'>
                                 <div className="stepper-item2 non-select" id='progress_1'>
-                                    <div className="step-counter2" onClick={() => progress_button_click(1)}>Base Model Select</div>
+                                    <button className="step-counter2" onClick={() => bmsButtonClick()}>BMS</button>
                                 </div>
                                 <div className="stepper-item2 non-select" id='progress_2'>
-                                    <div className="step-counter2" onClick={() => progress_button_click(2)}>신경망 자동 생성</div>
+                                    <button className="step-counter2" onClick={() => autoNNButtonClick()}>AutoNN</button>
                                 </div>
                                 <div className="stepper-item2 non-select" id='progress_3'>
-                                    <div className="step-counter2" onClick={() => progress_button_click(3)}>실행 이미지 생성</div>
+                                    <button className="step-counter2" onClick={() => imageGenButtonClick()}>Image Gen</button>
                                 </div>
                                 <div className="stepper-item2 non-select" id='progress_4'>
-                                    <div className="step-counter2" onClick={() => progress_button_click(4)}>실행 이미지 다운로드</div>
+                                    <button className="step-counter2" onClick={() => imageDeployButtonClick()}>Image Deploy</button>
                                 </div>
                                 <div className="stepper-item2 non-select" id='progress_5'>
-                                    <div className="step-counter2" onClick={() => progress_button_click(5)}>타겟 원격 실행</div>
+                                    <button className="step-counter2" onClick={() => runImageButtonClick()}>Run Image</button>
                                 </div>
                             </div>
                         </div>

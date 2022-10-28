@@ -17,6 +17,7 @@ services:
              python manage.py runserver 0.0.0.0:8085"
     volumes:
       - ./project_manager:/code
+      - ./shared:/shared
     ports:
       - "8085:8085"
     environment:
@@ -30,7 +31,7 @@ services:
   # DB for Project Manager
   #---------------------------------
   postgresql:
-    image: postgres:latest
+    image: postgres:14.0
     restart: always
     volumes:
       - postgreSQL:/var/lib/postgresql/data
@@ -73,6 +74,55 @@ services:
       - "8095:10236" # for Rest API 
 
   #---------------------------------
+  # Base Model Selector
+  #---------------------------------
+  bms:
+    build:
+      context: ./base_model_select
+    shm_size: '256M'
+    command: >
+      sh -c "python generate_txt_file.py &&
+             python manage.py runserver 0.0.0.0:8081"
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              capabilities: [gpu]
+    environment:
+      - NVIDIA_VISIBLE_DEVICES=all
+    volumes:
+      - ./base_model_select:/source
+      - ./shared:/shared
+    ports:
+      - "8081:8081"
+
+  #---------------------------------
+  # AutoNN: Bakcbone-NAS
+  #---------------------------------
+  autonn_bb:
+    build:
+      context: ./autonn/backbone_nas
+    shm_size: '256M'
+    command: >
+      sh -c "python manage.py makemigrations &&
+             python manage.py migrate &&
+             python manage.py runserver 0.0.0.0:8087"
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              capabilities: [gpu]
+    environment:
+      - NVIDIA_VISIBLE_DEVICES=all
+    volumes:
+      - ./autonn/backbone_nas:/source
+      - ../shared:/shared
+    ports:
+      - "8087:8087"
+
+  #---------------------------------
   # AutoNN: Neck-NAS
   #---------------------------------
   autonn_nk:
@@ -89,7 +139,8 @@ services:
           devices:
             - driver: nvidia
               capabilities: [gpu]
-
+    environment:
+      - NVIDIA_VISIBLE_DEVICES=all
     volumes:
       - ./autonn/neck_nas:/source
       - ./shared:/shared
@@ -107,6 +158,7 @@ services:
       sh -c "python manage.py runserver 0.0.0.0:8088"
     volumes:
       - ./target_image_build:/source
+      - /var/run/docker.sock:/var/run/docker.sock
     ports:
       - "8088:8088"
 
@@ -120,8 +172,9 @@ services:
       sh -c "python manage.py runserver 0.0.0.0:8089"
     volumes:
       - ./target_deploy:/source
+      - /var/run/docker.sock:/var/run/docker.sock
     ports:
-      - "8089:8089"  # check the allocated ports!! 8089 is for autonn_nk
+      - "8890:8890"
 
   #---------------------------------
   # Visualizer 
@@ -135,16 +188,17 @@ services:
              cd ..
              python manage.py makemigrations &&
              python manage.py migrate &&
-             python manage.py runserver 0.0.0.0:8091"
+             python manage.py runserver react 0.0.0.0:8091"
     volumes:
       - ./viz2code:/source
     ports:
       - "8091:8091"
-        #depends_on:
-        #- postgresql
+    depends_on:
+      - postgresql
 
 #---------------------------------
 # Volumes 
 #---------------------------------
 volumes:
   postgreSQL:  # for Proejct Manager
+  shared:
