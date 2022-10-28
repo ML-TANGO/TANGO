@@ -23,7 +23,6 @@ const EditModal = (props) => {
 
    for (var i=0; i<parmArr.length; i++){
         var param = String(parmArr[i]).replace('"', '');  // 쌍따옴표 제거  ex) 'p' : 0.5
-        console.log('param', param)
         var eachParam = String(param).split(': ');  // 파라미터 이름과 값 분리  ex) ['p', 0.5]
 
         console.log('String(props.params)', String(props.params));

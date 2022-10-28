@@ -30,24 +30,3 @@ class Architecture(models.Model):
     # pylint: disable=too-few-public-methods, missing-class-docstring
     objects = models.Manager()
     architecture = models.FileField()
-
-
-class Start(models.Model):
-    # pylint: disable=too-few-public-methods, missing-class-docstring
-    msg = models.CharField(max_length=200, null=True, default='')
-    user_id = models.CharField(max_length=200, null=True, default='')
-    project_id = models.CharField(max_length=200, null=True, default='')
-
-
-class Status(models.Model):
-    # pylint: disable=too-few-public-methods, missing-class-docstring
-    msg = models.CharField(max_length=200, null=True, default='')
-    user_id = models.CharField(max_length=200, null=True, default='')
-    project_id = models.CharField(max_length=200, null=True, default='')
-
-
-class Running(models.Model):
-    # pylint: disable=too-few-public-methods, missing-class-docstring
-    objects = models.Manager()
-    id = models.IntegerField(primary_key=True)
-    running = models.IntegerField()

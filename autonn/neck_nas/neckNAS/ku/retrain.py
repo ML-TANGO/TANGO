@@ -109,7 +109,7 @@ class Retrain:
         self.model.to(self.device)
 
         # pretrained (resume)
-        pretrained = os.path.isfile(self.args['weights']) and self.args['weights'].endswith('.pt')
+        pretrained = self.args['weights'].endswith('.pt')
         self.start_epoch, self.best_fitness = 0, 0.0
         if pretrained:
             ckpt = torch.load(self.args['weights'], map_location=self.device)
@@ -229,8 +229,6 @@ class Retrain:
             print('%g epochs completed in %.3f hours.\n' %
                   (self.epochs - self.start_epoch + 1,
                    (time.time() - t0) / 3600))
-            final = fbest.replace('.pt', '_strip.pt')
-            print(f'=== the best model is saved as {final} ===')
 
         # TODO
         # validate
@@ -241,7 +239,6 @@ class Retrain:
         dist.destroy_process_group() if self.rank not in [-1, 0] else None
         torch.cuda.empty_cache()
         # return self.results
-        return final
 
     def _train_one_epoch(self, epoch):
         self.model.train()
@@ -342,15 +339,9 @@ class Retrain:
             if self.rank in [-1, 0]:
                 # update mean losses
                 mloss = (mloss * i + loss_items) / (i + 1)
-                # mem = '%.3gG' % \
-                #     (torch.cuda.memory_reserved(device=self.device) /
-                #      1E9 if torch.cuda.is_available() else 0)  # (GB)
-                if not self.cuda:
-                    mem = 'nan'
-                elif torch.cuda.is_available():
-                    mem = '%.3gG' % (torch.cuda.memory_reserved(device=self.device) / 1E9)
-                else:
-                    mem = 'nan'
+                mem = '%.3gG' % \
+                    (torch.cuda.memory_reserved(device=self.device) /
+                     1E9 if torch.cuda.is_available() else 0)  # (GB)
                 s = ('%10s' * 2 + '%10.4g' * 6) % \
                     ('%g/%g' % (epoch, self.epochs - 1), mem, *mloss,
                      targets.shape[0], imgs.shape[-1])
@@ -382,17 +373,18 @@ class Retrain:
             final_epoch = epoch + 1 == self.epochs
             if not self.args['notest'] or final_epoch:  # Calculate mAP
                 self.results, self.maps, _ = \
-                    test(self.args['data_cfg'],
-                         batch_size=self.batch_size,
-                         imgsz=self.image_size_test,
-                         save_json=final_epoch and
-                            self.args['data_cfg'].endswith(os.sep + 'coco.yaml'),
-                         model=self.ema.ema.module
-                            if hasattr(self.ema.ema, 'module')
-                            else self.ema.ema,
-                        single_cls=self.args['single_cls'],
-                        dataloader=self.test_loader,
-                        save_dir=self.log_dir)
+                    test.test(self.args['data_cfg'],
+                              batch_size=self.batch_size,
+                              imgsz=self.image_size_test,
+                              save_json=final_epoch and
+                              self.args['data_cfg'].endswith(os.sep +
+                                                             'coco.yaml'),
+                              model=self.ema.ema.module
+                              if hasattr(self.ema.ema, 'module')
+                              else self.ema.ema,
+                              single_cls=self.args['single_cls'],
+                              dataloader=self.test_loader,
+                              save_dir=self.log_dir)
 
             # Write
             with open(self.results_file, 'a') as f:

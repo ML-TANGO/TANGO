@@ -2,9 +2,6 @@ version: "3"
 
 
 services:
-  #---------------------------------
-  # Project Manager
-  #---------------------------------
   project_manager:
     build:
       context: ./project_manager
@@ -25,12 +22,9 @@ services:
       - POSTGRES_USER=postgres
       - POSTGRES_PASSWORD=postgres
     depends_on:
-      - postgresql
+      - postgresql_for_project_manager
 
-  #---------------------------------
-  # DB for Project Manager
-  #---------------------------------
-  postgresql:
+  postgresql_for_project_manager:
     image: postgres:14.0
     restart: always
     volumes:
@@ -40,9 +34,7 @@ services:
       - POSTGRES_USER=postgres
       - POSTGRES_PASSWORD=postgres
 
-  #---------------------------------
-  # DB for labelling tool
-  #---------------------------------
+   # 테스트용
   mariadb:
       container_name: "mariadb"
       image: mariadb:10
@@ -60,9 +52,7 @@ services:
         MARIADB_ROOT_PASSWORD: password
       restart: always
 
-  #---------------------------------
-  # Labelling tool 
-  #---------------------------------
+  # 레이블링 dummy 서버
   labelling:
     build:
       context: ./labelling
@@ -70,87 +60,25 @@ services:
       - ./labelling/dataset:/var/appdata
       - ./labelling/datadb:/var/lib/mysql
     ports:
-      - "8086:80"    # for Web UI
-      - "8095:10236" # for Rest API 
+      - "8086:80"
+      - "8095:10236"
 
-  #---------------------------------
-  # Base Model Selector
-  #---------------------------------
-  bms:
+  # 신경망 생성 dummy 서버
+  autonn:
     build:
-      context: ./base_model_select
-    shm_size: '256M'
-    command: >
-      sh -c "python generate_txt_file.py &&
-             python manage.py runserver 0.0.0.0:8081"
-    deploy:
-      resources:
-        reservations:
-          devices:
-            - driver: nvidia
-              capabilities: [gpu]
-    environment:
-      - NVIDIA_VISIBLE_DEVICES=all
-    volumes:
-      - ./base_model_select:/source
-      - ./shared:/shared
-    ports:
-      - "8081:8081"
-
-  #---------------------------------
-  # AutoNN: Bakcbone-NAS
-  #---------------------------------
-  autonn_bb:
-    build:
-      context: ./autonn/backbone_nas
-    shm_size: '256M'
+      context: ./autonn
     command: >
       sh -c "python manage.py makemigrations &&
              python manage.py migrate &&
              python manage.py runserver 0.0.0.0:8087"
-    deploy:
-      resources:
-        reservations:
-          devices:
-            - driver: nvidia
-              capabilities: [gpu]
-    environment:
-      - NVIDIA_VISIBLE_DEVICES=all
     volumes:
-      - ./autonn/backbone_nas:/source
-      - ../shared:/shared
+      - ./autonn:/source
     ports:
       - "8087:8087"
+    depends_on:
+      - postgresql
 
-  #---------------------------------
-  # AutoNN: Neck-NAS
-  #---------------------------------
-  autonn_nk:
-    build:
-      context: ./autonn/neck_nas
-    shm_size: '256M'
-    command: >
-      sh -c "python manage.py makemigrations
-             && python manage.py migrate
-             && python manage.py runserver 0.0.0.0:8089"
-    deploy:
-      resources:
-        reservations:
-          devices:
-            - driver: nvidia
-              capabilities: [gpu]
-    environment:
-      - NVIDIA_VISIBLE_DEVICES=all
-    volumes:
-      - ./autonn/neck_nas:/source
-      - ./shared:/shared
-      # - /Data:/shared/datasets # for local tests
-    ports:
-      - "8089:8089"
-
-  #---------------------------------
-  # Target Image Build 
-  #---------------------------------
+  # 이미지 생성 dummy 서버
   target_image_build:
     build:
       context: ./target_image_build
@@ -158,13 +86,10 @@ services:
       sh -c "python manage.py runserver 0.0.0.0:8088"
     volumes:
       - ./target_image_build:/source
-      - /var/run/docker.sock:/var/run/docker.sock
     ports:
       - "8088:8088"
 
-  #---------------------------------
-  # Image Deployment 
-  #---------------------------------
+  # 이미지 배포 dummy 서버
   target_deploy:
     build:
       context: ./target_deploy
@@ -172,13 +97,9 @@ services:
       sh -c "python manage.py runserver 0.0.0.0:8089"
     volumes:
       - ./target_deploy:/source
-      - /var/run/docker.sock:/var/run/docker.sock
     ports:
-      - "8890:8890"
+      - "8089:8089"
 
-  #---------------------------------
-  # Visualizer 
-  #---------------------------------
   viz2code:
     build:
       context: ./visualization
@@ -188,7 +109,7 @@ services:
              cd ..
              python manage.py makemigrations &&
              python manage.py migrate &&
-             python manage.py runserver react 0.0.0.0:8091"
+             python manage.py runserver 0.0.0.0:8091"
     volumes:
       - ./viz2code:/source
     ports:
@@ -196,9 +117,6 @@ services:
     depends_on:
       - postgresql
 
-#---------------------------------
-# Volumes 
-#---------------------------------
 volumes:
-  postgreSQL:  # for Proejct Manager
-  shared:
+  postgreSQL:
+  Shared:

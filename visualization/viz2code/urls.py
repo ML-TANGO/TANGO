@@ -23,18 +23,13 @@ router = routers.DefaultRouter()
 router.register('node', views.NodeView, 'node')
 router.register('edge', views.EdgeView, 'edge')
 router.register('architecture', views.ArchitectureView, 'architecture')
-router.register('running', views.RunningView, 'running')
 # router.register('pth',views.PthView,'pth')
 
 urlpatterns = [
     path('api/', include(router.urls)),
     # path('', include('main.urls')),
     path('api/pth/', views.pthlist),
-    path('start/', views.startList),
-    path('status_request/', views.statusList),
-    path('api/running/', views.runningList),
     path('admin/', admin.site.urls),
-    # path('', views.mainList),
     # 220623 merge
     re_path('', TemplateView.as_view(template_name='index.html')),
 ]

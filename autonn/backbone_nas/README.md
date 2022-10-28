@@ -1,34 +1,15 @@
-README
----
-
-# autonn/backbone_nas
-
-## TANGO 신경망 자동 생성 모듈 / 'Backbone' Network Architeture Search 컨테이너
-#### 도커 서비스 이름
-    autonn_bb
-
-### REST APIs
-#### GET /start?userid=<userid>&project_id=<project_id>
-    parameter : userid, project_id
-    return: 200 OK
-    return content: "starting" / "error"
-    return content-type: text/plain
-
-#### GET /stop?userid=<userid>&project_id=<project_id>
-    parameter : userid, project_id
-    return: 200 OK
-    return content: "finished" / "error"
-    return content-type: text/plain
-
-#### GET /status_request?userid=<userid>&project_id=<project_id>
-    parameter : userid, project_id
-    return: 200 OK
-    return content: "ready" / started" / "runnung" / "stopped" / "failed" / "completed"
-    return content-type: text/plain
-
-### 사용 PORT
-    8087
+# README
 
 **Note**
-Now you can launch web browser and open URL `http://localhost:8087/`
-And run using CURL 'curl -v http://localhost:8087/start?userid=root\&project_id=2022xxxx'
+> URL for backbone search are temporary assigned for simple testing of container behavior.
+Now you can launch web browser and open URL `http://localhost:8087/backbone`
+
+## [Base Components]
+
+![frontend_des_220803](./imags/frontend_des_220803.png)
+
+① **Data Uploading** : you can upload files for user requirement spec. (such as {dataset}.yaml)
+
+② **Search Params Setting** : it will be updated in which parameters required in NAS can set. (such as batch size and the number of GPUs)
+
+③ **Run Reports** : it will shows the best architecture and some intermediate results.

@@ -438,7 +438,7 @@ function NeuralAndLoadPage({project_id, project_name, project_description})
         // 데이터베이스 업데이트
         Request.requestProjectUpdate(param).then(result =>
         {
-            console.log('신경망 생성 준비 완료');
+            alert('신경망 생성 준비 완료');
         })
         .catch(error =>
         {
@@ -450,6 +450,11 @@ function NeuralAndLoadPage({project_id, project_name, project_description})
     const bmsButtonClick = () =>
     {
         console.log("baseModelSelect")
+    }
+
+    const visualButtonClick = () =>
+    {
+        console.log("visualButtonClick")
     }
 
     // Auto NN : 9001 port
@@ -504,6 +509,8 @@ function NeuralAndLoadPage({project_id, project_name, project_description})
         <div className='project_manage_container'>
 
             <div className='project_manage_content' style={{width:'100%'}}>
+
+                <div id='project_top' className='project_top'  style={{padding:'0px 0px 0px 0px', height:'100%'}}>
 
                 <div id="accordion" className="accordion" onClick={ ()=> accordionButtonClick() } style={{height:'40px', position:'static', backgroundColor:'#303030', borderRadius:pannel === false? '5px 5px 5px 5px' : '5px 5px 0px 0px', lineHeight:'0', display:'flex'}}>
                     <span style={{fontSize:'16px', color:'white'}}>Information </span>
@@ -774,6 +781,8 @@ function NeuralAndLoadPage({project_id, project_name, project_description})
 
                 </div>
 
+                </div>
+
                 <div id='project_bottom' className='project_bottom'  style={{padding:'20px 0px 0px 0px', height:'100%', marginBottom:'0px'}}>
                     <div className='create_neural_network' style={{ backgroundColor:'#303030', borderRadius:'5px', height:'100%', padding:'10px 20px 20px 20px'}}>
                         <div style={{marginBottom:'10px', display:'flex'}}>
@@ -785,22 +794,24 @@ function NeuralAndLoadPage({project_id, project_name, project_description})
 
                         <div className='status_level' style={{backgroundColor:'white', padding:'20px 0px', borderRadius:'5px'}}>
                             <div className="stepper-wrapper2" id='progressbar'>
+
                                 <div className="stepper-item2 non-select" id='progress_1'>
                                     <button className="step-counter2" onClick={() => bmsButtonClick()}>BMS</button>
                                 </div>
-                                <div className="stepper-item2 non-select" id='progress_2'>
+                                <div className="stepper-item2 non-select" id='progress_3'>
                                     <button className="step-counter2" onClick={() => autoNNButtonClick()}>AutoNN</button>
                                 </div>
-                                <div className="stepper-item2 non-select" id='progress_3'>
+                                <div className="stepper-item2 non-select" id='progress_4'>
                                     <button className="step-counter2" onClick={() => imageGenButtonClick()}>Image Gen</button>
                                 </div>
-                                <div className="stepper-item2 non-select" id='progress_4'>
+                                <div className="stepper-item2 non-select" id='progress_5'>
                                     <button className="step-counter2" onClick={() => imageDeployButtonClick()}>Image Deploy</button>
                                 </div>
-                                <div className="stepper-item2 non-select" id='progress_5'>
+                                <div className="stepper-item2 non-select" id='progress_6'>
                                     <button className="step-counter2" onClick={() => runImageButtonClick()}>Run Image</button>
                                 </div>
                             </div>
+
                         </div>
 
                         <div className='status_log' style={{color:'white', height:'auto', overflow:'auto', minHeight:'200px', padding:'20px 0px 0px 0px'}}>
