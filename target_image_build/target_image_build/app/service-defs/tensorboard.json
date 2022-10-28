@@ -1,0 +1,21 @@
+{
+  "prestart": [
+    {
+      "action": "mkdir",
+      "args": {
+        "path": "/home/work/logs"
+      }
+    }
+  ],
+  "command": [
+    "{runtime_path}",
+    "-m", "tensorboard.main",
+    "--port", "{ports[0]}"
+  ],
+  "allowed_arguments": [
+    "--logdir"
+  ],
+  "default_arguments": {
+    "--logdir": "/home/work/logs"
+  }
+}

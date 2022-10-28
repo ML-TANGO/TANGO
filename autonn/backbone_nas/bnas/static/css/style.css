@@ -1,0 +1,154 @@
+body {
+	background-color: #343a40;
+}
+
+table {
+  border-spacing: 20px;
+  border-collapse: separate;
+}
+
+.Title {
+    width: 12.2%;
+    height: 5.4%;
+    margin: 43.5px 79px 15px 90px;
+    font-family: NotoSansKR;
+    font-size: 20px;
+    font-weight: bold;
+    text-align: left;
+    color: #fff;
+}
+
+.Title2 {
+  width: 30.2%;
+  height: 1.4%;
+  margin: 43.5px 79px 15px 90px;
+  font-family: NotoSansKR;
+  font-size: 20px;
+  font-weight: bold;
+  text-align: left;
+  color: #fff;
+}
+
+.Sub_title {
+    position:relative;
+    width: 100%;
+    height: 10px;
+    margin: 0 auto;
+    font-family: NotoSansKR;
+    font-size: 18px;
+    font-weight: bold;
+    text-align: center;
+    color: #fff;
+  }
+
+.container {
+    position:relative;
+    margin:0 auto;
+    width: 200px;
+    display:flex; /* 플렉스 컨테이너 지정 */
+    padding: 9px 14.5px 13px;
+    border-radius: 15px;
+    border:1px solid #fff;
+    margin: 15px 20px 0 60px;
+    margin-bottom:30px;
+    float:left;
+    flex-direction: column; 
+  }
+
+.reports{
+    position:relative;
+    width: 72%;
+    line-height: 30px;
+    /* height: 20%; */
+    text-align: left;
+    padding-left: 30px;
+    border-radius: 10px;
+    float:left;
+    background-color: #434854;
+    display:flex;
+    flex-direction: column;
+    
+    
+}
+
+.net2viz{
+    position:relative;
+    width: 72%;
+    height: 500px;
+    text-align: center;
+    padding-left: 30px;
+    border-radius: 10px;
+    float:left;
+    background-color: #434854;
+}
+
+.user-image {
+  width: 10%;
+  vertical-align: left;
+  position:absolute;
+}
+
+.param_back {
+  position: relative;
+  width: 100%;
+  /* margin: 15px 20px 0 60px;
+  margin-bottom:30px; */
+  float:left;
+  /* flex-direction: column;  */
+  background-color: #061452;
+  border-radius: 10px;
+  display:flex;
+  flex-direction: column; 
+}
+
+.user-text {
+  position: relative;
+  width: 100%;
+  padding-left: 30px;
+  font-size: 18px;
+  font-family: NotoSansKR ;
+  text-align: left;
+  color: whitesmoke;
+}
+.user-text2 {
+  position: relative;
+  width: 95%;
+  font-size: 18px;
+  font-family: NotoSansKR ;
+  text-align: right;
+  color: whitesmoke;
+
+}
+
+.user-text3 {
+  position: relative;
+  width: 100%;
+  padding-left: 30px;
+  font-size: 18px;
+  font-family: NotoSansKR ;
+  text-align: left;
+  color: whitesmoke;
+}
+
+.user-text4 {
+  position: relative;
+  width: 100%;
+  font-size: 18px;
+  padding-left: 25px;
+  font-family: NotoSansKR ;
+  text-align: left;
+  color: whitesmoke;
+}
+
+.user-text5 {
+  position: relative;
+  width: 100%;
+  font-size: 18x;
+  font-family: NotoSansKR ;
+  text-align: right;
+  color: whitesmoke;
+}
+
+#margin1 {margin:50px;}
+#margin2 {margin:29px;}
+#margin3 {width:100px; height:250px;}

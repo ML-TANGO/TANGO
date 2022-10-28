@@ -1,0 +1,40 @@
+{
+  "env": {
+    "browser": true,
+    "es2021": true
+  },
+  "extends": [
+    "eslint:recommended",
+    "google",
+    "plugin:wc/recommended",
+    "plugin:lit-a11y/recommended",
+    "plugin:@typescript-eslint/recommended",
+    "plugin:wc/best-practice"
+  ],
+  "parser": "@typescript-eslint/parser",
+  "parserOptions": {
+    "ecmaVersion": 12,
+    "sourceType": "module",
+    "ecmaFeatures": {
+      "jsx": true
+    },
+    "project": "tsconfig.json"
+  },
+  "plugins": [
+    "@typescript-eslint",
+    "lit-a11y",
+    "wc"
+  ],
+  "rules": {
+    "comma-dangle": 0,
+    "require-jsdoc": 0,
+    "max-len": 0,
+    "new-cap": 0,
+    "indent": ["error", 2],
+    "camelcase": "off",
+    "no-empty": "off",
+    "no-empty-function": "off",
+    "no-invalid-this": "off",
+    "wc/guard-super-call": "off"
+  }
+}

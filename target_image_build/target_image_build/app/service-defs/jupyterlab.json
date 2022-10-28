@@ -1,0 +1,20 @@
+{
+  "prestart": [
+    {
+      "action": "write_tempfile",
+      "args": {
+        "body": [
+          "c.NotebookApp.allow_root = True\n",
+          "c.NotebookApp.ip = \"0.0.0.0\"\n",
+          "c.NotebookApp.port = {ports[0]}\n",
+          "c.NotebookApp.token = \"\"\n",
+          "c.FileContentsManager.delete_to_trash = False\n"
+        ]
+      },
+      "ref": "jupyter_cfg"
+    }
+  ],
+  "command": [
+    "{runtime_path}", "-m", "jupyterlab", "--no-browser", "--config", "{jupyter_cfg}"
+  ]
+}
