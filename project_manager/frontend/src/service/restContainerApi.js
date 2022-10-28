@@ -35,13 +35,17 @@ export function requestContainerStart(container, uid, pid)
 
     return new Promise( (resolve, reject) =>
     {
-        axios.get( "http://0.0.0.0:" + port + "/start", {
+        axios.get( "0.0.0.0:"+ port + "/start", {
             params: {
                 user_id: uid,
                 project_id: pid
-        }}).then((response) =>
+            }},
+            { withCredentials: true })
+        .then((response) =>
         {
             resolve( response )
+
+            console.log(response)
         })
         .catch(error =>
         {
@@ -87,7 +91,9 @@ export function requestContainerStatusCheck(container, uid, pid)
             params: {
                 user_id: uid,
                 project_id: pid
-        }}).then((response) =>
+            }},
+            { withCredentials: true })
+        .then((response) =>
         {
             resolve( response )
 

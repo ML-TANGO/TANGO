@@ -91,16 +91,16 @@ WSGI_APPLICATION = 'backend.wsgi.application'
 # for testing backend at Docker container
 # use PostgreSQL
 # ---------------------------------------
-DATABASES = {
-    'default': {
-        'ENGINE': 'django.db.backends.postgresql',
-        'NAME': os.environ.get('POSTGRES_NAME'),
-        'USER': os.environ.get('POSTGRES_USER'),
-        'PASSWORD': os.environ.get('POSTGRES_PASSWORD'),
-        'HOST': 'postgresql',
-        'PORT': '5432',
-    }
-}
+# DATABASES = {
+#     'default': {
+#         'ENGINE': 'django.db.backends.postgresql',
+#         'NAME': os.environ.get('POSTGRES_NAME'),
+#         'USER': os.environ.get('POSTGRES_USER'),
+#         'PASSWORD': os.environ.get('POSTGRES_PASSWORD'),
+#         'HOST': 'postgresql',
+#         'PORT': '5432',
+#     }
+# }
 
 # ---------------------------------------
 # CASE II.
@@ -114,16 +114,16 @@ DATABASES = {
 #    }
 #}
 
-# DATABASES = {
-#     'default': {
-#         'ENGINE': 'django.db.backends.postgresql',
-#         'NAME': 'Tango',
-#         'USER': 'postgres',
-#         'PASSWORD': 'tesla',
-#         'HOST': '106.247.227.244',
-#         'PORT': '5432',
-#     },
-# }
+DATABASES = {
+    'default': {
+        'ENGINE': 'django.db.backends.postgresql',
+        'NAME': 'Tango',
+        'USER': 'postgres',
+        'PASSWORD': 'tesla',
+        'HOST': '106.247.227.244',
+        'PORT': '5432',
+    },
+}
 
 # Password validation
 # https://docs.djangoproject.com/en/3.2/ref/settings/#auth-password-validators

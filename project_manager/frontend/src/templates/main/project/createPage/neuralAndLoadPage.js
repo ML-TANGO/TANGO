@@ -590,13 +590,13 @@ function NeuralAndLoadPage({project_id, project_name, project_description})
 
         RequestContainer.requestContainerStart(name, user, project_id).then(result =>
         {
-            console.log(result)
+            // console.log(result)
 
             status_result_update(result)
         })
         .catch(error =>
         {
-            console.log(error);
+            // console.log(error);
 
             status_result_update(error)
         });
