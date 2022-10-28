@@ -82,14 +82,14 @@ services:
     command: >
       sh -c "python generate_txt_file.py &&
              python manage.py runserver 0.0.0.0:8081"
-    deploy:
-      resources:
-        reservations:
-          devices:
-            - driver: nvidia
-              capabilities: [gpu]
-    environment:
-      - NVIDIA_VISIBLE_DEVICES=all
+    # deploy:
+    #   resources:
+    #     reservations:
+    #       devices:
+    #         - driver: nvidia
+    #           capabilities: [gpu]
+    # environment:
+    #   - NVIDIA_VISIBLE_DEVICES=all
     volumes:
       - ./base_model_select:/source
       - ./shared:/shared
@@ -107,14 +107,14 @@ services:
       sh -c "python manage.py makemigrations &&
              python manage.py migrate &&
              python manage.py runserver 0.0.0.0:8087"
-    deploy:
-      resources:
-        reservations:
-          devices:
-            - driver: nvidia
-              capabilities: [gpu]
-    environment:
-      - NVIDIA_VISIBLE_DEVICES=all
+    # deploy:
+    #   resources:
+    #     reservations:
+    #       devices:
+    #         - driver: nvidia
+    #           capabilities: [gpu]
+    # environment:
+    #   - NVIDIA_VISIBLE_DEVICES=all
     volumes:
       - ./autonn/backbone_nas:/source
       - ../shared:/shared
@@ -132,14 +132,14 @@ services:
       sh -c "python manage.py makemigrations &&
              python manage.py migrate &&
              python manage.py runserver 0.0.0.0:8089"
-    deploy:
-      resources:
-        reservations:
-          devices:
-            - driver: nvidia
-              capabilities: [gpu]
-    environment:
-      - NVIDIA_VISIBLE_DEVICES=all
+    # deploy:
+    #   resources:
+    #     reservations:
+    #       devices:
+    #         - driver: nvidia
+    #           capabilities: [gpu]
+    # environment:
+    #   - NVIDIA_VISIBLE_DEVICES=all
     volumes:
       - ./autonn/neck_nas:/source
       - ./shared:/shared
@@ -164,16 +164,16 @@ services:
   #---------------------------------
   # Image Deployment 
   #---------------------------------
-  target_deploy:
-    build:
-      context: ./target_deploy
-    command: >
-      sh -c "python manage.py runserver 0.0.0.0:8089"
-    volumes:
-      - ./target_deploy:/source
-      - /var/run/docker.sock:/var/run/docker.sock
-    ports:
-      - "8890:8890"
+  # target_deploy:
+  #   build:
+  #     context: ./target_deploy
+  #   command: >
+  #     sh -c "python manage.py runserver 0.0.0.0:8890"
+  #   volumes:
+  #     - ./target_deploy:/source
+  #     - /var/run/docker.sock:/var/run/docker.sock
+  #   ports:
+  #     - "8890:8890"
       
   #---------------------------------
   # code_gen Build 
@@ -204,22 +204,22 @@ services:
   #---------------------------------
   # Visualizer 
   #---------------------------------
-  viz2code:
-    build:
-      context: ./visualization
-    command: >
-      sh -c "cd ./visualization/frontend &&
-             npm run build &&
-             cd ..
-             python manage.py makemigrations &&
-             python manage.py migrate &&
-             python manage.py runserver react 0.0.0.0:8091"
-    volumes:
-      - ./viz2code:/source
-    ports:
-      - "8091:8091"
-    depends_on:
-      - postgresql
+  # viz2code:
+  #   build:
+  #     context: ./visualization
+  #   command: >
+  #     sh -c "cd ./visualization/frontend &&
+  #            npm run build &&
+  #            cd ..
+  #            python manage.py makemigrations &&
+  #            python manage.py migrate &&
+  #            python manage.py runserver react 0.0.0.0:8091"
+  #   volumes:
+  #     - ./viz2code:/source
+  #   ports:
+  #     - "8091:8091"
+  #   depends_on:
+  #     - postgresql
 
 #---------------------------------
 # Volumes 
