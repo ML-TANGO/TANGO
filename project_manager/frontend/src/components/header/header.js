@@ -58,7 +58,7 @@ export default function Header()
 
     return (
         <>
-        <div style={{position:'relative', height:'100%', width:'100%'}}>
+        <div style={{position:'relative', height:'100%', width:'100%', zIndex:'1001'}}>
 
             <div className='header_menu' style={{height:'100%', width:'10%', float:'left'}}>
                 <List color="#C2C8D3" size="30px" className="burger-menu"/>
