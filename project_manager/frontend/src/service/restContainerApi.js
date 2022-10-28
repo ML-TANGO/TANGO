@@ -44,8 +44,6 @@ export function requestContainerStart(container, uid, pid)
         .then((response) =>
         {
             resolve( response )
-
-            console.log(response)
         })
         .catch(error =>
         {
@@ -96,8 +94,6 @@ export function requestContainerStatusCheck(container, uid, pid)
         .then((response) =>
         {
             resolve( response )
-
-            console.log(response)
         })
         .catch(error =>
         {

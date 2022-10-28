@@ -592,7 +592,7 @@ function NeuralAndLoadPage({project_id, project_name, project_description})
         {
             // console.log(result)
 
-            status_result_update(result)
+            status_result_update(JSON.parse(result))
         })
         .catch(error =>
         {
