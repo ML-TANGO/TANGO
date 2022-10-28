@@ -5,6 +5,7 @@ from django.contrib import admin
 from .models import Node
 from .models import Edge
 from .models import Pth
+from .models import Start
 
 
 class NodeAdmin(admin.ModelAdmin):
@@ -22,6 +23,12 @@ class PthAdmin(admin.ModelAdmin):
     list = ('model')
 
 
+class StartAdmin(admin.ModelAdmin):
+    # pylint: disable=too-few-public-methods, missing-class-docstring
+    list = ('start')
+
+
 admin.site.register(Node, NodeAdmin)
 admin.site.register(Edge, EdgeAdmin)
 admin.site.register(Pth, PthAdmin)
+admin.site.register(Start, StartAdmin)

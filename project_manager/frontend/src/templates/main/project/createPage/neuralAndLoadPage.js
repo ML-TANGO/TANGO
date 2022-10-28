@@ -1,4 +1,5 @@
 import React from "react";
+import Cookies from "universal-cookie";
 import { useEffect, useRef, useState } from "react";
 import { useLocation } from "react-router-dom";
 
@@ -10,6 +11,7 @@ import * as Request from "../../../../service/restProjectApi";
 //import * as RequestDummy from "../../../../service/restDummyApi";
 //import * as RequestData from "../../../../service/restDataApi";
 import * as RequestTarget from "../../../../service/restTargetApi";
+import * as RequestContainer from "../../../../service/restContainerApi";
 
 import overall_up from "../../../../images/icons/icon_3x/chevron-up.png";
 import overall_down from "../../../../images/icons/icon_3x/chevron-down.png";
@@ -46,8 +48,12 @@ function NeuralAndLoadPage({project_id, project_name, project_description})
 
     const timerRef = useRef();
 
+    const [oriData, setOriData] = useState('');                        // originalData
+
     const [container, setContainer] = useState('');                    // 신경망 생성 단계
     const [container_status, setContainer_status] = useState('');      // 신경망 생성 단계 상황
+
+    const [currentWork, setCurrentWork] = useState('');                // 현재 작업 중인 컨테이너
 
     const [pannel, setPannel] = useState(false);                       // panel 창 상태
     const [config_pannel, setConfig_pannel] = useState(true);          // config_pannel 창 상태
@@ -97,59 +103,68 @@ function NeuralAndLoadPage({project_id, project_name, project_description})
         // 프로젝트 정보 수신
         Request.requestProjectInfo(project_id).then(result =>
         {
-            // 선택 타겟 정보
-            if (result.data['target'] !== '' && target === '')
+            projectContentUpdate(result.data);
+
+            // 타이머 기능
+//            if(result.data['container_status'] === 'running')
+//            {
+//                startTimer()
+//            }
+
+            // project_info.yaml 파일을 생성하지 않은 경우
+            if(result.data['container'] === '')
             {
-                setTarget(parseInt(result.data['target']))
+                setPannel(true)
             }
-
-            // 데이터 셋 정보
-            if(result.data['dataset'] !== '' && dataset === '')
-            {
-                setDataset(result.data['dataset'])
-            }
-
-            setTaskType(result.data['task_type'])
-            setNasType(result.data['nas_type'])
-
-            if(result.data['deploy_weight_level'] !== '') setWeightLevel(parseInt(result.data['deploy_weight_level']))
-            if(result.data['deploy_precision_level'] !== '') setPrecisionLevel(parseInt(result.data['deploy_precision_level']))
-
-            const im_index = inputMethodList.findIndex(im => im.value === result.data['deploy_input_method'])
-            if(im_index !== -1) setInputMethod(inputMethodList[im_index])
-
-            const om_index = outputMethodList.findIndex(om => om.value === result.data['deploy_output_method'])
-            if(om_index !== -1) setOutputMethod(outputMethodList[om_index])
-
-            const ue_index = userEditList.findIndex(ue => ue.value === result.data['deploy_user_edit'])
-            if(ue_index !== -1) setUserEdit(userEditList[ue_index])
-
-            // 타겟 정보 수신
-            get_target_list();
 
             // 데이터 셋 정보 수신
             get_dataset_list(result.data['dataset_list']);
-
-            setContainer(result.data['container'])
-            setContainer_status(result.data['container_status'])
-
-            if(result.data['container_status'] === 'running')
-            {
-                startTimer()
-            }
-
         })
         .catch(error =>
         {
             console.log('project info get error')
         });
 
+        // 타겟 정보 수신
+        get_target_list();
+
         // unmount
         return() => {
-            console.log('unmount')
+            //console.log('unmount')
             clearInterval(timerRef.current)
         }
     }, []);
+
+    // 프로젝트 정보 업데이트
+    const projectContentUpdate = (data) =>
+    {
+        setTarget(parseInt(data['target']))  // 선택 타겟 정보
+        setDataset(data['dataset'])          // 데이터 셋 정보
+        setTaskType(data['task_type'])
+        setNasType(data['nas_type'])
+
+        if(data['deploy_weight_level'] !== '') setWeightLevel(parseInt(data['deploy_weight_level']))
+        if(data['deploy_precision_level'] !== '') setPrecisionLevel(parseInt(data['deploy_precision_level']))
+
+        const im_index = inputMethodList.findIndex(im => im.value === data['deploy_input_method'])
+        if(im_index !== -1) setInputMethod(inputMethodList[im_index])
+
+        const om_index = outputMethodList.findIndex(om => om.value === data['deploy_output_method'])
+        if(om_index !== -1) setOutputMethod(outputMethodList[om_index])
+
+        const ue_index = userEditList.findIndex(ue => ue.value === data['deploy_user_edit'])
+        if(ue_index !== -1) setUserEdit(userEditList[ue_index])
+
+        setContainer(data['container'])                 // 진행중 컨테이너
+        setContainer_status(data['container_status'])   // 진행중 컨테이너 상태
+
+        const projectData = {
+            'task_type': data['task_type'],
+            'target_id': data['target'],
+            'nas_type': data['nas_type'],
+        }
+        setOriData(projectData)
+    }
 
     const test = () => {
         console.log('test')
@@ -181,8 +196,6 @@ function NeuralAndLoadPage({project_id, project_name, project_description})
         };
         Request.requestContainerStatus(param).then(result =>
         {
-            console.log('requestContainerStatus')
-
             const data = result.data;
 
             setContainer(data.container)
@@ -438,7 +451,18 @@ function NeuralAndLoadPage({project_id, project_name, project_description})
         // 데이터베이스 업데이트
         Request.requestProjectUpdate(param).then(result =>
         {
+            //console.log(result)
             alert('신경망 생성 준비 완료');
+
+            // 프로젝트 정보 수신
+            Request.requestProjectInfo(project_id).then(res =>
+            {
+                projectContentUpdate(res.data);
+            })
+            .catch(error =>
+            {
+                console.log('project info get error')
+            });
         })
         .catch(error =>
         {
@@ -446,39 +470,144 @@ function NeuralAndLoadPage({project_id, project_name, project_description})
         });
     }
 
-    // Base Model Select: 9000 port
+    // Base Model Select: 8081 port
     const bmsButtonClick = () =>
     {
-        console.log("baseModelSelect")
+        // console.log("bmsButtonClick")
+
+        containerStart('bms');
+
+        setCurrentWork('Base Model Select');
+
+        status_result_update('Base Model Select - Start 요청')
     }
 
+    // Visualization: 8091 port
     const visualButtonClick = () =>
     {
-        console.log("visualButtonClick")
+        //console.log("visualButtonClick")
+
+        containerStart('viz');
+
+        setCurrentWork('Visualization');
+
+        status_result_update('Visualization - Start 요청')
     }
 
-    // Auto NN : 9001 port
+    // Auto NN : Backbone Nas = 8087 port / Neck Nas = 8089 port
     const autoNNButtonClick = () =>
     {
-        console.log("createNeuralNetwork")
+        //console.log("autoNNButtonClick")
+
+        if(oriData['nas_type'] === 'neck_nas')
+        {
+            containerStart('autonn_nk');
+
+            setCurrentWork('Auto NN : Neck NAS');
+
+            status_result_update('Auto NN : Neck NAS - Start 요청')
+        }
+        else
+        {
+            containerStart('autonn_bb');
+
+            setCurrentWork('Auto NN : Backbone NAS');
+
+            status_result_update('Auto NN : Backbone NAS - Start 요청')
+        }
     }
 
-    // Image Gen : 9002 port
+    // Image Gen : 8888 port
     const imageGenButtonClick = () =>
     {
-        console.log("createRunImageFile")
+        //console.log("imageGenButtonClick")
+
+        containerStart('code_gen');
+
+        setCurrentWork('Image Generate');
+
+        status_result_update('Image Generate - Start 요청')
     }
 
-    // Image Deploy : 9003 port
+    // Image Deploy : target_info 'PC or Cloud ' 8088 port / onDevice 8891 port
     const imageDeployButtonClick = () =>
     {
-        console.log("deployRunImage")
+        //console.log("imageDeployButtonClick")
+
+        const target_id = oriData['target_id'];
+        const indexInfo = target_list.findIndex(v => v.id === parseInt(target_id))
+
+        if(indexInfo === -1)
+        {
+            alert("타겟 정보가 존재하지 않습니다.")
+            return;
+        }
+
+        const targetData = target_list[indexInfo]
+
+        if(targetData.info === 'ondevice')
+        {
+            containerStart('deploy_ondevice');
+
+            setCurrentWork('Image Deploy : On Device');
+
+            status_result_update('Image Deploy : On Device - Start 요청')
+        }
+        else
+        {
+            containerStart('deploy_cloud');
+
+            setCurrentWork('Image Deploy : ' + targetData.info);
+
+            status_result_update('Image Deploy : ' + targetData.info + ' - Start 요청')
+        }
     }
 
-    // Run Image : 9004 port
+    // Run Image :  port
     const runImageButtonClick = () =>
     {
-        console.log("runNeuralNetwork")
+        //console.log("runImageButtonClick")
+
+        setCurrentWork('Run Image');
+
+        status_result_update('Run Image : Start 요청')
+    }
+
+    // 컨테이너 실행
+    const containerStart = (name) =>
+    {
+        // project_info.yaml 파일 생성을 하지않은 경우
+        if(container === '')
+        {
+            alert('프로젝트 정보를 생성해주세요')
+            return;
+        }
+
+        // console.log("containerStart")
+
+        const cookies = new Cookies();
+        var user = cookies.get('userinfo')
+
+        RequestContainer.requestContainerStart(name, user, project_id).then(result =>
+        {
+            console.log(result)
+
+            status_result_update(result)
+        })
+        .catch(error =>
+        {
+            console.log(error);
+
+            status_result_update(error)
+        });
+    }
+
+    // 상태창 업데이트
+    const status_result_update = (text) =>
+    {
+        const textArea = document.getElementById('status_result');
+        textArea.value += (text + '\n');
+        textArea.scrollTop = textArea.scrollHeight;
     }
 
     return (
@@ -788,35 +917,52 @@ function NeuralAndLoadPage({project_id, project_name, project_description})
                         <div style={{marginBottom:'10px', display:'flex'}}>
                             <span style={{fontSize:'16px', color:'white'}}>Current Work - </span>
                             <span style={{color:'white', marginLeft:'10px', marginRight:'10px'}}>[ </span>
-                            <span style={{color:'#4A80FF'}}></span>
+                            <span style={{color:'#4A80FF'}}>{currentWork}</span>
                             <span style={{color:'white', marginLeft:'10px', marginRight:'10px'}}> ]</span>
                         </div>
 
-                        <div className='status_level' style={{backgroundColor:'white', padding:'20px 0px', borderRadius:'5px'}}>
-                            <div className="stepper-wrapper2" id='progressbar'>
 
+                        <div className='status_level' style={{backgroundColor:'white', padding:'20px 0px', borderRadius:'5px', display:'grid', gridTemplateRows:'1fr 1fr'}}>
+                            <div className="stepper-wrapper2" id='progressbar' style={{gridRow:'1/2'}}>
                                 <div className="stepper-item2 non-select" id='progress_1'>
-                                    <button className="step-counter2" onClick={() => bmsButtonClick()}>BMS</button>
+                                    <button className="step-counter2"
+                                            style={{backgroundColor:container === '' ? 'gray' : '#4A80FF', color:'white'}}
+                                            onClick={() => bmsButtonClick()}>BMS</button>
+                                </div>
+                                <div className="stepper-item2 non-select" id='progress_2'>
+                                    <button className="step-counter2"
+                                            style={{backgroundColor:container === '' ? 'gray' : '#4A80FF', color:'white'}}
+                                            onClick={() => autoNNButtonClick()}>AutoNN</button>
                                 </div>
                                 <div className="stepper-item2 non-select" id='progress_3'>
-                                    <button className="step-counter2" onClick={() => autoNNButtonClick()}>AutoNN</button>
+                                    <button className="step-counter2"
+                                            style={{backgroundColor:container === '' ? 'gray' : '#4A80FF', color:'white'}}
+                                            onClick={() => imageGenButtonClick()}>Image Gen</button>
                                 </div>
                                 <div className="stepper-item2 non-select" id='progress_4'>
-                                    <button className="step-counter2" onClick={() => imageGenButtonClick()}>Image Gen</button>
+                                    <button className="step-counter2"
+                                            style={{backgroundColor:container === '' ? 'gray' : '#4A80FF', color:'white'}}
+                                            onClick={() => imageDeployButtonClick()}>Image Deploy</button>
                                 </div>
                                 <div className="stepper-item2 non-select" id='progress_5'>
-                                    <button className="step-counter2" onClick={() => imageDeployButtonClick()}>Image Deploy</button>
-                                </div>
-                                <div className="stepper-item2 non-select" id='progress_6'>
-                                    <button className="step-counter2" onClick={() => runImageButtonClick()}>Run Image</button>
+                                    <button className="step-counter2"
+                                            style={{backgroundColor:container === '' ? 'gray' : '#4A80FF', color:'white'}}
+                                            onClick={() => runImageButtonClick()}>Run Image</button>
                                 </div>
                             </div>
 
+                            <div className="stepper-wrapper3" id='progressbar' style={{marginTop:'10px', gridRow:'2/3', display:'grid', gridTemplateColumns:'1fr 1fr 1fr 1fr 1fr'}}>
+                                <div className="stepper-item3 non-select" id='progress_0' style={{gridColumn:'1/3'}}>
+                                    <button className="step-counter2"
+                                            style={{backgroundColor:container === '' ? 'gray' : '#4A80FF', color:'white'}}
+                                            onClick={() => visualButtonClick()}>Visualization</button>
+                                </div>
+                            </div>
                         </div>
 
                         <div className='status_log' style={{color:'white', height:'auto', overflow:'auto', minHeight:'200px', padding:'20px 0px 0px 0px'}}>
                             <div style={{ border:'2px solid white', borderRadius:'5px', backgroundColor:'white', position:'relative', width:'100%', height:'100%'}}>
-
+                                <textarea id='status_result' style={{backgroundColor:'white', color:'black', resize:'none', width:'100%', height:'100%',borderRadius:'5px', border:'0px'}} readOnly/>
                             </div>
                         </div>
                     </div>

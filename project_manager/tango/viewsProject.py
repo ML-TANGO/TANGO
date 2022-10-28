@@ -42,20 +42,24 @@ root_path = os.path.dirname(os.path.dirname(BASE_DIR))
 def status_report(request):
 
     try:
-        container_list = ['bms',
-                          'viz2code',
-                          'autonn',
-                          'code_gen',
-                          'cloud_deployment',
-                          'ondevice_deployment']
+        # container_list = ['bms',
+        #                   'viz2code',
+        #                   'autonn',
+        #                   'code_gen',
+        #                   'cloud_deployment',
+        #                   'ondevice_deployment']
+        #
+        # container_id = request.GET['container_id']
+        #
+        # if container_id not in container_list:
+        #     return HttpResponse(status=400, content={'Container ID Not Find'})
 
-        container_id = request.GET['container_id']
-
-        if container_id not in container_list:
-            return HttpResponse(status=400, content={'Container ID Not Find'})
+        print('status_report')
 
         user_id = request.GET['user_id']
         project_id = request.GET['project_id']
+
+        container_id = request.GET['container_id']
         result = request.GET['result']
 
         queryset = Project.objects.get(id=project_id, create_user=str(user_id))
@@ -64,7 +68,7 @@ def status_report(request):
 
         queryset.save()
 
-        return HttpResponse(json.dumps({'status':200}))
+        return HttpResponse(json.dumps({'status': 200}))
 
     except Exception as error:
         print(error)
