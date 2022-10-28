@@ -1,5 +1,5 @@
 import React from "react";
-import { useEffect, useState } from "react";
+//import { useEffect, useState } from "react";
 
 import '../../CSS/popup.css'
 
@@ -15,6 +15,7 @@ export function ProjectCreatePopup({projectName, setProjectName, projectDescript
                     <label className="popup_label" style={{textAlign:'left', margin:'0px'}}>Name</label>
                     <input
                         id='input_project_name'
+                        className="project_input"
                         value={projectName}
                         onChange={({ target: { value } }) => setProjectName(value)}
                         type="text"
@@ -26,6 +27,7 @@ export function ProjectCreatePopup({projectName, setProjectName, projectDescript
                     <label className="popup_label" style={{textAlign:'left', marginTop:'0px'}}>Description</label>
                     <input
                         id='input_project_description'
+                        className="project_input"
                         value={projectDescription}
                         onChange={({ target: { value } }) => setProjectDescription(value)}
                         type="text"
@@ -56,6 +58,7 @@ export function ProjectRenamePopup({ getProject, newProjectName, setNewProjectNa
                     <label className="popup_label" style={{textAlign:'left', margin:'0px'}}>Enter New Project Name</label>
                     <input
                         id='input_modify_name'
+                        className="project_input"
                         value={newProjectName}
                         onChange={({ target: { value } }) => setNewProjectName(value)}
                         type="text"
