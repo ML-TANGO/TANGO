@@ -17,6 +17,7 @@ services:
              python manage.py runserver 0.0.0.0:8085"
     volumes:
       - ./project_manager:/code
+      - shared:/shared
     ports:
       - "8085:8085"
     environment:
@@ -226,3 +227,4 @@ services:
 #---------------------------------
 volumes:
   postgreSQL:  # for Proejct Manager
+  shared:      # shared Directory
