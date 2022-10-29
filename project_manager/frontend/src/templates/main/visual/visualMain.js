@@ -12,7 +12,11 @@ function VisualMain()
     /* 페이지 로드 완료시 호출 이벤트 */
     useEffect( () =>
     {
-        setServer_ip('http://netron.app')
+	    // setServer_ip('http://netron.app')
+	    //
+	    // vis2code port 8091
+	    var host = window.location.hostname 
+	    setServer_ip('http://' + host + ':8091')
     }, []);
 
 

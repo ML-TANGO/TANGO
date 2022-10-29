@@ -204,22 +204,22 @@ services:
   #---------------------------------
   # Visualizer 
   #---------------------------------
-  # viz2code:
-  #   build:
-  #     context: ./visualization
-  #   command: >
-  #     sh -c "cd ./visualization/frontend &&
-  #            npm run build &&
-  #            cd ..
-  #            python manage.py makemigrations &&
-  #            python manage.py migrate &&
-  #            python manage.py runserver react 0.0.0.0:8091"
-  #   volumes:
-  #     - ./viz2code:/source
-  #   ports:
-  #     - "8091:8091"
-  #   depends_on:
-  #     - postgresql
+  viz2code:
+    build:
+      context: ./visualization
+    command: >
+      sh -c "cd ./visualization/frontend &&
+             npm run build &&
+             cd ..
+             python manage.py makemigrations &&
+             python manage.py migrate &&
+             python manage.py runserver react 0.0.0.0:8091"
+    volumes:
+      - ./viz2code:/source
+    ports:
+      - "8091:8091"
+        #depends_on:
+        #- postgresql
 
 #---------------------------------
 # Volumes 
