@@ -1,3 +1,0 @@
-bacteria 폐결핵
-virus  폐렴
-normal 정상

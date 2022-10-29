@@ -1,6 +1,0 @@
-{
-    "os": "",
-    "mllib": "PyTorch",
-    "accel": "CUDA, CUDNN",
-    "dep": "Python OpenCV"
-}

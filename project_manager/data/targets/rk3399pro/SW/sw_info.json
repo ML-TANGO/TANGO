@@ -1,6 +1,0 @@
-{
-    "os": "Ubuntu 20.04",
-    "mllib": "PyTorch",
-    "accel": "CUDA, CUDNN",
-    "dep": ""
-}
