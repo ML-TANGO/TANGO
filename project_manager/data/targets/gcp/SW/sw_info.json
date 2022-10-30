@@ -1,0 +1,6 @@
+{
+    "os": "Ubuntu 20.04",
+    "mllib": "ONNX",
+    "accel": "RKNN",
+    "dep": ""
+}

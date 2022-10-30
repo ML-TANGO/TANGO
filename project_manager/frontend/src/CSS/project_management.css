@@ -1,0 +1,798 @@
+{/* ------------------------------ */}
+{/* --- 프로젝트 메인 페이지 CSS ---- */}
+{/* ------------------------------ */}
+
+{/* 프로젝트 메인 - 컴포넌트 레이아웃
+.manage_container
+{
+    width:100%;
+    height:100%;
+    display: grid;
+    grid-template-columns: 1fr;
+    grid-template-rows: auto 1fr;
+    background-color: #191c22;
+}*/}
+
+.manage_container
+{
+    width:100%;
+    height:100%;
+    display: grid;
+    grid-template-columns: 1fr;
+    grid-template-rows: auto 1fr;
+    background-color: white;
+    color: black;
+}
+
+.css-b62m3t-container {
+    width:80%;
+}
+
+{/* 프로젝트 메인 - 프로젝트 리스트 컴포넌트
+.manage_list_container
+{
+    width:100%;
+    height:100%;
+    display: grid;
+    grid-template-columns: 1fr;
+    grid-template-rows: auto 1fr;
+    background-color: #191c22;
+    overflow:auto;
+} */}
+
+.manage_list_container
+{
+    width:100%;
+    height:100%;
+    display: grid;
+    grid-template-columns: 1fr;
+    grid-template-rows: auto 1fr;
+    background-color: white;
+    overflow:auto;
+}
+
+.manage_list_container_sub
+{
+    width:100%;
+    height:100%;
+    background-color: white;
+    overflow:auto;
+}
+
+
+{/* 프로젝트 메인 - 헤더 */}
+.manage_header{
+    grid-row: 1 / 2;
+    width:100%;
+    height:auto;
+    position:sticky;
+    margin-bottom:10px;
+}
+
+{/* 프로젝트 생성 - 현재 생성 및 수정 경로 */}
+.path{
+    height: 10px;
+    width:100%;
+    color: white;
+    position:sticky;
+}
+
+{/*
+.title
+{
+    width:100%;
+    background-color: #191c22;
+
+    display: grid;
+    grid-template-columns: auto 200px;
+}
+.title_left
+{
+    grid-column: 1 / 2;
+    color: white;
+    font-size: 35px;
+    font-weight: 700;
+    background-color: #191c22;
+}
+.title_right
+{
+    grid-column: 2 / 2;
+    background-color: #191c22;
+}
+*/}
+
+.title
+{
+    width:100%;
+    background-color: white;
+    display: grid;
+    grid-template-columns: auto 200px;
+}
+
+.title_left
+{
+    grid-column: 1 / 2;
+    font-size: 35px;
+    font-weight: 700;
+    line-height:1;
+}
+
+.title_right
+{
+    grid-column: 2 / 2;
+}
+
+{/* 데이터 생성 페이지 이름 입력 input */}
+.title_left .input_field
+{
+  width: 40%;
+  height: 50px;
+  border-bottom: 1px solid white;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+
+  /* 200220211 jpchoi - [ min-width : 560 -> 1170 ]*/
+  min-width: 400px;
+}
+
+
+.title_left input
+{
+  font-size: 35px;
+  font-weight: 700;
+  border: none;
+  outline: none;
+  width: 100%;
+  color:white;
+  background: url("../images/icons/icon_3x/edit@3x.png") no-repeat;
+  background-size: 30px;
+  background-position-y: center;
+  background-position-x: right;
+}
+
+{/* 프로젝트 메인 - 프로젝트 생성 버튼
+#create_button{
+    color: #c2c8d3;
+    width: 100%;
+    height: 50px;
+    border: 1px solid #c2c8d3;
+    border-radius: 3px;
+    cursor: pointer;
+    font-size: 15px;
+    background-color:#191c22;
+    font-weight: 700;
+    margin-top:0px;
+    padding : 0px;
+    align-items: center;
+    justify-content: center;
+    display:flex;
+}
+*/}
+
+#create_button{
+    color: black;
+    width: 100%;
+    height: 50px;
+    border: 1px solid black;
+    border-radius: 3px;
+    cursor: pointer;
+    font-size: 15px;
+    background-color:white;
+    font-weight: 700;
+    margin-top:0px;
+    padding : 0px;
+    align-items: center;
+    justify-content: center;
+    display:flex;
+}
+
+{/* 프로젝트 메인 - 헤더 */}
+{/*
+.project_manage_content
+{
+    grid-row: 2 / 2;
+    width: 100%;
+    overflow:auto;
+    padding: 0px 0px 0px 0px;
+    display: grid;
+    grid-template-rows: 0.7fr 0.1fr auto;
+}
+*/}
+
+
+.project_manage_container
+{
+    width:100%;
+    height:100%;
+    background-color: white;
+    color: black;
+}
+
+/*
+.project_manage_content
+{
+    overflow:auto;
+    height: 100%;
+    width: 100%;s
+    padding: 0px 0px 0px 0px;
+    display:grid;
+    grid-template-rows: 35px 450px auto;
+}
+*/
+
+/*
+.project_manage_content
+{
+    height: 100%;
+    width: 100%;
+    display: grid;
+    grid-template-rows: 40px 210px 50px 250px 1fr;
+}
+*/
+
+.project_manage_content
+{
+    height: 100%;
+    width: 100%;
+    display: grid;
+    grid-template-rows: auto 1fr;
+}
+
+.project_top
+{
+    grid-row: 1 / 2;
+}
+
+/*
+.pannel{
+    grid-row: 2 / 3;
+    width:100%;
+    display: none;
+    background-color: white;
+}
+
+.config_pannel {
+    grid-row: 4 / 5;
+    width:100%;
+    display: none;
+    background-color: pink;
+
+    border-radius: 0px 0px 5px 5px;
+    border-bottom: 5px solid;
+    border-top: 0px solid;
+    border-right: 5px solid;
+    border-left: 5px solid;
+    border-color: #303030;
+}
+*/
+
+.pannel{
+    width:100%;
+    display: none;
+    background-color: white;
+}
+
+.config_pannel {
+    width:100%;
+    display: none;
+    background-color: pink;
+
+    border-radius: 0px 0px 5px 5px;
+    border-bottom: 5px solid;
+    border-top: 0px solid;
+    border-right: 5px solid;
+    border-left: 5px solid;
+    border-color: #303030;
+}
+
+.project_manage_list
+{
+    width: 100%;
+    height: auto;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 25px;
+    overflow:auto;
+}
+
+.project_bottom
+{
+    grid-row: 2 / 3;
+    height:auto;
+    margin-bottom: 0px;
+}
+
+.project_manage_content .project_user_requirement
+{
+    height:100%;
+    background-color:white;
+    marin-top:10px;
+    /* border-radius: 5px; */
+}
+
+.project_manage_content .create_neural_network
+{
+    display: grid;
+    grid-template-rows: 0.05fr 0.1fr auto;
+}
+
+.project_user_requirement_task_type input{
+
+   align-items: center;
+   display: inline-flex;
+}
+
+.project_user_requirement_task_type span{
+
+   align-items: center;
+   display: inline-flex;
+}
+
+.project_user_requirement_nas_type input{
+
+   align-items: center;
+   display: inline-flex;
+}
+
+.project_user_requirement_nas_type span{
+
+   align-items: center;
+   display: inline-flex;
+}
+
+
+project_user_requirement_autonn_config input{
+   align-items: center;
+   display: inline-flex;
+}
+
+.deploy-config {
+    grid-template-rows: 1fr 1fr;
+}
+
+.config-input {
+    width: 100%;
+    height: 38px;
+    font-size: 16px;
+    border: 1px solid #303030;
+    color: black;
+    border-radius: 3px;
+    background-color: white;
+}
+
+{/* 프로젝트 메인 - 프로젝트 아이템
+.item_box
+{
+    padding: 12px;
+    width: 288px;
+    height: 270px;
+    border: 2px solid transparent;
+    border-radius: 7px;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    cursor: pointer;
+    position: relative;
+    background: #242933;
+} */}
+
+.item_box
+{
+    padding: 12px;
+    width: 288px;
+    height: 360px;
+    border: 0px solid #707070;
+    border-radius: 7px;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    cursor: pointer;
+    position: relative;
+    background: #707070;
+    color: black;
+}
+
+{/* 프로젝트 메인 - 프로젝트 아이템 (마우스 오버 동작시) */}
+.item_box:hover
+{
+    border: 5px solid #4480ff;
+}
+
+
+{/* 프로젝트 메인 - 프로젝트 아이템 제목 (현재 사용 안함) */}
+.item_title {
+    font-size: 18px;
+    width: 90%;
+    height: 30px;
+    color:white;
+    line-break:anywhere;
+}
+
+{/* 프로젝트 메인 - 프로젝트 아이템 내용 */}
+.item_content {
+    height: 30px;
+    font-size: 16px;
+    width: 100%;
+    text-align:center;
+}
+
+{/* 프로젝트 메인 - 프로젝트 아이템 내용 */}
+.item_image {
+    margin-top:20px;
+    height: 70%;
+    font-size: 20px;
+    width: 100%;
+    background-size: contain;
+    background-repeat:no-repeat;
+    background-position-y: center;
+    background-position-x: center;
+}
+
+
+{/* 프로젝트 메인 - 프로젝트 아이템 바닥 (프로그래스 바) */}
+.item_footer {
+    width: 100%;
+    height: 8%;
+}
+
+{/* ------------------------------ */}
+{/* --- 프로젝트 생성 페이지 CSS ---- */}
+{/* ------------------------------ */}
+
+.manage_bottom
+{
+    overflow:auto;
+
+
+    grid-template-columns: 1fr;
+    /* grid-template-rows: 0.12fr 0.9fr 0.05fr; */
+}
+
+/*
+.manage_bottom_menu
+{
+    grid-row: 1 / 2;
+    position:sticky;
+}
+*/
+
+.manage_bottom_component
+{
+    grid-row: 2 / 3;
+
+    width:100%;
+    height:100%;
+
+
+    flex-wrap: wrap;
+    width: auto;
+    overflow:auto;
+}
+
+.manage_bottom_footer
+{
+    grid-row: 3 / 4;
+    width:100%;
+}
+
+#prevButton
+{
+    margin-top: 10px;
+    background-color: #242933;
+    font-size: 17px;
+    font-weight: 50;
+    width: 100%;
+    height: 50px;
+    border: none;
+    color: white;
+    border-radius: 3px;
+}
+
+#nextButton
+{
+    margin-top: 10px;
+    background-color: #4a80ff;
+    font-size: 17px;
+    font-weight: 50;
+    width: 100%;
+    height: 50px;
+    border: none;
+    color: white;
+    border-radius: 3px;
+}
+
+.nonSelectTarget
+{
+    background-color:#242933;
+    width:185px;
+    height:50px;
+    font-size:15px;
+    color: #949EB3;
+    border:1px solid #6C7890;
+    border-radius:3px;
+}
+
+.selectTarget
+{
+    background-color:#313744;
+    width:185px;
+    height:50px;
+    font-size:15px;
+    color: #FFFFFF;
+    border:1px solid #4A80FF;
+    border-radius:3px;
+}
+
+.userRequirementInput
+{
+    background-color:#2F343F;
+    padding-left:10px;
+    border:0;
+    height:35px;
+    width:320px;
+    border-radius: 3px 0px 0px 3px;
+    font-size:15px;
+    color:#B7BAC0;
+}
+
+.userRequirementButton
+{
+    background-color:#4A8FFF;
+    border:0;
+    height:35px;
+    border-radius: 3px 3px 3px 3px;
+    font-size:16px;
+    color:#FFFFFF;
+    margin-left:10px;
+}
+
+
+.project_user_requirement_left
+{
+    background-color:white;
+    width:50%;
+    /* border: 5px solid #303030; */
+
+    border-radius: 0px 0px 0px 5px;
+    border-bottom: 5px solid;
+    border-top: 0px solid;
+    border-right: 3px solid;
+    border-left: 5px solid;
+    border-color: #303030;
+
+}
+
+.project_user_requirement_right
+{
+    background-color:white;
+    width:50%;
+
+    border-radius: 0px 0px 5px 0px;
+    border-bottom: 5px solid;
+    border-top: 0px solid;
+    border-right: 5px solid;
+    border-left: 3px solid;
+    border-color: #303030;
+}
+
+
+
+{/* 데이터 셋 유효성 검사 결과 - true */}
+.dataset_availability_true
+{
+    font-size:12px;
+    color: #4A80FF;
+}
+
+{/* 데이터 셋 유효성 검사 결과 - false */}
+.dataset_availability_false
+{
+    font-size:12px;
+    color: #B7BAC0;
+}
+
+
+.accordion {
+  background-color: #eee;
+  color: #444;
+  cursor: pointer;
+  padding: 18px;
+  width: 100%;
+  border: none;
+  text-align: left;
+  outline: none;
+  font-size: 15px;
+  transition: 0.4s;
+}
+
+.active, .accordion:hover {
+  background-color: #ccc;
+}
+
+.overall_icon
+{
+   height: 30px;
+   width: 40px;
+   margin-left:0px;
+   background: url("../images/icons/icon_3x/chevron-up.png") no-repeat;
+   background-size: 35px;
+   background-position-y: center;
+   background-position-x: center;
+   transform: translateY(-50%);
+}
+
+.config_overall_icon
+{
+   height: 30px;
+   width: 40px;
+   margin-left:0px;
+   background: url("../images/icons/icon_3x/chevron-up.png") no-repeat;
+   background-size: 35px;
+   background-position-y: center;
+   background-position-x: center;
+   transform: translateY(-50%);
+}
+
+.image_image{
+   background-size: contain;
+   background-repeat:no-repeat;
+   background-position-y: center;
+   background-position-x: center;
+}
+
+.image_text{
+    font-size:24px;
+    line-height:1;
+    height:100%;
+    margin: auto;
+    text-align:center;
+    transform: translateY(40%);
+    white-space:normal;
+}
+
+.loader {
+  border: 5px solid #DEDEDE; /* Light grey */
+  border-top: 5px solid #4A80FF;
+  border-bottom: 5px solid #4A80FF;
+  border-radius: 50%;
+  width: 25px;
+  height: 25px;
+  animation: spin 2s linear infinite;
+}
+
+@keyframes spin {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
+
+
+
+.project_description .description-title {
+  margin: 0px 20px;
+  font-size: 16px;
+  height: 100%;
+  background-color: #DFDFDF;
+  align-items: center;
+  cursor: pointer;
+
+}
+
+.project_description .description-content{
+  font-size: 16px;
+  width : 100%;
+  display: flex;
+  align-items: center;
+  cursor: pointer;
+  background-color: #303030;
+  border-radius: 5px;
+}
+
+.project_description .description-content input{
+  width : 100%;
+  height: 100%;
+  border : 0px;
+  border-radius: 5px;
+  display: flex;
+  align-items: center;
+  cursor: pointer;
+}
+
+.dataset_content
+{
+    width: 100%;
+    overflow:auto;
+}
+
+.dataset_list
+{
+    width: 100%;
+    height: auto;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 20px;
+    overflow:auto;
+}
+
+.dataset_item_box
+{
+    min-width: 120px;
+    max-width: 200px;
+    width: 150px;
+    height: 140px;
+    border: 5px solid #707070;
+    border-radius: 5px;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    cursor: pointer;
+    position: relative;
+    background: white;
+    color: black;
+    font-size:14px;
+}
+
+.dataset_item_box:hover
+{
+    border: 5px solid #4480ff;
+}
+
+.dataset_item_box.select
+{
+    border: 5px solid #4480ff;
+}
+
+.target_item_box
+{
+    min-width: 120px;
+    max-width: 200px;
+    width: 150px;
+    height: 140px;
+    border: 5px solid #707070;
+    border-radius: 5px;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    cursor: pointer;
+    position: relative;
+    background: white;
+    color: black;
+    font-size:14px;
+}
+
+.target_item_box:hover
+{
+    border: 5px solid #4480ff;
+}
+
+.target_item_box.select
+{
+    border: 5px solid #4480ff;
+}
+
+.data_image{
+    background-size: contain;
+    background-repeat:no-repeat;
+    background-position-y: center;
+    background-position-x: center;
+}
+
+.data_description{
+    text-align:center;
+    line-height:0;
+    font-size:14px;
+}
+
+.target_image{
+    background-size: 35px;
+    background-size: contain;
+    background-repeat:no-repeat;
+    background-position-y: center;
+    background-position-x: center;
+}
+
+.target_description{
+    text-align:center;
+    line-height:0;
+    font-size:14px;
+}

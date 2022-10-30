@@ -1,0 +1,8 @@
+ARM Cortex-A55 based CPU with NPU
+8GB LPDDR4 DRAM
+2xUSB3.0 Port
+Support M.2 NVMe storage
+Ubuntu OS
+
+
+
