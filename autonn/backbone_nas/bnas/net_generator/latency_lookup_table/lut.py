@@ -10,14 +10,14 @@ import sys
 from pathlib import Path
 
 import yaml
-from ofa.utils import download_url
+# from ofa.utils import download_url
 
 # from utils.arch_utils import MyNetwork, make_divisible
 # from utils.downloads import download_url
 
 
 FILE = Path(__file__).resolve()
-ROOT = FILE.parents[0]  # YOLOv5 root directory
+ROOT = FILE.parents[0]  
 
 if str(ROOT) not in sys.path:
     sys.path.append(str(ROOT))  # add ROOT to PATH
@@ -46,10 +46,11 @@ class LatencyEstimator:
                  url="https://hanlab.mit.edu/files/proxylessNAS/\
                     LatencyTools/mobile_trim.yaml",
                  ):
-        if url.startswith("http"):
-            fname = download_url(url, local_dir, overwrite=True)
-        else:
-            fname = ROOT / url
+        # if url.startswith("http"):
+        #     fname = download_url(url, local_dir, overwrite=True)
+        # else:
+        #     fname = ROOT / url
+        fname = 'bnas/net_generator/latency_lookup_table/mobile_lut.yaml'
 
         with open(fname, "r") as fp:
             self.lut = yaml.load(fp, Loader=yaml.FullLoader)
@@ -261,14 +262,17 @@ class LatencyTable:
         '''
         get lut
         '''
-        prefix = "https://hanlab.mit.edu/files/OnceForAll/tutorial/"
-        for image_size in resolutions:
-            self.latency_tables[image_size] = LatencyEstimator(
-                url=prefix + \
-                    "latency_table@%s/%d_lookup_table.yaml"
-                % (device, image_size)
-            )
-            print("Built latency table for image size: %d." % image_size)
+        self.latency_tables[resolutions[0]] = \
+            LatencyEstimator()
+
+        # prefix = "https://hanlab.mit.edu/files/OnceForAll/tutorial/"
+        # for image_size in resolutions:
+        #     self.latency_tables[image_size] = LatencyEstimator(
+        #         url=prefix + \
+        #             "latency_table@%s/%d_lookup_table.yaml"
+        #         % (device, image_size)
+        #     )
+        #     print("Built latency table for image size: %d." % image_size)
 
     def predict_efficiency(self, spec: dict):
         '''
