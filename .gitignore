@@ -182,5 +182,11 @@ project_manager/tango/migrations/*.py
 !labelling/Deployment/lib/oracle/lib/libsqlplusic.so
 !labelling/Server/src/lib
 
+# deployment code_gen
+!deployment/code_gen/lib
+
 # shared data
 shared
+
+# AutoNN
+autonn/neck_nas/neckNAS/ku/runs/

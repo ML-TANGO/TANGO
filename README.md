@@ -117,9 +117,45 @@ docker --version
 ```
 </details>
 
+<details>
+    <summary>How to install NVIDIA container toolkit</summary>
+
+
+TANGO can use GPU resources in some containers such as bms, autonn_nk, autonn_bb, etc.
+
+
+You would consider installing NVIDIA container toolkit.
+
+
+* Make sure you have installed the NVIDIA driver and Docker 20.10 for your linux machine.
+* You do not need to install the CUDA toolkit on the host, but the driver need to be installed.
+* With the release of Docker 19.03, usage of nvidia-docker2 packages is deprecated since NVIDIA GPUs are now natively supported as devices in the Docker runtime.
+
+```bash
+distribution=$(. /etc/os-release;echo $ID$VERSION_ID)
+
+curl -s -L https://nvidia.github.io/nvidia-docker/gpgkey | sudo apt-key add -
+
+curl -s -L https://nvidia.github.io/nvidia-docker/$distribution/nvidia-docker.list | sudo tee /etc/apt/sources.list.d/nvidia-docker.list
+
+sudo apt-get update && sudo apt-get install -y nvidia-container-toolkit
+
+sudo systemctl restart docker
+```
+* you can check the latest version info at https://github.com/docker/compose/releases/
+
+```bash
+sudo chmod +x /usr/local/bin/docker-compose
+```
+
+Check the installed `docker-compose` version.
+```bash
+docker-compose --version
+```
+</details>
 
 <details>
-    <summary>how to install docker-compose</summary>
+    <summary>How to install docker-compose</summary>
 
 ```bash
 sudo curl -L "https://github.com/docker/compose/releases/download/v2.6.1/docker-compose-$(uname -s)-$(uname -m)" -o /usr/local/bin/docker-compose

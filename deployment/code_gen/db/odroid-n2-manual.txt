@@ -1,0 +1,43 @@
+<Odroid-N2 setup>
+1. download system image from 
+    https://wiki.odroid.com/odroid-n2/getting_started/os_installation_guide
+    ubuntu-20.04-4.9-mate-odroid-n2-20220228.img.xz (1.94GB)
+2. deploy the image to odroid-N2
+    using etcher tool (https://www.balena.io/etcher)
+    copy the image to sd card
+3. boot with the image on odroid-N2 board
+4. add armnn/ppa repository
+    • sudo add-apt-repository ppa:armnn/ppa
+    • sudo apt update
+    • sudo apt-get install -y python3-pyarmnn armnn-latest-all
+6. install OpenCL and  Mali GPU library
+    • mkdir temp-folder
+    • cd temp-folder
+    • sudo apt-get install clinfo ocl-icd-libopnecl1 ocl-icd-opencl-dev
+    • sudo apt-get download mali-fbdev
+    • ar -xv mali-fbdev *
+    • tar -xvf data.tar.xz
+    • sudo cp -r usr/* /usr/
+    • sudo mkdir /etc/OpenCL
+    • sudo mkdir /etc/OpenCL/vendors/
+    • sudo bash -c ‘echo “libmali.so” > /etc/OpenCL/vendors/mali.icd’
+    • (check opencl) clinfo
+    • cd ../
+    • rm -rf temp-folder
+7. install related libraries
+    • sudo apt-get install git git-lfs
+    • git lfs install
+    • sudo apt-get install -y python3-opencv python3-pip
+8. setting
+    • git clone https://github.com/ARM-software/armnn.git
+    • cd armnn/python/pyarmnn/examples/object_detection
+    • pip3 install -r requirements.txt
+    
+    
+    
+<neural network application running>
+1. connect to Tango, receice a zipped file to run 
+2. unzip the zip file to a folder
+3. change directory to the folder
+4. run file
+   python3 output.py video_file

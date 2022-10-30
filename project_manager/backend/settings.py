@@ -56,7 +56,7 @@ MIDDLEWARE = [
     'django.middleware.csrf.CsrfViewMiddleware',
     'django.contrib.auth.middleware.AuthenticationMiddleware',
     'django.contrib.messages.middleware.MessageMiddleware',
-    'django.middleware.clickjacking.XFrameOptionsMiddleware',
+    #'django.middleware.clickjacking.XFrameOptionsMiddleware',
     'oauth2_provider.middleware.OAuth2TokenMiddleware',
 ]
 
@@ -157,7 +157,7 @@ REST_FRAMEWORK = {
 
 OAUTH2_PROVIDER = {
     'ACCESS_TOKEN_EXPIRE_SECONDS': 604800,
-    'REFRESH_TOKEN_EXPIRE_SECONDS' : 30
+    'REFRESH_TOKEN_EXPIRE_SECONDS': 30
 }
 
 # REST_FRAMEWORK = {

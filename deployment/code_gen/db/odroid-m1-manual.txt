@@ -1,0 +1,30 @@
+<Odroid-M1 setup>
+1. download system image from
+    https://dn.odroid.com/RK3568/ODROID-M1/Ubuntu/ubuntu-20.04-npu-odroidm1-20220527.img.xz
+2. deploy the image to odroid-m1 board
+    using etcher tool (https://www.balena.io/etcher)
+    copy the image to sd card
+    
+3. boot with the image on odroid-m1 board
+
+4. add the following lines to  /boot/config.ini에 
+...
+[generic]
+overlay_resize=16384
+overlay_profile=
+overlays="i2c0 i2c1 spi0 rknpu ov5647"
+...
+5. reboot
+6. sudo modprobe rknpu
+
+
+
+
+<neural network application running>
+1. connect to Tango, receice a zipped file to run 
+2. open a terminal window
+   source ./venv/rknn/bin/activatet 
+3. unzip the zip file to a folder
+4. change directory to the folder
+5. run file
+   python3 output.py (video_file_name)
