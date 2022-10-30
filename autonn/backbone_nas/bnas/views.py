@@ -140,13 +140,24 @@ def get_user_requirements(userid, projid):
     common_root = Path('/shared/common/')
     proj_path = common_root / userid / projid
     target_yaml_path = proj_path / 'project_info.yaml' # 'target.yaml'
-    dataset_yaml_path = proj_path / 'datasets.yaml'
+    dataset_yaml_path = proj_path / 'dataset.yaml'
     return dataset_yaml_path, target_yaml_path
 
 def process_nas(userid, project_id):
     proj_path = COMMON_ROOT / userid / project_id
-    dataset_yaml_path = proj_path / 'datasets.yaml'
-    run_nas(dataset_yaml_path)
+    dataset_yaml_path = proj_path / 'dataset.yaml'
+    final_pt_path = proj_path / 'best.pt'
+    final_info_path = proj_path / 'neural_net_info.yaml'
+    final_py_path = proj_path / 'model.py'
+    pt = run_nas(dataset_yaml_path)
+    torch.save(pt.state_dict(), final_pt_path)
+    shutil.copy("bnas/media/temp_files/model/model.py", final_py_path)
+    create_bb_info(
+                final_info_path,
+                final_pt_path,
+                final_py_path,
+                pt.arch)
+
     status_report(userid, project_id, status="success")
     
     # folder = os.getcwd()

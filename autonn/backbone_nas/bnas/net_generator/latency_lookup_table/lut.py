@@ -10,7 +10,7 @@ import sys
 from pathlib import Path
 
 import yaml
-# from ofa.utils import download_url
+from ofa.utils import download_url
 
 # from utils.arch_utils import MyNetwork, make_divisible
 # from utils.downloads import download_url
@@ -50,7 +50,7 @@ class LatencyEstimator:
         #     fname = download_url(url, local_dir, overwrite=True)
         # else:
         #     fname = ROOT / url
-        fname = 'bnas/net_generator/latency_lookup_table/mobile_lut.yaml'
+        fname = ROOT / 'mobile_lut.yaml'
 
         with open(fname, "r") as fp:
             self.lut = yaml.load(fp, Loader=yaml.FullLoader)
@@ -262,17 +262,14 @@ class LatencyTable:
         '''
         get lut
         '''
-        self.latency_tables[resolutions[0]] = \
-            LatencyEstimator()
-
-        # prefix = "https://hanlab.mit.edu/files/OnceForAll/tutorial/"
-        # for image_size in resolutions:
-        #     self.latency_tables[image_size] = LatencyEstimator(
-        #         url=prefix + \
-        #             "latency_table@%s/%d_lookup_table.yaml"
-        #         % (device, image_size)
-        #     )
-        #     print("Built latency table for image size: %d." % image_size)
+        prefix = "https://hanlab.mit.edu/files/OnceForAll/tutorial/"
+        for image_size in resolutions:
+            self.latency_tables[image_size] = LatencyEstimator(
+                url=prefix + \
+                    "latency_table@%s/%d_lookup_table.yaml"
+                % (device, image_size)
+            )
+            print("Built latency table for image size: %d." % image_size)
 
     def predict_efficiency(self, spec: dict):
         '''
