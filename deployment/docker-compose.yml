@@ -1,0 +1,14 @@
+version: "3"
+
+services:
+  cloud_deploy:
+    container_name: cloud_deploy
+    build:
+      context: ./target_deploy/cloud_deploy
+    volumes:
+      - ~/tango:/tango
+      - /var/run/docker.sock:/var/run/docker.sock
+    command:
+      sh -c "cd /app && python3 server.py"
+    ports:
+      - 8890:8890
