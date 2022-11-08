@@ -82,6 +82,8 @@ services:
     shm_size: '256M'
     command: >
       sh -c "python generate_txt_file.py &&
+             python manage.py makemigrations &&
+             python manage.py migrate &&
              python manage.py runserver 0.0.0.0:8081"
     # deploy:
     #   resources:
