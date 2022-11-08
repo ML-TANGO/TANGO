@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta http-equiv="X-UA-Compatible" content="ie=edge" />
+    <meta name="theme-color" content="#fff" />
+    <meta name="description" content="Backend AI Forklift UI" />
+    <base href="">
+    <title>BackendAI Forklift UI</title>
+    <link rel="icon" href="manifest/favicon.ico">
+    <link rel="apple-touch-icon" sizes="256x256" href="manifest/backend-ai.iconset/icon_256x256@2x.png">
+    <link rel="icon" type="image/png" sizes="32x32" href="manifest/backend-ai.iconset/icon_32x32@1x.png">
+    <link rel="icon" type="image/png" sizes="16x16" href="manifest/backend-ai.iconset/icon_16x16@1x.png">
+    <link rel="manifest" href="manifest.json">
+    <link rel="stylesheet" href="resources/fonts/fonts.css">
+    <link rel="stylesheet" href="resources/custom.css">
+    <link href='https://fonts.googleapis.com/icon?family=Material+Icons' rel='stylesheet'>
+    <script>
+      if (!window.customElements) {
+        document.write('<!--');
+      }
+    </script>
+    <script>
+      globalThis.enableSW = true;
+      globalThis.process = {
+        env: {
+          NODE_ENV: 'production'
+        }
+      };
+    </script>
+    <style>
+      body {
+        margin: 0;
+        font-family: 'Ubuntu', Roboto, sans-serif;
+        background-color: rgba(247, 247, 246, 1);
+        background-repeat: no-repeat;
+        background-attachment: fixed;
+        background-position: top left;
+      }
+    </style>
+  </head>
+
+<body>
+  <forklift-webui></forklift-webui>
+  <forklift-notification></forklift-notification>
+  <noscript>
+    <p>Could not render Backend.AI Forklift. Check that JavaScript is enabled.</p>
+  </noscript>
+  <script type="module" src="./dist/forklift-webui.js"></script>
+  <script>
+    window.globalThis = window.globalThis || {};
+    window.globalThis.notification = document.querySelector('forklift-notification');
+  </script>
+</body>
+
+</html>

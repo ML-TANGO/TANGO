@@ -1,4 +1,5 @@
 from aiodocker import Docker, docker
+from sqlalchemy.orm import Session
 import crud
 
 
@@ -34,15 +35,20 @@ class ManipulateContainer:
             container_name = crud.get_container_name(db, data["user"])[0]
             await self._docker.containers.run(config=config, name=container_name)
             await _save_container_id(db, container_name, data["user"])
+            crud.modify_tasks_status(db, user_data=data["user"], status="completed")
             await self._docker.close()
         except Exception as e:
+            crud.modify_tasks_status(db, user_data=data["user"], status="failed")
+            await self._docker.close()
             raise e
 
-    async def stop_container(self, container_id):
+    async def stop_container(self, container_id, user_data: dict, db: Session):
         try:
             await self._docker.containers.container(container_id=container_id).stop()
+            crud.modify_tasks_status(db, user_data=user_data, status="stopped")
             await self._docker.close()
         except Exception as e:
+            await self._docker.close()
             raise e
 
     async def get_container(self, container_id):
@@ -51,6 +57,7 @@ class ManipulateContainer:
             await self._docker.close()
             return status["State"]["Status"]
         except Exception as e:
+            await self._docker.close()
             raise e
 
 

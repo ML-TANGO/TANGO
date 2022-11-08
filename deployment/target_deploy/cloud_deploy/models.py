@@ -10,3 +10,4 @@ class Task(Base):
     project_id = Column(String(length=255), nullable=True, primary_key=True)
     container_name = Column(String(length=255), nullable=True)
     container_id = Column(String(length=255), nullable=True)
+    status = Column(String(length=255), nullable=False)

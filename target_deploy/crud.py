@@ -37,30 +37,6 @@ def modify_container_id(db: Session, project_id, container_id):
         raise
 
 
-def modify_tasks_status(
-    db: Session, user_data: dict, status: str
-):
-    try:
-        model = db.query(models.Task).filter(models.Task.user_id == user_data["user_id"], models.Task.project_id == user_data["project_id"]).first()
-        model.status = status
-        db.commit()
-    except Exception as e:
-        print(e)
-        raise
-
-
-def get_user_specific_tasks_status(db: Session, user_data: dict):
-    try:
-        return (
-            db.query(models.Task.status)
-            .filter(models.Task.user_id == user_data["user_id"], models.Task.project_id == user_data["project_id"])
-            .first()
-        )
-    except Exception as e:
-        print(e)
-        raise
-
-
 def create_task(db: Session, user_input):
     try:
         db_task = models.Task(
@@ -68,7 +44,6 @@ def create_task(db: Session, user_input):
             project_id=user_input["project_id"],
             container_name=str(f'{user_input["user_id"]}-{user_input["project_id"]}'),
             container_id=None,
-            status="started",
         )
         db.add(db_task)
         db.commit()
