@@ -34,10 +34,9 @@ config, _ = read_from_file(None, daemon_name="forklift")
 
 app = FastAPI(title="forklift")
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/login/access-token/")
-origins = config["allow-ip"]["addr"][0].replace(" ", "").split(",")
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=origins,
+    allow_origins=["*"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
