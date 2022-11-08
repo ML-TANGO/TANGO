@@ -86,6 +86,9 @@ COPY --from=weda_build /var/release /var/app/
 
 # copy bin
 COPY Deployment/bin /var/app/bin
+
+RUN pip install pysimdjson
+
 WORKDIR /var/app/bin
 
 # copy entrypoint
