@@ -26,7 +26,7 @@ services:
     cloud_deploy:
 	container_name: cloud_deploy
 	build:
-	    context: ./deployment/target_deploy/cloud_deploy
+	    context: ./target_deploy/cloud_deploy
 	volumes:
 	    - ~/tango:/tango
             - /var/run/docker.sock:/var/run/docker.sock
