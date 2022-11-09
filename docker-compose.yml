@@ -157,7 +157,7 @@ services:
     build:
       context: ./target_image_build
     command: >
-      sh -c "python manage.py runserver 0.0.0.0:8088"
+      sh -c "python main.py"
     volumes:
       - ./target_image_build:/source
       - /var/run/docker.sock:/var/run/docker.sock

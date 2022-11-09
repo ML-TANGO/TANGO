@@ -22,3 +22,15 @@ services:
             sh -c "cd /app && python3 ondevice_deploy.py"
         ports:
             - 8891:8891  
+
+    cloud_deploy:
+	container_name: cloud_deploy
+	build:
+	    context: ./target_deploy/cloud_deploy
+	volumes:
+	    - ~/tango:/tango
+            - /var/run/docker.sock:/var/run/docker.sock
+	command:
+	    sh -c "cd /app && python3 server.py"
+	ports:
+	    - 8890:8890
