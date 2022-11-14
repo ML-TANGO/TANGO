@@ -43,7 +43,7 @@ AUTOINSTALL = str(os.environ.get('YOLOv5_AUTOINSTALL', True)
                   ).lower() == 'true'  # global auto-install mode
 VERBOSE = str(os.environ.get('YOLOv5_VERBOSE', True)
               ).lower() == 'true'  # global verbose mode
-FONT = 'Arial.ttf'  # https://ultralytics.com/assets/Arial.ttf
+# FONT = 'Arial.ttf'  # https://ultralytics.com/assets/Arial.ttf
 
 torch.set_printoptions(linewidth=320, precision=5, profile='long')
 # format short g, %precision=5
@@ -269,16 +269,16 @@ def user_config_dir(dirt='Ultralytics', env_var='YOLOV5_CONFIG_DIR'):
 CONFIG_DIR = user_config_dir()  # Ultralytics settings dir
 
 
-def check_font(font=FONT, progress=False):
-    '''
-    Download font to CONFIG_DIR if necessary
-    '''
-    font = Path(font)
-    file = CONFIG_DIR / font.name
-    if not font.exists() and not file.exists():
-        url = "https://ultralytics.com/assets/" + font.name
-        LOGGER.info('Downloading %s to %s...', url, file)
-        torch.hub.download_url_to_file(url, str(file), progress=progress)
+# def check_font(font=FONT, progress=False):
+#     '''
+#     Download font to CONFIG_DIR if necessary
+#     '''
+#     font = Path(font)
+#     file = CONFIG_DIR / font.name
+#     if not font.exists() and not file.exists():
+#         url = "https://ultralytics.com/assets/" + font.name
+#         LOGGER.info('Downloading %s to %s...', url, file)
+#         torch.hub.download_url_to_file(url, str(file), progress=progress)
 
 
 def check_suffix(file='yolov5s.pt', suffix=('.pt',), msg=''):
@@ -374,10 +374,10 @@ def check_dataset(data, autodownload=True):
             s = f"success ✅ {dt}, saved to {str(root)}" if r in (
                 0, None) else f"failure {dt} ❌"
             LOGGER.info(emojis(f"Dataset download {s}"))
-    check_font('Arial.ttf'
-               if is_ascii(data['names'])
-               else 'Arial.Unicode.ttf',
-               progress=True)  # download fonts
+    # check_font('Arial.ttf'
+    #            if is_ascii(data['names'])
+    #            else 'Arial.Unicode.ttf',
+    #            progress=True)  # download fonts
     return data  # dictionary
 
 
