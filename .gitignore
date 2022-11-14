@@ -190,3 +190,9 @@ shared
 
 # AutoNN
 autonn/neck_nas/neckNAS/ku/runs/
+
+#target_image_build
+target_image_build/.python-version
+target_image_build/app/.python-version
+target_image_build/app/bazelrc
+target_image_build/sql_app.db

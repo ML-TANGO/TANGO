@@ -52,7 +52,15 @@ function BasicGraph() {
   const [modalOpen, setModalOpen] = useState(false);
 
 
+
   if(checkFirst == 0){
+      console.log('실행')
+      axios.post("/api/running/",{     // status_report에 started 저장 (메인페이지 첫 실행시)
+            timestamp: Date.now(),
+            msg: 'started'
+          }).then(function(response){
+            console.log(response)
+          }).catch(err=>console.log(err));
             // Initializate selected architecture
     var initElement = initialArch();
     for (var i=0;i<initElement.length;i++) {
@@ -63,35 +71,36 @@ function BasicGraph() {
   }
 
   const notRunningState = setInterval(()=>{
-//    console.log("[post] 동작 중지");
-    running_id += 1;
-    axios.post("/api/running/", {
-      id : running_id,
-      running: 0,
+////    console.log("[post] 동작 중지");
+//    running_id += 1;
+    axios.post("/api/status_report/", {
+
+      timestamp: Date.now(),
+//      running: 0,
     }).then(function(response){
-        console.log(response)
+        //console.log(timestamp)
         })
         .catch(e => console.log(e));
     }, initRunningStateTime * 1000)
 
-  const onRunningState = (()=>{
-//    console.log("[post] 동작 중");
+//  const onRunningState = (()=>{
+////    console.log("[post] 동작 중");
+//
+//    running_id += 1;
+//    axios.post("/api/running/", {
+//      id : running_id,
+//      running: 1,
+//    }).then(function(response){
+//      console.log(response)
+//      })
+//      .catch(e => console.log(e));
+//  })
 
-    running_id += 1;
-    axios.post("/api/running/", {
-      id : running_id,
-      running: 1,
-    }).then(function(response){
-      console.log(response)
-      })
-      .catch(e => console.log(e));
-  })
-    
 
   const onRunningStateClick = (e) => {
     e.preventDefault();
     clearInterval(notRunningState);
-    onRunningState();
+    //onRunningState();
     clearInterval(notRunningState);
     notRunningState();
   };

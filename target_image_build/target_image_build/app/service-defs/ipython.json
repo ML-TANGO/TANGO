@@ -1,5 +1,0 @@
-{
-    "command": [
-        "{runtime_path}", "-m", "IPython"
-    ]
-}
