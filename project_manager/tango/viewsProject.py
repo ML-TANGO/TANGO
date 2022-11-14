@@ -62,6 +62,11 @@ def status_report(request):
         container_id = request.GET['container_id']
         result = request.GET['result']
 
+        print('user_id : ' + user_id)
+        print('project_id : ' + project_id)
+        print('container_id : ' + container_id)
+        print('result : ' + result)
+
         queryset = Project.objects.get(id=project_id, create_user=str(user_id))
         queryset.container = container_id
         queryset.container_status = result

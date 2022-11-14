@@ -8,20 +8,15 @@ import '../../../../CSS/stepProgress.css'
 import '../../../../CSS/project_management.css'
 
 import * as Request from "../../../../service/restProjectApi";
-//import * as RequestDummy from "../../../../service/restDummyApi";
-//import * as RequestData from "../../../../service/restDataApi";
 import * as RequestTarget from "../../../../service/restTargetApi";
 import * as RequestContainer from "../../../../service/restContainerApi";
+import * as RequestLabelling from "../../../../service/restLabellingApi";
 
 import overall_up from "../../../../images/icons/icon_3x/chevron-up.png";
 import overall_down from "../../../../images/icons/icon_3x/chevron-down.png";
 
-import data_th_1 from "../../../../images/thumbnail/data_th_1.PNG";         // 칫솔
-import data_th_2 from "../../../../images/thumbnail/data_th_2.PNG";         // 용접 파이프
-import data_th_3 from "../../../../images/thumbnail/data_th_3.PNG";         // 실생활
-import data_th_4 from "../../../../images/thumbnail/data_th_4.PNG";         // 폐결핵 판독
-
-import * as TargetPopup from "../../../../components/popup/targetPopup";
+import InformationForm from "./informationForm";
+import ConfigForm from "./configForm";
 
 import {Collapse} from 'react-collapse';
 import Select from 'react-select';
@@ -48,7 +43,7 @@ function NeuralAndLoadPage({project_id, project_name, project_description})
 
     const timerRef = useRef();
 
-    const [oriData, setOriData] = useState('');                        // originalData
+    const [responseData, setResponseData] = useState('');                        // 기존 선택 데이터
 
     const [container, setContainer] = useState('');                    // 신경망 생성 단계
     const [container_status, setContainer_status] = useState('');      // 신경망 생성 단계 상황
@@ -84,22 +79,8 @@ function NeuralAndLoadPage({project_id, project_name, project_description})
     const [inputDataPath, setInputDataPath] = useState('/data');       // inputDataPath
     const [outputMethod, setOutputMethod] = useState('');              // outputMethod
 
-    /* 타겟 생성 정보 */
-    const [targetName, setTargetName] = useState('');                               // 타겟 이름
-    const [targetImage, setTargetImage] = useState('');                             // 타겟 이미지
-    const [previewURL, setPreviewURL] = useState('');                               // 타겟 이미지
-    const [target_info, setTarget_info] = useState('');                             // TargetInfo
-    const [target_engine, setTarget_engine] = useState('');                         // Engine
-    const [target_os, setTarget_os] = useState('');                                 // OS
-    const [target_cpu, setTarget_cpu] = useState('');                               // CPU
-    const [target_acc, setTarget_acc] = useState('');                               // Accelerator
-    const [target_memory, setTarget_memory] = useState('');                         // Memory
-    const [target_host_ip, setTarget_host_ip] = useState('');                       // IP Address
-    const [target_host_port, setTarget_host_port] = useState('');                   // Port
-    const [target_host_service_port, setTarget_host_service_port] = useState('');   // Service Port
-
-    useEffect( () => {
-
+    useEffect( () =>
+    {
         // 프로젝트 정보 수신
         Request.requestProjectInfo(project_id).then(result =>
         {
@@ -116,17 +97,11 @@ function NeuralAndLoadPage({project_id, project_name, project_description})
             {
                 setPannel(true)
             }
-
-            // 데이터 셋 정보 수신
-            get_dataset_list(result.data['dataset_list']);
         })
         .catch(error =>
         {
             console.log('project info get error')
         });
-
-        // 타겟 정보 수신
-        get_target_list();
 
         // unmount
         return() => {
@@ -138,8 +113,14 @@ function NeuralAndLoadPage({project_id, project_name, project_description})
     // 프로젝트 정보 업데이트
     const projectContentUpdate = (data) =>
     {
+        // 데이터 셋 정보 수신 - 추후 제거
+        //setDataset_list(data['dataset_list']);
+
+        setResponseData(data)
+
         setTarget(parseInt(data['target']))  // 선택 타겟 정보
         setDataset(data['dataset'])          // 데이터 셋 정보
+
         setTaskType(data['task_type'])
         setNasType(data['nas_type'])
 
@@ -157,13 +138,6 @@ function NeuralAndLoadPage({project_id, project_name, project_description})
 
         setContainer(data['container'])                 // 진행중 컨테이너
         setContainer_status(data['container_status'])   // 진행중 컨테이너 상태
-
-        const projectData = {
-            'task_type': data['task_type'],
-            'target_id': data['target'],
-            'nas_type': data['nas_type'],
-        }
-        setOriData(projectData)
     }
 
     const test = () => {
@@ -212,25 +186,7 @@ function NeuralAndLoadPage({project_id, project_name, project_description})
         });
     }
 
-    // 타겟 정보 수신
-    const get_target_list = () =>
-    {
-        RequestTarget.requestTargetList().then(result =>
-        {
-            setTarget_list(result.data);
-        })
-        .catch(error =>
-        {
-            console.log('target list get error')
-        });
-    }
-
-    // 데이터 셋 정보 수신 - 추후 레이블링 저작도구 연동
-    const get_dataset_list = (param) =>
-    {
-        setDataset_list(param)
-    }
-
+    // 타겟 정보 확인
     const get_target_info = (id) =>
     {
         const findIndex = target_list.findIndex(v => v.id === id)
@@ -239,70 +195,6 @@ function NeuralAndLoadPage({project_id, project_name, project_description})
         {
             return target_list[findIndex].info
         }
-    }
-
-    // 데이터 셋 선택
-    const dataSetClick = (value, index) =>
-    {
-        setDataset(value);
-        const dataset_item_box = document.getElementsByClassName("dataset_item_box");
-
-        for (var i=0; i < dataset_item_box.length; i++)
-        {
-            if (i === index)
-            {
-                dataset_item_box[i].className = 'dataset_item_box tooltip select';
-            }
-            else
-            {
-                dataset_item_box[i].className = 'dataset_item_box tooltip';
-            }
-        }
-    }
-
-    // 데이터 셋 이미지 가져오기
-    const getDataset_image = (value) =>
-    {
-        if (value.indexOf('COCO') !== -1)
-        {
-            return data_th_3;
-        }
-        else if (value.indexOf('칫솔') !== -1)
-        {
-            return data_th_1;
-        }
-        else if (value.indexOf('파이프') !== -1)
-        {
-            return data_th_2;
-        }
-        else if (value.indexOf('폐') !== -1)
-        {
-            return data_th_4;
-        }
-        else
-        {
-            return "";
-        }
-    };
-
-    // 타겟 선택 이벤트
-    const targetClick = (selectTarget, index) =>
-    {
-       setTarget(selectTarget.id)
-
-       const target_item_box = document.getElementsByClassName("target_item_box");
-
-       for (var i=0; i < target_item_box.length; i++)
-       {
-           if (i === index)
-           {
-               target_item_box[i].className = 'target_item_box tooltip select';
-           }
-           else
-           {
-               target_item_box[i].className = 'target_item_box tooltip';
-           }
-       }
     }
 
     // Information 창 보이기 숨기기
@@ -333,83 +225,6 @@ function NeuralAndLoadPage({project_id, project_name, project_description})
         }
     }
 
-    // 타겟 생성 입력 폼 정보 초기화
-    const stateInfoInit = () =>
-    {
-        setTargetName('')
-        setTargetImage('')
-        setPreviewURL('')
-        setTarget_info('')
-        setTarget_engine('')
-        setTarget_os('')
-        setTarget_cpu('')
-        setTarget_acc('')
-        setTarget_memory('')
-        setTarget_host_ip('')
-        setTarget_host_port('')
-        setTarget_host_service_port('')
-    };
-
-    // 타겟 추가 버튼 클릭
-    const target_add_button_click = () =>
-    {
-       document.getElementById('create_target_popup').style.display = 'block';
-    }
-
-    // 타겟 이미지 업로드
-    const uploadImageFile = (event) =>
-    {
-        const file = event.target.files[0];
-
-        const reader = new FileReader();
-
-        reader.onload = function() {
-            setTargetImage(reader.result);
-
-            setPreviewURL(reader.result)
-        }
-
-        reader.readAsDataURL(file);
-
-        event.target.value = "";
-    };
-
-    // 타겟 수정 팝업 취소 버튼 클릭
-    const target_popup_Cancel_ButtonClick = () => {
-        stateInfoInit();
-        document.getElementById('create_target_popup').style.display = 'none';
-    };
-
-    /* 타겟 생성 팝업 - 생성 버튼 클릭 */
-    const target_popup_Create_ButtonClick = () =>
-    {
-        const param = {
-            'name': targetName,
-            'image': targetImage,
-            'info': target_info,
-            'engine': target_engine,
-            'os': target_os.value,
-            'cpu': target_cpu.value,
-            'acc': target_acc.value,
-            'memory': target_memory,
-            'host_ip': target_host_ip,
-            'host_port': target_host_port,
-            'host_service_port': target_host_service_port
-        };
-
-        RequestTarget.requestTargetCreate(param).then(result =>
-        {
-            document.getElementById('create_target_popup').style.display = 'none';      // 생성 팝업 숨기기
-
-            stateInfoInit();
-
-            get_target_list();
-        })
-        .catch(error =>
-        {
-            console.log('description modify error')
-        });
-    }
 
     // 'Run' 버튼 클릭 이벤트
     const runButtonClick = () =>
@@ -448,6 +263,8 @@ function NeuralAndLoadPage({project_id, project_name, project_description})
     // 신경망 생성 시작
     const neuralCreate = (param) =>
     {
+//        console.log(param)
+
         // 데이터베이스 업데이트
         Request.requestProjectUpdate(param).then(result =>
         {
@@ -499,7 +316,9 @@ function NeuralAndLoadPage({project_id, project_name, project_description})
     {
         //console.log("autoNNButtonClick")
 
-        if(oriData['nas_type'] === 'neck_nas')
+        console.log(responseData)
+
+        if(responseData.nas_type === 'neck_nas')
         {
             containerStart('autonn_nk');
 
@@ -534,7 +353,7 @@ function NeuralAndLoadPage({project_id, project_name, project_description})
     {
         //console.log("imageDeployButtonClick")
 
-        const target_id = oriData['target_id'];
+        const target_id = responseData.target;
         const indexInfo = target_list.findIndex(v => v.id === parseInt(target_id))
 
         if(indexInfo === -1)
@@ -563,11 +382,9 @@ function NeuralAndLoadPage({project_id, project_name, project_description})
         }
     }
 
-    // Run Image :  port
+    // Run Image 버튼 클릭
     const runImageButtonClick = () =>
     {
-        //console.log("runImageButtonClick")
-
         setCurrentWork('Run Image');
 
         status_result_update('Run Image : Start 요청')
@@ -582,8 +399,6 @@ function NeuralAndLoadPage({project_id, project_name, project_description})
             alert('프로젝트 정보를 생성해주세요')
             return;
         }
-
-        // console.log("containerStart")
 
         const cookies = new Cookies();
         var user = cookies.get('userinfo')
@@ -608,304 +423,67 @@ function NeuralAndLoadPage({project_id, project_name, project_description})
 
     return (
         <>
-        {/* 타겟 생성 팝업 */}
-        <TargetPopup.TargetCreatePopup
-            popup_modify_mode={false}
-            targetName={targetName}
-            setTargetName={setTargetName}
-            previewURL={previewURL}
-            targetImage={targetImage}
-
-            target_info={target_info} setTarget_info={setTarget_info}
-            target_engine={target_engine} setTarget_engine={setTarget_engine}
-            target_os={target_os} setTarget_os={setTarget_os}
-            target_cpu={target_cpu} setTarget_cpu={setTarget_cpu}
-            target_acc={target_acc} setTarget_acc={setTarget_acc}
-            target_memory={target_memory} setTarget_memory={setTarget_memory}
-            target_host_ip={target_host_ip} setTarget_host_ip={setTarget_host_ip}
-            target_host_port={target_host_port} setTarget_host_port={setTarget_host_port}
-            target_host_service_port={target_host_service_port} setTarget_host_service_port={setTarget_host_service_port}
-
-            uploadImageFile={uploadImageFile}
-            cancel_ButtonClick={() => target_popup_Cancel_ButtonClick()}
-            create_ButtonClick={target_popup_Create_ButtonClick}/>
 
         {/* 프로젝트 생성 - 신경망 생성 폼 */}
         <div className='project_manage_container'>
-
             <div className='project_manage_content' style={{width:'100%'}}>
-
                 <div id='project_top' className='project_top'  style={{padding:'0px 0px 0px 0px', height:'100%'}}>
 
-                <div id="accordion" className="accordion" onClick={ ()=> accordionButtonClick() } style={{height:'40px', position:'static', backgroundColor:'#303030', borderRadius:pannel === false? '5px 5px 5px 5px' : '5px 5px 0px 0px', lineHeight:'0', display:'flex'}}>
-                    <span style={{fontSize:'16px', color:'white'}}>Information </span>
-                    <div id="overall_icon" className="overall_icon" style={{backgroundImage:pannel === false ? "url('" + overall_down + "')" : "url('" + overall_up + "')"}}></div>
-                </div>
-
-                <Collapse isOpened={pannel}>
-                    <div className="project_user_requirement" style={{display:'flex', maxHeight:'220px'}}>
-
-                        {/* 데이터셋 선택 */}
-                        <div className='project_user_requirement_left' style={{ padding:'0px 0px 0px 0px', marginRight:'0px'}}>
-
-                            <div className='select_dataset' style={{padding:'0px 0px 0px 20px', color:'black', display:'flex', alignItems:'center', height:'50px'}}>
-                                <div style={{fontSize:'16px', width:'auto'}}>Dataset</div>
-                            </div>
-
-                            <div className='dataset_content'>
-
-                                { dataset_list.length > 0 ?
-                                    <>
-                                    <div className='dataset_list' style={{height:'100%', width:'100%', padding:'0px 20px 20px 20px', backgroundColor:'white', maxHeight:'160px', overflow:'auto'}}>
-                                        {dataset_list.map((menu, index) => {
-                                            return (
-                                             <div key={index} className={dataset === menu ? "dataset_item_box tooltip select" : "dataset_item_box tooltip"} onClick={ ()=> dataSetClick(menu, index)}>
-                                                <img id="dataset_item_image" className="dataset_item_image" src={getDataset_image(menu)} style={{height:'100%', width:'100%', margin:'auto', marginRight:'5px', backgroundColor:'#DEDEDE'}}/>
-                                                <span className="dataset_tooltiptext" style={{width:'150px'}}>{menu}</span>
-                                              </div>
-                                            )
-                                        })}
-                                    </div>
-                                    </>
-                                    :
-                                    <>
-                                    <div style={{height:'100%', width:'100%',
-                                        fontSize:"50px", fontWeight:'700', textAlign:'center',
-                                        display: 'flex', justifyContent: 'center', alignItems: 'center'}}>
-                                        Please Create DataSet!
-                                    </div>
-                                    </>
-                                }
-                            </div>
-
-                        </div>
-
-                        {/* 타겟 선택 */}
-                        <div className='project_user_requirement_right' style={{padding:'0px 20px 0px 0px', marginLeft:'0px'}}>
-                            <div className='select_target' style={{padding:'0px 0px 0px 20px', color:'black', display:'flex', alignItems:'center', height:'50px', width:'100%'}}>
-                                <div style={{ fontSize:'16px',  height:'50%', width:'70%'}}>Target</div>
-                                {/* 타겟 생성 버튼 */}
-                                <div style={{ width:'30%', height:'70%'}}>
-                                    <button onClick={() => target_add_button_click()} style={{height:'100%', width:'100%', borderRadius:'5px', backgroundColor:'#707070', color:'white', fontSize:'0.9em', border:'0px'}}>New Target</button>
-                                </div>
-                            </div>
-
-                            <div className='dataset_content' style={{display:'block', overflow:'auto'}}>
-
-                                { target_list.length > 0 ?
-                                    <>
-                                    <div className='dataset_list' style={{height:'100%', width:'100%', padding:'0px 20px 20px 20px', backgroundColor:'white',  maxHeight:'160px', overflow:'auto'}}>
-                                        {target_list.map((menu, index) => {
-                                            return (
-                                              <div className={target === menu.id ? "target_item_box tooltip select" : "target_item_box tooltip"} key={index} onClick={ ()=> targetClick(menu, index)}>
-                                                <img id="dataset_item_image" className="dataset_item_image" src={menu.image} style={{height:'100%', width:'100%', margin:'auto', marginRight:'5px', backgroundColor:'#DEDEDE'}}/>
-                                                <span className="dataset_tooltiptext" style={{width:'150px'}}>{menu.name}</span>
-                                              </div>
-                                            )
-                                        })}
-
-                                    </div>
-                                    </>
-                                    :
-                                    <>
-                                    <div style={{height:'100%', width:'100%',
-                                        fontSize:"50px", fontWeight:'700', textAlign:'center',
-                                        display: 'flex', justifyContent: 'center', alignItems: 'center'}}>
-                                        Does Not Exist Targets!
-                                    </div>
-                                    </>
-                                }
-                            </div>
-                        </div>
+                    <div id="accordion" className="accordion" onClick={ ()=> accordionButtonClick() } style={{height:'40px', position:'static', backgroundColor:'#303030', borderRadius:pannel === false? '5px 5px 5px 5px' : '5px 5px 0px 0px', lineHeight:'0', display:'flex'}}>
+                        <span style={{fontSize:'16px', color:'white'}}>Information </span>
+                        <div id="overall_icon" className="overall_icon" style={{backgroundImage:pannel === false ? "url('" + overall_down + "')" : "url('" + overall_up + "')"}}></div>
                     </div>
-                </Collapse>
 
+                    <Collapse isOpened={pannel}>
+                        <InformationForm
+                            dataset={dataset} setDataset={setDataset}
+                            dataset_list={dataset_list} setDataset_list={setDataset_list}
+                            target={target} setTarget={setTarget}
+                            target_list={target_list} setTarget_list={setTarget_list}/>
+                    </Collapse>
 
-                <div id="accordion" className="accordion" onClick={ ()=> configAccordionButtonClick() } style={{height:'40px', marginTop:'20px', position:'static', backgroundColor:'#303030', borderRadius:config_pannel === false? '5px 5px 5px 5px' : '5px 5px 0px 0px', lineHeight:'0', display:'flex'}}>
-                    <span style={{fontSize:'16px', color:'white'}}>Configuration </span>
-                    <div id="config_overall_icon" className="config_overall_icon" style={{backgroundImage:config_pannel === false ? "url('" + overall_down + "')" : "url('" + overall_up + "')"}}></div>
-                </div>
-
-                <Collapse isOpened={config_pannel}>
-                    <div className="project_user_requirement" style={{borderRadius:'0px 0px 5px 5px', border:'5px solid #303030'}}>
-
-                        {/* Task 선택 */}
-                        <div className='project_user_requirement_task_type' style={{height:'auto', borderBottom:'3px solid #303030'}}>
-                            <div style={{display:"flex", width:'100%', height:'100%'}}>
-                                <div style={{width:'20%', minWidth:'150px', backgroundColor:'#707070', textAlign:'center', padding:'10px 10px 10px 10px'}}>
-                                    <div style={{padding:'0px 20px 0px 20px', color:'white'}}>Task Type</div>
-                                </div>
-
-                                <div style={{width:'80%', display:'flex', padding:'10px 10px 10px 10px'}}>
-                                    <input type="radio" name="task_type_radio" value="classification" onChange={({ target: { value } }) => setTaskType(value)} style={{marginLeft:'20px'}} checked={taskType === 'classification'}/><span style={{fontSize:'16px'}}>Classification</span>
-                                    <input type="radio" name="task_type_radio" value="detection" onChange={({ target: { value } }) => setTaskType(value)} style={{marginLeft:'20px'}} checked={taskType === 'detection'}/><span style={{fontSize:'16px'}}>Detection</span>
-                                </div>
-                            </div>
-                        </div>
-
-                        {/* AutoNN Configuration */}
-                        <div className='project_user_requirement_autonn_config' style={{height:'auto', borderBottom:'3px solid #303030'}}>
-                            <div style={{display:"flex", width:'100%', height:'100%'}}>
-                                <div style={{width:'20%', minWidth:'150px', backgroundColor:'#707070', textAlign:'center', padding:'15px'}}>
-                                    <div style={{alignItems:'center', display:'inline-flex', color:'white'}}>AutoNN Config</div>
-                                </div>
-
-                                <div style={{width:'80%', display:'flex', padding:'10px 10px 10px 10px'}}>
-                                    <div style={{width:'50%'}}>
-                                        <label style={{textAlign:'right', marginLeft:'20px', width:'30%'}}>Dataset file : </label>
-                                        <input
-                                            className="config-input"
-                                            type="text"
-                                            placeholder="dataset.yaml"
-                                            style={{padding:'0px 10px 0px 10px', width:'60%'}}
-                                            maxLength='100'
-                                            value={datasetFile} readOnly/>
-                                    </div>
-
-                                    <div style={{width:'50%'}}>
-                                        <label style={{textAlign:'right', marginLeft:'20px', width:'30%'}}>Base Model : </label>
-                                        <input
-                                            className="config-input"
-                                            type="text"
-                                            placeholder="baseModel.yaml"
-                                            style={{padding:'0px 10px 0px 10px', width:'60%'}}
-                                            maxLength='100'
-                                            value={baseModel} readOnly/>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-
-                        {/* NAS Type */}
-                        <div className='project_user_requirement_nas_type' style={{height:'auto', borderBottom:'3px solid #303030'}}>
-                            <div style={{display:"flex", width:'100%', height:'100%'}}>
-                                <div style={{width:'20%', minWidth:'150px', backgroundColor:'#707070', textAlign:'center', padding:'10px 10px 10px 10px'}}>
-                                    <div style={{padding:'0px 20px 0px 20px', color:'white'}}>Nas Type</div>
-                                </div>
-
-                                <div style={{width:'80%', display:'flex', padding:'10px 10px 10px 10px'}}>
-                                    <input type="radio" name="nas_type_radio" value="bb_nas" onChange={({ target: { value } }) => setNasType(value)} style={{marginLeft:'20px'}} checked={nasType === 'bb_nas'}/><span style={{fontSize:'16px'}}>Backbone Nas</span>
-                                    <input type="radio" name="nas_type_radio" value="neck_nas" onChange={({ target: { value } }) => setNasType(value)} style={{marginLeft:'20px'}} checked={nasType === 'neck_nas'}/><span style={{fontSize:'16px'}}>Neck Nas</span>
-                                </div>
-                            </div>
-                        </div>
-
-                        {/* Deploy Configuration */}
-                        <div className='project_user_requirement_deploy_config' style={{height:'auto', display:get_target_info(target) === 'pc' || get_target_info(target) === 'cloud' ? 'block' : 'none'}}>
-                            <div style={{display:"grid", width:'100%', height:'100%', gridTemplateColumns:'auto 80%', gridTemplateRows:'1fr 1fr'}}>
-
-                                <div style={{gridRow:'1/3', gridColumn:'1/2', minWidth:'150px', backgroundColor:'#707070', textAlign:'center', padding:'10px 10px 10px 10px'}}>
-                                    <div style={{padding:'0px 20px 0px 20px', color:'white', alignItems:'center', display:'inline-flex', height:'100%'}}>Deploy Config</div>
-                                </div>
-
-                                <div className='deploy-config' style={{gridRow:'1/2', gridColumn:'2/3'}}>
-                                    <div style={{width:'100%', display:'grid', gridTemplateColumns:'1fr 1fr 1fr 1fr', padding:'10px 10px 10px 20px'}}>
-                                        <div style={{ gridColumn:'1/2'}}>
-                                            <label style={{textAlign:'right', width:'30%', fontSize:'0.8rem'}}>Light Weight Level </label>
-                                            <input
-                                                className="config-input"
-                                                type="number"
-                                                min="0"
-                                                max="10"
-                                                step="0"
-                                                maxLength={10}
-                                                style={{padding:'0px 10px 0px 10px', width:'80%'}}
-                                                value={weightLevel}
-                                                onChange={({ target: { value } }) => setWeightLevel(value)}
-                                                onKeyDown={(evt) => evt.key && evt.preventDefault()}/>
-                                        </div>
-
-                                        <div style={{ gridColumn:'2/3'}}>
-                                            <label style={{textAlign:'right', width:'30%', fontSize:'0.8rem'}}>Precision Level</label>
-                                            <input
-                                                className="config-input"
-                                                type="number"
-                                                min="0"
-                                                max="10"
-                                                step="0"
-                                                maxLength={2}
-                                                style={{padding:'0px 10px 0px 10px', width:'80%'}}
-                                                value={precisionLevel}
-                                                onChange={({ target: { value } }) => setPrecisionLevel(value)}
-                                                onKeyDown={(evt) => evt.key && evt.preventDefault()}/>
-                                        </div>
-
-                                        <div style={{ gridColumn:'3/4'}}>
-                                            <label style={{textAlign:'right', width:'30%', fontSize:'0.8rem'}}>Processing Lib</label>
-                                            <input
-                                                className="config-input"
-                                                type="text"
-                                                style={{padding:'0px 10px 0px 10px', width:'80%'}}
-                                                maxLength='100'
-                                                value={processingLib} readOnly/>
-                                        </div>
-
-                                        <div style={{ gridColumn:'4/5'}}>
-                                            <label style={{textAlign:'right', width:'30%', fontSize:'0.8rem'}}>User Editing</label>
-                                            <Select options={userEditList} isSearchable={false}
-                                            value={userEdit}
-                                            onChange={setUserEdit}/>
-                                        </div>
-
-                                    </div>
-                                </div>
-
-                                <div className='deploy-config' style={{gridRow:'2/3', gridColumn:'2/3'}}>
-                                    <div style={{width:'100%', display:'grid', gridTemplateColumns:'1fr 1fr 1fr 1fr', padding:'10px 10px 10px 20px'}}>
-                                        <div style={{ gridColumn:'1/2'}}>
-                                            <label style={{textAlign:'right', width:'30%', fontSize:'0.8rem'}}>Input Method</label>
-                                            <Select options={inputMethodList} isSearchable={false}
-                                            value={inputMethod}
-                                            onChange={setInputMethod}/>
-                                        </div>
-
-                                        <div style={{ gridColumn:'2/3'}}>
-                                            <label style={{textAlign:'right', width:'30%', fontSize:'0.8rem'}}>Input Data Path</label>
-                                            <input
-                                                className="config-input"
-                                                type="text"
-                                                style={{padding:'0px 10px 0px 10px', width:'80%'}}
-                                                maxLength='100'
-                                                value={inputDataPath} readOnly/>
-                                        </div>
-
-                                        <div style={{ gridColumn:'3/4'}}>
-                                            <label style={{textAlign:'right', width:'30%', fontSize:'0.8rem'}}>Output Method</label>
-                                            <Select options={outputMethodList} isSearchable={false}
-                                            value={outputMethod}
-                                            onChange={setOutputMethod}/>
-                                        </div>
-
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
+                    <div id="accordion" className="accordion" onClick={ ()=> configAccordionButtonClick() } style={{height:'40px', marginTop:'20px', position:'static', backgroundColor:'#303030', borderRadius:config_pannel === false? '5px 5px 5px 5px' : '5px 5px 0px 0px', lineHeight:'0', display:'flex'}}>
+                        <span style={{fontSize:'16px', color:'white'}}>Configuration </span>
+                        <div id="config_overall_icon" className="config_overall_icon" style={{backgroundImage:config_pannel === false ? "url('" + overall_down + "')" : "url('" + overall_up + "')"}}></div>
                     </div>
-                </Collapse>
 
-                <div id='runButtonArea' className='button' style={{marginTop:'20px', textAlign:'center'}}>
+                    <Collapse isOpened={config_pannel}>
+                        <ConfigForm
+                            inputMethodList={inputMethodList} outputMethodList={outputMethodList} userEditList={userEditList}
+                            target={target}
+                            taskType={taskType} setTaskType={setTaskType}
+                            datasetFile={datasetFile} setDatasetFile={setDatasetFile}
+                            baseModel={baseModel} setBaseModel={setBaseModel}
+                            nasType={nasType} setNasType={setNasType}
+                            weightLevel={weightLevel} setWeightLevel={setWeightLevel}
+                            precisionLevel={precisionLevel} setPrecisionLevel={setPrecisionLevel}
+                            processingLib={processingLib} setProcessingLib={setProcessingLib}
+                            userEdit={userEdit} setUserEdit={setUserEdit}
+                            inputMethod={inputMethod} setInputMethod={setInputMethod}
+                            inputDataPath={inputDataPath} setInputDataPath={setInputDataPath}
+                            outputMethod={outputMethod} setOutputMethod={setOutputMethod}
+                            get_target_info={get_target_info}/>
+                    </Collapse>
 
-                    {get_target_info(target) === 'pc' || get_target_info(target) === 'cloud' ?
-                        <>
-                        { target !== '' && dataset !== '' && taskType !== '' && nasType !== '' && userEdit !== '' && inputMethod !== '' && outputMethod !== ''?
-                            <button onClick={ ()=> runButtonClick() } style={{height:'42px', width:'30%', borderRadius:'3px', border:'0', fontSize:'16px', backgroundColor: '#4A80FF', color:'white'}}>신경망 자동 생성</button>
+                    <div id='runButtonArea' className='button' style={{marginTop:'20px', textAlign:'center'}}>
+                        {get_target_info(target) === 'pc' || get_target_info(target) === 'cloud' ?
+                            <>
+                            { target !== '' && dataset !== '' && taskType !== '' && nasType !== '' && userEdit !== '' && inputMethod !== '' && outputMethod !== ''?
+                                <button onClick={ ()=> runButtonClick() } style={{height:'42px', width:'30%', borderRadius:'3px', border:'0', fontSize:'16px', backgroundColor: '#4A80FF', color:'white'}}>신경망 자동 생성</button>
+                            :
+                                <button style={{height:'42px', width:'30%', borderRadius:'3px', border:'0', fontSize:'16px', backgroundColor:'#707070', color:'white'}} readOnly>신경망 자동 생성</button>
+                            }
+                            </>
                         :
-                            <button style={{height:'42px', width:'30%', borderRadius:'3px', border:'0', fontSize:'16px', backgroundColor:'#707070', color:'white'}} readOnly>신경망 자동 생성</button>
+                            <>
+                            { target !== '' && dataset !== '' && taskType !== '' && nasType !== ''?
+                                <button onClick={ ()=> runButtonClick() } style={{height:'42px', width:'30%', borderRadius:'3px', border:'0', fontSize:'16px', backgroundColor:'#4A80FF', color:'white'}}>신경망 자동 생성</button>
+                            :
+                                <button style={{height:'42px', width:'30%', borderRadius:'3px', border:'0', fontSize:'16px', backgroundColor:'#707070', color:'white'}} readOnly>신경망 자동 생성</button>
+                            }
+                            </>
                         }
-                        </>
-                    :
-                        <>
-                        { target !== '' && dataset !== '' && taskType !== '' && nasType !== ''?
-                            <button onClick={ ()=> runButtonClick() } style={{height:'42px', width:'30%', borderRadius:'3px', border:'0', fontSize:'16px', backgroundColor:'#4A80FF', color:'white'}}>신경망 자동 생성</button>
-                        :
-                            <button style={{height:'42px', width:'30%', borderRadius:'3px', border:'0', fontSize:'16px', backgroundColor:'#707070', color:'white'}} readOnly>신경망 자동 생성</button>
-                        }
-                        </>
-                    }
-
-
-                </div>
-
+                    </div>
                 </div>
 
                 <div id='project_bottom' className='project_bottom'  style={{padding:'20px 0px 0px 0px', height:'100%', marginBottom:'0px'}}>
@@ -916,7 +494,6 @@ function NeuralAndLoadPage({project_id, project_name, project_description})
                             <span style={{color:'#4A80FF'}}>{currentWork}</span>
                             <span style={{color:'white', marginLeft:'10px', marginRight:'10px'}}> ]</span>
                         </div>
-
 
                         <div className='status_level' style={{backgroundColor:'white', padding:'20px 0px', borderRadius:'5px', display:'grid', gridTemplateRows:'1fr 1fr'}}>
                             <div className="stepper-wrapper2" id='progressbar' style={{gridRow:'1/2'}}>
@@ -964,12 +541,9 @@ function NeuralAndLoadPage({project_id, project_name, project_description})
                     </div>
                 </div>
             </div>
-
         </div>
         </>
     );
 }
 
 export default NeuralAndLoadPage;
-
-

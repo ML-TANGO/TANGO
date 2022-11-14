@@ -38,7 +38,7 @@ CORS_ORIGIN_ALLOW_ALL = True
 #     'http://0.0.0.0:8888',  # code gen
 #     'http://0.0.0.0:8087',  # autonn bb
 #     'http://0.0.0.0:8089',  # autonn nk
-#     'http://0.0.0.0:8088',  # cloud deploy
+#     'http://0.0.0.0:8088',  # cloud deployS
 #     'http://0.0.0.0:8891',  # onDevice deploy
 # ]
 
@@ -48,7 +48,6 @@ CORS_ALLOW_METHODS = [
 ]
 
 # Application definition
-
 INSTALLED_APPS = [
     'django.contrib.admin',
     'django.contrib.auth',
@@ -106,16 +105,16 @@ WSGI_APPLICATION = 'backend.wsgi.application'
 # for testing backend at Docker container
 # use PostgreSQL
 # ---------------------------------------
-DATABASES = {
-    'default': {
-        'ENGINE': 'django.db.backends.postgresql',
-        'NAME': os.environ.get('POSTGRES_NAME'),
-        'USER': os.environ.get('POSTGRES_USER'),
-        'PASSWORD': os.environ.get('POSTGRES_PASSWORD'),
-        'HOST': 'postgresql',
-        'PORT': '5432',
-    }
-}
+# DATABASES = {
+#     'default': {
+#         'ENGINE': 'django.db.backends.postgresql',
+#         'NAME': os.environ.get('POSTGRES_NAME'),
+#         'USER': os.environ.get('POSTGRES_USER'),
+#         'PASSWORD': os.environ.get('POSTGRES_PASSWORD'),
+#         'HOST': 'postgresql',
+#         'PORT': '5432',
+#     }
+# }
 
 # ---------------------------------------
 # CASE II.
@@ -129,16 +128,16 @@ DATABASES = {
 #    }
 #}
 
-# DATABASES = {
-#     'default': {
-#         'ENGINE': 'django.db.backends.postgresql',
-#         'NAME': 'Tango',
-#         'USER': 'postgres',
-#         'PASSWORD': 'tesla',
-#         'HOST': '106.247.227.244',
-#         'PORT': '5432',
-#     },
-# }
+DATABASES = {
+    'default': {
+        'ENGINE': 'django.db.backends.postgresql',
+        'NAME': 'Tango',
+        'USER': 'postgres',
+        'PASSWORD': 'tesla',
+        'HOST': '106.247.227.244',
+        'PORT': '5432',
+    },
+}
 
 # Password validation
 # https://docs.djangoproject.com/en/3.2/ref/settings/#auth-password-validators
