@@ -19,7 +19,7 @@ import socket
 
 # for web service
 import requests
-from http.server import HTTPServer, BaseHTTPRequestHandler
+from http.server import HTTPServer, SimpleHTTPRequestHandler
 
 
 # for docker and project manager
@@ -35,7 +35,7 @@ def_deploy_port = 8891
 
 
 ####################################################################
-# class for code generation
+# class for code generationpython cors header request origin
 ####################################################################
 class OnDeviceDeploy:
     """Class Definition for OnDeviceDeploy """
@@ -192,7 +192,7 @@ class OnDeviceDeploy:
         """
         try:
             f = open(self.get_real_filepath(self.m_deployinfo_file), encoding='UTF8')
-        except Exception as err:
+        except IOError as err:
             print("Deploy Info file Read Error", err)
             return -1
 
@@ -254,12 +254,13 @@ class OnDeviceDeploy:
         Args: None
         Returns: None 
         """
+        host = ''
         try:
             s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
             s.connect(("8.8.8.8", 80))
             host = s.getsockname()[0]
-        except Exception as e:
-            print(e)
+        except socket.error as err:
+            print(err)
         prj_url = "%s%s%s" % ('http://', host, ':8085/status_report')
         print(prj_url)
         prj_data = 'container_id=ondevice_deploy'
@@ -271,27 +272,49 @@ class OnDeviceDeploy:
         else:
             prj_data = "%s%s" % (prj_data, '&result=failed')
 
+        headers = {
+            'Host': '0.0.0.0:8085',
+            'Origin': 'http://0.0.0.0:8891',
+            'Accept': "application/json, text/plain",
+            'Access-Control_Allow_Origin': '*',
+            'Access-Control-Allow-Credentials': "true"
+            }
+
         try:
-            res = requests.get(url=prj_url, params=prj_data)
-        except requests.exceptions.HTTPError as e:
-            print("HTTPError:", e)
-        except requests.exceptions.ConnectionError as e:
-            print("ConnectionError:", e)
-        except requests.exceptions.Timeout as e:
-            print("Timeout:", e)
-        except requests.exceptions.RequestException as e:
-            print("RequestException:", e)
+            requests.get(url=prj_url, headers=headers, params=prj_data)
+        except requests.exceptions.HTTPError as err:
+            print("HTTPError:", err)
+        except requests.exceptions.ConnectionError as err:
+            print("ConnectionError:", err)
+        except requests.exceptions.Timeout as err:
+            print("Timeout:", err)
+        except requests.exceptions.RequestException as err:
+            print("RequestException:", err)
         return
 
 
 ####################################################################
 # class for HTTP server
 ####################################################################
-class MyHandler(BaseHTTPRequestHandler):
+class MyHandler(SimpleHTTPRequestHandler):
     """Web Server definition """
     m_deploy_obj = OnDeviceDeploy()
     m_flag = 1
     m_stop = 0
+    allowed_list = ('0,0,0,0', '127.0.0.1')
+    
+    def send_cors_headers(self):
+        """
+        send header for CORS
+
+        Args: None
+        Returns: None
+        """
+        self.send_header("Access-Control-Allow-Origin", "*")
+        self.send_header('Referrer-Policy', 'same-origin')
+        self.send_header("Access-Control-Allow-Methods", "GET, OPTION")
+        self.send_header("Access-Control-Allow-Credentials", "true")
+        self.send_header("Access-Control-Allow-Headers", "Content-Type, Origin, Accept, token")
 
     def do_GET(self):
         """
@@ -333,8 +356,9 @@ class MyHandler(BaseHTTPRequestHandler):
 
         if cmd == "start":
             buf = 'starting'
-            self.send_response_only(200, 'OK')
-            self.send_header('Content-Type', 'text/plain')
+            self.send_response(200, 'ok')
+            self.send_cors_headers()
+            self.send_header("Content-Type", "text/plain")
             self.end_headers()
             self.wfile.write(buf.encode())
             if self.m_flag == 1:
@@ -343,8 +367,9 @@ class MyHandler(BaseHTTPRequestHandler):
             self.m_deploy_obj.response()
         elif cmd == 'stop':
             buf = "finished"
-            self.send_response_only(200, 'OK')
-            self.send_header('Content-Type', 'text/plain')
+            self.send_response(200, 'ok')
+            self.send_cors_headers()
+            self.send_header("Content-Type", "text/plain")
             self.end_headers()
             self.wfile.write(buf.encode())
             self.m_deploy_obj.clear()
@@ -352,15 +377,17 @@ class MyHandler(BaseHTTPRequestHandler):
         elif cmd == "clear":
             self.m_deploy_obj.clear()
             buf = "OK"
-            self.send_response_only(200, 'OK')
-            self.send_header('Content-Type', 'text/plain')
+            self.send_response(200, 'ok')
+            self.send_cors_headers()
+            self.send_header("Content-Type", "text/plain")
             self.end_headers()
             self.wfile.write(buf.encode())
         elif cmd == "pause":
             self.m_flag = 0
             buf = "OK"
-            self.send_response_only(200, 'OK')
-            self.send_header('Content-Type', 'text/plain')
+            self.send_response(200, 'ok')
+            self.send_cors_headers()
+            self.send_header("Content-Type", "text/plain")
             self.end_headers()
             self.wfile.write(buf.encode())
         elif cmd == 'resume':
@@ -380,14 +407,16 @@ class MyHandler(BaseHTTPRequestHandler):
                     buf = "stopped"
                 elif self.m_flag == 1:
                     buf = "completed"
-            self.send_response_only(200, 'OK')
-            self.send_header('Content-Type', 'text/plain')
+            self.send_response(200, 'ok')
+            self.send_cors_headers()
+            self.send_header("Content-Type", "text/plain")
             self.end_headers()
             self.wfile.write(buf.encode())
         else:
             buf = ""
-            self.send_response_only(200, 'OK')
-            self.send_header('Content-Type', 'text/plain')
+            self.send_response(200, 'ok')
+            self.send_cors_headers()
+            self.send_header("Content-Type", "text/plain")
             self.end_headers()
             self.wfile.write(buf.encode())
 
@@ -395,6 +424,17 @@ class MyHandler(BaseHTTPRequestHandler):
             time.sleep(1)
             raise KeyboardInterrupt
         return
+
+    def do_OPTIONS(self):
+        """
+        send header for CORS
+        
+        Args: None
+        Returns: None
+        """
+        self.send_response(200)
+        self.send_cors_headers()
+        self.end_headers()    
 
     '''
     def do_POST(self):

@@ -9,12 +9,13 @@ This module generates template code for RKNN, PyTorch, and ArmNN based on AutoNN
 import os
 import socket
 import shutil
-import sys
+import zipfile
+# import sys
 #  from distutils.dir_util import copy_tree
 import time
 import yaml
 # for web service
-from http.server import HTTPServer, BaseHTTPRequestHandler
+from http.server import HTTPServer, SimpleHTTPRequestHandler
 import requests
 # import      subprocess
 # import      importlib
@@ -146,6 +147,8 @@ class CodeGen:
     m_converted_file = def_rknn_file
     m_deploy_python_file = def_deploy_python_file
     m_requirement_file = def_requirement_file
+
+    m_deploy_network_serviceport = 0
 
     m_last_run_state = 0
 
@@ -416,7 +419,8 @@ class CodeGen:
             self.gen_python_code()
             if self.m_deploy_type == 'cloud':
                 self.make_requirements_file_for_docker()
-            else:  #  elf.m_deploy_type == 'pc':
+            #  elf.m_deploy_type == 'pc':
+            else:
                 self.make_requirements_file_for_others()
 
         # acl
@@ -525,12 +529,12 @@ class CodeGen:
 
         # pre-process config
         print('--> Config model')
-        rknn.config(mean_values=[[0, 0, 0]], std_values=[[255, 255, 255]], 
-            output_tensor_type='int8')
+        rknn.config(mean_values=[[0, 0, 0]], std_values=[[255, 255, 255]],
+                    output_tensor_type='int8')
 
         # Load ONNX model
-        ret = rknn.load_onnx(self.get_real_filepath(self.m_nninfo_weight_onnx_file), 
-            outputs=['397', '458', '519'])
+        ret = rknn.load_onnx(self.get_real_filepath(self.m_nninfo_weight_onnx_file),
+                             outputs=['397', '458', '519'])
         if ret != 0:
             print('Load model failed!')
             return -1
@@ -1000,23 +1004,27 @@ class CodeGen:
             self.m_converted_file = "%s%s%s" % (self.m_current_file_path, "/", self.m_nninfo_weight_pt_file)
 
         if self.m_deploy_type == 'cloud':
-            if sys.version_info.major == 3 and sys.version_info.minor > 7:
-                shutil.copytree('./db/yolov3/', self.m_current_code_folder, dirs_exist_ok=True)
-            else:
-                if os.path.exists('./db/yolov3/'):
-                    for file in os.scandir('./db/yolov3/'):
-                        if os.path.isfile(file.path):
-                            shutil.copy(file.path, self.m_current_code_folder)
-                        else:
-                            tname = "%s/%s" % (self.m_current_code_folder, file.name)
-                            shutil.copytree(file.path, tname)
+            # if sys.version_info.major == 3 and sys.version_info.minor > 7:
+            #    shutil.copytree('./db/yolov3/', self.m_current_code_folder, dirs_exist_ok=True)
+            # else:
+            #     if os.path.exists('./db/yolov3/'):
+            #         for file in os.scandir('./db/yolov3/'):
+            #            if os.path.isfile(file.path):
+            #                shutil.copy(file.path, self.m_current_code_folder)
+            #            else:
+            #                tname = "%s/%s" % (self.m_current_code_folder, file.name)
+            #                shutil.copytree(file.path, tname)
+            # zip db/yolov3.db into nn_model foler
+            zipfile.ZipFile('./db/yolov3.db').extractall(self.m_current_code_folder)
+            # copy db/yolov3/yolov3.pt into nn_model folder
+            shutil.copy('./db/yolov3.pt', self.m_current_code_folder)
         else:
             # convert  and copy .pt file to nn_model folder
             if os.path.isfile(self.m_converted_file):
                 shutil.copy(self.m_converted_file, self.m_current_code_folder)
 
             tmp_str = "%s%s%s%s%s%s" % ('\"\"\"', def_newline, self.m_deploy_python_file,
-                                    def_newline, '\"\"\"', def_newline)
+                                        def_newline, '\"\"\"', def_newline)
             tmp_str = "%s%s%s" % (tmp_str, "import torch", def_newline)
             tmp_str = "%s%s%s" % (tmp_str, "import cv2", def_newline)
             tmp_str = "%s%s%s" % (tmp_str, "import numpy as np", def_newline)
@@ -1026,7 +1034,7 @@ class CodeGen:
             # pytorch file
             # 가속기 gpu, npu 고려 사항 입력
             tmp_str = "%s%s%s" % (tmp_str,
-                              "model = torch.hub.load('ultralytics/yolov5', 'yolov5s')", def_newline)
+                                  "model = torch.hub.load('ultralytics/yolov5', 'yolov5s')", def_newline)
 
             # input method
             tmp_str = "%s%s%s" % (tmp_str, "cap = cv2.VideoCapture('480.mp4')", def_newline)
@@ -1041,15 +1049,15 @@ class CodeGen:
             tmp_str = "%s%s%s%s" % (tmp_str, def_4blank, "end_time = time.time()", def_newline)
             tmp_str = "%s%s" % (tmp_str, def_newline)
             tmp_str = "%s%s%s%s" % (tmp_str, def_4blank, "fps = 1 / (end_time - start_time)",
-                                def_newline)
+                                    def_newline)
             tmp_str = "%s%s%s" % (tmp_str,
-                              def_4blank, 'cv2.putText(img, f"{fps:.3f} FPS", (20,35),')
+                                  def_4blank, 'cv2.putText(img, f"{fps:.3f} FPS", (20,35),')
             tmp_str = "%s%s%s" % (tmp_str,
-                              " cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 255, 0), 2)", def_newline)
+                                  " cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 255, 0), 2)", def_newline)
             tmp_str = "%s%s%s%s" % (tmp_str, def_4blank,
-                                "cv2.imshow('YoloV5 Test...', np.squeeze(results.render()))", def_newline)
+                                    "cv2.imshow('YoloV5 Test...', np.squeeze(results.render()))", def_newline)
             tmp_str = "%s%s%s%s" % (tmp_str,
-                                def_4blank, "if cv2.waitKey(1) & 0xFF == ord('q'):", def_newline)
+                                    def_4blank, "if cv2.waitKey(1) & 0xFF == ord('q'):", def_newline)
             tmp_str = "%s%s%s%s%s" % (tmp_str, def_4blank, def_4blank, "break", def_newline)
             tmp_str = "%s%s" % (tmp_str, def_newline)
             tmp_str = "%s%s%s" % (tmp_str, "cap.release()", def_newline)
@@ -1181,25 +1189,26 @@ class CodeGen:
         else:
             dep_type = 'native'
 
-        if self.m_sysinfo_engine_type == 'rknn':
-            w_filw = def_rknn_file
-        elif self.m_sysinfo_engine_type == 'acl':
-            w_filw = "yolo_v3_tiny_darknet_fp32.tflite"
-        else:  #  .pt file
-            w_filw = self.m_nninfo_weight_pt_file
+        # if self.m_sysinfo_engine_type == 'rknn':
+        #     w_filw = def_rknn_file
+        # elif self.m_sysinfo_engine_type == 'acl':
+        #     w_filw = "yolo_v3_tiny_darknet_fp32.tflite"
+        # #  .pt file
+        # else:
+        #    w_filw = self.m_nninfo_weight_pt_file
 
         my_entry = ['python3', 'deploy_server.py']
-        #my_entry = self.m_deploy_entrypoint
+        # my_entry = self.m_deploy_entrypoint
 
         if self.m_deploy_type == 'cloud':
             t_pkg = {"atp": ['vim', 'python3.9'], "pypi": []}
             t_com = {"custom_packages": t_pkg}
             t_build = {'architecture': 'linux/amd64',
-                    "accelerator": 'cpu',
-                    "os": 'ubuntu',
-                    "target_name": 'yolov3:latest',
-                    "components": t_com,
-                    "workdir": '/yolov3'}
+                       "accelerator": 'cpu',
+                       "os": 'ubuntu',
+                       "target_name": 'yolov3:latest',
+                       "components": t_com,
+                       "workdir": '/yolov3'}
             t_deploy = {"entrypoint": my_entry,
                         "network": {"service_host_ip": self.m_deploy_network_hostip,
                                     "service_host_port": self.m_deploy_network_hostport,
@@ -1208,20 +1217,20 @@ class CodeGen:
         else:
             t_pkg = {"atp": self.m_sysinfo_apt, "pypi": self.m_sysinfo_papi}
             t_com = {"engine": "pytorch",
-                 "custom_packages": t_pkg}
+                     "custom_packages": t_pkg}
             t_build = {'architecture': self.m_sysinfo_cpu_type,
-                   "accelerator": self.m_sysinfo_acc_type,
-                   "os": self.m_sysinfo_os_type, "components": t_com,
-                   "workdir": self.m_deploy_work_dir,
-                   "target_name": "yolov3:latest"}
+                       "accelerator": self.m_sysinfo_acc_type,
+                       "os": self.m_sysinfo_os_type, "components": t_com,
+                       "workdir": self.m_deploy_work_dir,
+                       "target_name": "yolov3:latest"}
             t_deploy = {"type": dep_type, "work_dir": self.m_deploy_work_dir,
-                    "entrypoint": my_entry,
-                    "network": {"service_host_ip": self.m_deploy_network_hostip,
-                                "service_host_port": self.m_deploy_network_hostport,
-                                "service_container_port": self.m_deploy_network_serviceport}}
+                        "entrypoint": my_entry,
+                        "network": {"service_host_ip": self.m_deploy_network_hostip,
+                                    "service_host_port": self.m_deploy_network_hostport,
+                                    "service_container_port": self.m_deploy_network_serviceport}}
             t_opt = {"nn_file": 'yolo.py',
-                 "weight_file": 'yolov3.pt',
-                 "annotation_file": self.m_nninfo_annotation_file}
+                     "weight_file": 'yolov3.pt',
+                     "annotation_file": self.m_nninfo_annotation_file}
 
             t_total = {"build": t_build, "deploy": t_deploy, "optional": t_opt}
 
@@ -1281,12 +1290,13 @@ class CodeGen:
         Args: None
         Returns: None 
         """
+        host = ''
         try:
             s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
             s.connect(("8.8.8.8", 80))
             host = s.getsockname()[0]
-        except Exception as e:
-            print(e)
+        except socket.error as err:
+            print(err)
         prj_url = "%s%s%s" % ('http://', host, ':8085/status_report')
         prj_data = 'container_id=code_gen'
         prj_data = "%s%s%s%s%s" % (prj_data, '&user_id=', self.m_current_userid,
@@ -1297,26 +1307,48 @@ class CodeGen:
         else:
             prj_data = "%s%s" % (prj_data, '&result=failed')
 
+        headers = {
+            'Host': '0.0.0.0:8085',
+            'Origin': 'http://0.0.0.0:8888',
+            'Accept': "application/json, text/plain",
+            'Access-Control_Allow_Origin': '*',
+            'Access-Control-Allow-Credentials': "true"
+            }
+
         try:
-            res = requests.get(url=prj_url, params=prj_data)
-        except requests.exceptions.HTTPError as e:
-            print("Http Error:", e)
-        except requests.exceptions.ConnectionError as e:
-            print("Error Connecting:", e)
-        except requests.exceptions.Timeout as e:
-            print("Timeout Error:", e)
-        except requests.exceptions.RequestException as e:
-            print("OOps: Something Else", e)
+            requests.get(url=prj_url, headers=headers, params=prj_data)
+        except requests.exceptions.HTTPError as err:
+            print("Http Error:", err)
+        except requests.exceptions.ConnectionError as err:
+            print("Error Connecting:", err)
+        except requests.exceptions.Timeout as err:
+            print("Timeout Error:", err)
+        except requests.exceptions.RequestException as err:
+            print("OOps: Something Else", err)
         return
 
 
 ####################################################################
 ####################################################################
-class MyHandler(BaseHTTPRequestHandler):
+class MyHandler(SimpleHTTPRequestHandler):
     """Webserver Definition """
     m_obj = CodeGen()
     m_flag = 1
     m_stop = 0
+    # allowed_list = ('0,0,0,0', '127.0.0.1')
+
+    def send_cors_headers(self):
+        """
+        send header for CORS
+
+        Args: None
+        Returns: None
+        """
+        self.send_header("Access-Control-Allow-Origin", "*")
+        self.send_header('Referrer-Policy', 'same-origin')
+        self.send_header("Access-Control-Allow-Methods", "GET, OPTION")
+        self.send_header("Access-Control-Allow-Credentials", "true")
+        self.send_header("Access-Control-Allow-Headers", "Content-Type, Origin, Accept, token")
 
     def do_GET(self):
         """
@@ -1325,6 +1357,11 @@ class MyHandler(BaseHTTPRequestHandler):
         Args: None
         Returns: None
         """
+        # (c_host, c_port) = self.client_address
+        # if c_host not in self.allowed_list:
+        #     self.send_response(401, 'request not allowed')
+        #     return
+
         if self.path[1] == '?':
             t_path = "%s%s" % ('/', self.path[2:])
         else:
@@ -1354,22 +1391,26 @@ class MyHandler(BaseHTTPRequestHandler):
                 if prjid == '""' or prjid == '%22%22':
                     prjid = ""
                 self.m_obj.set_folder(userid, prjid)
-        print("cmd =", cmd)
+        print("code_gen: cmd =", cmd)
 
         if cmd == "start":
             buf = 'starting'
-            self.send_response_only(200, 'OK')
-            self.send_header('Content-Type', 'text/plain')
+            self.send_response(200, 'ok')
+            self.send_cors_headers()
+            self.send_header("Content-Type", "text/plain")
             self.end_headers()
             self.wfile.write(buf.encode())
+            print("code_gen: send_ack")
 
             if self.m_flag == 1:
                 self.m_obj.run()
             # send notice to project manager
             self.m_obj.response()
+            print("code_gen: send_status_report to manager")
         elif cmd == 'stop':
             buf = 'finished'
-            self.send_response_only(200, 'OK')
+            self.send_response(200, 'ok')
+            self.send_cors_headers()
             self.send_header('Content-Type', 'text/plain')
             self.end_headers()
             self.wfile.write(buf.encode())
@@ -1378,21 +1419,24 @@ class MyHandler(BaseHTTPRequestHandler):
         elif cmd == "clear":
             self.m_obj.clear()
             buf = "OK"
-            self.send_response_only(200, 'OK')
+            self.send_response(200, 'ok')
+            self.send_cors_headers()
             self.send_header('Content-Type', 'text/plain')
             self.end_headers()
             self.wfile.write(buf.encode())
         elif cmd == "pause":
             self.m_flag = 0
             buf = "OK"
-            self.send_response_only(200, 'OK')
+            self.send_response(200, 'ok')
+            self.send_cors_headers()
             self.send_header('Content-Type', 'text/plain')
             self.end_headers()
             self.wfile.write(buf.encode())
         elif cmd == 'resume':
             self.m_flag = 1
             buf = "OK"
-            self.send_response_only(200, 'OK')
+            self.send_response(200, 'ok')
+            self.send_cors_headers()
             self.send_header('Content-Type', 'text/plain')
             self.end_headers()
             self.wfile.write(buf.encode())
@@ -1405,13 +1449,15 @@ class MyHandler(BaseHTTPRequestHandler):
                     buf = "stopped"
                 elif self.m_flag == 1:
                     buf = "completed"
-            self.send_response_only(200, 'OK')
+            self.send_response(200, 'ok')
+            self.send_cors_headers()
             self.send_header('Content-Type', 'text/plain')
             self.end_headers()
             self.wfile.write(buf.encode())
         else:
             buf = ""
-            self.send_response_only(200, 'OK')
+            self.send_response(200, 'ok')
+            self.send_cors_headers()
             self.send_header('Content-Type', 'text/plain')
             self.end_headers()
             self.wfile.write(buf.encode())
@@ -1420,6 +1466,17 @@ class MyHandler(BaseHTTPRequestHandler):
             time.sleep(1)
             raise KeyboardInterrupt  # to finish web sever
         return
+        
+    def do_OPTIONS(self):
+        """
+        send header for CORS
+        
+        Args: None
+        Returns: None
+        """
+        self.send_response(200)
+        self.send_cors_headers()
+        self.end_headers()
 
     '''
     def do_POST(self):
