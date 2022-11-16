@@ -46,7 +46,7 @@ function DataMain()
                 </div>
 
                 <div className='data_manage_content' style={{backgroundColor:'#DFDFDF', borderRadius:'5px'}}>
-                     <iframe id='labelTool'  className='project_manage_content' title='labeling tool' src={server_ip} frameBorder='0' style={{ width:'100%', height:'100%'}}></iframe>
+                     <iframe id='labelTool'  className='project_manage_content' title='labeling tool' src={server_ip} frameBorder='0' style={{ width:'100%', height:'100%', borderRadius:'5px'}}></iframe>
                 </div>
 
             </div>

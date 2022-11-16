@@ -38,7 +38,7 @@ CORS_ORIGIN_ALLOW_ALL = True
 #     'http://0.0.0.0:8888',  # code gen
 #     'http://0.0.0.0:8087',  # autonn bb
 #     'http://0.0.0.0:8089',  # autonn nk
-#     'http://0.0.0.0:8088',  # cloud deploy
+#     'http://0.0.0.0:8088',  # cloud deployS
 #     'http://0.0.0.0:8891',  # onDevice deploy
 # ]
 
@@ -48,7 +48,6 @@ CORS_ALLOW_METHODS = [
 ]
 
 # Application definition
-
 INSTALLED_APPS = [
     'django.contrib.admin',
     'django.contrib.auth',

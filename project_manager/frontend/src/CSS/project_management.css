@@ -114,7 +114,7 @@
     grid-column: 1 / 2;
     font-size: 35px;
     font-weight: 700;
-    line-height:1;
+    /* line-height:1; */
 }
 
 .title_right
