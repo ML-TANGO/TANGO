@@ -15,21 +15,18 @@ from rest_framework import routers
 from rest_framework_jwt.views import obtain_jwt_token, verify_jwt_token, refresh_jwt_token
 
 router = routers.DefaultRouter()
-router.register(r'user', views.UserViewSet)                                             # 사용자 정보 확인
+router.register(r'user', views.UserViewSet)         # 사용자 정보 확인
 router.register(r'group', views.GroupViewSet)
 
 urlpatterns = [
 
     url(r'^', include(router.urls)),
 
-
-    url(r'^login', views.login, name='login'),       # 로그인
-    url(r'^logout', views.logout, name='logout'),    # 로그아웃
-
+    url(r'^login', views.login, name='login'),      # 로그인
+    url(r'^logout', views.logout, name='logout'),   # 로그아웃
 
     url(r'^signup', views.signup, name='signup'),                         # 회원 가입 요청
     url(r'^user_id_check', views.user_id_check, name='user_id_check'),    # 회원 가입 - 아이디 중복 확인
-
 
     url(r'^project_list_get', viewsProject.project_list_get, name='project_list_get'),   # 프로젝트 리스트 조회
     url(r'^project_create', viewsProject.project_create, name='project_create'),         # 프로젝트 생성

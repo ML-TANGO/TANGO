@@ -4,10 +4,12 @@ import { useLocation } from "react-router-dom";
 
 import '../../../../CSS/project_management.css'
 
-import data_th_1 from "../../../../images/thumbnail/data_th_1.PNG";         // 칫솔
-import data_th_2 from "../../../../images/thumbnail/data_th_2.PNG";         // 용접 파이프
-import data_th_3 from "../../../../images/thumbnail/data_th_3.PNG";         // 실생활
-import data_th_4 from "../../../../images/thumbnail/data_th_4.PNG";         // 폐결핵 판독
+import imageCompression from "browser-image-compression";
+
+//import data_th_1 from "../../../../images/thumbnail/data_th_1.PNG";         // 칫솔
+//import data_th_2 from "../../../../images/thumbnail/data_th_2.PNG";         // 용접 파이프
+//import data_th_3 from "../../../../images/thumbnail/data_th_3.PNG";         // 실생활
+//import data_th_4 from "../../../../images/thumbnail/data_th_4.PNG";         // 폐결핵 판독
 
 import * as RequestTarget from "../../../../service/restTargetApi";
 import * as RequestLabelling from "../../../../service/restLabellingApi";
@@ -18,7 +20,8 @@ function InformationForm(
     {dataset, setDataset,
     dataset_list, setDataset_list,
     target, setTarget,
-    target_list, setTarget_list})
+    target_list, setTarget_list,
+    setTaskType})
 {
 
     /* 타겟 생성 정보 */
@@ -53,7 +56,12 @@ function InformationForm(
             for ( let d in resKeys)
             {
                 let info = result.data[d]
-                resList.push(info)
+
+                // 삭제된 데이터 셋이 아닌 경우
+                if(info.DATASET_STS !== 'DELETE')
+                {
+                    resList.push(info)
+                }
             }
             setDataset_list(resList)
 
@@ -70,7 +78,18 @@ function InformationForm(
     // 데이터 셋 선택
     const dataSetClick = (value, index) =>
     {
-        setDataset(value);
+        // 선택한 데이터 셋의 타입 정보에 따라 Task Type 정보 설정
+        switch(value.OBJECT_TYPE)
+        {
+            case "C":
+                setTaskType('classification');
+                break;
+            case "D":
+                setTaskType('detection');
+                break;
+        }
+
+        setDataset(value.DATASET_CD);
         const dataset_item_box = document.getElementsByClassName("dataset_item_box");
 
         for (var i=0; i < dataset_item_box.length; i++)
@@ -155,19 +174,26 @@ function InformationForm(
     };
 
     // 타겟 이미지 업로드
-    const uploadImageFile = (event) =>
+    const uploadImageFile = async (event) =>
     {
         const file = event.target.files[0];
+
+        const options = {
+                maxSizeMB: 0.2,
+                maxWidthOrHeight: 1920,
+                useWebWorker: true
+        }
+
+        const compressFile = await imageCompression(file, options);
 
         const reader = new FileReader();
 
         reader.onload = function() {
             setTargetImage(reader.result);
-
             setPreviewURL(reader.result)
         }
 
-        reader.readAsDataURL(file);
+        reader.readAsDataURL(compressFile);
 
         event.target.value = "";
     };
@@ -250,7 +276,7 @@ function InformationForm(
                         <div className='dataset_list' style={{height:'100%', width:'100%', padding:'0px 20px 20px 20px', backgroundColor:'white', maxHeight:'160px', overflow:'auto'}}>
                             {dataset_list.map((menu, index) => {
                                 return (
-                                 <div key={index} className={dataset === menu.DATASET_CD ? "dataset_item_box tooltip select" : "dataset_item_box tooltip"} onClick={ ()=> dataSetClick(menu.DATASET_CD, index)}>
+                                 <div key={index} className={dataset === menu.DATASET_CD ? "dataset_item_box tooltip select" : "dataset_item_box tooltip"} onClick={ ()=> dataSetClick(menu, index)}>
                                     <img id="dataset_item_image" className="dataset_item_image" src={getDataset_image(menu.THUM_NAIL)} style={{height:'100%', width:'100%', margin:'auto', marginRight:'5px', backgroundColor:'#DEDEDE'}}/>
                                     <span className="dataset_tooltiptext" style={{width:'150px'}}>{menu.TITLE}</span>
                                   </div>

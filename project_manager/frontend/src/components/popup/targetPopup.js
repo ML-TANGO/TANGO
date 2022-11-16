@@ -226,7 +226,6 @@ export function TargetCreatePopup({
                     <hr/>
 
                     {/* Target Host */}
-
                     <div style={{marginTop:'20px', marginBottom:'20px', display:target_info === 'pc' || target_info === 'cloud' ? 'block' : 'none'}}>
                         <div className="popup_header" style={{textAlign:'left', fontSize:'14px', color:'#6c7890', fontWeight:'bold', marginBottom:'10px'}}>Target Host</div>
 

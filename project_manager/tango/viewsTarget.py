@@ -36,7 +36,7 @@ def target_create(request):
 
     try:
         target = Target(target_name=request.data['name'],
-                        create_user=request.user,
+                        create_user=str(request.user),
                         create_date=str(datetime.now()),
                         target_info=request.data['info'],
                         target_engine=request.data['engine'],
@@ -72,8 +72,6 @@ def target_read(request):
     """
 
     try:
-        #queryset = Target.objects.filter(create_user=str(request.user))
-
         # 모든 사용자가 타겟을 확인할 수 있도록 수정
         queryset = Target.objects.filter()
         data = list(queryset.values())
@@ -98,10 +96,6 @@ def target_read(request):
                            'image': str(i['target_image'])}
 
             data_list.append(target_data)
-
-            # fPath = os.path.join(BASE_DIR, 'image')
-            # with open(os.path.join(fPath, str(i['id'] + 1) + '.jpg'), mode='wb') as file:
-            #     file.write(i['target_image'])
 
         return HttpResponse(json.dumps(data_list))
 

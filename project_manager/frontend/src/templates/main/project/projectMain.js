@@ -7,17 +7,17 @@ import * as Request from "../../../service/restProjectApi";
 import * as RequestLabelling from "../../../service/restLabellingApi";
 
 import Kebab from "../../../components/Kebab/Kebab";
-import Progress from "../../../components/Progress/Progress";
+//import Progress from "../../../components/Progress/Progress";
 import * as Popup from "../../../components/popup/popup";
 
 import '../../../CSS/project_management.css'
 
 import { isToken, isUser } from '../../../Router/isLogin';
 
-import data_th_1 from "../../../images/thumbnail/data_th_1.PNG";   // 칫솔
-import data_th_2 from "../../../images/thumbnail/data_th_2.PNG";   // 용접 파이프
-import data_th_3 from "../../../images/thumbnail/data_th_3.PNG";   // 실생활
-import data_th_4 from "../../../images/thumbnail/data_th_4.PNG";   // 폐결핵 판독
+//import data_th_1 from "../../../images/thumbnail/data_th_1.PNG";   // 칫솔
+//import data_th_2 from "../../../images/thumbnail/data_th_2.PNG";   // 용접 파이프
+//import data_th_3 from "../../../images/thumbnail/data_th_3.PNG";   // 실생활
+//import data_th_4 from "../../../images/thumbnail/data_th_4.PNG";   // 폐결핵 판독
 
 function ProjectMain()
 {
@@ -254,7 +254,7 @@ function ProjectMain()
     /* 아이템 박스 이미지 */
     const getDataset_image = (value) =>
     {
-        const data_index = dataset_list.findIndex(d => d.DATASET_CD == value)
+        const data_index = dataset_list.findIndex(d => d.DATASET_CD === value)
         if(data_index !== -1)
         {
             const host = window.location.hostname

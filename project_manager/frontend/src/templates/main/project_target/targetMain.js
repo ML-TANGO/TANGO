@@ -2,6 +2,7 @@ import React from "react";
 import { useEffect, useState } from "react";
 
 import { PlusLg } from "react-bootstrap-icons";
+import imageCompression from "browser-image-compression";
 
 import Kebab from "../../../components/Kebab/Kebab";
 import * as TargetPopup from "../../../components/popup/targetPopup";
@@ -145,6 +146,8 @@ function TargetMain()
             'host_service_port': target_host_service_port
         };
 
+        console.log(param)
+
         Request.requestTargetCreate(param).then(result =>
         {
             document.getElementById('create_target_popup').style.display = 'none';      // 생성 팝업 숨기기
@@ -155,7 +158,7 @@ function TargetMain()
         })
         .catch(error =>
         {
-            console.log('description modify error')
+            console.log('target create error')
         });
     }
 
@@ -197,19 +200,26 @@ function TargetMain()
         }
     };
 
-    const uploadImageFile = (event) =>
+    const uploadImageFile = async (event) =>
     {
         const file = event.target.files[0];
+
+        const options = {
+                maxSizeMB: 0.2,
+                maxWidthOrHeight: 1920,
+                useWebWorker: true
+        }
+
+        const compressFile = await imageCompression(file, options);
 
         const reader = new FileReader();
 
         reader.onload = function() {
             setTargetImage(reader.result);
-
             setPreviewURL(reader.result)
         }
 
-        reader.readAsDataURL(file);
+        reader.readAsDataURL(compressFile);
 
         event.target.value = "";
     };

@@ -43,7 +43,7 @@ function NeuralAndLoadPage({project_id, project_name, project_description})
 
     const timerRef = useRef();
 
-    const [responseData, setResponseData] = useState('');                        // 기존 선택 데이터
+    const [responseData, setResponseData] = useState('');              // 기존 선택 데이터
 
     const [container, setContainer] = useState('');                    // 신경망 생성 단계
     const [container_status, setContainer_status] = useState('');      // 신경망 생성 단계 상황
@@ -113,16 +113,16 @@ function NeuralAndLoadPage({project_id, project_name, project_description})
     // 프로젝트 정보 업데이트
     const projectContentUpdate = (data) =>
     {
-        // 데이터 셋 정보 수신 - 추후 제거
-        //setDataset_list(data['dataset_list']);
-
+        // DB에 저장된 데이터
         setResponseData(data)
 
-        setTarget(parseInt(data['target']))  // 선택 타겟 정보
-        setDataset(data['dataset'])          // 데이터 셋 정보
+        if(data['target'] !== '') setTarget(parseInt(data['target']))  // 선택 타겟 정보
+        if(data['dataset'] !== ''){
+            setDataset(data['dataset'])         // 데이터 셋 정보
+            setTaskType(data['task_type'])
+        }
 
-        setTaskType(data['task_type'])
-        setNasType(data['nas_type'])
+        if(data['nas_type'] !== '') setNasType(data['nas_type'])
 
         if(data['deploy_weight_level'] !== '') setWeightLevel(parseInt(data['deploy_weight_level']))
         if(data['deploy_precision_level'] !== '') setPrecisionLevel(parseInt(data['deploy_precision_level']))
@@ -253,10 +253,7 @@ function NeuralAndLoadPage({project_id, project_name, project_description})
         else
         {
             var result = window.confirm("새로운 신경망을 생성 하시겠습니까?")
-            if(result === true)
-            {
-                neuralCreate(param)
-            }
+            if(result === true) neuralCreate(param)
         }
     };
 
@@ -268,7 +265,6 @@ function NeuralAndLoadPage({project_id, project_name, project_description})
         // 데이터베이스 업데이트
         Request.requestProjectUpdate(param).then(result =>
         {
-            //console.log(result)
             alert('신경망 생성 준비 완료');
 
             // 프로젝트 정보 수신
@@ -439,7 +435,8 @@ function NeuralAndLoadPage({project_id, project_name, project_description})
                             dataset={dataset} setDataset={setDataset}
                             dataset_list={dataset_list} setDataset_list={setDataset_list}
                             target={target} setTarget={setTarget}
-                            target_list={target_list} setTarget_list={setTarget_list}/>
+                            target_list={target_list} setTarget_list={setTarget_list}
+                            setTaskType={setTaskType}/>
                     </Collapse>
 
                     <div id="accordion" className="accordion" onClick={ ()=> configAccordionButtonClick() } style={{height:'40px', marginTop:'20px', position:'static', backgroundColor:'#303030', borderRadius:config_pannel === false? '5px 5px 5px 5px' : '5px 5px 0px 0px', lineHeight:'0', display:'flex'}}>

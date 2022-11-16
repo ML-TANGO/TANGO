@@ -501,7 +501,8 @@ def project_update(request):
         print(project_info_content)
 
         # project_info.yaml 파일 생성
-        common_path = os.path.join(root_path, "shared/common/{0}/{1}".format(str(request.user), str(request.data['project_id'])))
+        common_path = os.path.join(root_path, "shared/common/{0}/{1}".format(str(request.user),
+                                                                             str(request.data['project_id'])))
 
         print(common_path)
 

@@ -37,7 +37,7 @@ urlpatterns = [
 
     # 서버 주소 시작
     path('api/', include('tango.urls')),
-    path('', include('tango.urls_other')),
+    # path('', include('tango.urls_other')),
 
     # 정적 파일 주소
     url(r'^media/(?P<path>.*)$', serve, {'document_root': settings.MEDIA_ROOT}),
