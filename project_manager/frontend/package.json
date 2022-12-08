@@ -9,6 +9,7 @@
     "@testing-library/user-event": "^13.5.0",
     "axios": "^0.26.0",
     "bootstrap": "^5.2.2",
+    "browser-image-compression": "^2.0.0",
     "build": "^0.1.4",
     "imstall": "^1.0.35",
     "install": "^0.13.0",
