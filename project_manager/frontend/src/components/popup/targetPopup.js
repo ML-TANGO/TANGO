@@ -8,8 +8,8 @@ import '../../CSS/popup.css'
 /* 프로젝트 생성 팝업 */
 export function TargetCreatePopup({
     popup_modify_mode,
-    targetName, setTargetName,
-    targetImage, previewURL,
+    target_name, setTarget_name,
+    target_image, previewURL,
     target_info, setTarget_info,
     target_engine, setTarget_engine,
     target_os, setTarget_os,
@@ -121,8 +121,8 @@ export function TargetCreatePopup({
                     <input
                         className="target_input"
                         id='input_target_name'
-                        value={targetName}
-                        onChange={({ target: { value } }) => setTargetName(value)}
+                        value={target_name}
+                        onChange={({ target: { value } }) => setTarget_name(value)}
                         type="text"
                         placeholder="Target Name"
                         style={{padding:'0px 0px 0px 10px', marginTop:'5px', marginBottom:'10px'}}
@@ -284,7 +284,7 @@ export function TargetCreatePopup({
                     {/* 타겟 정보가 cloud가 아닌 경우 */}
                     {target_info !== 'cloud' ?
                         <>
-                        {targetName.trim().length > 0 &&
+                        {target_name.trim().length > 0 &&
                             previewURL.length > 0 &&
                             target_info !== '' &&
                             target_engine !== '' &&
@@ -313,7 +313,7 @@ export function TargetCreatePopup({
 
                     :
                         <>
-                        {targetName.trim().length > 0 &&
+                        {target_name.trim().length > 0 &&
                             previewURL.length > 0 &&
                             target_info !== '' &&
                             target_engine !== '' &&

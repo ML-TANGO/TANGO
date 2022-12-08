@@ -23,10 +23,12 @@ function InformationForm(
     target_list, setTarget_list,
     setTaskType})
 {
+//    const [dataset_list, setDataset_list] = useState([]);              // 데이터 셋 리스트
+//    const [target_list, setTarget_list] = useState([]);                // 타겟 리스트
 
     /* 타겟 생성 정보 */
-    const [targetName, setTargetName] = useState('');                               // 타겟 이름
-    const [targetImage, setTargetImage] = useState('');                             // 타겟 이미지
+    const [target_name, setTarget_name] = useState('');                               // 타겟 이름
+    const [target_image, setTarget_image] = useState('');                             // 타겟 이미지
     const [previewURL, setPreviewURL] = useState('');                               // 타겟 이미지
     const [target_info, setTarget_info] = useState('');                             // TargetInfo
     const [target_engine, setTarget_engine] = useState('');                         // Engine
@@ -38,14 +40,13 @@ function InformationForm(
     const [target_host_port, setTarget_host_port] = useState('');                   // Port
     const [target_host_service_port, setTarget_host_service_port] = useState('');   // Service Port
 
-    // 현재 페이지 정보가 변경될 경우 반복 호출
-    useEffect(() =>
+    useEffect( () =>
     {
         get_dataset_list()
         get_target_list()
     }, []);
 
-    // 데이터 셋 정보 수신 - 레이블링 저작도구 연동
+    // 데이터 셋 정보 수신 - 레이블링 저작도구 연동data['target']
     const get_dataset_list = () =>
     {
         RequestLabelling.requestDatasetList().then(result =>
@@ -57,17 +58,13 @@ function InformationForm(
             {
                 let info = result.data[d]
 
-                // 삭제된 데이터 셋이 아닌 경우
-                if(info.DATASET_STS !== 'DELETE')
+                // 생성 완료된 데이터 셋만 추가
+                if(info.DATASET_STS === 'DONE' )
                 {
                     resList.push(info)
                 }
             }
             setDataset_list(resList)
-
-            const data_index = resList.findIndex(d => d === dataset)
-            if(data_index !== -1) setDataset(resList[data_index])
-
         })
         .catch(error =>
         {
@@ -89,20 +86,31 @@ function InformationForm(
                 break;
         }
 
-        setDataset(value.DATASET_CD);
-        const dataset_item_box = document.getElementsByClassName("dataset_item_box");
+        setDataset(value);
+    }
 
-        for (var i=0; i < dataset_item_box.length; i++)
+    // 데이터 셋의 Type 이름 변경
+    const getTypeName = (type) =>
+    {
+        let type_name = ''
+        switch(type)
         {
-            if (i === index)
-            {
-                dataset_item_box[i].className = 'dataset_item_box tooltip select';
-            }
-            else
-            {
-                dataset_item_box[i].className = 'dataset_item_box tooltip';
-            }
+            case "C":
+                type_name = 'classification'
+                break;
+            case "D":
+                type_name = 'detection'
+                break;
+            case "I":
+                type_name = 'image'
+                break;
+            case "V":
+                type_name = 'video'
+                break;
+            default:
+                break
         }
+        return type_name
     }
 
     // 데이터 셋 이미지 가져오기
@@ -119,10 +127,7 @@ function InformationForm(
     {
         RequestTarget.requestTargetList().then(result =>
         {
-            setTarget_list(result.data);
-
-            const target_index = result.data.findIndex(t => t.id === target)
-            if(target_index !== -1) setTarget(parseInt(result.data[target_index]))
+            setTarget_list(result.data)
         })
         .catch(error =>
         {
@@ -133,21 +138,7 @@ function InformationForm(
     // 타겟 선택
     const targetClick = (selectTarget, index) =>
     {
-       setTarget(selectTarget.id)
-
-       const target_item_box = document.getElementsByClassName("target_item_box");
-
-       for (var i=0; i < target_item_box.length; i++)
-       {
-           if (i === index)
-           {
-               target_item_box[i].className = 'target_item_box tooltip select';
-           }
-           else
-           {
-               target_item_box[i].className = 'target_item_box tooltip';
-           }
-       }
+        setTarget(selectTarget)
     }
 
     // 타겟 추가 버튼 클릭
@@ -159,8 +150,8 @@ function InformationForm(
     // 타겟 생성 입력 폼 정보 초기화
     const stateInfoInit = () =>
     {
-        setTargetName('')
-        setTargetImage('')
+        setTarget_name('')
+        setTarget_image('')
         setPreviewURL('')
         setTarget_info('')
         setTarget_engine('')
@@ -180,7 +171,7 @@ function InformationForm(
 
         const options = {
                 maxSizeMB: 0.2,
-                maxWidthOrHeight: 1920,
+                maxWidthOrHeight: 720,
                 useWebWorker: true
         }
 
@@ -189,7 +180,7 @@ function InformationForm(
         const reader = new FileReader();
 
         reader.onload = function() {
-            setTargetImage(reader.result);
+            setTarget_image(reader.result);
             setPreviewURL(reader.result)
         }
 
@@ -208,8 +199,8 @@ function InformationForm(
     const target_popup_Create_ButtonClick = () =>
     {
         const param = {
-            'name': targetName,
-            'image': targetImage,
+            'name': target_name,
+            'image': target_image,
             'info': target_info,
             'engine': target_engine,
             'os': target_os.value,
@@ -231,7 +222,7 @@ function InformationForm(
         })
         .catch(error =>
         {
-            console.log('description modify error')
+            console.log('target create error')
         });
     }
 
@@ -241,10 +232,10 @@ function InformationForm(
         {/* 타겟 생성 팝업 */}
         <TargetPopup.TargetCreatePopup
             popup_modify_mode={false}
-            targetName={targetName}
-            setTargetName={setTargetName}
+            target_name={target_name}
+            setTarget_name={setTarget_name}
             previewURL={previewURL}
-            targetImage={targetImage}
+            target_image={target_image}
 
             target_info={target_info} setTarget_info={setTarget_info}
             target_engine={target_engine} setTarget_engine={setTarget_engine}
@@ -259,7 +250,6 @@ function InformationForm(
             uploadImageFile={uploadImageFile}
             cancel_ButtonClick={() => target_popup_Cancel_ButtonClick()}
             create_ButtonClick={target_popup_Create_ButtonClick}/>
-
 
         <div className="project_user_requirement" style={{display:'flex', maxHeight:'220px'}}>
             {/* 데이터셋 선택 */}
@@ -276,10 +266,22 @@ function InformationForm(
                         <div className='dataset_list' style={{height:'100%', width:'100%', padding:'0px 20px 20px 20px', backgroundColor:'white', maxHeight:'160px', overflow:'auto'}}>
                             {dataset_list.map((menu, index) => {
                                 return (
-                                 <div key={index} className={dataset === menu.DATASET_CD ? "dataset_item_box tooltip select" : "dataset_item_box tooltip"} onClick={ ()=> dataSetClick(menu, index)}>
-                                    <img id="dataset_item_image" className="dataset_item_image" src={getDataset_image(menu.THUM_NAIL)} style={{height:'100%', width:'100%', margin:'auto', marginRight:'5px', backgroundColor:'#DEDEDE'}}/>
-                                    <span className="dataset_tooltiptext" style={{width:'150px'}}>{menu.TITLE}</span>
-                                  </div>
+                                    <div key={index} className={dataset.DATASET_CD === menu.DATASET_CD ? "dataset_item_box tooltip select" : "dataset_item_box tooltip"} onClick={ ()=> dataSetClick(menu, index)}>
+                                        <img id="dataset_item_image" className="dataset_item_image" src={getDataset_image(menu.THUM_NAIL)} style={{height:'100%', width:'100%', margin:'auto', backgroundColor:'#DEDEDE'}}/>
+
+                                        {/* <span className="dataset_tooltiptext" style={{width:'150px'}}>{menu.TITLE}</span> */}
+
+                                        <span className="dataset_tooltip"></span>
+
+                                        <div className="dataset_tooltip_text">
+                                             <div className="dataset_inner_text">- Title : {menu.TITLE}</div>
+                                             <div className="dataset_inner_text">- Format : {getTypeName(menu.DATA_TYPE)}</div>
+                                             <div className="dataset_inner_text">- Type : {getTypeName(menu.OBJECT_TYPE)}</div>
+                                             <div className="dataset_inner_text">- Files : {menu.FILE_COUNT}</div>
+                                        </div>
+
+
+                                    </div>
                                 )
                             })}
                         </div>
@@ -311,13 +313,24 @@ function InformationForm(
 
                     { target_list.length > 0 ?
                         <>
-                        <div className='dataset_list' style={{height:'100%', width:'100%', padding:'0px 20px 20px 20px', backgroundColor:'white',  maxHeight:'160px', overflow:'auto'}}>
+                        <div className='target_list' style={{height:'100%', width:'100%', padding:'0px 20px 20px 20px', backgroundColor:'white',  maxHeight:'160px', overflow:'auto'}}>
                             {target_list.map((menu, index) => {
                                 return (
-                                  <div className={target === menu.id ? "target_item_box tooltip select" : "target_item_box tooltip"} key={index} onClick={ ()=> targetClick(menu, index)}>
-                                    <img id="dataset_item_image" className="dataset_item_image" src={menu.image} style={{height:'100%', width:'100%', margin:'auto', marginRight:'5px', backgroundColor:'#DEDEDE'}}/>
-                                    <span className="dataset_tooltiptext" style={{width:'150px'}}>{menu.name}</span>
-                                  </div>
+                                    <div className={menu.id === target.id ? "target_item_box tooltip select" : "target_item_box tooltip"} key={index} onClick={ ()=> targetClick(menu, index)}>
+                                        <img id="target_item_image" className="target_item_image" src={menu.image} style={{height:'100%', width:'100%', margin:'auto', backgroundColor:'#DEDEDE'}}/>
+                                        {/* <span className="dataset_tooltiptext" style={{width:'150px'}}>{menu.name}</span> */}
+
+                                        <span className="target_tooltip"></span>
+
+                                        <div className="target_tooltip_text">
+                                             <div className="target_inner_text">- Name : {menu.name}</div>
+                                             <div className="target_inner_text">- Info : {menu.info}</div>
+                                             <div className="target_inner_text">- Engine : {menu.engine}</div>
+                                             <div className="target_inner_text">- OS : {menu.os}</div>
+                                             <div className="target_inner_text">- CPU : {menu.cpu}</div>
+                                        </div>
+
+                                    </div>
                                 )
                             })}
 

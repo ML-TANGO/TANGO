@@ -17,20 +17,17 @@ function ConfigForm(
     userEdit, setUserEdit,
     inputMethod, setInputMethod,
     inputDataPath, setInputDataPath,
-    outputMethod, setOutputMethod,
-    get_target_info})
+    outputMethod, setOutputMethod})
 {
 
-    // 현재 페이지 정보가 변경될 경우 반복 호출
-    useEffect(() =>
-    {
-        console.log("config Form")
-    }, []);
-
+//    useEffect(() =>
+//    {
+//        console.log("config Form")
+//    }, []);
 
     return (
         <>
-        <div className="project_user_requirement" style={{borderRadius:'0px 0px 5px 5px', border:'5px solid #303030'}}>
+        <div className="project_user_requirement" style={{border:'5px solid #303030'}}>
 
             {/* Task 선택 */}
             <div className='project_user_requirement_task_type' style={{height:'auto', borderBottom:'3px solid #303030'}}>
@@ -86,7 +83,7 @@ function ConfigForm(
             </div>
 
             {/* NAS Type */}
-            <div className='project_user_requirement_nas_type' style={{height:'auto', borderBottom:'3px solid #303030'}}>
+            <div className='project_user_requirement_nas_type' style={{height:'auto'}}>
                 <div style={{display:"flex", width:'100%', height:'100%'}}>
                     <div style={{width:'20%', minWidth:'150px', backgroundColor:'#707070', textAlign:'center', padding:'10px 10px 10px 10px'}}>
                         <div style={{padding:'0px 20px 0px 20px', color:'white'}}>Nas Type</div>
@@ -106,7 +103,7 @@ function ConfigForm(
             </div>
 
             {/* Deploy Configuration */}
-            <div className='project_user_requirement_deploy_config' style={{height:'auto', display:get_target_info(target) === 'pc' || get_target_info(target) === 'cloud' ? 'block' : 'none'}}>
+            <div className='project_user_requirement_deploy_config' style={{height:'auto', borderTop:'3px solid #303030', display:target.info === 'pc' || target.info === 'cloud' ? 'block' : 'none'}}>
 
                 <div style={{display:"grid", width:'100%', height:'100%', gridTemplateColumns:'auto 80%', gridTemplateRows:'1fr 1fr'}}>
 

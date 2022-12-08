@@ -1,0 +1,347 @@
+
+
+@keyframes twinkle
+{
+    0%
+    {
+        background-color: #242933;
+    }
+    50%
+    {
+        background-color: yellow;
+    }
+    100%
+    {
+        background-color: #242933;
+    }
+}
+
+
+.stepper-wrapper {
+  display: flex;
+  justify-content: space-between;
+}
+
+.stepper-item {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  flex: 1;
+  font-size: 16px;
+  background-color: transparent;
+}
+
+.stepper-wrapper .stepper-item::before {
+  position: absolute;
+  content: "";
+  border-bottom: 5px solid #303030;
+  width: 100%;
+  top: 16px;
+  left: -50%;
+  z-index: 2;
+}
+
+.stepper-wrapper .stepper-item::after {
+  position: absolute;
+  content: "";
+  border-bottom: 5px solid #303030;
+  width: 100%;
+  top: 16px;
+  left: 50%;
+  z-index: 2;
+}
+
+.step-counter {
+  font-size:16px;
+  position: relative;
+  z-index: 5;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  width: 160px;
+  height: 40px;
+  border-radius: 5px;
+  background: #DEDEDE;
+  color: black;
+  border: 3px solid #303030;
+}
+
+.stepper-wrapper .stepper-item.ready .step-counter {
+    background-color: #4A80FF;
+    color: white;
+}
+
+.stepper-wrapper .stepper-item.error .step-counter {
+    background-color: #E64735;
+    color: white;
+}
+
+.stepper-wrapper .stepper-item.active .step-counter {
+    border: 3px solid #4A80FF;
+    background-color: #F5B23D;
+    /* background-color: #242933; */
+    /* background: #242933 no-repeat center center; */
+    /* background-size: 60%; */
+    border: 3px solid #4A80FF;
+    /* animation: twinkle 1s linear infinite; */
+    color: white;
+}
+
+.stepper-wrapper .stepper-item.before .step-counter {
+    border: 3px solid #303030;
+    color: black;
+}
+
+.stepper-wrapper .stepper-item.completed .step-counter {
+    border: 3px solid #4A80FF;
+    background-color: #2CB570;
+    color: white;
+}
+
+.stepper-wrapper .stepper-item.completed::after {
+  position: absolute;
+  content: "";
+  border-bottom: 5px solid #4A80FF;
+  width: 100%;
+  top: 16px;
+  left: 50%;
+  z-index: 3;
+}
+
+.stepper-wrapper .stepper-item:first-child::before {
+  content: none;
+}
+.stepper-wrapper .stepper-item:last-child::after {
+  content: none;
+}
+
+.stepper-wrapper .stepper-item.non-select .step-counter {
+    border: 3px solid #303030;
+    color: black;
+}
+
+stepper-wrapper .stepper-item.select .step-counter {
+    background-color: #4A80FF;
+}
+
+
+
+
+
+
+
+
+#progress_2 .stepper-item .step-counter{
+    border: 3px solid #303030;
+    color: black;
+}
+
+
+/* Visualization 버튼 - before */
+#progress_2 .stepper-item.before .step-counter{
+    border: 3px solid #4A80FF;
+    background-color: #242933;
+    background: #242933 no-repeat center center;
+    background-size: 60%;
+    border: 3px solid #4A80FF;
+    color: black;
+}
+
+/* Visualization 버튼 - Ready */
+#progress_2.stepper-item.ready .step-counter
+{
+    background-color: #4A80FF;
+    color: white;
+}
+
+/* Visualization 버튼 - error */
+#progress_2.stepper-item.error .step-counter
+{
+    background-color: #E64735;
+    color: white;
+}
+
+/* Visualization 버튼 - Active */
+#progress_2.stepper-item.active .step-counter
+{
+    border: 3px solid #4A80FF;
+    background-color: #F5B23D;
+
+    /* background-color: #242933; */
+    /* background: #242933 no-repeat center center; */
+    /* background-size: 60%; */
+    border: 3px solid #4A80FF;
+    /* animation: twinkle 1s linear infinite; */
+    color: white;
+}
+
+/* Visualization 버튼 - Complete */
+#progress_2.stepper-item.completed .step-counter
+{
+    border: 3px solid #4A80FF;
+    background-color: #2CB570;
+    color: white;
+}
+
+/* Visualization 버튼 - before ( 왼쪽 선 ) */
+#progress_2.stepper-item.before::before {
+   color: black;
+   position: absolute;
+   content: "";
+   border-bottom: 5px dashed #303030;
+   border-left: 5px dashed #303030;
+   border-right: 0px;
+   border-top: 0px;
+   width: 40%;
+   margin-right: 10%;
+   height: 100%;
+   bottom: 50%;
+   z-index: 3;
+}
+
+/* Visualization 버튼 - ready ( 왼쪽 선 ) */
+#progress_2.stepper-item.ready::before {
+   color: black;
+   position: absolute;
+   content: "";
+   border-bottom: 5px dashed #4A80FF;
+   border-left: 5px dashed #4A80FF;
+   border-right: 0px;
+   border-top: 0px;
+   width: 40%;
+   margin-right: 10%;
+   height: 100%;
+   bottom: 50%;
+   z-index: 3;
+}
+
+/* Visualization 버튼 - active ( 왼쪽 선 ) */
+#progress_2.stepper-item.active::before {
+   color: black;
+   position: absolute;
+   content: "";
+   border-bottom: 5px dashed #4A80FF;
+   border-left: 5px dashed #4A80FF;
+   border-right: 0px;
+   border-top: 0px;
+   width: 40%;
+   margin-right: 10%;
+   height: 100%;
+   bottom: 50%;
+   z-index: 3;
+}
+
+/* Visualization 버튼 - error ( 왼쪽 선 ) */
+#progress_2.stepper-item.error::before {
+   color: black;
+   position: absolute;
+   content: "";
+   border-bottom: 5px dashed #303030;
+   border-left: 5px dashed #303030;
+   border-right: 0px;
+   border-top: 0px;
+   width: 40%;
+   margin-right: 10%;
+   height: 100%;
+   bottom: 50%;
+   z-index: 3;
+}
+
+/* Visualization 버튼 - completed ( 왼쪽 선 ) */
+#progress_2.stepper-item.completed::before {
+   color: black;
+   position: absolute;
+   content: "";
+   border-bottom: 5px dashed #4A80FF;
+   border-left: 5px dashed #4A80FF;
+   border-right: 0px;
+   border-top: 0px;
+   width: 40%;
+   margin-right: 10%;
+   height: 100%;
+   bottom: 50%;
+   z-index: 3;
+}
+
+/* Visualization 버튼 - before ( 오른쪽 선 ) */
+#progress_2.stepper-item.before::after {
+   color: black;
+   position: absolute;
+   content: "";
+   border-bottom: 5px dashed #303030;
+   border-left: 0px;
+   border-right: 5px dashed #303030;
+   border-top: 0px;
+   width: 40%;
+   margin-left: 10%;
+   height: 100%;
+   bottom: 50%;
+   z-index: 3;
+}
+
+/* Visualization 버튼 - ready ( 오른쪽 선 ) */
+#progress_2.stepper-item.ready::after {
+   color: black;
+   position: absolute;
+   content: "";
+   border-bottom: 5px dashed #303030;
+   border-left: 0px;
+   border-right: 5px dashed #303030;
+   border-top: 0px;
+   width: 40%;
+   margin-left: 10%;
+   height: 100%;
+   bottom: 50%;
+   z-index: 3;
+}
+
+/* Visualization 버튼 - active ( 오른쪽 선 ) */
+#progress_2.stepper-item.active::after {
+   color: black;
+   position: absolute;
+   content: "";
+   border-bottom: 5px dashed #303030;
+   border-left: 0px;
+   border-right: 5px dashed #303030;
+   border-top: 0px;
+   width: 40%;
+   margin-left: 10%;
+   height: 100%;
+   bottom: 50%;
+   z-index: 3;
+}
+
+/* Visualization 버튼 - error ( 오른쪽 선 ) */
+#progress_2.stepper-item.error::after {
+   color: black;
+   position: absolute;
+   content: "";
+   border-bottom: 5px dashed #303030;
+   border-left: 0px;
+   border-right: 5px dashed #303030;
+   border-top: 0px;
+   width: 40%;
+   margin-left: 10%;
+   height: 100%;
+   bottom: 50%;
+   z-index: 3;
+}
+
+/* Visualization 버튼 - completed ( 오른쪽 선 ) */
+#progress_2.stepper-item.completed::after {
+   color: black;
+   position: absolute;
+   content: "";
+   border-bottom: 5px dashed #4A80FF;
+   border-left: 0px;
+   border-right: 5px dashed #4A80FF;
+   border-top: 0px;
+   width: 40%;
+   margin-left: 10%;
+   height: 100%;
+   bottom: 50%;
+   z-index: 3;
+}
+
+

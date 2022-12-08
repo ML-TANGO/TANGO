@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { useLocation } from "react-router-dom";
 
 import '../../../../CSS/combo_box.css'
-//import '../../../../CSS/stepProgress2.css'
+import '../../../../CSS/stepProgress.css'
 import '../../../../CSS/project_management.css'
 
 import * as Request from "../../../../service/restProjectApi";
@@ -46,38 +46,37 @@ function NeuralAndLoadPage({project_id, project_name, project_description})
 
     const timerRef = useRef();
 
-    const [yamlData, setYamlData] = useState('');                       // project_info.yaml 설정 데이터
-    const [yamlMake, setYamlMake] = useState(false);                    // project_info.yaml 생성 여부
-    const [container, setContainer] = useState('');                     // 신경망 생성 단계
-    const [container_status, setContainer_status] = useState('');       // 신경망 생성 단계 상황
+    const [yamlMake, setYamlMake] = useState(false);                   // project_info.yaml 생성 여부
+    const [container, setContainer] = useState('');                    // 신경망 생성 단계
+    const [container_status, setContainer_status] = useState('');      // 신경망 생성 단계 상황
 
-    const [panel, setPanel] = useState(false);                          // panel 창 상태
+    const [panel, setPanel] = useState(false);                       // panel 창 상태
 
     /* Information */
-    const [dataset, setDataset] = useState('');                         // 데이터 셋 경로
-    const [dataset_list, setDataset_list] = useState([]);               // 데이터 셋 리스트
+    const [dataset, setDataset] = useState('');                        // 데이터 셋 경로
+    const [dataset_list, setDataset_list] = useState([]);              // 데이터 셋 리스트
 
-    const [target, setTarget] = useState('');                           // 타겟 변경
-    const [target_list, setTarget_list] = useState([]);                 // 타겟 리스트
+    const [target, setTarget] = useState('');                          // 타겟 변경
+    const [target_list, setTarget_list] = useState([]);                // 타겟 리스트
 
     /* Configuration - Task Type*/
-    const [taskType, setTaskType] = useState('');                       // 데이터 셋 경로
+    const [taskType, setTaskType] = useState('');                      // 데이터 셋 경로
 
     /* Configuration - AutoNN */
-    const [datasetFile, setDatasetFile] = useState('dataset.yaml');     // dataset file yaml 파일
-    const [baseModel, setBaseModel] = useState('basemodel.yaml');       // Base Mode yaml 파일
+    const [datasetFile, setDatasetFile] = useState('dataset.yaml');    // dataset file yaml 파일
+    const [baseModel, setBaseModel] = useState('basemodel.yaml');      // Base Mode yaml 파일
 
     /* Configuration - Nas Type */
-    const [nasType, setNasType] = useState('');                         // 데이터 셋 경로
+    const [nasType, setNasType] = useState('');                        // 데이터 셋 경로
 
     /* Configuration - Deploy Configuration */
-    const [weightLevel, setWeightLevel] = useState(0);                  // weightLevel
-    const [precisionLevel, setPrecisionLevel] = useState(0);            // precisionLevel
-    const [processingLib, setProcessingLib] = useState('cv2');          // processingLib
-    const [userEdit, setUserEdit] = useState('');                       // userEdit
-    const [inputMethod, setInputMethod] = useState('');                 // inputMethod
-    const [inputDataPath, setInputDataPath] = useState('/data');        // inputDataPath
-    const [outputMethod, setOutputMethod] = useState('');               // outputMethod
+    const [weightLevel, setWeightLevel] = useState(0);                 // weightLevel
+    const [precisionLevel, setPrecisionLevel] = useState(0);           // precisionLevel
+    const [processingLib, setProcessingLib] = useState('cv2');         // processingLib
+    const [userEdit, setUserEdit] = useState('');                      // userEdit
+    const [inputMethod, setInputMethod] = useState('');                // inputMethod
+    const [inputDataPath, setInputDataPath] = useState('/data');       // inputDataPath
+    const [outputMethod, setOutputMethod] = useState('');              // outputMethod
 
     useEffect( () =>
     {
@@ -100,8 +99,6 @@ function NeuralAndLoadPage({project_id, project_name, project_description})
             {
                 setPanel(true)
             }
-
-            step_progress_bar_update(result.data['container'], result.data['container_status'])
         })
         .catch(error =>
         {
@@ -112,10 +109,9 @@ function NeuralAndLoadPage({project_id, project_name, project_description})
     // 프로젝트 정보 업데이트
     const projectContentUpdate = (data) =>
     {
-//        console.log('projectContentUpdate')
-//        console.log(data)
+        console.log('projectContentUpdate')
 
-        setYamlData(data)
+        console.log(data)
 
         setTarget(data['target'] !== '' ? data['target'] : '')  // 선택 타겟 정보
 
@@ -204,9 +200,6 @@ function NeuralAndLoadPage({project_id, project_name, project_description})
             {
                 console.log('project update error')
             });
-
-            // 컨테이너 정보 초기화
-            containerStatusUpdate('', '');
         })
         .catch(error =>
         {
@@ -224,155 +217,19 @@ function NeuralAndLoadPage({project_id, project_name, project_description})
         }
         else
         {
-            if(container === '')
-            {
-                neuralManualMode("신경망 수동 생성을 진행하시겠습니까?")
-            }
-            else
-            {
-                neuralManualMode("신경망 생성을 다시 시작하시겠습니까?")
-            }
-        }
-    }
+            console.log('neuralCreateManualClick')
 
-    // 신경망 수동 생성 확인
-    const neuralManualMode = (word) =>
-    {
-        var result = window.confirm(word)
-        if(result === true)
-        {
-            containerStatusUpdate('bms', 'ready');
-
-            alert('신경망 수동 생성을 진행합니다.')
-        }
-    }
-
-    const containerStatusUpdate = (con, con_status) =>
-    {
-        const param = {
-            'project_id' : project_id,
-            'container' : con,
-            'container_status' : con_status
-        };
-
-        // 컨테이너 상태 업데이트
-        RequestContainer.requestContainerStatusUpdate(param).then(result =>
-        {
-//            console.log('containerStatusUpdate - ', result.data['container'])
-            setContainer(result.data['container'])
-            setContainer_status(result.data['container_status'])
-
-            step_progress_bar_update(result.data['container'], result.data['container_status'])
-        })
-        .catch(error =>
-        {
-            console.log('project info get error')
-        });
-    }
-
-    // Work Flow 상태 변화
-    const step_progress_bar_update = (conName, conStatus) =>
-    {
-        let progress_bar_1 = document.getElementById('progressbar_main');
-        let progress_bar_2 = document.getElementById('progressbar_sub');
-
-        let total_progress_bar = []
-
-        for(var c1=0; c1 < progress_bar_1.childNodes.length; c1++)
-        {
-            total_progress_bar.push(progress_bar_1.childNodes[c1]);
+            // TODO : 컨테이너 상태 업데이트 - bms
+            // TODO : BMS 버튼 활성화
         }
 
-        for(var c2=0; c2 < progress_bar_2.childNodes.length; c2++)
+        if(yamlMake === true)
         {
-            total_progress_bar.push(progress_bar_2.childNodes[c2]);
-        }
-
-        let current_work_num = 0
-        switch(conName)
-        {
-            case 'bms' :
-                current_work_num = 1
-                break;
-            case 'vis2code' :
-                current_work_num = 2
-                break;
-            case 'autonn_nk' :
-                current_work_num = 3
-                break;
-            case 'autonn_bb' :
-                current_work_num = 3
-                break;
-            case 'code_gen' :
-                current_work_num = 4
-                break;
-            case 'cloud_deployment' :
-                current_work_num = 5
-                break;
-            case 'ondevice_deployment' :
-                current_work_num = 5
-                break;
-            case 'run_image' :
-                current_work_num = 6
-                break;
-            default:
-                break;
-        }
-
-        let complete_check = false
-
-        for (var i = 1; i < total_progress_bar.length + 1; i++)
-        {
-            if(i < current_work_num)
+            var result = window.confirm("신경망 생성을 다시 시작하시겠습니까?")
+            if(result === true)
             {
-                document.getElementById('progress_' + i).className = 'stepper-item completed'
-            }
-            else if(i === current_work_num)
-            {
-                if(conStatus === 'ready')
-                {
-                    document.getElementById('progress_' + i).className = 'stepper-item ready'
-                }
-                else if(conStatus.includes('run'))
-                {
-                    document.getElementById('progress_' + i).className = 'stepper-item active'
-                }
-                else if(conStatus.includes('complete') ||  conStatus.includes('success'))
-                {
-                    document.getElementById('progress_' + i).className = 'stepper-item completed'
-
-                    complete_check = true
-                }
-                else if(conStatus.includes('fail') ||  conStatus.includes('stop'))
-                {
-                    document.getElementById('progress_' + i).className = 'stepper-item error'
-                }
-            }
-            else
-            {
-                if(complete_check)
-                {
-                    if(current_work_num === 1)
-                    {
-                        document.getElementById('progress_2').className = 'stepper-item ready'
-                        document.getElementById('progress_3').className = 'stepper-item ready'
-                    }
-                    else
-                    {
-
-                        const num = current_work_num + 1
-
-                        if(num < total_progress_bar.length + 1)
-                        {
-                            document.getElementById('progress_' + num).className = 'stepper-item ready'
-                        }
-                    }
-                }
-                else
-                {
-                    document.getElementById('progress_' + i).className = 'stepper-item before'
-                }
-
+                // TODO : 컨테이너 상태 업데이트 - bms
+                // TODO : BMS 버튼 활성화
             }
         }
     }
@@ -380,7 +237,7 @@ function NeuralAndLoadPage({project_id, project_name, project_description})
     // 신경망 자동 생성
     const neuralCreateAutoClick = () =>
     {
-        alert('현재 서비스 준비중입니다.')
+        alert('서비스 준비중입니다.')
     }
 
     return (
@@ -448,13 +305,7 @@ function NeuralAndLoadPage({project_id, project_name, project_description})
                     </div>
                 </div>
 
-                <WorkFlowForm project_id={project_id}
-                              yamlMake={yamlMake}
-                              yamlData={yamlData}
-                              container={container}
-                              container_status={container_status}
-                              containerStatusUpdate={containerStatusUpdate}
-                              step_progress_bar_update={step_progress_bar_update}/>
+                <WorkFlowForm project_id={project_id} container={container} container_status={container_status}/>
             </div>
         </div>
         </>

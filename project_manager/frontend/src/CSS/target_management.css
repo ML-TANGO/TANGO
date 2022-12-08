@@ -71,7 +71,7 @@
 .target-info
 {
     display: grid;
-    grid-template-columns: 1fr 1fr 1fr 1fr;
+    grid-template-columns: 1fr 1fr 1fr 1fr 1fr 1fr;
 }
 
 .target-image{
@@ -81,5 +81,9 @@
     background-position-x: center;
 }
 
-
+.target-option
+{
+    text-align: center;
+    padding-top: 10px;
+}
 

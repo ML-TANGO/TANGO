@@ -14,11 +14,6 @@ import '../../../CSS/project_management.css'
 
 import { isToken, isUser } from '../../../Router/isLogin';
 
-//import data_th_1 from "../../../images/thumbnail/data_th_1.PNG";   // 칫솔
-//import data_th_2 from "../../../images/thumbnail/data_th_2.PNG";   // 용접 파이프
-//import data_th_3 from "../../../images/thumbnail/data_th_3.PNG";   // 실생활
-//import data_th_4 from "../../../images/thumbnail/data_th_4.PNG";   // 폐결핵 판독
-
 function ProjectMain()
 {
     /* 페이지 이동을 위한 useNavigate 객체 추가 */
@@ -82,9 +77,13 @@ function ProjectMain()
             for ( let d in resKeys)
             {
                 let info = result.data[d]
-                resList.push(info)
-            }
 
+                // 생성 완료된 데이터 셋만 추가
+                if(info.DATASET_STS === 'DONE')
+                {
+                    resList.push(info)
+                }
+            }
             setDataset_list(resList)
         })
         .catch(error =>
@@ -264,7 +263,7 @@ function ProjectMain()
         }
         else
         {
-            return ""
+            return null
         }
     }
 
@@ -327,7 +326,14 @@ function ProjectMain()
                                         { menu.dataset === '' ?
                                             <div className="image_text">Please complete the project creation</div>
                                             :
-                                            <img id="dataset_item_image" className="dataset_item_image" src={getDataset_image(menu.dataset)} style={{backgroundColor:'white', borderRadius:'5px', width:'100%', height:'100%'}}/>
+                                            <>
+                                                {getDataset_image(menu.dataset) !== null ?
+                                                    <img id="dataset_item_image" className="dataset_item_image" src={getDataset_image(menu.dataset)} style={{backgroundColor:'white', borderRadius:'5px', width:'100%', height:'100%'}}/>
+                                                :
+                                                    <div className="image_text">Date Set was deleted</div>
+                                                }
+                                            </>
+
                                         }
                                     </div>
 

@@ -35,19 +35,19 @@ def target_create(request):
     """
 
     try:
-        target = Target(target_name=request.data['name'],
+        target = Target(name=request.data['name'],
                         create_user=str(request.user),
                         create_date=str(datetime.now()),
-                        target_info=request.data['info'],
-                        target_engine=request.data['engine'],
-                        target_os=request.data['os'],
-                        target_cpu=request.data['cpu'],
-                        target_acc=request.data['acc'],
-                        target_memory=request.data['memory'],
-                        target_host_ip=request.data['host_ip'],
-                        target_host_port=request.data['host_port'],
-                        target_host_service_port=request.data['host_service_port'],
-                        target_image=str(request.data['image']))
+                        info=request.data['info'],
+                        engine=request.data['engine'],
+                        os=request.data['os'],
+                        cpu=request.data['cpu'],
+                        acc=request.data['acc'],
+                        memory=request.data['memory'],
+                        host_ip=request.data['host_ip'],
+                        host_port=request.data['host_port'],
+                        host_service_port=request.data['host_service_port'],
+                        image=str(request.data['image']))
 
         target.save()
 
@@ -73,31 +73,10 @@ def target_read(request):
 
     try:
         # 모든 사용자가 타겟을 확인할 수 있도록 수정
-        queryset = Target.objects.filter()
-        data = list(queryset.values())
+        queryset = Target.objects.all()
+        target_all_list = list(queryset.values())
 
-        data_list = []
-
-        for i in data:
-
-            target_data = {'id': i['id'],
-                           'name': i['target_name'],
-                           'create_user': i['create_user'],
-                           'create_date': i['create_date'],
-                           'info': i['target_info'],
-                           'engine': i['target_engine'],
-                           'os': i['target_os'],
-                           'cpu': i['target_cpu'],
-                           'acc': i['target_acc'],
-                           'memory': i['target_memory'],
-                           'host_ip': i['target_host_ip'],
-                           'host_port': i['target_host_port'],
-                           'host_service_port': i['target_host_service_port'],
-                           'image': str(i['target_image'])}
-
-            data_list.append(target_data)
-
-        return HttpResponse(json.dumps(data_list))
+        return HttpResponse(json.dumps(target_all_list))
 
     except Exception as e:
         print(e)
@@ -121,17 +100,17 @@ def target_update(request):
         queryset = Target.objects.get(id=int(request.data['id']),
                                       create_user=request.user)
 
-        queryset.target_name = request.data['name']
-        queryset.target_info = request.data['info']
-        queryset.target_engine = request.data['engine']
-        queryset.target_os = request.data['os']
-        queryset.target_cpu = request.data['cpu']
-        queryset.target_acc = request.data['acc']
-        queryset.target_memory = request.data['memory']
-        queryset.target_host_ip = request.data['host_ip']
-        queryset.target_host_port = request.data['host_port']
-        queryset.target_host_service_port = request.data['host_service_port']
-        queryset.target_image = str(request.data['image'])
+        queryset.name = request.data['name']
+        queryset.info = request.data['info']
+        queryset.engine = request.data['engine']
+        queryset.os = request.data['os']
+        queryset.cpu = request.data['cpu']
+        queryset.acc = request.data['acc']
+        queryset.memory = request.data['memory']
+        queryset.host_ip = request.data['host_ip']
+        queryset.host_port = request.data['host_port']
+        queryset.host_service_port = request.data['host_service_port']
+        queryset.image = str(request.data['image'])
 
         queryset.save()
 

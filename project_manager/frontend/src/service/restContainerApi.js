@@ -11,7 +11,7 @@ export function requestContainerStart(container, uid, pid)
         case 'bms':
             port = "8081";
             break;
-        case 'viz':
+        case 'vis2code':
             port = "8091";
             break;
         case 'autonn_bb':
@@ -23,10 +23,10 @@ export function requestContainerStart(container, uid, pid)
         case 'code_gen':
             port = "8888";
             break;
-        case 'deploy_cloud':
+        case 'cloud_deployment':
             port = "8088";
             break;
-        case 'deploy_ondevice':
+        case 'ondevice_deployment':
             port = "8891";
             break;
         default:
@@ -62,7 +62,7 @@ export function requestContainerStatusCheck(container, uid, pid)
         case 'bms':
             port = "8081";
             break;
-        case 'viz':
+        case 'vis2code':
             port = "8091";
             break;
         case 'autonn_bb':
@@ -74,10 +74,10 @@ export function requestContainerStatusCheck(container, uid, pid)
         case 'code_gen':
             port = "8888";
             break;
-        case 'deploy_cloud':
+        case 'cloud_deployment':
             port = "8088";
             break;
-        case 'deploy_ondevice':
+        case 'ondevice_deployment':
             port = "8891";
             break;
         default:
@@ -100,6 +100,50 @@ export function requestContainerStatusCheck(container, uid, pid)
         .catch(error =>
         {
             reject(error.response)
+        });
+    });
+}
+
+/* 컨테이너 상태 요청 */
+//export function requestContainerStatus(param)
+//{
+//    const header_info = getHeaderData()
+//    return new Promise( (resolve, reject) =>
+//    {
+//        axios.post( server_ip + "/api/status_result/",  param, {headers: header_info}).then((response) =>
+//        {
+//            resolve( response )
+//        })
+//        .catch(error =>
+//        {
+//            const result = tokenExpiredCheck(error.response)
+//
+//            if(result === false)
+//            {
+//                reject(error.response)
+//            }
+//        });
+//    });
+//}
+
+/* 컨테이너 상태 업데이트 */
+export function requestContainerStatusUpdate(param)
+{
+    const header_info = getHeaderData()
+    return new Promise( (resolve, reject) =>
+    {
+        axios.post( server_ip + "/api/status_update/",  param, {headers: header_info}).then((response) =>
+        {
+            resolve( response )
+        })
+        .catch(error =>
+        {
+            const result = tokenExpiredCheck(error.response)
+
+            if(result === false)
+            {
+                reject(error.response)
+            }
         });
     });
 }

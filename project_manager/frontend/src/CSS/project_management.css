@@ -286,6 +286,16 @@
     border-color: #303030;
 }
 
+/* 20221129 jpchoi */
+.neuralSave
+{
+    border-radius: 0px 0px 5px 5px;
+    border-bottom: 5px solid;
+    border-top: 0px solid;
+    border-right: 5px solid;
+    border-left: 5px solid;
+}
+
 .project_manage_list
 {
     width: 100%;
@@ -359,6 +369,15 @@ project_user_requirement_autonn_config input{
     color: black;
     border-radius: 3px;
     background-color: white;
+}
+
+.neuralRunButton{
+    height: 42px;
+    width: 20%;
+    border: 0;
+    border-radius: 3px;
+    font-size: 16px;
+    color: white;
 }
 
 {/* 프로젝트 메인 - 프로젝트 아이템
@@ -552,10 +571,10 @@ project_user_requirement_autonn_config input{
 {
     background-color:white;
     width:50%;
-    /* border: 5px solid #303030; */
 
-    border-radius: 0px 0px 0px 5px;
-    border-bottom: 5px solid;
+    /* 20221129 jpchoi */
+    /* border-radius: 0px 0px 0px 5px; */
+    /* border-bottom: 5px solid; */
     border-top: 0px solid;
     border-right: 3px solid;
     border-left: 5px solid;
@@ -568,8 +587,9 @@ project_user_requirement_autonn_config input{
     background-color:white;
     width:50%;
 
-    border-radius: 0px 0px 5px 0px;
-    border-bottom: 5px solid;
+    /* 20221129 jpchoi */
+    /* border-radius: 0px 0px 5px 0px; */
+    /* border-bottom: 5px solid; */
     border-top: 0px solid;
     border-right: 5px solid;
     border-left: 3px solid;
@@ -592,7 +612,6 @@ project_user_requirement_autonn_config input{
     color: #B7BAC0;
 }
 
-
 .accordion {
   background-color: #eee;
   color: #444;
@@ -604,10 +623,6 @@ project_user_requirement_autonn_config input{
   outline: none;
   font-size: 15px;
   transition: 0.4s;
-}
-
-.active, .accordion:hover {
-  background-color: #ccc;
 }
 
 .overall_icon
@@ -712,6 +727,17 @@ project_user_requirement_autonn_config input{
     flex-wrap: wrap;
     gap: 20px;
     overflow:auto;
+    z-index: 1;
+}
+
+.target_list
+{
+    width: 100%;
+    height: auto;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 20px;
+    overflow:auto;
 }
 
 .dataset_item_box
@@ -730,6 +756,7 @@ project_user_requirement_autonn_config input{
     background: white;
     color: black;
     font-size:14px;
+    z-index: 0;
 }
 
 .dataset_item_box:hover

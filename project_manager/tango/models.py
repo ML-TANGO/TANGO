@@ -72,9 +72,9 @@ class Project(models.Model):
     deploy_input_data_path = models.CharField(blank=True, null=True, max_length=50, default='')
     deploy_output_method = models.CharField(blank=True, null=True, max_length=50, default='')
 
+    yaml_make = models.BooleanField(blank=True, null=True, default=False)
     container = models.CharField(blank=True, null=True, max_length=50, default='')               # 신경망 생성 단계
     container_status = models.CharField(blank=True, null=True, max_length=50, default='')        # 신경망 생성 상태
-
 
     class Meta:
         """Project Meta class
@@ -97,19 +97,19 @@ class Target(models.Model):
     Attributes:
     """
     id = models.AutoField(primary_key=True)                                             # 타겟 아이디 : 기본키
-    target_name = models.CharField(blank=True, null=True, max_length=30)                # 타겟 이름
+    name = models.CharField(blank=True, null=True, max_length=30)                # 타겟 이름
     create_user = models.CharField(blank=True, null=True, max_length=50)                # 생성자
     create_date = models.CharField(blank=True, null=True, max_length=50)                # 생성 날짜
-    target_info = models.CharField(blank=True, null=True, max_length=30)                # 타겟 정보
-    target_engine = models.CharField(blank=True, null=True, max_length=30)              # 타겟 정보 - engine
-    target_os = models.CharField(blank=True, null=True, max_length=50)                  # 타겟 정보 - os
-    target_cpu = models.CharField(blank=True, null=True, max_length=50)                 # 타겟 정보 - cpu
-    target_acc = models.CharField(blank=True, null=True, max_length=50)                 # 타겟 정보 - acc
-    target_memory = models.CharField(blank=True, null=True, max_length=50)              # 타겟 정보 - memory
-    target_host_ip = models.CharField(blank=True, null=True, max_length=50)             # 타겟 정보 - host_ip
-    target_host_port = models.CharField(blank=True, null=True, max_length=50)           # 타겟 정보 - host_port
-    target_host_service_port = models.CharField(blank=True, null=True, max_length=30)   # 타겟 정보 - host_service_port
-    target_image = models.CharField(blank=True, null=True, max_length=10485760)         # 타겟 이미지
+    info = models.CharField(blank=True, null=True, max_length=30)                # 타겟 정보
+    engine = models.CharField(blank=True, null=True, max_length=30)              # 타겟 정보 - engine
+    os = models.CharField(blank=True, null=True, max_length=50)                  # 타겟 정보 - os
+    cpu = models.CharField(blank=True, null=True, max_length=50)                 # 타겟 정보 - cpu
+    acc = models.CharField(blank=True, null=True, max_length=50)                 # 타겟 정보 - acc
+    memory = models.CharField(blank=True, null=True, max_length=50)              # 타겟 정보 - memory
+    host_ip = models.CharField(blank=True, null=True, max_length=50)             # 타겟 정보 - host_ip
+    host_port = models.CharField(blank=True, null=True, max_length=50)           # 타겟 정보 - host_port
+    host_service_port = models.CharField(blank=True, null=True, max_length=30)   # 타겟 정보 - host_service_port
+    image = models.CharField(blank=True, null=True, max_length=10485760)         # 타겟 이미지
 
     class Meta:
         """Target Meta class
@@ -245,4 +245,3 @@ class Oauth2ProviderRefreshtoken(models.Model):
         managed = False
         db_table = 'oauth2_provider_refreshtoken'
         unique_together = (('token', 'revoked'),)
-

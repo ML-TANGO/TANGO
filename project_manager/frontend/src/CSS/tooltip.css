@@ -1,7 +1,7 @@
 .tooltip {
   position: relative;
   display: inline-block;
-  z-index:999;
+  z-index:10;
 }
 
 /* Tooltip text */
@@ -15,9 +15,9 @@
 
   /* Position the tooltip text - see examples below! */
   position: absolute;
-  z-index: 1;
   left: 115%;
   transform: translateY(40%);
+  z-index:11;
 }
 
 
@@ -50,7 +50,7 @@
 
   /* Position the tooltip text - see examples below! */
   position: absolute;
-  z-index: 999;
+  z-index: 1;
   left: -5%;
   top:-3%;
 }
@@ -69,6 +69,119 @@
   border-style: solid;
   border-color: #4A80FF transparent transparent transparent;
 }
+
+
+
+/* Dataset - tool tip 20221208*/
+.tooltip .dataset_tooltip
+{
+    width:100%;
+    height:100%;
+    margin: 0px;
+    visibility: hidden;
+    background-color: #303030;
+    color: #fff;
+    text-align: center;
+    opacity: 0.7;
+    position: absolute;
+    z-index: 1;
+}
+
+.tooltip:hover .dataset_tooltip {
+    visibility: visible;
+}
+
+.tooltip .dataset_tooltip_text {
+
+    width:100%;
+    height:100%;
+    margin: 0px;
+    visibility: hidden;
+    text-align: center;
+    position: absolute;
+    z-index: 2;
+    display: inline-grid;
+}
+
+.tooltip:hover .dataset_tooltip_text {
+    visibility: visible;
+}
+
+.tooltip .dataset_tooltip_text .dataset_inner_text{
+    width:100%;
+    height:100%;
+    margin: 0px;
+    visibility: hidden;
+    color: #FFF;
+    text-align: left;
+    opacity: 1;
+    z-index: 3;
+    font-size: 14px;
+}
+
+.tooltip:hover .dataset_tooltip_text .dataset_inner_text{
+    visibility: visible;
+}
+
+
+
+
+
+/* Target - tool tip 20221208*/
+.tooltip .target_tooltip
+{
+    width:100%;
+    height:100%;
+    margin: 0px;
+    visibility: hidden;
+    background-color: #303030;
+    color: #fff;
+    text-align: center;
+    opacity: 0.7;
+    position: absolute;
+    z-index: 1;
+}
+
+.tooltip:hover .target_tooltip {
+    visibility: visible;
+}
+
+.tooltip .target_tooltip_text {
+
+    width:100%;
+    height:100%;
+    margin: 0px;
+    visibility: hidden;
+    text-align: center;
+    position: absolute;
+    z-index: 2;
+    display: inline-grid;
+}
+
+.tooltip:hover .target_tooltip_text {
+    visibility: visible;
+}
+
+.tooltip .target_tooltip_text .target_inner_text{
+    width:100%;
+    height:100%;
+    margin: 0px;
+    visibility: hidden;
+    color: #FFF;
+    text-align: left;
+    opacity: 1;
+    z-index: 3;
+    font-size: 14px;
+}
+
+.tooltip:hover .target_tooltip_text .target_inner_text{
+    visibility: visible;
+}
+
+
+
+
+
 
 
 

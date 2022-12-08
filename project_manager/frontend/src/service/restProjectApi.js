@@ -159,69 +159,46 @@ export function requestProjectUpdate(param)
 }
 
 /* 프로젝트 타겟 yaml 파일 생성 */
-export function requestCreateTargetYaml(param)
-{
-    const header_info = getHeaderData()
-    return new Promise( (resolve, reject) =>
-    {
-        axios.post( server_ip + "/api/target_check/",  param, {headers: header_info}).then((response) =>
-        {
-            resolve( response )
-        })
-        .catch(error =>
-        {
-            const result = tokenExpiredCheck(error.response)
-
-            if(result === false)
-            {
-                reject(error.response)
-            }
-        });
-    });
-}
+//export function requestCreateTargetYaml(param)
+//{
+//    const header_info = getHeaderData()
+//    return new Promise( (resolve, reject) =>
+//    {
+//        axios.post( server_ip + "/api/target_check/",  param, {headers: header_info}).then((response) =>
+//        {
+//            resolve( response )
+//        })
+//        .catch(error =>
+//        {
+//            const result = tokenExpiredCheck(error.response)
+//
+//            if(result === false)
+//            {
+//                reject(error.response)
+//            }
+//        });
+//    });
+//}
 
 
 /* 데이터셋 경로 유효성 검사 */
-export function requestDataSetAvailabilityCheck(param)
-{
-    const header_info = getHeaderData()
-    return new Promise( (resolve, reject) =>
-    {
-        axios.post( server_ip + "/api/dataset_check/", {name : param}, {headers: header_info}).then((response) =>
-        {
-            resolve( response.data )
-        })
-        .catch(error =>
-        {
-            const result = tokenExpiredCheck(error.response)
-
-            if(result === false)
-            {
-                reject(error.response)
-            }
-        });
-    });
-}
-
-
-/* 컨테이너 상태 요청 */
-export function requestContainerStatus(param)
-{
-    const header_info = getHeaderData()
-    return new Promise( (resolve, reject) =>
-    {
-        axios.post( server_ip + "/api/status_result/",  param, {headers: header_info}).then((response) =>
-        {
-            resolve( response )
-        })
-        .catch(error =>
-        {
-            const result = tokenExpiredCheck(error.response)
-
-            if(result === false)
-            {
-                reject(error.response)
-            }
-        });
-    });
-}
+//export function requestDataSetAvailabilityCheck(param)
+//{
+//    const header_info = getHeaderData()
+//    return new Promise( (resolve, reject) =>
+//    {
+//        axios.post( server_ip + "/api/dataset_check/", {name : param}, {headers: header_info}).then((response) =>
+//        {
+//            resolve( response.data )
+//        })
+//        .catch(error =>
+//        {
+//            const result = tokenExpiredCheck(error.response)
+//
+//            if(result === false)
+//            {
+//                reject(error.response)
+//            }
+//        });
+//    });
+//}

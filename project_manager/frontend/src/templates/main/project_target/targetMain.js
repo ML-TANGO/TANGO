@@ -22,9 +22,9 @@ function TargetMain()
 
     const [selectTargetId, setSelectTargetId] = useState(0);            // 수정 타겟 ID
 
-    const [targetName, setTargetName] = useState('');                   // 타겟 이름
+    const [target_name, setTarget_name] = useState('');                   // 타겟 이름
 
-    const [targetImage, setTargetImage] = useState('');                 // 타겟 이미지
+    const [target_image, setTarget_image] = useState('');                 // 타겟 이미지
     const [previewURL, setPreviewURL] = useState('');                   // 타겟 이미지
 
     const [target_info, setTarget_info] = useState('');                             // TargetInfo
@@ -46,8 +46,8 @@ function TargetMain()
     const stateInfoInit = () =>
     {
         setSelectTargetId(0)
-        setTargetName('')
-        setTargetImage('')
+        setTarget_name('')
+        setTarget_image('')
         setPreviewURL('')
 
         setTarget_info('')
@@ -112,8 +112,8 @@ function TargetMain()
         setPopup_modify_mode(true);
 
         setSelectTargetId(selectTarget.id);
-        setTargetName(selectTarget.name);
-        setTargetImage(selectTarget.image);
+        setTarget_name(selectTarget.name);
+        setTarget_image(selectTarget.image);
         setPreviewURL(selectTarget.image);
 
         setTarget_info(selectTarget.info)
@@ -133,8 +133,8 @@ function TargetMain()
     const target_popup_Create_ButtonClick = () =>
     {
         const param = {
-            'name': targetName,
-            'image': targetImage,
+            'name': target_name,
+            'image': target_image,
             'info': target_info,
             'engine': target_engine,
             'os': target_os.value,
@@ -146,7 +146,7 @@ function TargetMain()
             'host_service_port': target_host_service_port
         };
 
-        console.log(param)
+//        console.log(param)
 
         Request.requestTargetCreate(param).then(result =>
         {
@@ -172,8 +172,8 @@ function TargetMain()
         {
             const param = {
                 'id': selectTargetId,
-                'name': targetName,
-                'image': targetImage,
+                'name': target_name,
+                'image': target_image,
                 'info': target_info,
                 'engine': target_engine,
                 'os': target_os.value,
@@ -206,7 +206,7 @@ function TargetMain()
 
         const options = {
                 maxSizeMB: 0.2,
-                maxWidthOrHeight: 1920,
+                maxWidthOrHeight: 720,
                 useWebWorker: true
         }
 
@@ -215,7 +215,7 @@ function TargetMain()
         const reader = new FileReader();
 
         reader.onload = function() {
-            setTargetImage(reader.result);
+            setTarget_image(reader.result);
             setPreviewURL(reader.result)
         }
 
@@ -229,10 +229,10 @@ function TargetMain()
         {/* 타겟 생성 팝업 */}
         <TargetPopup.TargetCreatePopup
             popup_modify_mode={popup_modify_mode}
-            targetName={targetName}
-            setTargetName={setTargetName}
+            target_name={target_name}
+            setTarget_name={setTarget_name}
             previewURL={previewURL}
-            targetImage={targetImage}
+            target_image={target_image}
 
             target_info={target_info} setTarget_info={setTarget_info}
             target_engine={target_engine} setTarget_engine={setTarget_engine}
@@ -300,21 +300,29 @@ function TargetMain()
 
 
                                                     <div className="target-info" style={{color: "#c1c3c7", width:"100%", height:"calc(100% - 40px)"}}>
-                                                        <div className="target-cpu" style={{ textAlign:'center', borderRight:'1px solid'}}>
+                                                        <div className="target-option" style={{ borderRight:'1px solid'}}>
                                                             <div style={{fontSize: "18px", height:'50%'}}>Info</div>
                                                             <div style={{fontSize: "14px", height:'50%', overflow:'auto'}}>{target.info}</div>
                                                         </div>
-                                                        <div className="target-gpu" style={{textAlign:'center', borderRight:'1px solid'}}>
+                                                        <div className="target-option" style={{borderRight:'1px solid'}}>
                                                             <div style={{fontSize: "18px", height:'50%'}}>Engine</div>
                                                             <div style={{fontSize: "14px", height:'50%', overflow:'auto'}}>{target.engine}</div>
                                                         </div>
-                                                        <div className="target-memory" style={{textAlign:'center', borderRight:'1px solid'}}>
-                                                            <div style={{fontSize: "18px", height:'50%'}}>Memory</div>
-                                                            <div style={{fontSize: "14px", height:'50%', overflow:'auto'}}>{target.memory}</div>
-                                                        </div>
-                                                        <div className="target-model" style={{textAlign:'center'}}>
+                                                        <div className="target-option" style={{borderRight:'1px solid'}}>
                                                             <div style={{fontSize: "18px", height:'50%'}}>OS</div>
                                                             <div style={{fontSize: "14px", height:'50%', overflow:'auto'}}>{target.os}</div>
+                                                        </div>
+                                                        <div className="target-option" style={{borderRight:'1px solid'}}>
+                                                            <div style={{fontSize: "18px", height:'50%'}}>CPU</div>
+                                                            <div style={{fontSize: "14px", height:'50%', overflow:'auto'}}>{target.cpu}</div>
+                                                        </div>
+                                                        <div className="target-option" style={{borderRight:'1px solid'}}>
+                                                            <div style={{fontSize: "18px", height:'50%'}}>Accelerator</div>
+                                                            <div style={{fontSize: "14px", height:'50%', overflow:'auto'}}>{target.acc}</div>
+                                                        </div>
+                                                        <div className="target-option">
+                                                            <div style={{fontSize: "18px", height:'50%'}}>Memory</div>
+                                                            <div style={{fontSize: "14px", height:'50%', overflow:'auto'}}>{target.memory}</div>
                                                         </div>
                                                     </div>
                                                 </div>

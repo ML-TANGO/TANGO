@@ -121,12 +121,12 @@ DATABASES = {
 # for testing backend at local host
 # use sqlite3
 # ---------------------------------------
-#DATABASES = {
-#    'default': {
-#        'ENGINE': 'django.db.backends.sqlite3',
-#        'NAME': BASE_DIR / 'db.sqlite3',
-#    }
-#}
+# DATABASES = {
+#     'default': {
+#         'ENGINE': 'django.db.backends.sqlite3',
+#         'NAME': BASE_DIR / 'db.sqlite3',
+#     }
+# }
 
 # DATABASES = {
 #     'default': {
@@ -202,7 +202,8 @@ OAUTH2_PROVIDER = {
 # Internationalization
 # https://docs.djangoproject.com/en/3.2/topics/i18n/
 
-### 20220113 jpchoi
+###
+# 20220113 jpchoi
 # LANGUAGE_CODE = 'en-us'
 # TIME_ZONE = 'UTC'
 LANGUAGE_CODE = 'ko-kr'
