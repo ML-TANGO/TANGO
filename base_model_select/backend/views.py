@@ -64,7 +64,7 @@ def start_api(request):
         
         bmsinfo.process_id = len(PROCESSES)-1
         bmsinfo.save()
-        return Response("starting", status=200, content_type="text/plain")
+        return Response("started", status=200, content_type="text/plain")
         
         
             
