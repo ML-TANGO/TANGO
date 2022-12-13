@@ -226,23 +226,29 @@ def project_info(request):
             target = {'target': target_data[0]}
 
     # 데이터 셋 정보 조회
-    dataset = {'dataset': ''}
-    if dataset_id != '':
+    # dataset = {'dataset': ''}
+    # if dataset_id != '':
+    #
+    #     try:
+    #         # 레이블링 저작도구 데이터셋 정보 요청
+    #         url = "http://0.0.0.0:8095/api/dataset/getDataSetList"
+    #         response = requests.request("post", url, headers="")
+    #         dataset_list = json.loads(response.text)
+    #         print(dataset_list)
+    #
+    #         if len(dataset_list) > 0:
+    #             for data_info in dataset_list:
+    #                 # print(data_info)
+    #                 # DB에 저장된 ID 정보가 같고 삭제된 상태가 아닌 경우
+    #                 if data_info['DATASET_CD'] == dataset_id and data_info['DATASET_STS'] != 'DELETE':
+    #                     dataset = {'dataset': data_info}
+    #
+    #     except Exception as e:
+    #         print(e)
 
-        # 레이블링 저작도구 데이터셋 정보 요청
-        url = "http://0.0.0.0:8095/api/dataset/getDataSetList"
-        response = requests.request("post", url, headers="")
+    # result = dict(project, **target, **dataset)
 
-        dataset_list = json.loads(response.text)
-
-        if len(dataset_list) > 0:
-            for data_info in dataset_list:
-                # print(data_info)
-                # DB에 저장된 ID 정보가 같고 삭제된 상태가 아닌 경우
-                if data_info['DATASET_CD'] == dataset_id and data_info['DATASET_STS'] != 'DELETE':
-                    dataset = {'dataset': data_info}
-
-    result = dict(project, **target, **dataset)
+    result = dict(project, **target)
 
     return Response(result)
 
@@ -392,24 +398,25 @@ def project_update(request):
                                                                      deploy_input_data_path,
                                                                      deploy_output_method,
                                                                      deploy_user_edit)
-
         # print(project_info_content)
 
         # project_info.yaml 파일 생성
         common_path = os.path.join(root_path, "shared/common/{0}/{1}".format(str(request.user),
                                                                              str(request.data['project_id'])))
-
         # 디렉토리 유뮤 확인
         if os.path.isdir(common_path) is False:
+            print('Path Not Exist')
             os.makedirs(common_path)
 
-        f = open(os.path.join(common_path, 'project_info.yaml'), 'w')
-        f.write(project_info_content)
-        f.close()
+        file_path = os.path.join(common_path, 'project_info.yaml')
+        with open(file_path, 'w+') as file_data:
+            file_data.write(project_info_content)
+            file_data.close()
 
         return Response(status=200)
 
     except Exception as e:
+        print('project_update - error')
         print(e)
 
 

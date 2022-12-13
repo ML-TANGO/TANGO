@@ -112,16 +112,32 @@ function NeuralAndLoadPage({project_id, project_name, project_description})
     // 프로젝트 정보 업데이트
     const projectContentUpdate = (data) =>
     {
-//        console.log('projectContentUpdate')
 //        console.log(data)
-
         setYamlData(data)
 
         setTarget(data['target'] !== '' ? data['target'] : '')  // 선택 타겟 정보
 
-        if(data['dataset'] !== ''){
-            setDataset(data['dataset'])         // 데이터 셋 정보
+        if(data['dataset'] !== '')
+        {
             setTaskType(data['task_type'])
+
+            // 데이터셋 정보 요청
+            RequestLabelling.requestDatasetList().then(result =>
+            {
+                let resKeys = Object.keys(result.data)
+                for ( let d in resKeys)
+                {
+                    let info = result.data[d]
+                    if(info.DATASET_STS === 'DONE' && info.DATASET_CD === data['dataset'])
+                    {
+                        setDataset(info)         // 데이터 셋 정보
+                    }
+                }
+            })
+            .catch(error =>
+            {
+                console.log('Data set list get error')
+            });
         }
 
         setNasType(data['nas_type'] !== '' ? data['nas_type'] : '')

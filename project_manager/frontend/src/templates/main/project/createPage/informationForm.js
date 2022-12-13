@@ -6,11 +6,6 @@ import '../../../../CSS/project_management.css'
 
 import imageCompression from "browser-image-compression";
 
-//import data_th_1 from "../../../../images/thumbnail/data_th_1.PNG";         // 칫솔
-//import data_th_2 from "../../../../images/thumbnail/data_th_2.PNG";         // 용접 파이프
-//import data_th_3 from "../../../../images/thumbnail/data_th_3.PNG";         // 실생활
-//import data_th_4 from "../../../../images/thumbnail/data_th_4.PNG";         // 폐결핵 판독
-
 import * as RequestTarget from "../../../../service/restTargetApi";
 import * as RequestLabelling from "../../../../service/restLabellingApi";
 
@@ -63,6 +58,8 @@ function InformationForm(
                 {
                     resList.push(info)
                 }
+
+                console.log(resList)
             }
             setDataset_list(resList)
         })
