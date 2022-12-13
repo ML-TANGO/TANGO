@@ -405,7 +405,6 @@ def project_update(request):
                                                                              str(request.data['project_id'])))
         # 디렉토리 유뮤 확인
         if os.path.isdir(common_path) is False:
-            print('Path Not Exist')
             os.makedirs(common_path)
 
         file_path = os.path.join(common_path, 'project_info.yaml')

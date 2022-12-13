@@ -58,8 +58,6 @@ function InformationForm(
                 {
                     resList.push(info)
                 }
-
-                console.log(resList)
             }
             setDataset_list(resList)
         })
