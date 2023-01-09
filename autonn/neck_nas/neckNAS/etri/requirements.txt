@@ -1,0 +1,8 @@
+pyyaml==6.0
+numpy==1.21.5
+onnx==1.10.2
+nni==2.8
+pytorch_lightning
+opencv-python
+matplotlib
+seaborn
