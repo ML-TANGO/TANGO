@@ -1,4 +1,4 @@
-from autonn.yolov5_utils.general import (LOGGER, check_version, non_max_suppression)
+from yolov5_utils.general import (LOGGER, check_version, non_max_suppression)
 from typing import List
 import torch
 import torch.nn as nn
@@ -47,7 +47,7 @@ class Conv(nn.Module):
 
     def forward(self, x):
         return self.act(self.bn(self.conv(x)))
-    
+
     def forward_fuse(self, x):
         return self.act(self.conv(x))
 
@@ -105,7 +105,7 @@ class Bottleneck(nn.Module):
         self.conv1 = CBS(c1, ch_middle, 1, 1)
         self.conv2 = CBS(ch_middle, c2, 3, 1)
         # self.conv1 = Conv(c1, ch_middle, 1, 1, act='silu')
-        # self.conv2 = Conv(ch_middle, c2, 3, 1, act='silu')        
+        # self.conv2 = Conv(ch_middle, c2, 3, 1, act='silu')
         self.add = shorcut and c1 == c2
 
     def forward(self, x):
@@ -177,7 +177,7 @@ class CSP(nn.Module):
         self.conv3 = CBS(2 * ch_middle, c2, 1)
         # self.conv1 = Conv(c1, ch_middle, 1, 1, act='silu')
         # self.conv2 = Conv(c1, ch_middle, 1, 1, act='silu')
-        # self.conv3 = Conv(2 * ch_middle, c2, 1, act='silu')        
+        # self.conv3 = Conv(2 * ch_middle, c2, 1, act='silu')
         self.net = nn.Sequential(
             *(Bottleneck(ch_middle,
                          ch_middle,
@@ -286,7 +286,7 @@ class ConcatForNas(nn.Module):
         return torch.cat(out_list, self.d)
 
     def arch_param_define(self,
-                          prev_sz, prev_ch, 
+                          prev_sz, prev_ch,
                           f_sz, f_ch,
                           refer_sz=None, refer_ch=None,  # device,
                           path_freezing=False,
@@ -309,7 +309,8 @@ class ConcatForNas(nn.Module):
             print(f'==reference size and channels==')
             for fl, (s, c) in enumerate(zip(refer_sz, refer_ch)):
                 print(f'P{fl}= s{s} c{c}', end='  ')
-            print(f'\n(expect P{refer_sz.index(prev_sz)} s{prev_sz} c{prev_ch})')
+            print(f'\n(expect P{refer_sz.index(prev_sz)}'
+                  f' s{prev_sz} c{prev_ch})')
             for ii, (sz, ch) in enumerate(zip(f_sz, f_ch)):
                 print(f'--input #{ii}: P{refer_sz.index(sz)} {sz} {ch}')
                 if fidx[ii] == -1:
@@ -342,7 +343,7 @@ class ConcatForNas(nn.Module):
                         temp_ops.append(
                             CBS(in_channels,  # CBR6(in_channels,
                                 #  neck_channel[refer_ch.index(ch)-(n+1)],
-                                 refer_ch[refer_sz.index(sz)+(n+1)],
+                                refer_ch[refer_sz.index(sz)+(n+1)],
                                 k=3, s=2))
                         in_channels = refer_ch[refer_sz.index(sz)+(n+1)]
                         print(f'downsampling.... channel = {in_channels}')
@@ -360,7 +361,8 @@ class ConcatForNas(nn.Module):
             refer_ch.insert(0, refer_ch[0])
             for fl, (s, c) in enumerate(zip(refer_sz, refer_ch)):
                 print(f'P{fl}= s{s} c{c}', end='  ')
-            print(f'\n(expect P{refer_sz.index(prev_sz)} s{prev_sz} c{prev_ch})')
+            print(f'\n(expect P{refer_sz.index(prev_sz)}'
+                  f' s{prev_sz} c{prev_ch})')
             for ii, (sz, ch) in enumerate(zip(f_sz, f_ch)):
                 print(f'--input #{ii}: P{refer_sz.index(sz)} {sz} {ch}')
                 if fidx[ii] == -1:
@@ -378,8 +380,8 @@ class ConcatForNas(nn.Module):
                         temp_ops.append(
                             CBS(in_channels,
                                 #  neck_channel[refer_ch.index(ch)-(n+1)],
-                                 refer_ch[refer_sz.index(sz)-(n+1)],
-                                 k=1, s=1))
+                                refer_ch[refer_sz.index(sz)-(n+1)],
+                                k=1, s=1))
                         temp_ops.append(torch.nn.Upsample(None, 2, 'nearest'))
                         in_channels = neck_channel[refer_ch.index(ch)-(n+1)]
                     self.ops.append(torch.nn.Sequential(*temp_ops))
@@ -418,8 +420,8 @@ class ConcatSPP(nn.Module):
         self.cv1 = Conv(c1, c_hidden, 1, 1)
         self.cv2 = Conv(c_hidden * (len(k) + 1), c2, 1, 1)
         self.m = nn.ModuleList([nn.MaxPool2d(kernel_size=x, stride=1,
-                               padding=x //2) for x in k])
-    
+                               padding=x // 2) for x in k])
+
     def forward(self, input_list):
         out_list = []
         out_list.append(self.cv1(self.ops[0](input_list[0])))
@@ -500,8 +502,8 @@ class ConcatSPP(nn.Module):
                         #                  Attach an additional CBR6
                         temp_ops.append(
                             CBS(in_channels,
-                                 neck_channel[refer_ch.index(ch)-(n+1)],
-                                 k=1, s=1))
+                                neck_channel[refer_ch.index(ch)-(n+1)],
+                                k=1, s=1))
                         temp_ops.append(torch.nn.Upsample(None, 2, 'nearest'))
                         in_channels = neck_channel[refer_ch.index(ch)-(n+1)]
                     self.ops.append(torch.nn.Sequential(*temp_ops))
@@ -516,14 +518,15 @@ class ConcatSPP(nn.Module):
                         # temp_ops.append(CBR6(ch, ch, k=3, s=2))
                         temp_ops.append(
                             CBS(in_channels,
-                                 neck_channel[refer_ch.index(ch)+(n+1)],
-                                 k=3, s=2))
+                                neck_channel[refer_ch.index(ch)+(n+1)],
+                                k=3, s=2))
                     self.ops.append(torch.nn.Sequential(*temp_ops))
 
                 else:
                     self.ops.append(torch.nn.Identity())
         else:
             raise NotImplementedError('Check ch_res_rule')
+
 
 class Detect(nn.Module):
     # YOLOv5 Detect head for detection models

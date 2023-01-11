@@ -8,23 +8,22 @@ from copy import deepcopy
 from datetime import datetime
 
 import torch
-# import torch.nn as nn  # (tenace comment: use nni)
-import torch.nn.functional as F
+# import torch.nn as nn
+# import torch.nn.functional as F
 from torch.cuda import amp
 from torch.utils.data import DataLoader, Dataset, dataloader, distributed
 
-import nni.retiarii.nn.pytorch as nn  # (tenace comment: use nni)
+# import nni.retiarii.nn.pytorch as nn  # (use original pytorch)
 from nni.retiarii.oneshot.interface import BaseOneShotTrainer
-from nni.retiarii.oneshot.pytorch.utils import (replace_layer_choice,
-                                                replace_input_choice,
-                                                to_device)
+from nni.retiarii.oneshot.pytorch.utils import to_device
+
 import val
+from datasets import LoadImagesAndLabels
 from yolov5_utils.general import (LOGGER, colorstr, init_seeds,
                                   one_cycle, linear)
 from yolov5_utils.torch_utils import (de_parallel, ModelEMA, EarlyStopping)
 from yolov5_utils.metrics import fitness
-from yolov5_utils.loss import ComputeLoss
-from datasets import LoadImagesAndLabels
+# from yolov5_utils.loss import ComputeLoss
 
 FILE = Path(__file__).resolve()  # absolute file path
 ROOT = FILE.parents[0]  # absolute directory path
@@ -36,99 +35,6 @@ ROOT = Path(os.path.relpath(ROOT, Path.cwd()))  # relative
 LOCAL_RANK = int(os.getenv('LOCAL_RANK', '-1'))
 RANK = int(os.getenv('RANK', '-1'))
 WORLD_SIZE = int(os.getenv('WORLD_SIZE', '1'))
-
-
-class ArchGradientFunction(torch.autograd.Function):
-    @staticmethod
-    def forward(ctx, x, binary_gates, run_func, backward_func):
-        ctx.run_func = run_func
-        ctx.backward_func = backward_func
-
-        detached_x = x.detach()
-        detached_x.requires_grad = x.requires_grad
-        with torch.enable_grad():
-            output = run_func(detached_x)
-        ctx.save_for_backward(detached_x, output)
-        return output.data
-
-    @staticmethod
-    def backward(ctx, grad_output):
-        detached_x, output = ctx.saved_tensors
-
-        grad_x = torch.autograd.grad(output, detached_x, grad_output,
-                                     only_inputs=True)
-        # compute gradients w.r.t. binary_gates
-        binary_grads = ctx.backward_func(detached_x.data, output.data,
-                                         grad_output.data)
-
-        return grad_x[0], binary_grads, None, None
-
-
-class ProxylessLayerChoice(nn.Module):
-    def __init__(self, ops):
-        super(ProxylessLayerChoice, self).__init__()
-        self.ops = nn.ModuleList(ops)
-        self.alpha = nn.Parameter(torch.randn(len(self.ops)) * 1E-3)
-        self._binary_gates = nn.Parameter(torch.randn(len(self.ops)) * 1E-3)
-        self.sampled = None
-
-    def forward(self, *args):
-        def run_function(ops, active_id):
-            def forward(_x):
-                return ops[active_id](_x)
-            return forward
-
-        def backward_function(ops, active_id, binary_gates):
-            def backward(_x, _output, grad_output):
-                binary_grads = torch.zeros_like(binary_gates.data)
-                with torch.no_grad():
-                    for k in range(len(ops)):
-                        if k != active_id:
-                            out_k = ops[k](_x.data)
-                        else:
-                            out_k = _output.data
-                        grad_k = torch.sum(out_k * grad_output)
-                        binary_grads[k] = grad_k
-                return binary_grads
-            return backward
-
-        assert len(args) == 1
-        x = args[0]
-        return ArchGradientFunction.apply(
-            x, self._binary_gates, run_function(self.ops, self.sampled),
-            backward_function(self.ops, self.sampled, self._binary_gates)
-        )
-
-    def resample(self):
-        probs = F.softmax(self.alpha, dim=-1)
-        sample = torch.multinomial(probs, 1)[0].item()
-        self.sampled = sample
-        with torch.no_grad():
-            self._binary_gates.zero_()
-            self._binary_gates.grad = torch.zeros_like(self._binary_gates.data)
-            self._binary_gates.data[sample] = 1.0
-
-    def finalize_grad(self):
-        binary_grads = self._binary_gates.grad
-        with torch.no_grad():
-            if self.alpha.grad is None:
-                self.alpha.grad = torch.zeros_like(self.alpha.data)
-            probs = F.softmax(self.alpha, dim=-1)
-            for i in range(len(self.ops)):
-                for j in range(len(self.ops)):
-                    self.alpha.grad[i] += \
-                        binary_grads[j] * probs[j] * (int(i == j) - probs[i])
-
-    def export(self):
-        return torch.argmax(self.alpha).item()
-
-    def export_prob(self):
-        return F.softmax(self.alpha, dim=-1)
-
-
-class ProxylessInputChoice(nn.Module):
-    def __init__(self, *args, **kwargs):
-        raise NotImplementedError('Input choice is not supported.')
 
 
 class ConcatBasedNetTrainer(BaseOneShotTrainer):

@@ -9,16 +9,16 @@ import torch.nn as nn
 
 import yaml
 # from neck import Neck
-from autonn.backbone import Backbone
-from autonn.ops import (Conv, CBL, CBM, CBR, CBR6, CBS, CSP, DBR6, MB, SPP,
-                        Focus, Bottleneck, Concat, ConcatForNas, ConcatSPP,
-                        Detect, NMS)
-from autonn.yolov5_utils.autoanchor import check_anchor_order
-from autonn.yolov5_utils.general import LOGGER
-from autonn.yolov5_utils.torch_utils import (fuse_conv_and_bn, model_info,
-                                             scale_img, time_sync,
-                                             initialize_weights)
-from models.common import C3
+from backbone import Backbone
+from ops import (Conv, CBL, CBM, CBR, CBR6, CBS, CSP, DBR6, MB, SPP,
+                 Focus, Bottleneck, Concat, ConcatForNas, ConcatSPP,
+                 Detect, NMS)
+from yolov5_utils.autoanchor import check_anchor_order
+from yolov5_utils.general import LOGGER
+from yolov5_utils.torch_utils import (fuse_conv_and_bn, model_info,
+                                      scale_img, time_sync,
+                                      initialize_weights)
+# from models.common import C3
 
 
 class SearchNeck(nn.Module):
@@ -65,10 +65,11 @@ class SearchNeck(nn.Module):
 
         # backbone + neck + head
         backbone_dict.update(deepcopy_neck_dict)
-        # with open('autonn/yaml/yolov5l_p5f.yaml', encoding='ascii', errors='ignore') as f:
+        # with open('autonn/yaml/yolov5l_p5f.yaml',
+        #           encoding='ascii', errors='ignore') as f:
         #     backbone_dict = yaml.safe_load(f)
         fullarch_dict = deepcopy(backbone_dict)
-      
+
         # define model
         self.model, self.save = build_model(fullarch_dict)
         self.names = [str(i) for i in range(nc)]
@@ -242,11 +243,7 @@ class SearchSpaceWrap(nn.Module):
 
         if True:
             backbone_module = Backbone(backbone_yaml)
-            # TODO:
-            # (tenace comment) Using nn.ModuleList to build full arch.
-            #                  might be problematic..
-            #                  Instead, first make dictionaries for bb, nk & hd
-            #                  and then build a full arch. using the dictionry
+
             self.nc = nc
             self.anchors = anchors
             # self.ch_out = backbone_module.channels
@@ -257,7 +254,7 @@ class SearchSpaceWrap(nn.Module):
             # self.ch_out += self.neck_module.channels
             # self.layers = self.neck_module.layers  # (tenace: not need)
             self.ch_out = self.neck_module.channels  # (tenace: bb + nk)
-            #print(self.ch_out)
+            # print(self.ch_out)
 
             # neck-to-head
             head_ch_in = []
@@ -281,7 +278,8 @@ class SearchSpaceWrap(nn.Module):
             # self.model = nn.ModuleList([*backbone_module.layers]
             #                            + [*self.neck_module.layers]
             #                            + [head])
-            self.model = nn.Sequential(*backbone_module.layers, *self.neck_module.layers, head)
+            self.model = nn.Sequential(*backbone_module.layers,
+                                       *self.neck_module.layers, head)
 
             """ for debug """
             print('----------------------backbone-------------------------')
@@ -318,7 +316,8 @@ class SearchSpaceWrap(nn.Module):
             # define model
             self.model, self.save = build_model(fullarch_dict)
 
-        # self.names = [str(i) for i in range(nc)] # trick: comment if you do not want AMP
+        # trick: comment if you do not want AMP
+        # self.names = [str(i) for i in range(nc)]
 
         # build strides, anchors
         m = self.model[-1]  # Detect()
@@ -417,7 +416,7 @@ class SearchSpaceWrap(nn.Module):
 
             x = m(x)  # run
             y.append(x)
-        
+
         if profile:
             print('%.1fms total' % sum(dt))
         return x
@@ -692,7 +691,7 @@ def parse_neck_for_concat_nas(nd, bm, p, device, return_list=None):
                     f.pop(idx)
                     for c_fr_idx, t in enumerate(connect_fr):
                         # if t != len(ch):
-                        if t != si -1:
+                        if t != si - 1:
                             f.append(t)
                     ch_res_rule = 0
                 elif x == "PreLayer":
@@ -900,11 +899,11 @@ def build_model(d):
                 pass
 
         # n = max(round(n * gd), 1) if n > 1 else n  # depth gain
-        if m in [Conv, Bottleneck, SPP, Focus, CSP, C3,
+        if m in [Conv, Bottleneck, SPP, Focus, CSP,  # C3,
                  CBR, CBS, CBL, CBM, CBR6, DBR6]:
             c1, c2 = ch[f], args[0]
             args = [c1, c2, *args[1:]]
-            if m in [CSP, C3]:
+            if m in [CSP]:  # C3
                 args.insert(2, n)
                 n = 1
         elif m is nn.BatchNorm2d:
