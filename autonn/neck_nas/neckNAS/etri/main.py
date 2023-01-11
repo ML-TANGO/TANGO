@@ -393,12 +393,10 @@ if __name__ == "__main__":
                 exit(-1)
     else:
         if args.nas_type in ['ConcatBasedNet', 'Yolov5Trainer']:
-        # if args.nas_type == 'ConcatBasedNet':
             model = SearchNeck(backbone_yaml=args.cfg,
                                nc=nc,
                                anchors=anchors)
         elif args.nas_type == 'ConcatEntirePath':
-        # elif args.nas_type in ['ConcatEntirePath', 'Yolov5Trainer']:
             from head import Head
             model = SearchSpaceWrap(args.cfg,
                                     ConcatEntirePathNeck,

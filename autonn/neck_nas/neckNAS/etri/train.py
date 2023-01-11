@@ -574,9 +574,11 @@ def train(hyp, opt, device):
                 #             if item > 0.0:
                 #                 print(colorstr(
                 #                     "bright_cyan",
-                #                     f'[path {idx+1}]: {item:0.3f}'), end=' \t')
+                #                     f'[path {idx+1}]:'
+                #                     f' {item:0.3f}'), end=' \t')
                 #             else:
-                #                 print(f'[path {idx+1}]: {item:0.3f}', end=' \t')
+                #                 print(f'[path {idx+1}]:'
+                #                       f' {item:0.3f}', end=' \t')
                 #             neck_path.append(item)
                 #         print('')
 
@@ -767,16 +769,19 @@ def main(opt):
     # if opt.resume and not check_wandb_resume(opt) and not opt.evolve:
     # if opt.resume and not opt.evolve:
     #     # specified or most recent path
-    #     ckpt = opt.resume if isinstance(opt.resume, str) else get_latest_run()
+    #     ckpt = opt.resume if isinstance(opt.resume, str) \
+    #         else get_latest_run()
     #     assert os.path.isfile(ckpt),\
     #         'ERROR: --resume checkpoint does not exist'
-    #     with open(Path(ckpt).parent.parent / 'opt.yaml', errors='ignore') as f:
+    #     with open(Path(ckpt).parent.parent / 'opt.yaml',
+    #               errors='ignore') as f:
     #         opt = argparse.Namespace(**yaml.safe_load(f))  # replace
     #     opt.cfg, opt.weights, opt.resume = '', ckpt, True  # reinstate
     #     LOGGER.info(f'Resuming training from {ckpt}')
     # else:
     #     opt.dataset, opt.cfg, opt.hyp, opt.weights, opt.project = \
-    #         check_file(opt.dataset), check_yaml(opt.cfg), check_yaml(opt.hyp),\
+    #         check_file(opt.dataset), check_yaml(opt.cfg), \
+    #         check_yaml(opt.hyp),\
     #         str(opt.weights), str(opt.project)  # checks
     #     assert len(opt.cfg) or len(opt.weights),\
     #         'either --cfg or --weights must be specified'
@@ -784,8 +789,9 @@ def main(opt):
     #         # if default project name, rename to runs/evolve
     #         if opt.project == str(ROOT / 'runs/train'):
     #             opt.project = str(ROOT / 'runs/evolve')
+    #         # pass resume to exist_ok and disable resume
     #         opt.exist_ok, opt.resume = \
-    #             opt.resume, False  # pass resume to exist_ok and disable resume
+    #             opt.resume, False
     #     if opt.name == 'cfg':
     #         opt.name = Path(opt.cfg).stem  # use model.yaml as name
     #     opt.save_dir = str(increment_path(Path(opt.project)

@@ -9,8 +9,8 @@ from copy import deepcopy
 import torch
 # import nni.retiarii.nn.pytorch as nn
 import torch.nn as nn
-from autonn.ops import *
-from autonn.yolov5_utils.general import LOGGER
+from ops import *
+from yolov5_utils.general import LOGGER
 
 # logging.basicConfig(level=logging.DEBUG)
 # logger = logging.getLogger(__name__)
@@ -79,7 +79,7 @@ class Backbone(nn.Module):
 
 def parse_backbone(d, p):  # d=model_dictionary, p=number_pyramid-floors
     LOGGER.debug('\n%3s%18s%10s  %-20s%-30s'
-                % ('', 'from', 'params', 'module', 'arguments'))
+                 % ('', 'from', 'params', 'module', 'arguments'))
     layers = []
     output = []  # layers connecting between backbone and neck
     ch = [3]  # default : RGB(3-ch) images
@@ -106,7 +106,7 @@ def parse_backbone(d, p):  # d=model_dictionary, p=number_pyramid-floors
                     sz_out = sz_in * 2
         elif m is MB:
             ch_in, ch_out = ch[f], args[1]
-            sz_in = sz_out = sz[f] 
+            sz_in = sz_out = sz[f]
             args.insert(0, ch_in)
             # [ch_in, ch_multiple(t), ch_out(c), repetition(n), stride(s)]
             if i > 0 and args[4] == 2:
@@ -125,7 +125,7 @@ def parse_backbone(d, p):  # d=model_dictionary, p=number_pyramid-floors
         # print(f'{m_.type} added: {len(list(m_.modules()))}')
         layers.append(m_)
         LOGGER.debug('%3s%18s%10.0f  %-20s%-30s'
-                    % (i, f, params, t, args))  # print
+                     % (i, f, params, t, args))  # print
         # ch[x] : input channel for layer-#x
         if i == 0:
             ch = []
