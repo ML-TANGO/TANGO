@@ -3,6 +3,22 @@ README
 
 # autonn/neck_nas
 
+**TL;DR**
+```bash
+docker rm -f $(docker ps -aq)
+docker rmi autonn_nk:lastest
+cd {tango_root}/autonn/neck_nas
+docker build -t autonn_nk .
+docker run -it --gpu=all -p 8089:8089 --name=autonn_nk autonn_nk:lastest
+python manage.py makemigrations
+python manage.py migrate
+python manage.py createsuperuser
+python manage.py runserver 0.0.0.0:8089
+curl -v http://localhost:8089/start?user_id=root\&project_id=20230118
+curl -v http://localhost:8089/status_request?user_id=root\&project_id=20230118
+curl -v http://localhost:8089/stop?user_id=root\&project_id=20230118
+```
+
 ## TANGO 신경망 자동 생성 모듈 / 'Neck' Network Architeture Search 컨테이너
 #### 도커 서비스 이름
     autonn_nk
