@@ -336,17 +336,60 @@ docker run -d --name labelling -p 8086:80 labelling:latest
 <details>
     <summary> autonn: container for automatic neural network creationn </summary>
 
-Change current working directory into `autonn` and  image build with `Dockerfile`
+:warning:<span style='background-color:#dcffe4'>Currently, autonn consists of two different NAS modules, **neck-nas** and **backbone-nas**.</span>  
+You should build both of them at each directory respectively.
+***
+For **backbone NAS**, change current working directory into `autonn/backbone-nas` and  image build with `Dockerfile`
 
 ```bash
-cd ../autonn/
-docker build -t autonn .
+cd ../autonn/backbone_nas
+docker build -t autonn_bb .
 ```
 
-`autonn` container run
+`autonn_bb` container run  
+Be careful not to get the port number wrong, `8087` is allocated for backbone-nas
 
 ```bash
-docker run -d --name autonn -p 8087:8087 autonn:latest
+docker run -d --name autonn_bb -p 8087:8087 -v autonn_bb:latest
+```
+
+If CUDA is available, you can use `--gpus=all` options
+
+```bash
+docker run -d --gpus=all --name autonn_bb -p 8087:8087 autonn_bb:latest
+```
+
+When you run into shared memory shortage, you should use `--ipc=host` options
+
+```bash
+docker run -d --gpus=all --ipc=host --name autonn_bb -p 8087:8087 autonn_bb:latest
+```
+
+***
+Similary for **neck NAS**, change current working directory into `autonn/neck-nas` and  image build with `Dockerfile`
+
+```bash
+cd ../autonn/neck_nas
+docker build -t autonn_nk .
+```
+
+`autonn_nk` container run  
+Be careful not to get the port number wrong, `8089` is allocated for neck-nas
+
+```bash
+docker run -d --name autonn_nk -p 8089:8089 autonn_nk:latest
+```
+
+If CUDA is available, you can use `--gpus=all` options
+
+```bash
+docker run -d --gpus=all --name autonn_nk -p 8089:8089 autonn_nk:latest
+```
+
+When you run into shared memory shortage, you should use `--ipc=host` options
+
+```bash
+docker run -d --gpus=all --ipc=host --name autonn_nk -p 8089:8089 autonn_nk:latest
 ```
 </details>
 
