@@ -17,10 +17,10 @@ import seaborn as sn
 import torch
 from PIL import Image, ImageDraw, ImageFont
 
-from yolov5_utils.general import (CONFIG_DIR, FONT, LOGGER, Timeout,
-                                  clip_coords, increment_path, check_font,
-                                  is_ascii, try_except, xywh2xyxy, xyxy2xywh)
-from yolov5_utils.metrics import fitness
+from .general import (CONFIG_DIR, FONT, LOGGER, Timeout,
+                      clip_coords, increment_path, check_font,
+                      is_ascii, try_except, xywh2xyxy, xyxy2xywh)
+from .metrics import fitness
 
 # Settings
 RANK = int(os.getenv('RANK', -1))

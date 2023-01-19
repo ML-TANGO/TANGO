@@ -10,8 +10,8 @@ def notebook_init(verbose=True):
     import os
     import shutil
 
-    from yolov5_utils.general import check_requirements, emojis, is_colab
-    from yolov5_utils.torch_utils import select_device  # imports
+    from .general import check_requirements, emojis, is_colab
+    from .torch_utils import select_device  # imports
 
     check_requirements(('psutil', 'IPython'))
     import psutil

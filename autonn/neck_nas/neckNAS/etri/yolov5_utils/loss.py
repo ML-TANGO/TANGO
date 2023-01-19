@@ -6,8 +6,8 @@ Loss functions
 import torch
 import torch.nn as nn
 
-from yolov5_utils.metrics import bbox_iou
-from yolov5_utils.torch_utils import de_parallel
+from .metrics import bbox_iou
+from .torch_utils import de_parallel
 
 
 def smooth_BCE(eps=0.1):

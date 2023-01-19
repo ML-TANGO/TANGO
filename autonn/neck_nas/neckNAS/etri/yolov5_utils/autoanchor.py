@@ -9,7 +9,7 @@ import torch
 import yaml
 from tqdm import tqdm
 
-from yolov5_utils.general import LOGGER, colorstr, emojis
+from .general import LOGGER, colorstr, emojis
 
 PREFIX = colorstr('AutoAnchor: ')
 
