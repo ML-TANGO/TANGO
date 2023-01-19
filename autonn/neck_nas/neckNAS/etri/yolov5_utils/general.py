@@ -31,8 +31,8 @@ import torch
 import torchvision
 import yaml
 
-from yolov5_utils.downloads import gsutil_getsize
-from yolov5_utils.metrics import box_iou, fitness
+from .downloads import gsutil_getsize
+from .metrics import box_iou, fitness
 
 # Settings
 FILE = Path(__file__).resolve()

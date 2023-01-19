@@ -23,16 +23,16 @@ import nni.retiarii.nn.pytorch as nn
 from nni.retiarii.fixed import fixed_arch
 
 # yolov5
-from yolov5_utils.general import (LOGGER, print_args, get_latest_run,
+from .yolov5_utils.general import (LOGGER, print_args, get_latest_run,
                                   check_suffix, check_file, check_yaml,
                                   check_dataset, increment_path,
                                   check_img_size, colorstr, intersect_dicts,
                                   labels_to_class_weights, one_cycle, linear)
-from yolov5_utils.loss import ComputeLoss
-from yolov5_utils.autoanchor import check_anchors
-from yolov5_utils.torch_utils import (select_device,
+from .yolov5_utils.loss import ComputeLoss
+from .yolov5_utils.autoanchor import check_anchors
+from .yolov5_utils.torch_utils import (select_device,
                                       torch_distributed_zero_first)
-from yolov5_utils.plots import plot_lr_scheduler
+from .yolov5_utils.plots import plot_lr_scheduler
 
 FILE = Path(__file__).resolve()  # absolute file path
 ROOT = FILE.parents[0]  # absolute directory path
@@ -240,10 +240,20 @@ def parse_args():
     args = parser.parse_args()
     return args
 
+def run_nas(data=None, target=None, train_mode='search', final_arch=None):
+    print("__________run_nas__________________")
+    LOGGER.info('run nas start (neck-nas, etri)')
 
-if __name__ == "__main__":
     # ------- arguments -------------------------------------------------------
-    args = parse_args()
+    # args = parse_args()
+    if train_mode == 'search':
+        args_yaml = 'neckNAS/etri/yaml/args.yaml'
+    elif train_mode == 'retrain':
+        args_yaml = 'neckNAS/etri/yaml/args_retrain.yaml'
+    
+    with open(args_yaml, encoding='utf8') as f:
+        args = argparse.Namespace(**yaml.safe_load(f))
+
     if RANK in (-1, 0):
         print_args(vars(args))
 
