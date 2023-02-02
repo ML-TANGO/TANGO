@@ -27,7 +27,7 @@ The component interacts with other component via REST APIs as depicted in the fo
 
 The TANGO framework aims to deploy and load ready-to-use deep learning models for the specific vision task (classification, object detection, or instance segmentation) onto the user's target devices by automatically constructing and training deep learning models without the help of experts or with minimal knowledge on usage on TANGO. To this end, data preparation, neural network model creation, and optimization for target device can be accomplished within TANGO framework.
 
-<img src="https://github.com/ML-TANGO/TANGO/blob/main/docs/media/TANGO_AutoML.png" alt="TANGO Auto ML" width="800px"/>
+<img src="./docs/media/TANGO_AutoML.png" alt="TANGO Auto ML" width="600px"/>
 
 ----
 
@@ -35,7 +35,7 @@ The TANGO framework aims to deploy and load ready-to-use deep learning models fo
 
 Data preparation consists of two main processes. First, you need to take or collect images (raw data) in various situations suitable for the given vision task. Then, collected row data should be annotated to be used for training of depp learning models. The latter process is very labor intensive and takes a lot of manpower and time. TANGO's labeling tool is a Web-based GUI tool that enables the users easily perform annotation on raw data. The user can load local raw data by just drag and drop style, perform class labeling, bounding box annotation, polygon annotation, etc. according to the specific task, and then save them.
 
-<img src="./docs/media/TANGO_labeling.png" alt="TANGO labeling" width="800px"/>
+<img src="./docs/media/TANGO_labeling.png" alt="TANGO labeling" width="600px"/>
 
 ### Auto NN: Automatic Neural Network Generation
 
@@ -43,7 +43,7 @@ AutoML (Automated Machine Learning) refers to the process of automating the end-
 
 Neural network model generation is a key process in the TANGO framework. The TANGO framework provides guidelines for this kind of task automatically. First, a base neural network is extracted through a base model selector recommended by one of the existing SOTA, State of the Art, neural networks proved to work well. Afterwards, AutoNN uses automation techniques such as NAS ([Neural Architecture Search](https://en.wikipedia.org/wiki/Neural_architecture_search)) and HPO ([Hyper Parameter Optimization](https://en.wikipedia.org/wiki/Hyperparameter_optimization)) to find an appropriate neural network configuration. This includes retraining of the final model.
 
-<img src="./docs/media/TANGO_BMS_AutoNN.png" alt="TANGO labeling" width="800px"/>
+<img src="./docs/media/TANGO_BMS_AutoNN.png" alt="TANGO labeling" width="500px"/>
 
 
 #### BMS: Basic Model Selection
@@ -70,7 +70,7 @@ Even though neural network training is largely automated, there are still many v
 
 During TANGO project configuration, users can specify theirs target device, which is used for inference with pre-trained neural network model. Due to different acceleration engines and available resources for each device, it may be difficult to immediately deploy/load the neural network model output from AutoNN. Therefore, in order to realize full-cycle AutoML, a tool is necessary to  help deploy/install on the target device and launch inference task. Depending on the environment of the target device, TANGO provides a method that can be distributed over the network through direct containerized image build, and a method that makes the executable code including essential libraries and pre/post-processing code into a compressed file and installs it on the the target device and unpacks it.
 
-<img src="./docs/media/TANGO_AutoNN_Deployment.png" alt="Deployment in TANGO" width="800px"/>
+<img src="./docs/media/TANGO_AutoNN_Deployment.png" alt="Deployment in TANGO" width="500px"/>
 
 ### Object Detection Neural Networks
 
@@ -92,7 +92,7 @@ In the case of the backbone and neck, appropriate models may depend on the capac
 
 In order to get the target device-tailored backbone that the TANGO framework aims for, the delay time measurement function for each operator in the neural network was modularized, and based on this, the complexity and search time of the search algorithm were minimized. For efficient multi-scale information extraction, a weight-sharing supernet learning was performed using an evolutionary algorithm-based neural network structure search strategy to output a backbone neural network.
 
-<img src="./docs/media/BB_NAS.png" alt="Backbone NAS concept" width="800px"/>
+<img src="./docs/media/BB_NAS.png" alt="Backbone NAS concept" width="500px"/>
 
 #### Neck NAS
 
@@ -109,6 +109,13 @@ Unlike above example which illustrates block-based search, the neck structure it
 The TANGO framework aims to help users without specialized knowledge to create and use their own neural network models. To this end, it provides an environment that users can use without writing code, such as a project manager and a neural network visualization tool.
 
 <img src="./docs/media/TANGO_No_Code.png" alt="ETRI SuperNeck" width="800px"/>
+
+You can watch 2022 early version demo on Youtube. Click the below images.
+
+<a href="https://youtu.be/T80YKRyIR3g">
+<img src="./docs/media/TANGO_2022_Demo.png" alt="TANGO 2022 Demon on Youtube" width="300px"/>
+</a>
+
 
 ## Source Tree Structure <a name="source_tree"></a>
 
@@ -166,6 +173,20 @@ refer to TANGO wiki [HowTo | TANGO Image Build and Run](https://github.com/ML-TA
 * [TANGO REST API Guide](https://github.com/ML-TANGO/TANGO/wiki/Guides-%7C-Rest-API)
 
 ----
+
+## TANGO on media
+
+YouTube Videos
+* [ 성공하는 SW기업을 위한 AI, SW개발도구 'TANGO'](https://youtu.be/IwyHOl3WjWQ)
+  * 2022 SW공학 TECHNICAL 세미나, 떠오르는 기업의 품질 확보 활동 
+  * 2022년 11월 23일(수) 15:30 ~ 17:30 
+  * 비앤디파트너스 삼성역점 M3 회의실
+
+* [TANGO, 노코드 신경망 자동생성 통합개발 프레임워크의 품질 관리](https://youtu.be/jrJCXAPKJn8)
+  * 2022 SW QUALITY INSIGHT CONFERENCE
+  * 2022년 12월 7일(수) 15:30~17:30 
+  * COEX 그랜드 컨퍼런스룸 402호
+
 
 ## Acknowledgement <a name="ack"></a>
 
