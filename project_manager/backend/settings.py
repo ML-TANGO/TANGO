@@ -28,12 +28,26 @@ DEBUG = False
 
 ALLOWED_HOSTS = ['0.0.0.0', '*']
 
-# CORS_ALLOW_CREDENTIALS = True
+CORS_ALLOW_CREDENTIALS = True
 CORS_ORIGIN_ALLOW_ALL = True
 
+# CORS_ORIGIN_WHITELIST =[
+#     'http://0.0.0.0:3000',  # project_manager - frontend
+#     'http://0.0.0.0:8081',  # bms
+#     'http://0.0.0.0:8091',  # viz2Code
+#     'http://0.0.0.0:8888',  # code gen
+#     'http://0.0.0.0:8087',  # autonn bb
+#     'http://0.0.0.0:8089',  # autonn nk
+#     'http://0.0.0.0:8088',  # cloud deployS
+#     'http://0.0.0.0:8891',  # onDevice deploy
+# ]
+
+CORS_ALLOW_METHODS = [
+    'GET',
+    'POST'
+]
 
 # Application definition
-
 INSTALLED_APPS = [
     'django.contrib.admin',
     'django.contrib.auth',
@@ -157,7 +171,7 @@ REST_FRAMEWORK = {
 
 OAUTH2_PROVIDER = {
     'ACCESS_TOKEN_EXPIRE_SECONDS': 604800,
-    'REFRESH_TOKEN_EXPIRE_SECONDS' : 30
+    'REFRESH_TOKEN_EXPIRE_SECONDS': 30
 }
 
 # REST_FRAMEWORK = {

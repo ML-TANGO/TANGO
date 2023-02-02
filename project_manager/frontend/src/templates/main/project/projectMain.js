@@ -4,19 +4,20 @@ import { Link, useNavigate } from "react-router-dom";
 import { PlusLg } from "react-bootstrap-icons";
 
 import * as Request from "../../../service/restProjectApi";
+import * as RequestLabelling from "../../../service/restLabellingApi";
 
 import Kebab from "../../../components/Kebab/Kebab";
-import Progress from "../../../components/Progress/Progress";
+//import Progress from "../../../components/Progress/Progress";
 import * as Popup from "../../../components/popup/popup";
 
 import '../../../CSS/project_management.css'
 
 import { isToken, isUser } from '../../../Router/isLogin';
 
-import data_th_1 from "../../../images/thumbnail/data_th_1.PNG";   // 칫솔
-import data_th_2 from "../../../images/thumbnail/data_th_2.PNG";   // 용접 파이프
-import data_th_3 from "../../../images/thumbnail/data_th_3.PNG";   // 실생활
-import data_th_4 from "../../../images/thumbnail/data_th_4.PNG";   // 폐결핵 판독
+//import data_th_1 from "../../../images/thumbnail/data_th_1.PNG";   // 칫솔
+//import data_th_2 from "../../../images/thumbnail/data_th_2.PNG";   // 용접 파이프
+//import data_th_3 from "../../../images/thumbnail/data_th_3.PNG";   // 실생활
+//import data_th_4 from "../../../images/thumbnail/data_th_4.PNG";   // 폐결핵 판독
 
 function ProjectMain()
 {
@@ -25,6 +26,7 @@ function ProjectMain()
 
     /* 서버에서 받아온 프로젝트 리스트 정보 */
     const [projectList, setProjectList] = useState([]);
+    const [dataset_list, setDataset_list] = useState([]);              // 데이터 셋 리스트
 
     const [projectName, setProjectName] = useState("");                   // 프로젝트 이름
     const [projectDescription, setProjectDescription] = useState("");     // 프로젝트 설명
@@ -52,6 +54,7 @@ function ProjectMain()
         else
         {
             getProject();
+            get_dataset_list();
         }
 
     }, []);
@@ -67,6 +70,28 @@ function ProjectMain()
             console.log('project list get error')
         });
     };
+
+    // 데이터 셋 정보 수신 - 레이블링 저작도구 연동
+    const get_dataset_list = () =>
+    {
+        RequestLabelling.requestDatasetList().then(result =>
+        {
+            let resKeys = Object.keys(result.data)
+
+            let resList = []
+            for ( let d in resKeys)
+            {
+                let info = result.data[d]
+                resList.push(info)
+            }
+
+            setDataset_list(resList)
+        })
+        .catch(error =>
+        {
+            console.log('Data set list get error')
+        });
+    }
 
     /* 프로젝트 삭제 */
     const delProject = (id, name) => {
@@ -137,13 +162,18 @@ function ProjectMain()
     {
         /* 프로젝트 생성 함수 호출 */
         /* projectName : 사용자가 입력한 프로젝트명 */
+
+        setProjectName('')
+        setProjectDescription('')
+
         createProject(projectName, projectDescription)
     }
 
     /* 생성 팝업 - 취소 버튼 클릭 */
     const popup_Cancel_ButtonClick = () =>
     {
-        document.getElementById('input_project_name').value = ''
+        setProjectName('')
+        setProjectDescription('')
 
         /* 팝업 숨김 */
         document.getElementById('create_project_popup').style.display = 'none';
@@ -222,27 +252,19 @@ function ProjectMain()
     }
 
     /* 아이템 박스 이미지 */
-    const itemBackgroundImage = (value) =>
+    const getDataset_image = (value) =>
     {
-        if (value.indexOf('COCO') !== -1)
+        const data_index = dataset_list.findIndex(d => d.DATASET_CD === value)
+        if(data_index !== -1)
         {
-            return "url('" + data_th_3 + "')";
-        }
-        else if (value.indexOf('칫솔') !== -1)
-        {
-            return "url('" + data_th_1 + "')";
-        }
-        else if (value.indexOf('파이프') !== -1)
-        {
-            return "url('" + data_th_2 + "')";
-        }
-        else if (value.indexOf('폐') !== -1)
-        {
-            return "url('" + data_th_4 + "')";
+            const host = window.location.hostname
+            const imageAddress = 'http://' + host + ':8095' + dataset_list[data_index].THUM_NAIL
+
+            return imageAddress
         }
         else
         {
-            return "";
+            return ""
         }
     }
 
@@ -297,16 +319,19 @@ function ProjectMain()
                         {/* 프로젝트 리스트가 1개 이상인 경우 */}
                         {projectList.map((menu, index) => {
                             return (
-                                <Link className='item_box' key={index} style={{backgroundColor:backgroundColorChange(menu.type)}} to={'create'} state={{ name: menu.project_name, id: menu.id, description: menu.project_description }} >
+                                <Link className='item_box' key={index} style={{backgroundColor:backgroundColorChange(menu.task_type)}} to={'create'} state={{ name: menu.project_name, id: menu.id, description: menu.project_description }} >
                                     <Kebab index={index} page={'project'} itemID={menu.id} itemName={menu.project_name} deleteItem={delProject} modifyItem={modifyProject} deleteAlter={"프로젝트를"} />
                                     <div className='item_title'>{menu.project_name}</div>
 
-                                    <div id='item_image' className='item_image' style={{backgroundImage:itemBackgroundImage(menu.dataset_path), backgroundColor:'white', borderRadius:'5px'}}>
-                                    { menu.dataset_path === '' &&
-                                        <div className="image_text">Please complete the project creation</div>
-                                    }
+                                    <div id='item_image' className='item_image' style={{backgroundColor:'white', borderRadius:'5px'}}>
+                                        { menu.dataset === '' ?
+                                            <div className="image_text">Please complete the project creation</div>
+                                            :
+                                            <img id="dataset_item_image" className="dataset_item_image" src={getDataset_image(menu.dataset)} style={{backgroundColor:'white', borderRadius:'5px', width:'100%', height:'100%'}}/>
+                                        }
                                     </div>
-                                    <div className='item_content' style={{backgroundColor:'white', borderRadius:'5px'}}>{menu.type}</div>
+
+                                    <div className='item_content' style={{backgroundColor:'white', borderRadius:'5px'}}>{menu.task_type}</div>
                                 </Link>
                             )
                         })}

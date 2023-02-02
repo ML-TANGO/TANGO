@@ -1,0 +1,28 @@
+asgiref==3.5.0
+certifi==2021.10.8
+charset-normalizer==2.0.12
+Django==3.2.12
+django-cors-headers==3.11.0 
+django-rest-framework==0.1.0 
+djangorestframework==3.13.1 
+easydict
+# graphviz==0.20.1
+idna==3.3
+matplotlib==3.5.1
+numpy==1.22.3
+ofa
+opencv-python
+pandas==1.4.2
+Pillow>=8.4.0
+psycopg2-binary==2.9.3
+pytz==2022.1
+PyYAML==6.0
+requests==2.27.1
+seaborn==0.11.2
+sqlparse==0.4.2
+# torch
+# torchvision
+thop
+tqdm==4.62.3
+typing_extensions==4.1.1
+urllib3==1.26.9

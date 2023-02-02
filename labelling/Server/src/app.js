@@ -5,6 +5,7 @@ import morgan from "morgan"
 import bodyParser from "body-parser"
 
 import indexRouter from "./routes/index"
+import tangoRouter from "./routes/tangoStatus"
 import CL from "./lib/ConfigurationLoader"
 import DH from "./lib/DatabaseHandler"
 import auth from "./routes/auth"
@@ -49,6 +50,8 @@ app.use("/static", express.static(CL.getConfig().datasetPath))
 app.use("/qithum", express.static(CL.getConfig().QI_SET.isPath))
 // app.use("/api/auth", auth)
 app.use("/api", indexRouter)
+app.use("/", tangoRouter)
+
 
 // SOC.init(CL.get("soc_port"))
 

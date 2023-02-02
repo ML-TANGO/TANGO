@@ -21,4 +21,8 @@ urlpatterns = [
     path('edge/', views.EdgeView.as_view()),
     path('pth/', views.pthlist),
     path('architecture/', views.ArchitectureView.as_view()),
+    path('start', views.startList),
+    path('stop', views.stopList),
+    path('status_report', views.statusList),
+    path('running/', views.runningList.as_view()),  # pylint: disable=no-member
 ]

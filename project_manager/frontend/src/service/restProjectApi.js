@@ -202,3 +202,26 @@ export function requestDataSetAvailabilityCheck(param)
         });
     });
 }
+
+
+/* 컨테이너 상태 요청 */
+export function requestContainerStatus(param)
+{
+    const header_info = getHeaderData()
+    return new Promise( (resolve, reject) =>
+    {
+        axios.post( server_ip + "/api/status_result/",  param, {headers: header_info}).then((response) =>
+        {
+            resolve( response )
+        })
+        .catch(error =>
+        {
+            const result = tokenExpiredCheck(error.response)
+
+            if(result === false)
+            {
+                reject(error.response)
+            }
+        });
+    });
+}

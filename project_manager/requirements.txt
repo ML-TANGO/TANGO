@@ -22,7 +22,6 @@ multidict==6.0.2
 oauthlib==3.2.0
 psycopg2-binary==2.9.3
 pycparser==2.21
-pycrypto==2.6.1
 PyJWT==1.7.1
 pymongo==4.0
 PyMySQL==1.0.2

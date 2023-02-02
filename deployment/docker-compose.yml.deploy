@@ -1,0 +1,36 @@
+version: "3"
+
+services:
+    code_gen:
+        container_name: code_gen
+        build:
+            context: ./deployment/code_gen
+        volumes:
+            - ~/tango:/tango
+        command: >
+            sh -c "cd /app && python3 code_gen.py"
+        ports:
+            - 8888:8888  
+
+    ondevice_deploy:
+        container_name: ondevice_deploy
+        build:
+            context: ./deployment/target_deploy/ondevice_deploy
+        volumes:
+            - ~/tango:/tango
+        command: >
+            sh -c "cd /app && python3 ondevice_deploy.py"
+        ports:
+            - 8891:8891  
+
+    cloud_deploy:
+	container_name: cloud_deploy
+	build:
+	    context: ./target_deploy/cloud_deploy
+	volumes:
+	    - ~/tango:/tango
+            - /var/run/docker.sock:/var/run/docker.sock
+	command:
+	    sh -c "cd /app && python3 server.py"
+	ports:
+	    - 8890:8890

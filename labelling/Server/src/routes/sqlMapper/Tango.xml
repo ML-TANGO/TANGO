@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="Tango">
+
+  <insert id="setStart">
+    INSERT INTO TANGO_PROJECT
+      (PROJECT_ID, USER_ID)
+    VALUES
+      (#{PROJECT_ID}, #{USER_ID})
+    ON DUPLICATE KEY UPDATE
+        <if test="PROJECT_ID != null and PROJECT_ID != ''">
+          PROJECT_ID = #{PROJECT_ID},
+        </if>
+        <if test="USER_ID != null and USER_ID != ''">
+          USER_ID = #{USER_ID}
+        </if>
+  </insert>
+
+  <select id="getProjectInfo">
+    SELECT * 
+    FROM TANGO_PROJECT
+  </select>
+
+  <delete id="deleteProject">
+    DELETE 
+    FROM TANGO_PROJECT
+    WHERE PROJECT_ID = #{PROJECT_ID} and USER_ID = #{USER_ID}
+  </delete>
+
+</mapper>
