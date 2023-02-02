@@ -1,0 +1,606 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<!DOCTYPE svg PUBLIC "-//W3C//DTD SVG 1.1//EN" "http://www.w3.org/Graphics/SVG/1.1/DTD/svg11.dtd">
+<!-- Microsoft Visio, SVG Export에서 생성되었습니다. TANGO Port Mapping.svg 페이지-1 -->
+<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" xmlns:ev="http://www.w3.org/2001/xml-events"
+		xmlns:v="http://schemas.microsoft.com/visio/2003/SVGExtensions/" width="9.1408in" height="8.58962in"
+		viewBox="0 0 658.138 618.453" xml:space="preserve" color-interpolation-filters="sRGB" class="st14">
+	<v:documentProperties v:langID="1042" v:metric="true" v:viewMarkup="false"/>
+
+	<style type="text/css">
+	<![CDATA[
+		.st1 {fill:#cbffff;stroke:#000000;stroke-opacity:0.45;stroke-width:0.25}
+		.st2 {fill:#ffffff;stroke:#000000;stroke-width:0.25}
+		.st3 {fill:#000000;font-family:Calibri;font-size:0.833336em}
+		.st4 {fill:#5b9bd5;stroke:#000000;stroke-width:0.25}
+		.st5 {fill:#feffff;font-family:Calibri;font-size:0.833336em}
+		.st6 {fill:#ffff00;stroke:#000000;stroke-width:0.25}
+		.st7 {marker-end:url(#mrkr13-22);marker-start:url(#mrkr13-20);stroke:#000000;stroke-linecap:round;stroke-linejoin:round;stroke-width:0.75}
+		.st8 {fill:#000000;fill-opacity:1;stroke:#000000;stroke-opacity:1;stroke-width:0.29411764705882}
+		.st9 {fill:none;stroke:#000000;stroke-dasharray:1.75,1.25;stroke-width:0.25}
+		.st10 {fill:none;stroke:none;stroke-width:0.25}
+		.st11 {font-size:1em}
+		.st12 {fill:#000000;font-family:Calibri;font-size:1.00001em;font-weight:bold}
+		.st13 {fill:#fdfd24;stroke:#000000;stroke-width:0.25}
+		.st14 {fill:none;fill-rule:evenodd;font-size:12px;overflow:visible;stroke-linecap:square;stroke-miterlimit:3}
+	]]>
+	</style>
+
+	<defs id="Markers">
+		<g id="lend13">
+			<path d="M 3 1 L 0 0 L 3 -1 L 3 1 " style="stroke:none"/>
+		</g>
+		<marker id="mrkr13-20" class="st8" v:arrowType="13" v:arrowSize="1" v:setback="9.72" refX="9.72" orient="auto"
+				markerUnits="strokeWidth" overflow="visible">
+			<use xlink:href="#lend13" transform="scale(3.4) "/>
+		</marker>
+		<marker id="mrkr13-22" class="st8" v:arrowType="13" v:arrowSize="1" v:setback="10.2" refX="-10.2" orient="auto"
+				markerUnits="strokeWidth" overflow="visible">
+			<use xlink:href="#lend13" transform="scale(-3.4,-3.4) "/>
+		</marker>
+	</defs>
+	<g v:mID="0" v:index="1" v:groupContext="foregroundPage">
+		<title>페이지-1</title>
+		<v:pageProperties v:drawingScale="0.0393701" v:pageScale="0.0393701" v:drawingUnits="24" v:shadowOffsetX="8.50394"
+				v:shadowOffsetY="-8.50394"/>
+		<v:layer v:name="연결선" v:index="0"/>
+		<g id="shape173-1" v:mID="173" v:groupContext="shape" transform="translate(141.982,-0.25)">
+			<title>사각형.173</title>
+			<v:userDefs>
+				<v:ud v:nameU="visVersion" v:val="VT0(15):26"/>
+			</v:userDefs>
+			<rect x="0" y="13.0079" width="515.906" height="605.445" class="st1"/>
+		</g>
+		<g id="group119-3" transform="translate(126.392,-357.415)" v:mID="119" v:groupContext="group">
+			<title>시트.119</title>
+			<g id="shape5-4" v:mID="5" v:groupContext="shape" transform="translate(-2.9976E-014,-9.2126)">
+				<title>사각형.5</title>
+				<desc>8081</desc>
+				<v:userDefs>
+					<v:ud v:nameU="visVersion" v:val="VT0(15):26"/>
+				</v:userDefs>
+				<v:textBlock v:margins="rect(4,4,4,4)" v:tabSpace="42.5197"/>
+				<v:textRect cx="14.1732" cy="613.492" width="28.35" height="9.92126"/>
+				<rect x="0" y="608.531" width="28.3465" height="9.92126" class="st2"/>
+				<text x="4.04" y="616.49" class="st3" v:langID="1042"><v:paragraph v:horizAlign="1"/><v:tabList/>8081</text>			</g>
+			<g id="group59-7" transform="translate(195.591,1.13687E-013)" v:mID="59" v:groupContext="group">
+				<title>시트.59</title>
+				<g id="shape60-8" v:mID="60" v:groupContext="shape" transform="translate(14.1732,1.13687E-013)">
+					<title>사각형.45</title>
+					<desc>Base Model Selection</desc>
+					<v:userDefs>
+						<v:ud v:nameU="visVersion" v:val="VT0(15):26"/>
+					</v:userDefs>
+					<v:textBlock v:margins="rect(4,4,4,4)" v:tabSpace="42.5197"/>
+					<v:textRect cx="70.8661" cy="604.28" width="141.74" height="28.3465"/>
+					<rect x="0" y="590.106" width="141.732" height="28.3465" class="st4"/>
+					<text x="27.25" y="607.28" class="st5" v:langID="1042"><v:paragraph v:horizAlign="1"/><v:tabList/>Base Model Selection</text>				</g>
+				<g id="shape61-11" v:mID="61" v:groupContext="shape" transform="translate(6.39488E-014,-9.2126)">
+					<title>사각형.46</title>
+					<desc>8081</desc>
+					<v:userDefs>
+						<v:ud v:nameU="visVersion" v:val="VT0(15):26"/>
+					</v:userDefs>
+					<v:textBlock v:margins="rect(4,4,4,4)" v:tabSpace="42.5197"/>
+					<v:textRect cx="14.1732" cy="613.492" width="28.35" height="9.92126"/>
+					<rect x="0" y="608.531" width="28.3465" height="9.92126" class="st6"/>
+					<text x="4.04" y="616.49" class="st3" v:langID="1042"><v:paragraph v:horizAlign="1"/><v:tabList/>8081</text>				</g>
+			</g>
+			<g id="shape62-14" v:mID="62" v:groupContext="shape" v:layerMember="0" transform="translate(28.3465,-7.08661)">
+				<title>동적 연결선.62</title>
+				<path d="M7.29 611.37 L7.65 611.37 L159.59 611.37" class="st7"/>
+			</g>
+		</g>
+		<g id="group120-23" transform="translate(124.974,-320.388)" v:mID="120" v:groupContext="group">
+			<title>시트.120</title>
+			<g id="shape7-24" v:mID="7" v:groupContext="shape" transform="translate(-2.9976E-014,-9.2126)">
+				<title>사각형.7</title>
+				<desc>8091</desc>
+				<v:userDefs>
+					<v:ud v:nameU="visVersion" v:val="VT0(15):26"/>
+				</v:userDefs>
+				<v:textBlock v:margins="rect(4,4,4,4)" v:tabSpace="42.5197"/>
+				<v:textRect cx="14.1732" cy="613.492" width="28.35" height="9.92126"/>
+				<rect x="0" y="608.531" width="28.3465" height="9.92126" class="st2"/>
+				<text x="4.04" y="616.49" class="st3" v:langID="1042"><v:paragraph v:horizAlign="1"/><v:tabList/>8091</text>			</g>
+			<g id="group63-27" transform="translate(195.591,1.13687E-013)" v:mID="63" v:groupContext="group">
+				<title>시트.63</title>
+				<g id="shape64-28" v:mID="64" v:groupContext="shape" transform="translate(14.1732,1.13687E-013)">
+					<title>사각형.45</title>
+					<desc>Vis2Code</desc>
+					<v:userDefs>
+						<v:ud v:nameU="visVersion" v:val="VT0(15):26"/>
+					</v:userDefs>
+					<v:textBlock v:margins="rect(4,4,4,4)" v:tabSpace="42.5197"/>
+					<v:textRect cx="70.8661" cy="604.28" width="141.74" height="28.3465"/>
+					<rect x="0" y="590.106" width="141.732" height="28.3465" class="st4"/>
+					<text x="51.97" y="607.28" class="st5" v:langID="1042"><v:paragraph v:horizAlign="1"/><v:tabList/>Vis2Code</text>				</g>
+				<g id="shape65-31" v:mID="65" v:groupContext="shape" transform="translate(6.39488E-014,-9.2126)">
+					<title>사각형.46</title>
+					<desc>8091</desc>
+					<v:userDefs>
+						<v:ud v:nameU="visVersion" v:val="VT0(15):26"/>
+					</v:userDefs>
+					<v:textBlock v:margins="rect(4,4,4,4)" v:tabSpace="42.5197"/>
+					<v:textRect cx="14.1732" cy="613.492" width="28.35" height="9.92126"/>
+					<rect x="0" y="608.531" width="28.3465" height="9.92126" class="st6"/>
+					<text x="4.04" y="616.49" class="st3" v:langID="1042"><v:paragraph v:horizAlign="1"/><v:tabList/>8091</text>				</g>
+			</g>
+			<g id="shape66-34" v:mID="66" v:groupContext="shape" v:layerMember="0" transform="translate(28.3465,-7.08661)">
+				<title>동적 연결선.66</title>
+				<path d="M7.29 611.37 L7.65 611.37 L159.59 611.37" class="st7"/>
+			</g>
+		</g>
+		<g id="group130-41" transform="translate(124.974,-227.022)" v:mID="130" v:groupContext="group">
+			<title>시트.130</title>
+			<g id="shape6-42" v:mID="6" v:groupContext="shape" transform="translate(3.59712E-014,-57.2244)">
+				<title>사각형.6</title>
+				<desc>8087</desc>
+				<v:userDefs>
+					<v:ud v:nameU="visVersion" v:val="VT0(15):26"/>
+				</v:userDefs>
+				<v:textBlock v:margins="rect(4,4,4,4)" v:tabSpace="42.5197"/>
+				<v:textRect cx="14.1732" cy="613.492" width="28.35" height="9.92126"/>
+				<rect x="0" y="608.531" width="28.3465" height="9.92126" class="st2"/>
+				<text x="4.04" y="616.49" class="st3" v:langID="1042"><v:paragraph v:horizAlign="1"/><v:tabList/>8087</text>			</g>
+			<g id="group67-45" transform="translate(195.591,-48.0118)" v:mID="67" v:groupContext="group">
+				<title>시트.67</title>
+				<g id="shape68-46" v:mID="68" v:groupContext="shape" transform="translate(14.1732,1.13687E-013)">
+					<title>사각형.45</title>
+					<desc>Backbone NAS</desc>
+					<v:userDefs>
+						<v:ud v:nameU="visVersion" v:val="VT0(15):26"/>
+					</v:userDefs>
+					<v:textBlock v:margins="rect(4,4,4,4)" v:tabSpace="42.5197"/>
+					<v:textRect cx="70.8661" cy="604.28" width="141.74" height="28.3465"/>
+					<rect x="0" y="590.106" width="141.732" height="28.3465" class="st4"/>
+					<text x="41.44" y="607.28" class="st5" v:langID="1042"><v:paragraph v:horizAlign="1"/><v:tabList/>Backbone NAS</text>				</g>
+				<g id="shape69-49" v:mID="69" v:groupContext="shape" transform="translate(6.39488E-014,-9.2126)">
+					<title>사각형.46</title>
+					<desc>8087</desc>
+					<v:userDefs>
+						<v:ud v:nameU="visVersion" v:val="VT0(15):26"/>
+					</v:userDefs>
+					<v:textBlock v:margins="rect(4,4,4,4)" v:tabSpace="42.5197"/>
+					<v:textRect cx="14.1732" cy="613.492" width="28.35" height="9.92126"/>
+					<rect x="0" y="608.531" width="28.3465" height="9.92126" class="st6"/>
+					<text x="4.04" y="616.49" class="st3" v:langID="1042"><v:paragraph v:horizAlign="1"/><v:tabList/>8087</text>				</g>
+			</g>
+			<g id="shape70-52" v:mID="70" v:groupContext="shape" v:layerMember="0" transform="translate(28.3465,-55.0984)">
+				<title>동적 연결선.70</title>
+				<path d="M7.29 611.37 L7.65 611.37 L159.59 611.37" class="st7"/>
+			</g>
+			<g id="group71-59" transform="translate(195.591,-8.32677)" v:mID="71" v:groupContext="group">
+				<title>시트.71</title>
+				<g id="shape72-60" v:mID="72" v:groupContext="shape" transform="translate(14.1732,1.13687E-013)">
+					<title>사각형.45</title>
+					<desc>Neck NAS</desc>
+					<v:userDefs>
+						<v:ud v:nameU="visVersion" v:val="VT0(15):26"/>
+					</v:userDefs>
+					<v:textBlock v:margins="rect(4,4,4,4)" v:tabSpace="42.5197"/>
+					<v:textRect cx="70.8661" cy="604.28" width="141.74" height="28.3465"/>
+					<rect x="0" y="590.106" width="141.732" height="28.3465" class="st4"/>
+					<text x="51.22" y="607.28" class="st5" v:langID="1042"><v:paragraph v:horizAlign="1"/><v:tabList/>Neck NAS</text>				</g>
+				<g id="shape73-63" v:mID="73" v:groupContext="shape" transform="translate(6.39488E-014,-9.2126)">
+					<title>사각형.46</title>
+					<desc>8089</desc>
+					<v:userDefs>
+						<v:ud v:nameU="visVersion" v:val="VT0(15):26"/>
+					</v:userDefs>
+					<v:textBlock v:margins="rect(4,4,4,4)" v:tabSpace="42.5197"/>
+					<v:textRect cx="14.1732" cy="613.492" width="28.35" height="9.92126"/>
+					<rect x="0" y="608.531" width="28.3465" height="9.92126" class="st6"/>
+					<text x="4.04" y="616.49" class="st3" v:langID="1042"><v:paragraph v:horizAlign="1"/><v:tabList/>8089</text>				</g>
+			</g>
+			<g id="shape80-66" v:mID="80" v:groupContext="shape" transform="translate(3.59712E-014,-17.5394)">
+				<title>사각형.80</title>
+				<desc>8089</desc>
+				<v:userDefs>
+					<v:ud v:nameU="visVersion" v:val="VT0(15):26"/>
+				</v:userDefs>
+				<v:textBlock v:margins="rect(4,4,4,4)" v:tabSpace="42.5197"/>
+				<v:textRect cx="14.1732" cy="613.492" width="28.35" height="9.92126"/>
+				<rect x="0" y="608.531" width="28.3465" height="9.92126" class="st2"/>
+				<text x="4.04" y="616.49" class="st3" v:langID="1042"><v:paragraph v:horizAlign="1"/><v:tabList/>8089</text>			</g>
+			<g id="shape81-69" v:mID="81" v:groupContext="shape" v:layerMember="0" transform="translate(28.3465,-15.4134)">
+				<title>동적 연결선.81</title>
+				<path d="M7.29 611.37 L7.65 611.37 L159.59 611.37" class="st7"/>
+			</g>
+			<g id="shape129-76" v:mID="129" v:groupContext="shape" transform="translate(180,1.13687E-013)">
+				<title>사각형</title>
+				<v:userDefs>
+					<v:ud v:nameU="visVersion" v:val="VT0(15):26"/>
+				</v:userDefs>
+				<path d="M0 618.45 L187.09 618.45 L187.09 533.77 L0 533.77 L0 618.45 Z" class="st9"/>
+			</g>
+		</g>
+		<g id="group146-78" transform="translate(124.974,-27.8524)" v:mID="146" v:groupContext="group">
+			<title>시트.146</title>
+			<g id="shape143-79" v:mID="143" v:groupContext="shape" transform="translate(180,1.13687E-013)">
+				<title>사각형</title>
+				<v:userDefs>
+					<v:ud v:nameU="visVersion" v:val="VT0(15):26"/>
+				</v:userDefs>
+				<path d="M0 618.45 L187.09 618.45 L187.09 526.26 L0 526.26 L0 618.45 Z" class="st9"/>
+			</g>
+			<g id="group144-81" transform="translate(9.59233E-014,-14.9173)" v:mID="144" v:groupContext="group">
+				<title>시트.144</title>
+				<g id="group98-82" transform="translate(195.591,1.13687E-013)" v:mID="98" v:groupContext="group">
+					<title>시트.98</title>
+					<g id="shape99-83" v:mID="99" v:groupContext="shape" transform="translate(14.1732,1.13687E-013)">
+						<title>사각형.45</title>
+						<desc>OnDevice Deploy</desc>
+						<v:userDefs>
+							<v:ud v:nameU="visVersion" v:val="VT0(15):26"/>
+						</v:userDefs>
+						<v:textBlock v:margins="rect(4,4,4,4)" v:tabSpace="42.5197"/>
+						<v:textRect cx="70.8661" cy="604.28" width="141.74" height="28.3465"/>
+						<rect x="0" y="590.106" width="141.732" height="28.3465" class="st4"/>
+						<text x="35.99" y="607.28" class="st5" v:langID="1042"><v:paragraph v:horizAlign="1"/><v:tabList/>OnDevice Deploy</text>					</g>
+					<g id="shape100-86" v:mID="100" v:groupContext="shape" transform="translate(6.39488E-014,-9.2126)">
+						<title>사각형.46</title>
+						<desc>8891</desc>
+						<v:userDefs>
+							<v:ud v:nameU="visVersion" v:val="VT0(15):26"/>
+						</v:userDefs>
+						<v:textBlock v:margins="rect(4,4,4,4)" v:tabSpace="42.5197"/>
+						<v:textRect cx="14.1732" cy="613.492" width="28.35" height="9.92126"/>
+						<rect x="0" y="608.531" width="28.3465" height="9.92126" class="st6"/>
+						<text x="4.04" y="616.49" class="st3" v:langID="1042"><v:paragraph v:horizAlign="1"/><v:tabList/>8891</text>					</g>
+				</g>
+				<g id="shape101-89" v:mID="101" v:groupContext="shape" transform="translate(-2.9976E-014,-9.2126)">
+					<title>사각형.101</title>
+					<desc>8891</desc>
+					<v:userDefs>
+						<v:ud v:nameU="visVersion" v:val="VT0(15):26"/>
+					</v:userDefs>
+					<v:textBlock v:margins="rect(4,4,4,4)" v:tabSpace="42.5197"/>
+					<v:textRect cx="14.1732" cy="613.492" width="28.35" height="9.92126"/>
+					<rect x="0" y="608.531" width="28.3465" height="9.92126" class="st2"/>
+					<text x="4.04" y="616.49" class="st3" v:langID="1042"><v:paragraph v:horizAlign="1"/><v:tabList/>8891</text>				</g>
+				<g id="shape102-92" v:mID="102" v:groupContext="shape" v:layerMember="0" transform="translate(28.3465,-7.08661)">
+					<title>동적 연결선.102</title>
+					<path d="M7.29 611.37 L7.65 611.37 L159.59 611.37" class="st7"/>
+				</g>
+			</g>
+			<g id="group145-99" transform="translate(0,-51.7677)" v:mID="145" v:groupContext="group">
+				<title>시트.145</title>
+				<g id="group93-100" transform="translate(195.591,1.13687E-013)" v:mID="93" v:groupContext="group">
+					<title>시트.93</title>
+					<g id="shape94-101" v:mID="94" v:groupContext="shape" transform="translate(14.1732,1.13687E-013)">
+						<title>사각형.45</title>
+						<desc>Cloud Deploy</desc>
+						<v:userDefs>
+							<v:ud v:nameU="visVersion" v:val="VT0(15):26"/>
+						</v:userDefs>
+						<v:textBlock v:margins="rect(4,4,4,4)" v:tabSpace="42.5197"/>
+						<v:textRect cx="70.8661" cy="604.28" width="141.74" height="28.3465"/>
+						<rect x="0" y="590.106" width="141.732" height="28.3465" class="st4"/>
+						<text x="43.79" y="607.28" class="st5" v:langID="1042"><v:paragraph v:horizAlign="1"/><v:tabList/>Cloud Deploy</text>					</g>
+					<g id="shape95-104" v:mID="95" v:groupContext="shape" transform="translate(6.39488E-014,-9.2126)">
+						<title>사각형.46</title>
+						<desc>8890</desc>
+						<v:userDefs>
+							<v:ud v:nameU="visVersion" v:val="VT0(15):26"/>
+						</v:userDefs>
+						<v:textBlock v:margins="rect(4,4,4,4)" v:tabSpace="42.5197"/>
+						<v:textRect cx="14.1732" cy="613.492" width="28.35" height="9.92126"/>
+						<rect x="0" y="608.531" width="28.3465" height="9.92126" class="st6"/>
+						<text x="4.04" y="616.49" class="st3" v:langID="1042"><v:paragraph v:horizAlign="1"/><v:tabList/>8890</text>					</g>
+				</g>
+				<g id="shape96-107" v:mID="96" v:groupContext="shape" transform="translate(3.59712E-014,-9.2126)">
+					<title>사각형.96</title>
+					<desc>8890</desc>
+					<v:userDefs>
+						<v:ud v:nameU="visVersion" v:val="VT0(15):26"/>
+					</v:userDefs>
+					<v:textBlock v:margins="rect(4,4,4,4)" v:tabSpace="42.5197"/>
+					<v:textRect cx="14.1732" cy="613.492" width="28.35" height="9.92126"/>
+					<rect x="0" y="608.531" width="28.3465" height="9.92126" class="st2"/>
+					<text x="4.04" y="616.49" class="st3" v:langID="1042"><v:paragraph v:horizAlign="1"/><v:tabList/>8890</text>				</g>
+				<g id="shape97-110" v:mID="97" v:groupContext="shape" v:layerMember="0" transform="translate(28.3465,-7.08661)">
+					<title>동적 연결선.97</title>
+					<path d="M7.29 611.37 L7.65 611.37 L159.59 611.37" class="st7"/>
+				</g>
+			</g>
+		</g>
+		<g id="group147-117" transform="translate(124.974,-189.994)" v:mID="147" v:groupContext="group">
+			<title>시트.147</title>
+			<g id="group74-118" transform="translate(195.591,1.13687E-013)" v:mID="74" v:groupContext="group">
+				<title>시트.74</title>
+				<g id="shape75-119" v:mID="75" v:groupContext="shape" transform="translate(14.1732,1.13687E-013)">
+					<title>사각형.45</title>
+					<desc>Code Gen</desc>
+					<v:userDefs>
+						<v:ud v:nameU="visVersion" v:val="VT0(15):26"/>
+					</v:userDefs>
+					<v:textBlock v:margins="rect(4,4,4,4)" v:tabSpace="42.5197"/>
+					<v:textRect cx="70.8661" cy="604.28" width="141.74" height="28.3465"/>
+					<rect x="0" y="590.106" width="141.732" height="28.3465" class="st4"/>
+					<text x="51.05" y="607.28" class="st5" v:langID="1042"><v:paragraph v:horizAlign="1"/><v:tabList/>Code Gen</text>				</g>
+				<g id="shape76-122" v:mID="76" v:groupContext="shape" transform="translate(6.39488E-014,-9.2126)">
+					<title>사각형.46</title>
+					<desc>8888</desc>
+					<v:userDefs>
+						<v:ud v:nameU="visVersion" v:val="VT0(15):26"/>
+					</v:userDefs>
+					<v:textBlock v:margins="rect(4,4,4,4)" v:tabSpace="42.5197"/>
+					<v:textRect cx="14.1732" cy="613.492" width="28.35" height="9.92126"/>
+					<rect x="0" y="608.531" width="28.3465" height="9.92126" class="st6"/>
+					<text x="4.04" y="616.49" class="st3" v:langID="1042"><v:paragraph v:horizAlign="1"/><v:tabList/>8888</text>				</g>
+			</g>
+			<g id="shape82-125" v:mID="82" v:groupContext="shape" transform="translate(-2.9976E-014,-9.2126)">
+				<title>사각형.82</title>
+				<desc>8888</desc>
+				<v:userDefs>
+					<v:ud v:nameU="visVersion" v:val="VT0(15):26"/>
+				</v:userDefs>
+				<v:textBlock v:margins="rect(4,4,4,4)" v:tabSpace="42.5197"/>
+				<v:textRect cx="14.1732" cy="613.492" width="28.35" height="9.92126"/>
+				<rect x="0" y="608.531" width="28.3465" height="9.92126" class="st2"/>
+				<text x="4.04" y="616.49" class="st3" v:langID="1042"><v:paragraph v:horizAlign="1"/><v:tabList/>8888</text>			</g>
+			<g id="shape86-128" v:mID="86" v:groupContext="shape" v:layerMember="0" transform="translate(28.3465,-7.08661)">
+				<title>동적 연결선.86</title>
+				<path d="M7.29 611.37 L7.65 611.37 L159.59 611.37" class="st7"/>
+			</g>
+		</g>
+		<g id="group148-135" transform="translate(124.974,-127.653)" v:mID="148" v:groupContext="group">
+			<title>시트.148</title>
+			<g id="shape78-136" v:mID="78" v:groupContext="shape" transform="translate(209.764,1.13687E-013)">
+				<title>사각형.45</title>
+				<desc>Image Builder</desc>
+				<v:userDefs>
+					<v:ud v:nameU="visVersion" v:val="VT0(15):26"/>
+				</v:userDefs>
+				<v:textBlock v:margins="rect(4,4,4,4)" v:tabSpace="42.5197"/>
+				<v:textRect cx="70.8661" cy="598.454" width="141.74" height="39.9969"/>
+				<rect x="0" y="578.456" width="141.732" height="39.9969" class="st4"/>
+				<text x="42.75" y="601.45" class="st5" v:langID="1042"><v:paragraph v:horizAlign="1"/><v:tabList/>Image Builder</text>			</g>
+			<g id="shape79-139" v:mID="79" v:groupContext="shape" transform="translate(195.591,-20.863)">
+				<title>사각형.46</title>
+				<desc>7007</desc>
+				<v:userDefs>
+					<v:ud v:nameU="visVersion" v:val="VT0(15):26"/>
+				</v:userDefs>
+				<v:textBlock v:margins="rect(4,4,4,4)" v:tabSpace="42.5197"/>
+				<v:textRect cx="14.1732" cy="613.492" width="28.35" height="9.92126"/>
+				<rect x="0" y="608.531" width="28.3465" height="9.92126" class="st6"/>
+				<text x="4.04" y="616.49" class="st3" v:langID="1042"><v:paragraph v:horizAlign="1"/><v:tabList/>7007</text>			</g>
+			<g id="shape83-142" v:mID="83" v:groupContext="shape" transform="translate(195.591,-7.08661)">
+				<title>사각형.83</title>
+				<desc>8080</desc>
+				<v:userDefs>
+					<v:ud v:nameU="visVersion" v:val="VT0(15):26"/>
+				</v:userDefs>
+				<v:textBlock v:margins="rect(4,4,4,4)" v:tabSpace="42.5197"/>
+				<v:textRect cx="14.1732" cy="613.492" width="28.35" height="9.92126"/>
+				<rect x="0" y="608.531" width="28.3465" height="9.92126" class="st6"/>
+				<text x="4.04" y="616.49" class="st3" v:langID="1042"><v:paragraph v:horizAlign="1"/><v:tabList/>8080</text>			</g>
+			<g id="shape84-145" v:mID="84" v:groupContext="shape" transform="translate(3.59712E-014,-20.863)">
+				<title>사각형.84</title>
+				<desc>7007</desc>
+				<v:userDefs>
+					<v:ud v:nameU="visVersion" v:val="VT0(15):26"/>
+				</v:userDefs>
+				<v:textBlock v:margins="rect(4,4,4,4)" v:tabSpace="42.5197"/>
+				<v:textRect cx="14.1732" cy="613.492" width="28.35" height="9.92126"/>
+				<rect x="0" y="608.531" width="28.3465" height="9.92126" class="st2"/>
+				<text x="4.04" y="616.49" class="st3" v:langID="1042"><v:paragraph v:horizAlign="1"/><v:tabList/>7007</text>			</g>
+			<g id="shape85-148" v:mID="85" v:groupContext="shape" transform="translate(3.59712E-014,-7.08661)">
+				<title>사각형.85</title>
+				<desc>8080</desc>
+				<v:userDefs>
+					<v:ud v:nameU="visVersion" v:val="VT0(15):26"/>
+				</v:userDefs>
+				<v:textBlock v:margins="rect(4,4,4,4)" v:tabSpace="42.5197"/>
+				<v:textRect cx="14.1732" cy="613.492" width="28.35" height="9.92126"/>
+				<rect x="0" y="608.531" width="28.3465" height="9.92126" class="st2"/>
+				<text x="4.04" y="616.49" class="st3" v:langID="1042"><v:paragraph v:horizAlign="1"/><v:tabList/>8080</text>			</g>
+			<g id="shape87-151" v:mID="87" v:groupContext="shape" v:layerMember="0" transform="translate(28.3465,-18.737)">
+				<title>동적 연결선.87</title>
+				<path d="M7.29 611.37 L7.65 611.37 L159.59 611.37" class="st7"/>
+			</g>
+			<g id="shape88-158" v:mID="88" v:groupContext="shape" v:layerMember="0" transform="translate(28.3465,-4.96063)">
+				<title>동적 연결선.88</title>
+				<path d="M7.29 611.37 L7.65 611.37 L159.59 611.37" class="st7"/>
+			</g>
+			<g id="shape89-165" v:mID="89" v:groupContext="shape" transform="translate(96.378,-23.1449)">
+				<title>시트.89</title>
+				<desc>For API</desc>
+				<v:textBlock v:margins="rect(4,4,4,4)" v:tabSpace="42.5197"/>
+				<v:textRect cx="25.5118" cy="611.522" width="51.03" height="13.8614"/>
+				<rect x="0" y="604.591" width="51.0236" height="13.8614" class="st10"/>
+				<text x="10.97" y="614.52" class="st3" v:langID="1042"><v:paragraph v:horizAlign="1"/><v:tabList/>For API</text>			</g>
+			<g id="shape92-168" v:mID="92" v:groupContext="shape" transform="translate(96.378,-0.155906)">
+				<title>시트.92</title>
+				<desc>For GUI</desc>
+				<v:textBlock v:margins="rect(4,4,4,4)" v:tabSpace="42.5197"/>
+				<v:textRect cx="25.5118" cy="611.522" width="51.03" height="13.8614"/>
+				<rect x="0" y="604.591" width="51.0236" height="13.8614" class="st10"/>
+				<text x="10.08" y="614.52" class="st3" v:langID="1042"><v:paragraph v:horizAlign="1"/><v:tabList/>For GUI</text>			</g>
+		</g>
+		<g id="group151-171" transform="translate(126.392,-397.1)" v:mID="151" v:groupContext="group">
+			<title>시트.151</title>
+			<g id="shape3-172" v:mID="3" v:groupContext="shape" transform="translate(5.9952E-015,-56.2323)">
+				<title>사각형.3</title>
+				<desc>8086</desc>
+				<v:userDefs>
+					<v:ud v:nameU="visVersion" v:val="VT0(15):26"/>
+				</v:userDefs>
+				<v:textBlock v:margins="rect(4,4,4,4)" v:tabSpace="42.5197"/>
+				<v:textRect cx="14.1732" cy="613.492" width="28.35" height="9.92126"/>
+				<rect x="0" y="608.531" width="28.3465" height="9.92126" class="st2"/>
+				<text x="4.04" y="616.49" class="st3" v:langID="1042"><v:paragraph v:horizAlign="1"/><v:tabList/>8086</text>			</g>
+			<g id="shape4-175" v:mID="4" v:groupContext="shape" transform="translate(5.9952E-015,-17.2559)">
+				<title>사각형.4</title>
+				<desc>3306</desc>
+				<v:userDefs>
+					<v:ud v:nameU="visVersion" v:val="VT0(15):26"/>
+				</v:userDefs>
+				<v:textBlock v:margins="rect(4,4,4,4)" v:tabSpace="42.5197"/>
+				<v:textRect cx="14.1732" cy="613.492" width="28.35" height="9.92126"/>
+				<rect x="0" y="608.531" width="28.3465" height="9.92126" class="st2"/>
+				<text x="4.04" y="616.49" class="st3" v:langID="1042"><v:paragraph v:horizAlign="1"/><v:tabList/>3306</text>			</g>
+			<g id="shape57-178" v:mID="57" v:groupContext="shape" v:layerMember="0" transform="translate(28.3465,-54.1063)">
+				<title>동적 연결선.57</title>
+				<path d="M7.29 611.37 L7.65 611.37 L159.59 611.37" class="st7"/>
+			</g>
+			<g id="shape58-185" v:mID="58" v:groupContext="shape" v:layerMember="0" transform="translate(28.3465,-15.1299)">
+				<title>동적 연결선.58</title>
+				<path d="M7.29 611.37 L7.65 611.37 L159.59 611.37" class="st7"/>
+			</g>
+			<g id="group48-192" transform="translate(195.591,-47.0197)" v:mID="48" v:groupContext="group">
+				<title>시트.48</title>
+				<g id="shape45-193" v:mID="45" v:groupContext="shape" transform="translate(14.1732,1.13687E-013)">
+					<title>사각형.45</title>
+					<desc>Dataset Labeling</desc>
+					<v:userDefs>
+						<v:ud v:nameU="visVersion" v:val="VT0(15):26"/>
+					</v:userDefs>
+					<v:textBlock v:margins="rect(4,4,4,4)" v:tabSpace="42.5197"/>
+					<v:textRect cx="70.8661" cy="604.28" width="141.74" height="28.3465"/>
+					<rect x="0" y="590.106" width="141.732" height="28.3465" class="st4"/>
+					<text x="37.19" y="607.28" class="st5" v:langID="1042"><v:paragraph v:horizAlign="1"/><v:tabList/>Dataset Labeling</text>				</g>
+				<g id="shape46-196" v:mID="46" v:groupContext="shape" transform="translate(6.39488E-014,-9.2126)">
+					<title>사각형.46</title>
+					<desc>80</desc>
+					<v:userDefs>
+						<v:ud v:nameU="visVersion" v:val="VT0(15):26"/>
+					</v:userDefs>
+					<v:textBlock v:margins="rect(4,4,4,4)" v:tabSpace="42.5197"/>
+					<v:textRect cx="14.1732" cy="613.492" width="28.35" height="9.92126"/>
+					<rect x="0" y="608.531" width="28.3465" height="9.92126" class="st6"/>
+					<text x="9.1" y="616.49" class="st3" v:langID="1042"><v:paragraph v:horizAlign="1"/><v:tabList/>80</text>				</g>
+			</g>
+			<g id="group53-199" transform="translate(195.591,-8.04331)" v:mID="53" v:groupContext="group">
+				<title>시트.53</title>
+				<g id="shape54-200" v:mID="54" v:groupContext="shape" transform="translate(14.1732,1.13687E-013)">
+					<title>사각형.45</title>
+					<desc>DB for Dataset Labeling (MariaDB)</desc>
+					<v:userDefs>
+						<v:ud v:nameU="visVersion" v:val="VT0(15):26"/>
+					</v:userDefs>
+					<v:textBlock v:margins="rect(4,4,4,4)" v:tabSpace="42.5197"/>
+					<v:textRect cx="70.8661" cy="604.28" width="141.74" height="28.3465"/>
+					<rect x="0" y="590.106" width="141.732" height="28.3465" class="st4"/>
+					<text x="23.23" y="601.28" class="st5" v:langID="1042"><v:paragraph v:horizAlign="1"/><v:tabList/>DB for Dataset Labeling<v:newlineChar/><tspan
+								x="50.08" dy="1.2em" class="st11">(</tspan>MariaDB)</text>				</g>
+				<g id="shape55-204" v:mID="55" v:groupContext="shape" transform="translate(6.39488E-014,-9.2126)">
+					<title>사각형.46</title>
+					<desc>3306</desc>
+					<v:userDefs>
+						<v:ud v:nameU="visVersion" v:val="VT0(15):26"/>
+					</v:userDefs>
+					<v:textBlock v:margins="rect(4,4,4,4)" v:tabSpace="42.5197"/>
+					<v:textRect cx="14.1732" cy="613.492" width="28.35" height="9.92126"/>
+					<rect x="0" y="608.531" width="28.3465" height="9.92126" class="st6"/>
+					<text x="4.04" y="616.49" class="st3" v:langID="1042"><v:paragraph v:horizAlign="1"/><v:tabList/>3306</text>				</g>
+			</g>
+			<g id="shape115-207" v:mID="115" v:groupContext="shape" transform="translate(180,1.13687E-013)">
+				<title>사각형.115</title>
+				<v:userDefs>
+					<v:ud v:nameU="visVersion" v:val="VT0(15):26"/>
+				</v:userDefs>
+				<path d="M0 618.45 L187.09 618.45 L187.09 533.77 L0 533.77 L0 618.45 Z" class="st9"/>
+			</g>
+		</g>
+		<g id="shape38-209" v:mID="38" v:groupContext="shape" transform="translate(124.974,-558.392)">
+			<title>사각형.38</title>
+			<desc>8805</desc>
+			<v:userDefs>
+				<v:ud v:nameU="visVersion" v:val="VT0(15):26"/>
+			</v:userDefs>
+			<v:textBlock v:margins="rect(4,4,4,4)" v:tabSpace="42.5197"/>
+			<v:textRect cx="14.1732" cy="613.492" width="28.35" height="9.92126"/>
+			<rect x="0" y="608.531" width="28.3465" height="9.92126" class="st2"/>
+			<text x="4.04" y="616.49" class="st3" v:langID="1042"><v:paragraph v:horizAlign="1"/><v:tabList/>8805</text>		</g>
+		<g id="shape56-212" v:mID="56" v:groupContext="shape" v:layerMember="0" transform="translate(153.321,-556.266)">
+			<title>동적 연결선</title>
+			<path d="M7.29 611.37 L7.65 611.37 L159.59 611.37" class="st7"/>
+		</g>
+		<g id="group174-219" transform="translate(304.974,-504.409)" v:mID="174" v:groupContext="group">
+			<title>시트.174</title>
+			<g id="group47-220" transform="translate(15.5906,-44.7697)" v:mID="47" v:groupContext="group">
+				<title>시트.47</title>
+				<g id="shape1-221" v:mID="1" v:groupContext="shape" transform="translate(14.1732,1.13687E-013)">
+					<title>사각형</title>
+					<desc>Project Manager</desc>
+					<v:userDefs>
+						<v:ud v:nameU="visVersion" v:val="VT0(15):26"/>
+					</v:userDefs>
+					<v:textBlock v:margins="rect(4,4,4,4)" v:tabSpace="42.5197"/>
+					<v:textRect cx="70.8661" cy="604.28" width="141.74" height="28.3465"/>
+					<rect x="0" y="590.106" width="141.732" height="28.3465" class="st4"/>
+					<text x="37.02" y="607.28" class="st5" v:langID="1042"><v:paragraph v:horizAlign="1"/><v:tabList/>Project Manager</text>				</g>
+				<g id="shape2-224" v:mID="2" v:groupContext="shape" transform="translate(0,-9.2126)">
+					<title>사각형.2</title>
+					<desc>8805</desc>
+					<v:userDefs>
+						<v:ud v:nameU="visVersion" v:val="VT0(15):26"/>
+					</v:userDefs>
+					<v:textBlock v:margins="rect(4,4,4,4)" v:tabSpace="42.5197"/>
+					<v:textRect cx="14.1732" cy="613.492" width="28.35" height="9.92126"/>
+					<rect x="0" y="608.531" width="28.3465" height="9.92126" class="st6"/>
+					<text x="4.04" y="616.49" class="st3" v:langID="1042"><v:paragraph v:horizAlign="1"/><v:tabList/>8805</text>				</g>
+			</g>
+			<g id="group50-227" transform="translate(15.5906,-11.5689)" v:mID="50" v:groupContext="group">
+				<title>시트.50</title>
+				<g id="shape51-228" v:mID="51" v:groupContext="shape" transform="translate(14.1732,1.13687E-013)">
+					<title>사각형.45</title>
+					<desc>DB for Project Manager (PostgreSQL)</desc>
+					<v:userDefs>
+						<v:ud v:nameU="visVersion" v:val="VT0(15):26"/>
+					</v:userDefs>
+					<v:textBlock v:margins="rect(4,4,4,4)" v:tabSpace="42.5197"/>
+					<v:textRect cx="70.8661" cy="604.28" width="141.74" height="28.3465"/>
+					<rect x="0" y="590.106" width="141.732" height="28.3465" class="st4"/>
+					<text x="23.06" y="601.28" class="st5" v:langID="1042"><v:paragraph v:horizAlign="1"/><v:tabList/>DB for Project Manager<v:newlineChar/><tspan
+								x="44.64" dy="1.2em" class="st11">(</tspan>PostgreSQL)</text>				</g>
+				<g id="shape52-232" v:mID="52" v:groupContext="shape" transform="translate(6.39488E-014,-9.2126)">
+					<title>사각형.46</title>
+					<desc>5432</desc>
+					<v:userDefs>
+						<v:ud v:nameU="visVersion" v:val="VT0(15):26"/>
+					</v:userDefs>
+					<v:textBlock v:margins="rect(4,4,4,4)" v:tabSpace="42.5197"/>
+					<v:textRect cx="14.1732" cy="613.492" width="28.35" height="9.92126"/>
+					<rect x="0" y="608.531" width="28.3465" height="9.92126" class="st6"/>
+					<text x="4.04" y="616.49" class="st3" v:langID="1042"><v:paragraph v:horizAlign="1"/><v:tabList/>5432</text>				</g>
+			</g>
+			<g id="shape103-235" v:mID="103" v:groupContext="shape">
+				<title>사각형</title>
+				<v:userDefs>
+					<v:ud v:nameU="visVersion" v:val="VT0(15):26"/>
+				</v:userDefs>
+				<path d="M0 618.45 L187.09 618.45 L187.09 533.77 L0 533.77 L0 618.45 Z" class="st9"/>
+			</g>
+		</g>
+		<g id="shape175-237" v:mID="175" v:groupContext="shape" transform="translate(170.329,-595.526)">
+			<title>시트.175</title>
+			<desc>Docker Host</desc>
+			<v:textBlock v:margins="rect(4,4,4,4)" v:tabSpace="42.5197"/>
+			<v:textRect cx="53.8583" cy="607.114" width="107.72" height="22.6772"/>
+			<rect x="0" y="595.776" width="107.717" height="22.6772" class="st2"/>
+			<text x="23.47" y="610.71" class="st12" v:langID="1042"><v:paragraph v:horizAlign="1"/><v:tabList/>Docker Host  </text>		</g>
+		<g id="shape178-240" v:mID="178" v:groupContext="shape" transform="translate(0.25,-521.417)">
+			<title>사각형.178</title>
+			<desc>Docker Host level Port</desc>
+			<v:userDefs>
+				<v:ud v:nameU="visVersion" v:val="VT0(15):26"/>
+			</v:userDefs>
+			<v:textBlock v:margins="rect(4,4,4,4)" v:tabSpace="42.5197"/>
+			<v:textRect cx="53.8583" cy="613.492" width="107.72" height="9.92126"/>
+			<rect x="0" y="608.531" width="107.717" height="9.92126" class="st2"/>
+			<text x="8.59" y="616.49" class="st3" v:langID="1042"><v:paragraph v:horizAlign="1"/><v:tabList/>Docker Host level Port</text>		</g>
+		<g id="shape179-243" v:mID="179" v:groupContext="shape" transform="translate(0.25,-504.817)">
+			<title>사각형.179</title>
+			<desc>Container Exposed Port</desc>
+			<v:userDefs>
+				<v:ud v:nameU="visVersion" v:val="VT0(15):26"/>
+			</v:userDefs>
+			<v:textBlock v:margins="rect(4,4,4,4)" v:tabSpace="42.5197"/>
+			<v:textRect cx="53.8583" cy="613.492" width="107.72" height="9.92126"/>
+			<rect x="0" y="608.531" width="107.717" height="9.92126" class="st13"/>
+			<text x="6.01" y="616.49" class="st3" v:langID="1042"><v:paragraph v:horizAlign="1"/><v:tabList/>Container Exposed Port</text>		</g>
+	</g>
+</svg>
