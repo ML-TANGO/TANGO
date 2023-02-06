@@ -1,273 +1,281 @@
 import React from "react";
-import { useEffect, useState } from "react";
+import Cookies from "universal-cookie";
+import { useEffect, useRef, useState } from "react";
 import { useLocation } from "react-router-dom";
 
 import '../../../../CSS/combo_box.css'
 import '../../../../CSS/stepProgress.css'
 import '../../../../CSS/project_management.css'
 
-import Combobox from "react-widgets/Combobox";
-
 import * as Request from "../../../../service/restProjectApi";
-import * as RequestDummy from "../../../../service/restDummyApi";
-import * as RequestData from "../../../../service/restDataApi";
 import * as RequestTarget from "../../../../service/restTargetApi";
+import * as RequestContainer from "../../../../service/restContainerApi";
+import * as RequestLabelling from "../../../../service/restLabellingApi";
 
 import overall_up from "../../../../images/icons/icon_3x/chevron-up.png";
 import overall_down from "../../../../images/icons/icon_3x/chevron-down.png";
 
-import data_th_1 from "../../../../images/thumbnail/data_th_1.PNG";         // 칫솔
-import data_th_2 from "../../../../images/thumbnail/data_th_2.PNG";         // 용접 파이프
-import data_th_3 from "../../../../images/thumbnail/data_th_3.PNG";         // 실생활
-import data_th_4 from "../../../../images/thumbnail/data_th_4.PNG";         // 폐결핵 판독
+import InformationForm from "./informationForm";
+import ConfigForm from "./configForm";
 
-//import target_th_1 from "../../../../images/thumbnail/RK3399Pro.jpeg";      // RK 3399
-//import target_th_2 from "../../../../images/thumbnail/JetsonNano.jpeg";     // jetsonnano
-//import target_th_3 from "../../../../images/thumbnail/odroid-m1B.jpg";      // Odroid
-//import target_th_4 from "../../../../images/thumbnail/x86PCwitnGPU.jpeg";   // x86
-//import target_th_5 from "../../../../images/thumbnail/GCP.jpeg";            // GCP
-//import target_th_6 from "../../../../images/thumbnail/aws.jpeg";            // AWS
+import {Collapse} from 'react-collapse';
+import Select from 'react-select';
 
 function NeuralAndLoadPage({project_id, project_name, project_description})
 {
-    const [proj_id, setProj_id] = useState(project_id);                                             // 프로젝트 ID
-    const [proj_description, setProj_description] = useState(project_description);                 // 프로젝트 설명
+    const inputMethodList = [
+        { value: 'camera', label: 'Camera' },
+        { value: 'mp4', label: 'MP4' },
+        { value: 'picture', label: 'Picture' },
+        { value: 'folder', label: 'Folder' }
+    ]
 
-    const [project_thumb, setProject_thumb] = useState('');                     // 프로젝트 섬네일 이미지
+    const outputMethodList = [
+        { value: 'console', label: 'Console' },
+        { value: 'graphic', label: 'Graphic' },
+        { value: 'mp4', label: 'MP4' }
+    ]
 
-    const [dataSet, setDataSet] = useState('');                                 // 데이터 셋 경로
-    const [dataset_list, setDataset_list] = useState([]);                       // 데이터 셋 리스트
+    const userEditList = [
+        { value: 'yes', label: 'Yes' },
+        { value: 'no', label: 'No' },
+    ]
 
-    const [target, setTarget] = useState('');                                   // 타겟 변경
-    const [target_list, setTarget_list] = useState([]);                         // 타겟 리스트
+    const timerRef = useRef();
 
-    const [step, setStep] = useState(0);                                        // 신경망 생성 단계
-    const [stepText, setStepText] = useState('');                               // 신경망 생성 단계 상황
+    const [responseData, setResponseData] = useState('');              // 기존 선택 데이터
 
-    const [panel, setPanel] = useState('block');                                // panel 창 상태
+    const [container, setContainer] = useState('');                    // 신경망 생성 단계
+    const [container_status, setContainer_status] = useState('');      // 신경망 생성 단계 상황
 
-    const [serverHost, setServerHost] = useState(window.location.hostname);
-    const [showIframe, setShowIframe] = useState(false);                        // iframe 표시 여부
-    const [currentWorkNum, setCurrentWorkNum] = useState(0);                    // 현재 작업중인 단계
-    const [currentWorkHost, setCurrentWorkHost] = useState('');                 // 현재 작업중인 서버 주소
+    const [currentWork, setCurrentWork] = useState('');                // 현재 작업 중인 컨테이너
 
-    useEffect( () => {
+    const [pannel, setPannel] = useState(false);                       // panel 창 상태
+    const [config_pannel, setConfig_pannel] = useState(true);          // config_pannel 창 상태
 
+    /* Information */
+    const [dataset, setDataset] = useState('');                        // 데이터 셋 경로
+    const [dataset_list, setDataset_list] = useState([]);              // 데이터 셋 리스트
+
+    const [target, setTarget] = useState('');                          // 타겟 변경
+    const [target_list, setTarget_list] = useState([]);                // 타겟 리스트
+
+    /* Configuration - Task Type*/
+    const [taskType, setTaskType] = useState('');                      // 데이터 셋 경로
+
+    /* Configuration - AutoNN */
+    const [datasetFile, setDatasetFile] = useState('dataset.yaml');    // dataset file yaml 파일
+    const [baseModel, setBaseModel] = useState('basemodel.yaml');      // Base Mode yaml 파일
+
+    /* Configuration - Nas Type */
+    const [nasType, setNasType] = useState('');                        // 데이터 셋 경로
+
+    /* Configuration - Deploy Configuration */
+    const [weightLevel, setWeightLevel] = useState(0);                 // weightLevel
+    const [precisionLevel, setPrecisionLevel] = useState(0);           // precisionLevel
+    const [processingLib, setProcessingLib] = useState('cv2');         // processingLib
+    const [userEdit, setUserEdit] = useState('');                      // userEdit
+    const [inputMethod, setInputMethod] = useState('');                // inputMethod
+    const [inputDataPath, setInputDataPath] = useState('/data');       // inputDataPath
+    const [outputMethod, setOutputMethod] = useState('');              // outputMethod
+
+    useEffect( () =>
+    {
+        // 프로젝트 정보 수신
         Request.requestProjectInfo(project_id).then(result =>
         {
-            // DB 정보 수신
-            if (result.data['target'] !== null && target === '')
-            {
-                // 선택 타겟 정보
-                setTarget(parseInt(result.data['target']))
-            }
+            projectContentUpdate(result.data);
 
-            if(result.data['dataset_path'] !== '' && dataSet === '')
-            {
-                // 데이터 셋 정보
-                setDataSet(result.data['dataset_path'])
-            }
-            setDataset_list(result.data['dataset_list'])
-
-            // 타겟 리스트 이름 변경
-//            var target_change_name_list = []
-//            for (var i=0; i < result.data['target_list'].length; i++)
+            // 타이머 기능
+//            if(result.data['container_status'] === 'running')
 //            {
-//                target_change_name_list.push(target_name[result.data['target_list'][i]]);
+//                startTimer()
 //            }
-//            setTarget_list(target_change_name_list);
 
-            // 타겟 정보 수신
-            get_target_list();
-
-            // 신경망 생성 단계 프로그래스바 업데이트
-            if(result.data['step'] !== 0)
+            // project_info.yaml 파일을 생성하지 않은 경우
+            if(result.data['container'] === '')
             {
-                setStep(result.data['step'])
-
-                setPanel('none')
+                setPannel(true)
             }
         })
         .catch(error =>
         {
             console.log('project info get error')
         });
+
+        // unmount
+        return() => {
+            //console.log('unmount')
+            clearInterval(timerRef.current)
+        }
     }, []);
 
-    // 타겟 정보 수신
-    const get_target_list = () =>
+    // 프로젝트 정보 업데이트
+    const projectContentUpdate = (data) =>
     {
-        RequestTarget.requestTargetList().then(result =>
+        // DB에 저장된 데이터
+        setResponseData(data)
+
+        if(data['target'] !== '') setTarget(parseInt(data['target']))  // 선택 타겟 정보
+        if(data['dataset'] !== ''){
+            setDataset(data['dataset'])         // 데이터 셋 정보
+            setTaskType(data['task_type'])
+        }
+
+        if(data['nas_type'] !== '') setNasType(data['nas_type'])
+
+        if(data['deploy_weight_level'] !== '') setWeightLevel(parseInt(data['deploy_weight_level']))
+        if(data['deploy_precision_level'] !== '') setPrecisionLevel(parseInt(data['deploy_precision_level']))
+
+        const im_index = inputMethodList.findIndex(im => im.value === data['deploy_input_method'])
+        if(im_index !== -1) setInputMethod(inputMethodList[im_index])
+
+        const om_index = outputMethodList.findIndex(om => om.value === data['deploy_output_method'])
+        if(om_index !== -1) setOutputMethod(outputMethodList[om_index])
+
+        const ue_index = userEditList.findIndex(ue => ue.value === data['deploy_user_edit'])
+        if(ue_index !== -1) setUserEdit(userEditList[ue_index])
+
+        setContainer(data['container'])                 // 진행중 컨테이너
+        setContainer_status(data['container_status'])   // 진행중 컨테이너 상태
+    }
+
+    const test = () => {
+        console.log('test')
+    }
+
+    const startTimer = () =>
+    {
+        if(!timerRef.current)
         {
-            setTarget_list(result.data);
+            // 타이머 시작 - 10초 주기
+            timerRef.current = setInterval(test, 10000)
+        }
+    }
+
+    const stopTimer = () =>
+    {
+        if(timerRef.current)
+        {
+            clearInterval(timerRef.current)
+            timerRef.current = null;
+        }
+    }
+
+    // 컨테이너 상태 수신
+    const get_container_status = () =>
+    {
+        const param = {
+            'project_id': project_id,
+        };
+        Request.requestContainerStatus(param).then(result =>
+        {
+            const data = result.data;
+
+            setContainer(data.container)
+            setContainer_status(data.container_status)
+
+            if(data.container_status !== '')
+            {
+                // TODO : 타이머 중지
+            }
         })
         .catch(error =>
         {
-            console.log('target list get error')
+            console.log('container status get error')
         });
-
     }
 
-    const description_save_button_click = () => {
-        const description = proj_description.trim();
-        if(description.length > 0)
-        {
-            const data = {
-                id:proj_id,
-                description:proj_description
-            }
+    // 타겟 정보 확인
+    const get_target_info = (id) =>
+    {
+        const findIndex = target_list.findIndex(v => v.id === id)
 
-            Request.requestProjectDescriptionModify(data).then(result =>
-            {
-                alert('project description update complete')
-                console.log('description modify success')
-            })
-            .catch(error =>
-            {
-                console.log('description modify error')
-            });
-        }
-        else
+        if (findIndex !== -1)
         {
-            alert('프로젝트 설명을 입력해주세요.')
+            return target_list[findIndex].info
         }
     }
 
-
-    const dataSetClick = (value, index) =>
-    {
-        setDataSet(value);
-        const dataset_item_box = document.getElementsByClassName("dataset_item_box");
-
-        for (var i=0; i < dataset_item_box.length; i++)
-        {
-            if (i === index)
-            {
-                dataset_item_box[i].className = 'dataset_item_box tooltip select';
-            }
-            else
-            {
-                dataset_item_box[i].className = 'dataset_item_box tooltip';
-            }
-        }
-    }
-
-    // 데이터 셋 이미지 가져오기
-    const getDataset_image = (value) =>
-    {
-        if (value.indexOf('COCO') !== -1)
-        {
-            return data_th_3;
-        }
-        else if (value.indexOf('칫솔') !== -1)
-        {
-            return data_th_1;
-        }
-        else if (value.indexOf('파이프') !== -1)
-        {
-            return data_th_2;
-        }
-        else if (value.indexOf('폐') !== -1)
-        {
-            return data_th_4;
-        }
-        else
-        {
-            return "";
-        }
-    };
-
-    // 타겟 선택 이벤트
-     const targetClick = (selectTarget, index) =>
-     {
-//        const target_key = Object.keys(target_name).find(key => target_name[key] === value);
-//        setTarget(target_key)                // 사용자 선택 타겟 정보
-
-        setTarget(selectTarget.id)
-
-        const target_item_box = document.getElementsByClassName("target_item_box");
-
-        for (var i=0; i < target_item_box.length; i++)
-        {
-            if (i === index)
-            {
-                target_item_box[i].className = 'target_item_box tooltip select';
-            }
-            else
-            {
-                target_item_box[i].className = 'target_item_box tooltip';
-            }
-        }
-     }
-
-    // 'Run' 버튼 클릭 이벤트
-    const runButtonClick = () =>
-    {
-        if(step === 0)
-        {
-            setStepText('')
-//            createNeuralNetwork();
-
-            // select 창 숨기기
-            if(panel === 'block')
-            {
-                setPanel('none')
-                document.getElementById('overall_icon').style.backgroundImage = "url('" + overall_down + "')";
-            }
-            databaseUpdate(1);
-        }
-        else
-        {
-            var result = window.confirm("새로운 신경망을 생성 하시겠습니까?")
-            if(result === true)
-            {
-                setStepText('')
-//                createNeuralNetwork();
-
-                // select 창 숨기기
-                if(panel === 'block')
-                {
-                    setPanel('none')
-                    document.getElementById('overall_icon').style.backgroundImage = "url('" + overall_down + "')";
-                }
-                databaseUpdate(1);
-            }
-        }
-    };
-
-    // select 창 보이기 숨기기
+    // Information 창 보이기 숨기기
     const accordionButtonClick = () =>
     {
-        const acc = document.getElementsByClassName("panel");
-
-        if(acc[0].style.display === 'block')
+        if(pannel === true)
         {
-            setPanel('none')
+            setPannel(false)
             document.getElementById('overall_icon').style.backgroundImage = "url('" + overall_down + "')";
         }
-        else
-        {
-            setPanel('block')
+        else{
+            setPannel(true)
             document.getElementById('overall_icon').style.backgroundImage = "url('" + overall_up + "')";
         }
     }
 
-        // 데이터베이스 업데이트
-    const databaseUpdate = (num) =>
+    // Configuration 창 보이기 숨기기
+    const configAccordionButtonClick = () =>
+    {
+        if(config_pannel === true)
+        {
+            setConfig_pannel(false)
+            document.getElementById('config_overall_icon').style.backgroundImage = "url('" + overall_down + "')";
+        }
+        else{
+            setConfig_pannel(true)
+            document.getElementById('config_overall_icon').style.backgroundImage = "url('" + overall_up + "')";
+        }
+    }
+
+
+    // 'Run' 버튼 클릭 이벤트
+    const runButtonClick = () =>
     {
         const param = {
             'project_id' : project_id,
-            'project_name' : project_name,
-            'project_thumb' : project_thumb,
-            'selectTarget' : target,
-            'dataset_path' : dataSet,
-            'step' : num
+            'project_target' : target,
+            'project_dataset' : dataset,
+            'task_type': taskType,
+            'autonn_dataset_file': datasetFile,
+            'autonn_base_model': baseModel,
+            'nas_type': nasType,
+            'deploy_weight_level': weightLevel,
+            'deploy_precision_level': precisionLevel,
+            'deploy_processing_lib': processingLib,
+            'deploy_user_edit': userEdit !== '' ? userEdit.value : '',
+            'deploy_input_method': inputMethod !== '' ? inputMethod.value : '' ,
+            'deploy_input_data_path': inputDataPath,
+            'deploy_output_method': outputMethod !== '' ? outputMethod.value : '',
+        };
+
+        if(container === '' || container === 'init')
+        {
+            neuralCreate(param)
         }
+        else
+        {
+            var result = window.confirm("새로운 신경망을 생성 하시겠습니까?")
+            if(result === true) neuralCreate(param)
+        }
+    };
+
+    // 신경망 생성 시작
+    const neuralCreate = (param) =>
+    {
+//        console.log(param)
 
         // 데이터베이스 업데이트
         Request.requestProjectUpdate(param).then(result =>
         {
-            console.log('Complete Database Upload');
+            alert('신경망 생성 준비 완료');
+
+            // 프로젝트 정보 수신
+            Request.requestProjectInfo(project_id).then(res =>
+            {
+                projectContentUpdate(res.data);
+            })
+            .catch(error =>
+            {
+                console.log('project info get error')
+            });
         })
         .catch(error =>
         {
@@ -275,245 +283,256 @@ function NeuralAndLoadPage({project_id, project_name, project_description})
         });
     }
 
-    // 단계 별 버튼 클릭
-    const progress_button_click = (num) =>
+    // Base Model Select: 8081 port
+    const bmsButtonClick = () =>
     {
-        setStepText('');
+        // console.log("bmsButtonClick")
 
-        if(currentWorkNum === 0)
+        containerStart('bms');
+
+        setCurrentWork('Base Model Select');
+
+        status_result_update('Base Model Select - Start 요청')
+    }
+
+    // Visualization: 8091 port
+    const visualButtonClick = () =>
+    {
+        //console.log("visualButtonClick")
+
+        containerStart('viz');
+
+        setCurrentWork('Visualization');
+
+        status_result_update('Visualization - Start 요청')
+    }
+
+    // Auto NN : Backbone Nas = 8087 port / Neck Nas = 8089 port
+    const autoNNButtonClick = () =>
+    {
+        //console.log("autoNNButtonClick")
+
+        console.log(responseData)
+
+        if(responseData.nas_type === 'neck_nas')
         {
-            document.getElementById('progress_' + num).className = 'stepper-item2 select';
+            containerStart('autonn_nk');
 
-            setShowIframe(true);
+            setCurrentWork('Auto NN : Neck NAS');
 
-            setCurrentWorkNum(num);
+            status_result_update('Auto NN : Neck NAS - Start 요청')
         }
-        // 현재 작업중인 단계와 다른 버튼을 클린한 경우
-        else if(currentWorkNum !== num )
+        else
         {
-            document.getElementById('progress_' + currentWorkNum).className = 'stepper-item2 non-select';
-            document.getElementById('progress_' + num).className = 'stepper-item2 select';
+            containerStart('autonn_bb');
 
-            setCurrentWorkNum(num);
+            setCurrentWork('Auto NN : Backbone NAS');
+
+            status_result_update('Auto NN : Backbone NAS - Start 요청')
         }
-        // 현재 작업중인 단계와 동일한 버튼을 클린한 경우
-        else if(currentWorkNum === num)
+    }
+
+    // Image Gen : 8888 port
+    const imageGenButtonClick = () =>
+    {
+        //console.log("imageGenButtonClick")
+
+        containerStart('code_gen');
+
+        setCurrentWork('Image Generate');
+
+        status_result_update('Image Generate - Start 요청')
+    }
+
+    // Image Deploy : target_info 'PC or Cloud ' 8088 port / onDevice 8891 port
+    const imageDeployButtonClick = () =>
+    {
+        //console.log("imageDeployButtonClick")
+
+        const target_id = responseData.target;
+        const indexInfo = target_list.findIndex(v => v.id === parseInt(target_id))
+
+        if(indexInfo === -1)
         {
-            document.getElementById('progress_' + num).className = 'stepper-item2 non-select';
-
-            setShowIframe(false);
-
-            setCurrentWorkNum(0);
-
+            alert("타겟 정보가 존재하지 않습니다.")
             return;
         }
 
-        switch(num)
+        const targetData = target_list[indexInfo]
+
+        if(targetData.info === 'ondevice')
         {
-            case 1 :
-                baseModelSelect()
-                break;
-            case 2 :
-                createNeuralNetwork()
-                break;
-            case 3 :
-                createRunImageFile()
-                break;
-            case 4 :
-                deployRunImage()
-                break;
-            case 5 :
-                runNeuralNetwork()
-                break;
-            default:
-                break;
+            containerStart('deploy_ondevice');
+
+            setCurrentWork('Image Deploy : On Device');
+
+            status_result_update('Image Deploy : On Device - Start 요청')
+        }
+        else
+        {
+            containerStart('deploy_cloud');
+
+            setCurrentWork('Image Deploy : ' + targetData.info);
+
+            status_result_update('Image Deploy : ' + targetData.info + ' - Start 요청')
         }
     }
 
-    // Base Model Select: 9000 port
-    const baseModelSelect = () =>
+    // Run Image 버튼 클릭
+    const runImageButtonClick = () =>
     {
-        setStepText('iframe 내에 base Select Model 서버(serverHost:9000) 표시');
-        setCurrentWorkHost('http://' + serverHost + ':9000');
+        setCurrentWork('Run Image');
+
+        status_result_update('Run Image : Start 요청')
     }
 
-    // 신경망 생성: 9001 port
-    const createNeuralNetwork = () =>
+    // 컨테이너 실행
+    const containerStart = (name) =>
     {
-        setStepText('iframe 내에 신경망 자동 생성 서버(serverHost:9001) 표시');
-        setCurrentWorkHost('http://' + serverHost + ':9001');
+        // project_info.yaml 파일 생성을 하지않은 경우
+        if(container === '')
+        {
+            alert('프로젝트 정보를 생성해주세요')
+            return;
+        }
+
+        const cookies = new Cookies();
+        var user = cookies.get('userinfo')
+
+        RequestContainer.requestContainerStart(name, user, project_id).then(result =>
+        {
+            status_result_update(JSON.stringify(result))
+        })
+        .catch(error =>
+        {
+            status_result_update(error)
+        });
     }
 
-    // 실행 이미지 생성: 9002 port
-    const createRunImageFile = () =>
+    // 상태창 업데이트
+    const status_result_update = (text) =>
     {
-        setStepText('iframe 내에 실행 이미지 생성 서버(serverHost:9002) 표시');
-        setCurrentWorkHost('http://' + serverHost + ':9002');
+        const textArea = document.getElementById('status_result');
+        textArea.value += (text + '\n');
+        textArea.scrollTop = textArea.scrollHeight;
     }
-
-    // 실행 이미지 탑재: 9003 port
-    const deployRunImage = () =>
-    {
-        setStepText('iframe 내에 실행 이미지 다운로드 서버(severHost:9003) 표시');
-        setCurrentWorkHost('http://' + serverHost + ':9003');
-    }
-
-    // 신경망 실행: 9004 port
-    const runNeuralNetwork = () =>
-    {
-        setStepText('iframe 내에 타겟 원격 실행 서버 (serverHost:9004) 표시');
-        setCurrentWorkHost('http://' + serverHost + ':9004');
-    }
-
 
     return (
         <>
+
         {/* 프로젝트 생성 - 신경망 생성 폼 */}
         <div className='project_manage_container'>
+            <div className='project_manage_content' style={{width:'100%'}}>
+                <div id='project_top' className='project_top'  style={{padding:'0px 0px 0px 0px', height:'100%'}}>
 
-            <div className='project_manage_content' >
-                <div id="accordion" className="accordion" onClick={ ()=> accordionButtonClick() } style={{height:'40px', backgroundColor:'#303030', borderRadius:panel === 'none'? '5px 5px 5px 5px' : '5px 5px 0px 0px', lineHeight:'0', display:'flex'}}>
-                    <span style={{fontSize:'16px', color:'white'}}>Information </span>
-                    <div id="overall_icon" className="overall_icon" style={{backgroundImage:panel === 'none'? "url('" + overall_down + "')" : "url('" + overall_down + "')"}}></div>
-                </div>
-
-                <div className="panel" style={{display:panel}}>
-
-                    <div className="project_description" style={{backgroundColor:'#303030'}}>
-                        <div className="description-content" style={{ padding:'10px 20px 10px 20px', height:'100%', backgroundColor:'#303030', display:'flex'}}>
-                            <span style={{color:'white'}}>Description</span>
-                            <input onChange={({ target: { value } }) => setProj_description(value)} value={proj_description} style={{ height:'100%', width:'100%', borderRadius:'5px', marginLeft:'20px', marginRight:'20px', fontSize:'16px'}} />
-                            <button onClick={() => description_save_button_click()} style={{ height:'100%', width:'150px', borderRadius:'5px', backgroundColor:'#4A80FF', color:'white', fontSize:'16px', border:'0px'}}>저장</button>
-                        </div>
+                    <div id="accordion" className="accordion" onClick={ ()=> accordionButtonClick() } style={{height:'40px', position:'static', backgroundColor:'#303030', borderRadius:pannel === false? '5px 5px 5px 5px' : '5px 5px 0px 0px', lineHeight:'0', display:'flex'}}>
+                        <span style={{fontSize:'16px', color:'white'}}>Information </span>
+                        <div id="overall_icon" className="overall_icon" style={{backgroundImage:pannel === false ? "url('" + overall_down + "')" : "url('" + overall_up + "')"}}></div>
                     </div>
 
-                    <div className="project_user_requirement" style={{display:'flex'}}>
+                    <Collapse isOpened={pannel}>
+                        <InformationForm
+                            dataset={dataset} setDataset={setDataset}
+                            dataset_list={dataset_list} setDataset_list={setDataset_list}
+                            target={target} setTarget={setTarget}
+                            target_list={target_list} setTarget_list={setTarget_list}
+                            setTaskType={setTaskType}/>
+                    </Collapse>
 
-                        {/* 데이터셋 선택 */}
-                        <div className='project_user_requirement_left' style={{ padding:'0px 0px 0px 0px', marginRight:'0px'}}>
-
-                            <div className='select_dataset' style={{padding:'0px 0px 0px 20px', color:'black', display:'flex', alignItems:'center', height:'50px'}}>
-                                <div style={{fontSize:'16px', width:'auto'}}>Dataset</div>
-                            </div>
-
-                            <div className='dataset_content' style={{display:'block', overflow:'auto', paddingBottom:'60px'}}>
-
-                                { dataset_list.length > 0 ?
-                                    <>
-                                    <div className='dataset_list' style={{height:'100%', width:'100%', padding:'0px 20px 20px 20px', backgroundColor:'white'}}>
-                                        {dataset_list.map((menu, index) => {
-                                            return (
-                                             <div key={index} className={dataSet === menu ? "dataset_item_box tooltip select" : "dataset_item_box tooltip"} onClick={ ()=> dataSetClick(menu, index)}>
-                                                <img id="dataset_item_image" className="dataset_item_image" src={getDataset_image(menu)} style={{height:'100%', width:'100%', margin:'auto', marginRight:'5px', backgroundColor:'#DEDEDE'}}/>
-                                                <span className="dataset_tooltiptext" style={{width:'200px'}}>{menu}</span>
-                                              </div>
-                                            )
-                                        })}
-                                    </div>
-                                    </>
-                                    :
-                                    <>
-                                    <div style={{height:'100%', width:'100%',
-                                        fontSize:"50px", fontWeight:'700', textAlign:'center',
-                                        display: 'flex', justifyContent: 'center', alignItems: 'center'}}>
-                                        Please Create DataSet!
-                                    </div>
-                                    </>
-                                }
-                            </div>
-
-                        </div>
-
-                        {/* 타겟 선택 */}
-                        <div className='project_user_requirement_right' style={{padding:'0px 20px 0px 0px', marginLeft:'0px'}}>
-                           <div className='select_target' style={{padding:'0px 0px 0px 20px', color:'black', display:'flex', alignItems:'center', height:'20%'}}>
-                                <div style={{ fontSize:'16px',  width:'auto'}}>Target</div>
-                            </div>
-
-                            <div className='dataset_content' style={{display:'block', overflow:'auto', paddingBottom:'60px'}}>
-
-                                { target_list.length > 0 ?
-                                    <>
-                                    <div className='dataset_list' style={{height:'100%', width:'100%', padding:'0px 20px 20px 20px', backgroundColor:'white'}}>
-                                        {target_list.map((menu, index) => {
-                                            return (
-                                              <div className={target === menu.id ? "target_item_box tooltip select" : "target_item_box tooltip"} key={index} onClick={ ()=> targetClick(menu, index)}>
-                                                <img id="dataset_item_image" className="dataset_item_image" src={menu.target_image} style={{height:'100%', width:'100%', margin:'auto', marginRight:'5px', backgroundColor:'#DEDEDE'}}/>
-                                                <span className="dataset_tooltiptext" style={{width:'200px'}}>{menu.target_name}</span>
-                                              </div>
-                                            )
-                                        })}
-
-                                        {/*
-                                        {target_list.map((menu, index) => {
-                                            return (
-                                              <div className={target === menu ? "target_item_box tooltip select" : "target_item_box tooltip"} key={index} onClick={ ()=> targetClick(menu, index)}>
-                                                <img id="dataset_item_image" className="dataset_item_image" src={getTarget_image(menu)} style={{height:'100%', width:'100%', margin:'auto', marginRight:'5px', backgroundColor:'#DEDEDE'}}/>
-                                                <span className="dataset_tooltiptext" style={{width:'200px'}}>{menu}</span>
-                                              </div>
-                                            )
-                                        })}
-                                        */}
-
-                                    </div>
-                                    </>
-                                    :
-                                    <>
-                                    <div style={{height:'100%', width:'100%',
-                                        fontSize:"50px", fontWeight:'700', textAlign:'center',
-                                        display: 'flex', justifyContent: 'center', alignItems: 'center'}}>
-                                        Does Not Exist Targets!
-                                    </div>
-                                    </>
-                                }
-                            </div>
-                        </div>
+                    <div id="accordion" className="accordion" onClick={ ()=> configAccordionButtonClick() } style={{height:'40px', marginTop:'20px', position:'static', backgroundColor:'#303030', borderRadius:config_pannel === false? '5px 5px 5px 5px' : '5px 5px 0px 0px', lineHeight:'0', display:'flex'}}>
+                        <span style={{fontSize:'16px', color:'white'}}>Configuration </span>
+                        <div id="config_overall_icon" className="config_overall_icon" style={{backgroundImage:config_pannel === false ? "url('" + overall_down + "')" : "url('" + overall_up + "')"}}></div>
                     </div>
 
-                    <div id='runButtonArea' style={{marginTop:'10px', textAlign:'center'}}>
-                        { target !== '' && dataSet !== '' ?
-                            <button onClick={ ()=> runButtonClick() } style={{height:'42px', width:'30%', borderRadius:'3px', border:'0', fontSize:'16px', backgroundColor:'#4A80FF', color:'white'}}>신경망 자동 생성</button>
+                    <Collapse isOpened={config_pannel}>
+                        <ConfigForm
+                            inputMethodList={inputMethodList} outputMethodList={outputMethodList} userEditList={userEditList}
+                            target={target}
+                            taskType={taskType} setTaskType={setTaskType}
+                            datasetFile={datasetFile} setDatasetFile={setDatasetFile}
+                            baseModel={baseModel} setBaseModel={setBaseModel}
+                            nasType={nasType} setNasType={setNasType}
+                            weightLevel={weightLevel} setWeightLevel={setWeightLevel}
+                            precisionLevel={precisionLevel} setPrecisionLevel={setPrecisionLevel}
+                            processingLib={processingLib} setProcessingLib={setProcessingLib}
+                            userEdit={userEdit} setUserEdit={setUserEdit}
+                            inputMethod={inputMethod} setInputMethod={setInputMethod}
+                            inputDataPath={inputDataPath} setInputDataPath={setInputDataPath}
+                            outputMethod={outputMethod} setOutputMethod={setOutputMethod}
+                            get_target_info={get_target_info}/>
+                    </Collapse>
+
+                    <div id='runButtonArea' className='button' style={{marginTop:'20px', textAlign:'center'}}>
+                        {get_target_info(target) === 'pc' || get_target_info(target) === 'cloud' ?
+                            <>
+                            { target !== '' && dataset !== '' && taskType !== '' && nasType !== '' && userEdit !== '' && inputMethod !== '' && outputMethod !== ''?
+                                <button onClick={ ()=> runButtonClick() } style={{height:'42px', width:'30%', borderRadius:'3px', border:'0', fontSize:'16px', backgroundColor: '#4A80FF', color:'white'}}>신경망 자동 생성</button>
+                            :
+                                <button style={{height:'42px', width:'30%', borderRadius:'3px', border:'0', fontSize:'16px', backgroundColor:'#707070', color:'white'}} readOnly>신경망 자동 생성</button>
+                            }
+                            </>
                         :
-                            <button style={{height:'42px', width:'30%', borderRadius:'3px', border:'0', fontSize:'16px', backgroundColor:'#707070', color:'white'}} readOnly>신경망 자동 생성</button>
+                            <>
+                            { target !== '' && dataset !== '' && taskType !== '' && nasType !== ''?
+                                <button onClick={ ()=> runButtonClick() } style={{height:'42px', width:'30%', borderRadius:'3px', border:'0', fontSize:'16px', backgroundColor:'#4A80FF', color:'white'}}>신경망 자동 생성</button>
+                            :
+                                <button style={{height:'42px', width:'30%', borderRadius:'3px', border:'0', fontSize:'16px', backgroundColor:'#707070', color:'white'}} readOnly>신경망 자동 생성</button>
+                            }
+                            </>
                         }
                     </div>
                 </div>
 
-                <div id='project_bottom' className='project_bottom'  style={{padding:'20px 0px 0px 0px', height:'100%',marginBottom:'0px', gridRow: panel === 'none' ? '2/4' : '3/4' }}>
+                <div id='project_bottom' className='project_bottom'  style={{padding:'20px 0px 0px 0px', height:'100%', marginBottom:'0px'}}>
                     <div className='create_neural_network' style={{ backgroundColor:'#303030', borderRadius:'5px', height:'100%', padding:'10px 20px 20px 20px'}}>
                         <div style={{marginBottom:'10px', display:'flex'}}>
                             <span style={{fontSize:'16px', color:'white'}}>Current Work - </span>
                             <span style={{color:'white', marginLeft:'10px', marginRight:'10px'}}>[ </span>
-                            <span style={{color:'#4A80FF'}}>{stepText}</span>
+                            <span style={{color:'#4A80FF'}}>{currentWork}</span>
                             <span style={{color:'white', marginLeft:'10px', marginRight:'10px'}}> ]</span>
                         </div>
 
-                        <div className='status_level' style={{backgroundColor:'white', padding:'20px 0px', borderRadius:'5px'}}>
-                            <div className="stepper-wrapper2" id='progressbar'>
+                        <div className='status_level' style={{backgroundColor:'white', padding:'20px 0px', borderRadius:'5px', display:'grid', gridTemplateRows:'1fr 1fr'}}>
+                            <div className="stepper-wrapper2" id='progressbar' style={{gridRow:'1/2'}}>
                                 <div className="stepper-item2 non-select" id='progress_1'>
-                                    <div className="step-counter2" onClick={() => progress_button_click(1)}>Base Model Select</div>
+                                    <button className="step-counter2"
+                                            style={{backgroundColor:container === '' ? 'gray' : '#4A80FF', color:'white'}}
+                                            onClick={() => bmsButtonClick()}>BMS</button>
                                 </div>
                                 <div className="stepper-item2 non-select" id='progress_2'>
-                                    <div className="step-counter2" onClick={() => progress_button_click(2)}>신경망 자동 생성</div>
+                                    <button className="step-counter2"
+                                            style={{backgroundColor:container === '' ? 'gray' : '#4A80FF', color:'white'}}
+                                            onClick={() => autoNNButtonClick()}>AutoNN</button>
                                 </div>
                                 <div className="stepper-item2 non-select" id='progress_3'>
-                                    <div className="step-counter2" onClick={() => progress_button_click(3)}>실행 이미지 생성</div>
+                                    <button className="step-counter2"
+                                            style={{backgroundColor:container === '' ? 'gray' : '#4A80FF', color:'white'}}
+                                            onClick={() => imageGenButtonClick()}>Image Gen</button>
                                 </div>
                                 <div className="stepper-item2 non-select" id='progress_4'>
-                                    <div className="step-counter2" onClick={() => progress_button_click(4)}>실행 이미지 다운로드</div>
+                                    <button className="step-counter2"
+                                            style={{backgroundColor:container === '' ? 'gray' : '#4A80FF', color:'white'}}
+                                            onClick={() => imageDeployButtonClick()}>Image Deploy</button>
                                 </div>
                                 <div className="stepper-item2 non-select" id='progress_5'>
-                                    <div className="step-counter2" onClick={() => progress_button_click(5)}>타겟 원격 실행</div>
+                                    <button className="step-counter2"
+                                            style={{backgroundColor:container === '' ? 'gray' : '#4A80FF', color:'white'}}
+                                            onClick={() => runImageButtonClick()}>Run Image</button>
+                                </div>
+                            </div>
+
+                            <div className="stepper-wrapper3" id='progressbar' style={{marginTop:'10px', gridRow:'2/3', display:'grid', gridTemplateColumns:'1fr 1fr 1fr 1fr 1fr'}}>
+                                <div className="stepper-item3 non-select" id='progress_0' style={{gridColumn:'1/3'}}>
+                                    <button className="step-counter2"
+                                            style={{backgroundColor:container === '' ? 'gray' : '#4A80FF', color:'white'}}
+                                            onClick={() => visualButtonClick()}>Visualization</button>
                                 </div>
                             </div>
                         </div>
 
-                        <div className='status_log' style={{color:'white', height:'auto', overflow:'auto',  padding:'20px 0px 0px 0px'}}>
+                        <div className='status_log' style={{color:'white', height:'auto', overflow:'auto', minHeight:'200px', padding:'20px 0px 0px 0px'}}>
                             <div style={{ border:'2px solid white', borderRadius:'5px', backgroundColor:'white', position:'relative', width:'100%', height:'100%'}}>
-                                {/* 각 버튼에 해당하는 서버별  */}
-                                {showIframe === true &&
-                                    <iframe id='iframe' title='iframe' src={currentWorkHost} frameBorder='0' style={{ width:'100%', height:'100%'}}></iframe>
-                                }
+                                <textarea id='status_result' style={{backgroundColor:'white', color:'black', resize:'none', width:'100%', height:'100%',borderRadius:'5px', border:'0px'}} readOnly/>
                             </div>
                         </div>
                     </div>
@@ -525,5 +544,3 @@ function NeuralAndLoadPage({project_id, project_name, project_description})
 }
 
 export default NeuralAndLoadPage;
-
-

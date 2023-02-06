@@ -9,6 +9,7 @@ from .models import Architecture
 from .models import Start
 from .models import Status
 from .models import Running
+from .models import Stop
 
 
 # from .models import Stop
@@ -83,10 +84,11 @@ class RunningSerializer(serializers.ModelSerializer):
         model = Running
         fields = '__all__'
 
-# class StopSerializer(serializers.ModelSerializer):
-#     # pylint: disable-msg=too-few-public-methods
-#     """A dummy docstring."""
-#     class Meta:   # pylint: disable-msg=too-few-public-methods
-#         """A dummy docstring."""
-#         model = Stop
-#         fields = '__all__'
+
+class StopSerializer(serializers.ModelSerializer):
+    # pylint: disable-msg=too-few-public-methods
+    """A dummy docstring."""
+    class Meta:   # pylint: disable-msg=too-few-public-methods
+        """A dummy docstring."""
+        model = Stop
+        fields = '__all__'

@@ -15,7 +15,8 @@ from django.http import HttpResponse
 from rest_framework.response import Response
 from rest_framework.decorators import api_view
 from pathlib import Path
-from .ku.main import run_nas
+# from .ku.main import run_nas
+from .etri.main import run_nas
 
 # from rest_framework import viewsets
 # from .serializers import InfoSerializer

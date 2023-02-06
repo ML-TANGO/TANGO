@@ -136,6 +136,21 @@
 
 
 
+@keyframes twinkle
+{
+    0%
+    {
+        background-color: #242933;
+    }
+    50%
+    {
+        background-color: #4A80FF;
+    }
+    100%
+    {
+        background-color: #242933;
+    }
+}
 
 
 .stepper-wrapper2 {
@@ -149,8 +164,8 @@
   flex-direction: column;
   align-items: center;
   flex: 1;
- font-size: 16px;
- background-color: transparent;
+  font-size: 16px;
+  background-color: transparent;
 }
 
 .stepper-item2::before {
@@ -201,22 +216,6 @@
     animation: twinkle 1s linear infinite;
 }
 
-@keyframes twinkle
-{
-    0%
-    {
-        background-color: #242933;
-    }
-    50%
-    {
-        background-color: #4A80FF;
-    }
-    100%
-    {
-        background-color: #242933;
-    }
-}
-
 .stepper-item2.before .step-counter2 {
     border: 3px solid #303030;
     color: black;
@@ -243,8 +242,6 @@
   content: none;
 }
 
-
-
 .stepper-item2.non-select .step-counter2 {
     border: 3px solid #303030;
     color: black;
@@ -253,6 +250,129 @@
 .stepper-item2.select .step-counter2 {
     background-color: #4A80FF;
 }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+.stepper-wrapper3 {
+  display: flex;
+  justify-content: space-between;
+}
+
+.stepper-item3 {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  flex: 1;
+  font-size: 16px;
+  background-color: transparent;
+}
+
+.stepper-item3 .step-counter2 {
+  font-size:16px;
+  position: relative;
+  z-index: 5;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  width: 160px;
+  height: 40px;
+  border-radius: 5px;
+  background: #DEDEDE;
+  color: white;
+}
+
+.stepper-item3.ready .step-counter2 {
+    border: 3px solid #4A80FF;
+    color: black;
+}
+
+.stepper-item3.active .step-counter2 {
+    border: 3px solid #4A80FF;
+    background-color: #242933;
+    background: #242933 no-repeat center center;
+    background-size: 60%;
+    border: 3px solid #4A80FF;
+    animation: twinkle 1s linear infinite;
+}
+
+
+
+.stepper-item3.completed .step-counter2 {
+  background-color: #4A80FF;
+}
+
+.stepper-item3.completed::after {
+  position: absolute;
+  content: "";
+  border-bottom: 5px solid #4A80FF;
+  top: 16px;
+  left: 50%;
+  z-index: 3;
+}
+
+.stepper-item3:first-child::before {
+   color: black;
+   position: absolute;
+   content: "";
+   border-bottom: 5px dashed #303030;
+   border-left: 5px dashed #303030;
+   border-right: 0px;
+   border-top: 0px;
+   width: 50%;
+   height: 100%;
+   bottom: 45%;
+   z-index: 2;
+}
+
+.stepper-item3:first-child::after {
+   color: black;
+   position: absolute;
+   content: "";
+   border-bottom: 5px dashed #303030;
+   border-left: 0px;
+   border-right: 5px dashed #303030;
+   border-top: 0px;
+   width: 50%;
+   height: 100%;
+   bottom: 45%;
+   z-index: 2;
+}
+
+.stepper-item3.non-select .step-counter2 {
+    border: 3px solid #303030;
+    color: black;
+}
+
+.stepper-item3.select .step-counter2 {
+    background-color: #4A80FF;
+}
+
+
+
+
+
+
+
 
 
 

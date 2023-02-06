@@ -4,7 +4,10 @@ high level support for doing this and that.
 import os
 import random
 import string
+from time import sleep
+from datetime import datetime
 import torch
+import requests
 
 from rest_framework.decorators import api_view
 from rest_framework import viewsets
@@ -20,6 +23,7 @@ from .serializers import ArchitectureSerializer
 from .serializers import StartSerializer
 from .serializers import StatusSerializer
 from .serializers import RunningSerializer
+from .serializers import StopSerializer
 
 from .models import Node
 from .models import Edge
@@ -30,7 +34,6 @@ from .models import Running
 
 from .graph import CGraph, CEdge, CNode
 from .binder import CPyBinder
-
 
 # Create your views here.
 
@@ -79,6 +82,13 @@ def pthlist(request):
         return Response(serializer.data)
     if request.method == 'POST':
         print("post")
+        host_ip = str(request.get_host())[:-5]
+        print(host_ip)
+        # pylint: disable = invalid-name, missing-timeout, unused-variable
+        r = requests.get(
+            'http://' + host_ip + ':8085/status_report?container_id="vis2code"'
+                                  '&user_id=""&project_id=""&status="success"',
+            verify=False)
         edges = Edge.objects.all()
         nodes = Node.objects.all()
         if nodes and edges:
@@ -116,9 +126,44 @@ def startList(request):
         try:
             user_id = request.GET['user_id']
             project_id = request.GET['project_id']
-            serializer = StartSerializer(data={'msg': 'starting',
+            serializer = StartSerializer(data={'msg': 'started',
                                                'user_id': user_id,
                                                'project_id': project_id})
+            if serializer.is_valid():
+                serializer.save()
+            else:
+                sleep(3)
+                host_ip = str(request.get_host())[:-5]
+                # pylint: disable =invalid-name,missing-timeout,unused-variable
+                r = requests.get('http://'+host_ip+':8085/status_report?'
+                                                   'container_id="vis2code"&'
+                                                   'user_id=""&project_id=""'
+                                                   '&status="success"',
+                                 verify=False)
+            return HttpResponse('started',
+                                content_type="text/plain")
+            # return Response(serializer.data)
+        # pylint: disable = broad-except
+        except Exception as e:
+            return HttpResponse(e, HttpResponse)
+    else:
+        print('no request')
+
+
+@api_view(['GET', 'POST', 'DELETE', 'UPDATE'])
+# pylint: disable = invalid-name, inconsistent-return-statements
+def stopList(request):
+    '''
+        stop List
+    '''
+    # pylint: disable = no-else-return, no-member
+    if request.method == 'GET':
+        try:
+            user_id = request.GET['user_id']
+            project_id = request.GET['project_id']
+            serializer = StopSerializer(data={'msg': 'stopped',
+                                              'user_id': user_id,
+                                              'project_id': project_id})
             if serializer.is_valid():
                 serializer.save()
             return HttpResponse(serializer.data['msg'],
@@ -137,55 +182,48 @@ def statusList(request):
     '''
         status List
     '''
-
-    msg_list = ['running', 'stopped', 'completed', 'failed', 'started']
-
-    # pth = Pth.objects.all()
-    # pth_state = (pth.values()[len(pth.values()) - 1])
-    # print(pth_state)
-
     # pylint: disable = no-else-return, no-member
     if request.method == 'GET':
         try:
+            user_id = request.GET['user_id']
+            project_id = request.GET['project_id']
 
-            try:
-                user_id = request.GET['user_id']
-                project_id = request.GET['project_id']
-                serializer = StatusSerializer(data={'msg': msg_list,
-                                                    'user_id': user_id,
-                                                    'project_id': project_id})
+            serializer = StatusSerializer(data={'msg': 'status',
+                                                'user_id': user_id,
+                                                'project_id': project_id
+                                                })
+
+            # timestamp 값 가져오기
+            host_ip = str(request.get_host())[:-5]
+            # pylint: disable=missing-timeout
+            get_time = requests.get('http://' +
+                                    host_ip +
+                                    ':8091/api/running/', verify=False)
+            time = get_time.text[-16:-3]
+            # 현재 시점의 timestamp와 비교하기
+            saved_time = datetime.fromtimestamp(int(time)/1000)
+            now = datetime.now()
+            diff = now - saved_time
+            diff_sec = diff.seconds
+            print("diff_sec: ", diff_sec)
+
+            if diff_sec > 60:  # 1분 이상이면
+                # started를 running으로 변경
                 if serializer.is_valid():
                     serializer.save()
-
-                running = Running.objects.all()
-                running_state = \
-                    (running.values()[len(running.values()) - 1])['running']
-
-                # if pth_state == True:
-                #     return HttpResponse(serializer.data['msg'][2],
-                # 'completed'
-                #                         content_type="text/plain")
-                # else:
-                if running_state == 0:
-                    # 'stopped'
-                    return HttpResponse(serializer.data['msg'][1],
+                    return HttpResponse('running',
                                         content_type="text/plain")
-                elif running_state == 1:
-                    # 'running'
-                    return HttpResponse(serializer.data['msg'][0],
+                else:
+                    print(serializer.errors)
+                    return HttpResponse('is_not_valid',
                                         content_type="text/plain")
-
-                # return Response(serializer.data)
-            # pylint: disable = broad-except
-            except AssertionError:
-                # return HttpResponse(e, HttpResponse)
-                # 'started'
-                return HttpResponse(serializer.data['msg'][4],
+            else:
+                return HttpResponse('started',
                                     content_type="text/plain")
-        # pylint: disable = broad-except
+
+        # pylint: disable=broad-except
         except Exception:
-            # 'failed'
-            return HttpResponse(serializer.data['msg'][3],
+            return HttpResponse('failed',
                                 content_type="text/plain")
     else:
         print('no request')

@@ -17,7 +17,7 @@ from ofa.utils import download_url
 
 
 FILE = Path(__file__).resolve()
-ROOT = FILE.parents[0]  # YOLOv5 root directory
+ROOT = FILE.parents[0]  
 
 if str(ROOT) not in sys.path:
     sys.path.append(str(ROOT))  # add ROOT to PATH
@@ -46,10 +46,11 @@ class LatencyEstimator:
                  url="https://hanlab.mit.edu/files/proxylessNAS/\
                     LatencyTools/mobile_trim.yaml",
                  ):
-        if url.startswith("http"):
-            fname = download_url(url, local_dir, overwrite=True)
-        else:
-            fname = ROOT / url
+        # if url.startswith("http"):
+        #     fname = download_url(url, local_dir, overwrite=True)
+        # else:
+        #     fname = ROOT / url
+        fname = ROOT / 'mobile_lut.yaml'
 
         with open(fname, "r") as fp:
             self.lut = yaml.load(fp, Loader=yaml.FullLoader)

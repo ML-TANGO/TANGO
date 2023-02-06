@@ -23,7 +23,7 @@
     "react-edit-text": "^4.4.0",
     "react-flow-renderer": "^9.6.7",
     "react-google-picker": "^0.1.0",
-    "react-router-dom": "^6.4.0",
+    "react-router-dom": "^6.4.3",
     "react-scripts": "^5.0.0",
     "reactjs-popup": "^2.0.5",
     "styled-components": "^5.3.5",

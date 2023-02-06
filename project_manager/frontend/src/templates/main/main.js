@@ -1,10 +1,10 @@
-import React, { useEffectm, useState } from "react";
-import { Outlet, Routes, Route } from "react-router-dom";
+import React, { useState } from "react";
+import { Outlet } from "react-router-dom";
 
 /* 레이아웃 컴포넌트 - 사이드 바 & 헤더 */
 import Sidebar from "../../components/sidebar/sidebar";
 import Header from "../../components/header/header";
-import ProjectCreate from "../../templates/main/project/projectCreate";
+//import ProjectCreate from "../../templates/main/project/projectCreate";
 
 import '../../CSS/main.css';
 import '../../CSS/sidebar.css';
@@ -19,7 +19,7 @@ function Main()
 
     const menu_buttonClick = () =>
     {
-        if(sideHidden == false)
+        if(sideHidden === false)
         {
             setSideHidden(true);
             document.getElementById('sidebar').style.width = '60px';

@@ -19,9 +19,9 @@ from backend import views
 
 urlpatterns = [
     path('admin/', admin.site.urls),
-    path('start', views.start_api, name="StartNeckNAS"),
-    path("stop", views.stop_api, name="StopNeckNAS"),
-    path("status_request", views.status_request, name="StatusRequestNeckNAS"),
+    path('start', views.start_api, name="StartBMS"),
+    path("stop", views.stop_api, name="StopBMS"),
+    path("status_request", views.status_request, name="StatusRequestBMS"),
     #path('start?user_id=<user_id>&project_id=<project_id>', views.start_api)
     #path('start/', views.start_api),
     #path(include('start'), views.start_api),

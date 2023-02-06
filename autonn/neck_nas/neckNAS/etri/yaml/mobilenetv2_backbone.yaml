@@ -1,0 +1,12 @@
+# MobileNetv2 backbone
+# [from, number(repetition), module, args]
+backbone:
+  [[-1, 1, CBR6, [64, 3, 2]], # Layer-0 : Pyramid-1 (1/2 width & height)
+   [-1, 1, MB, [1, 16, 1, 1]], # Layar-1
+   [-1, 2, MB, [6, 24, 2, 2]], # Layer-2 : Pyramid-2 (1/4 width & height)
+   [-1, 3, MB, [6, 32, 3, 2]], # Layer-3 : Pyramid-3 (1/8 width & height)
+   [-1, 4, MB, [6, 64, 4, 2]], # Layer-4 : Pyramid-4 (1/16 width & height)
+   [-1, 3, MB, [6, 96, 3, 1]], # Layer-5
+   [-1, 1, MB, [6, 160, 3, 2]], # Layer-6 : Pyramid-5 (1/32 width & height)
+   [-1, 1, MB, [6, 320, 1, 1]], # Layer-7
+  ]

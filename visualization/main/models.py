@@ -49,5 +49,12 @@ class Status(models.Model):
 class Running(models.Model):
     # pylint: disable=too-few-public-methods, missing-class-docstring
     objects = models.Manager()
-    id = models.IntegerField(primary_key=True)
-    running = models.IntegerField()
+    msg = models.CharField(max_length=200, null=True, default='')
+    timestamp = models.CharField(max_length=200, null=True, default='')
+
+
+class Stop(models.Model):
+    # pylint: disable=too-few-public-methods, missing-class-docstring
+    msg = models.CharField(max_length=200, null=True, default='')
+    user_id = models.CharField(max_length=200, null=True, default='')
+    project_id = models.CharField(max_length=200, null=True, default='')

@@ -9,10 +9,10 @@ from .search import arch_search
 
 def run_nas(
         data_path,
-        batch_size,
-        max_latency,
-        pop_size,
-        niter,
+        batch_size = -1,
+        max_latency = 25,
+        pop_size = 4,
+        niter = 5,
         device=0,
 ):
     '''

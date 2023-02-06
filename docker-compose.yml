@@ -17,6 +17,7 @@ services:
              python manage.py runserver 0.0.0.0:8085"
     volumes:
       - ./project_manager:/code
+      - shared:/shared
     ports:
       - "8085:8085"
     environment:
@@ -81,15 +82,17 @@ services:
     shm_size: '256M'
     command: >
       sh -c "python generate_txt_file.py &&
+             python manage.py makemigrations &&
+             python manage.py migrate &&
              python manage.py runserver 0.0.0.0:8081"
-    deploy:
-      resources:
-        reservations:
-          devices:
-            - driver: nvidia
-              capabilities: [gpu]
-    environment:
-      - NVIDIA_VISIBLE_DEVICES=all
+    # deploy:
+    #   resources:
+    #     reservations:
+    #       devices:
+    #         - driver: nvidia
+    #           capabilities: [gpu]
+    # environment:
+    #   - NVIDIA_VISIBLE_DEVICES=all
     volumes:
       - ./base_model_select:/source
       - ./shared:/shared
@@ -107,14 +110,14 @@ services:
       sh -c "python manage.py makemigrations &&
              python manage.py migrate &&
              python manage.py runserver 0.0.0.0:8087"
-    deploy:
-      resources:
-        reservations:
-          devices:
-            - driver: nvidia
-              capabilities: [gpu]
-    environment:
-      - NVIDIA_VISIBLE_DEVICES=all
+    # deploy:
+    #   resources:
+    #     reservations:
+    #       devices:
+    #         - driver: nvidia
+    #           capabilities: [gpu]
+    # environment:
+    #   - NVIDIA_VISIBLE_DEVICES=all
     volumes:
       - ./autonn/backbone_nas:/source
       - ../shared:/shared
@@ -129,17 +132,17 @@ services:
       context: ./autonn/neck_nas
     shm_size: '256M'
     command: >
-      sh -c "python manage.py makemigrations
-             && python manage.py migrate
-             && python manage.py runserver 0.0.0.0:8089"
-    deploy:
-      resources:
-        reservations:
-          devices:
-            - driver: nvidia
-              capabilities: [gpu]
-    environment:
-      - NVIDIA_VISIBLE_DEVICES=all
+      sh -c "python manage.py makemigrations &&
+             python manage.py migrate &&
+             python manage.py runserver 0.0.0.0:8089"
+    # deploy:
+    #   resources:
+    #     reservations:
+    #       devices:
+    #         - driver: nvidia
+    #           capabilities: [gpu]
+    # environment:
+    #   - NVIDIA_VISIBLE_DEVICES=all
     volumes:
       - ./autonn/neck_nas:/source
       - ./shared:/shared
@@ -154,7 +157,7 @@ services:
     build:
       context: ./target_image_build
     command: >
-      sh -c "python manage.py runserver 0.0.0.0:8088"
+      sh -c "python main.py"
     volumes:
       - ./target_image_build:/source
       - /var/run/docker.sock:/var/run/docker.sock
@@ -164,16 +167,16 @@ services:
   #---------------------------------
   # Image Deployment 
   #---------------------------------
-  target_deploy:
-    build:
-      context: ./target_deploy
-    command: >
-      sh -c "python manage.py runserver 0.0.0.0:8089"
-    volumes:
-      - ./target_deploy:/source
-      - /var/run/docker.sock:/var/run/docker.sock
-    ports:
-      - "8890:8890"
+  # target_deploy:
+  #   build:
+  #     context: ./target_deploy
+  #   command: >
+  #     sh -c "python manage.py runserver 0.0.0.0:8890"
+  #   volumes:
+  #     - ./target_deploy:/source
+  #     - /var/run/docker.sock:/var/run/docker.sock
+  #   ports:
+  #     - "8890:8890"
       
   #---------------------------------
   # code_gen Build 
@@ -218,11 +221,12 @@ services:
       - ./viz2code:/source
     ports:
       - "8091:8091"
-    depends_on:
-      - postgresql
+  #   depends_on:
+  #     - postgresql
 
 #---------------------------------
 # Volumes 
 #---------------------------------
 volumes:
   postgreSQL:  # for Proejct Manager
+  shared:      # shared Directory
