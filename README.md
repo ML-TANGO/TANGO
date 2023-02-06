@@ -14,7 +14,7 @@ It aims to develop automatic neural network generation and deployment framework 
 
 The users of TANGO just prepare their labelled datasets to train models and target devices. Then, TANGO analyzes the datasets and target devices characteristics, generates task-specific neural network based on user requirements, trains it with the datasets, creates Docker container images and deploys the container images onto target device.
 
-TANGO uses container technology and MSA (Micro Service Architecture). Containers require less system resources than traditional or hardware virtual machine environments because they don't include operating system images. Applications running in containers can be deployed easily to multiple different operating systems and hardware platforms. The deployment inference engines of TANGO support the frameworks of Pytorch, RKNN and ACL. Additionally, the engines will support TensorRT, TVM, and more.
+TANGO uses container technology and MSA (Micro Service Architecture). Containers require less system resources than traditional or hardware virtual machine environments because they don't include operating system images. Applications running in containers can be deployed easily to multiple different operating systems and hardware platforms. TANGO's deployment inference engine supports the frameworks of Pytorch, RKNN and ACL. The engine also will support TensorRT, TVM, and more..
 
 Each component of TANGO is self-contained service component implemented with container technology.
 The component interacts with other component via REST APIs as depicted in the following image;
