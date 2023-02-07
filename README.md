@@ -19,7 +19,7 @@ TANGO uses container technology and MSA (Micro Service Architecture). Containers
 Each component of TANGO is self-contained service component implemented with container technology.
 The component interacts with other component via REST APIs as depicted in the following image;
 
-<img src="./docs/media/TANGO_structure_v2.png" alt="TANGO Project Overview" width="800px"/>
+<img src="./docs/media/TANGO_structure_v3.png" alt="TANGO Project Overview" width="800px"/>
 
 ----
 
