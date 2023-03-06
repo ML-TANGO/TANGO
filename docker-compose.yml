@@ -106,16 +106,22 @@ services:
     build:
       context: ./autonn/backbone_nas
     shm_size: '256M'
+    ipc: host
     command: >
       sh -c "python manage.py makemigrations &&
              python manage.py migrate &&
              python manage.py runserver 0.0.0.0:8087"
+    # use the below lines commented out if you want to use gpu
     # deploy:
     #   resources:
     #     reservations:
     #       devices:
     #         - driver: nvidia
-    #           capabilities: [gpu]
+    #           capabilities:
+    #             - gpu
+    #             - utility
+    #             - compute
+    #             - video
     # environment:
     #   - NVIDIA_VISIBLE_DEVICES=all
     volumes:
@@ -131,16 +137,22 @@ services:
     build:
       context: ./autonn/neck_nas
     shm_size: '256M'
+    ipc: host
     command: >
       sh -c "python manage.py makemigrations &&
              python manage.py migrate &&
              python manage.py runserver 0.0.0.0:8089"
+    # use the below lines commented out if you want to use gpu
     # deploy:
     #   resources:
     #     reservations:
     #       devices:
     #         - driver: nvidia
-    #           capabilities: [gpu]
+    #           capabilities:
+    #             - gpu
+    #             - utility
+    #             - compute
+    #             - video
     # environment:
     #   - NVIDIA_VISIBLE_DEVICES=all
     volumes:
