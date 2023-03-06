@@ -1,5 +1,6 @@
 FROM python:3.10
 USER root
+ENV PIP_DEFAULT_TIMEOUT=1000
 WORKDIR /souce
 COPY requirements.txt ./
 RUN python3 --version

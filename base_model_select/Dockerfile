@@ -1,5 +1,7 @@
 FROM python:3.9
 
+ENV PIP_DEFAULT_TIMEOUT=1000
+
 # creating a working directory
 WORKDIR /yolov5
 
