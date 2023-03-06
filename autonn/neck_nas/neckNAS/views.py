@@ -193,14 +193,12 @@ def status_report(userid, project_id, status="success"):
 
 def process_nas(userid, project_id):
     try:
-        final_arch = run_nas(train_mode='search')
-        print('process_nas: search done')
-
-        final_model = run_nas(train_mode='retrain', final_arch=final_arch)
-        print('process_nas: retrain done')
-
         common_root = Path('/shared/common/')
         proj_path = common_root / userid / project_id
+
+        final_arch = run_nas(proj_path=proj_path, train_mode='search')
+        print('process_nas: train done')
+
         best_pt_path = proj_path / 'best.pt'
         Path(proj_path).mkdir(parents=True, exist_ok=True)
         print(str(best_pt_path))
@@ -213,4 +211,37 @@ def process_nas(userid, project_id):
         print(e)
 
 
+@api_view(['GET'])
+def get_ready_for_test(request):
+    print("_______GET /get_ready_for_test________")
+    params = request.query_params
+    userid = params['user_id']
+    project_id = params['project_id']
 
+    # check user id & project id
+    try:
+        nasinfo = models.Info.objects.get(userid=userid,
+                                          project_id=project_id)
+    except models.Info.DoesNotExist:
+        print("new user or project")
+        nasinfo = models.Info(userid=userid,
+                              project_id=project_id)
+
+    common_root = Path('/shared/common/')
+    proj_path = common_root / userid / project_id
+    if request.method == 'GET':
+        # make_directory([common_root, user_id, project_id])
+        Path(proj_path).mkdir(parents=True, exist_ok=True)
+        shutil.copy('neckNAS/etri/yaml/basemodel.yaml', proj_path / 'basemodel.yaml')
+        shutil.copy('neckNAS/etri/yaml/superneck.yaml', proj_path / 'superneck.yaml')
+        shutil.copy('neckNAS/etri/yaml/coco128.yaml', proj_path / 'coco128.yaml')
+
+        return Response("ready_for_test", status=200, content_type="text/plain")
+
+
+def make_directory(path_list):
+    path = Path('')
+    for path_temp in path_list:
+        path = path / path_temp
+        if not os.path.isdir(path):
+            os.mkdir(path)
