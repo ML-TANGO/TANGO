@@ -24,6 +24,8 @@ RUN apt-get update && apt-get upgrade -y && \
     apt-get install -y nodejs \
     npm                       # note this one
 RUN apt-get install -y postgresql postgresql-contrib
+RUN npm config set fetch-retry-mintimeout 2000000
+RUN npm config set fetch-retry-maxtimeout 12000000
 RUN npm install pnpm -g
 RUN npm install
 WORKDIR /souce/frontend
