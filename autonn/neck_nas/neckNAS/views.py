@@ -1,7 +1,7 @@
 '''
 views.py
 '''
-
+V7 = True
 import os
 import json
 import torch
@@ -9,6 +9,7 @@ import requests
 import shutil
 # import threading
 import multiprocessing
+import yaml
 
 from django.shortcuts import render
 from django.http import HttpResponse
@@ -16,7 +17,10 @@ from rest_framework.response import Response
 from rest_framework.decorators import api_view
 from pathlib import Path
 # from .ku.main import run_nas
-from .etri.main import run_nas
+if V7:
+    from .etri.yolov7_utils.train import run_nas
+else:
+    from .etri.main import run_nas
 
 # from rest_framework import viewsets
 # from .serializers import InfoSerializer
@@ -196,10 +200,10 @@ def process_nas(userid, project_id):
         common_root = Path('/shared/common/')
         proj_path = common_root / userid / project_id
 
-        final_arch = run_nas(proj_path=proj_path, train_mode='search')
+        final_model = run_nas(proj_path=proj_path, train_mode='search')
         print('process_nas: train done')
 
-        best_pt_path = proj_path / 'best.pt'
+        best_pt_path = proj_path / 'model.pt'
         Path(proj_path).mkdir(parents=True, exist_ok=True)
         print(str(best_pt_path))
         shutil.copyfile(final_model, str(best_pt_path))
@@ -212,7 +216,7 @@ def process_nas(userid, project_id):
 
 
 @api_view(['GET'])
-def get_ready_for_test(request):
+def get_ready_for_test(request, v7=V7):
     print("_______GET /get_ready_for_test________")
     params = request.query_params
     userid = params['user_id']
@@ -229,14 +233,38 @@ def get_ready_for_test(request):
 
     common_root = Path('/shared/common/')
     proj_path = common_root / userid / project_id
-    if request.method == 'GET':
-        # make_directory([common_root, user_id, project_id])
-        Path(proj_path).mkdir(parents=True, exist_ok=True)
-        shutil.copy('neckNAS/etri/yaml/basemodel.yaml', proj_path / 'basemodel.yaml')
-        shutil.copy('neckNAS/etri/yaml/superneck.yaml', proj_path / 'superneck.yaml')
-        shutil.copy('neckNAS/etri/yaml/coco128.yaml', proj_path / 'coco128.yaml')
+    if v7:
+        if request.method == 'GET':
+            Path(proj_path).mkdir(parents=True, exist_ok=True)
+            shutil.copytree('neckNAS/etri/yolov7_utils/sample_yaml/coco128', common_root / 'data' / 'coco128')
+            shutil.copy('neckNAS/etri/yolov7_utils/sample_yaml/hyp.scratch.p5.yaml', proj_path / 'hyp.scratch.p5.yaml')
+    
+            with open('neckNAS/etri/yolov7_utils/sample_yaml/args.yaml') as f:
+                args_yaml = yaml.load(f, Loader=yaml.FullLoader)
+            with open('neckNAS/etri/yolov7_utils/sample_yaml/coco.yaml') as f:
+                data_yaml = yaml.load(f, Loader=yaml.FullLoader)
+    
+            args_yaml['cfg'] = 'yolov7x'
+            args_yaml['data'] = str(proj_path / 'coco.yaml')
+            args_yaml['hyp'] = str(proj_path / 'hyp.scratch.p5.yaml')
+            data_yaml['train'] = str(common_root / 'data' / 'coco128' / 'images' / 'train2017')
+            data_yaml['test'] = str(common_root / 'data' / 'coco128' / 'images' / 'train2017')
+            data_yaml['val'] = str(common_root / 'data' / 'coco128' / 'images' / 'train2017')
+    
+            with open(proj_path / 'args.yaml', 'w') as f:
+                yaml.dump(args_yaml, f, default_flow_style=False)
+            with open(proj_path / 'coco.yaml', 'w') as f:
+                yaml.dump(data_yaml, f, default_flow_style=False)
+            return Response('ready_for_v7_test', status=200, content_type='text/plain')
+    else: 
+        if request.method == 'GET':
+            # make_directory([common_root, user_id, project_id])
+            Path(proj_path).mkdir(parents=True, exist_ok=True)
+            shutil.copy('neckNAS/etri/yaml/basemodel.yaml', proj_path / 'basemodel.yaml')
+            shutil.copy('neckNAS/etri/yaml/superneck.yaml', proj_path / 'superneck.yaml')
+            shutil.copy('neckNAS/etri/yaml/coco128.yaml', proj_path / 'coco128.yaml')
 
-        return Response("ready_for_test", status=200, content_type="text/plain")
+            return Response("ready_for_test", status=200, content_type="text/plain")
 
 
 def make_directory(path_list):
