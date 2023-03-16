@@ -1,0 +1,17 @@
+version: "3"
+services:
+  project_manager-test:
+    build:
+      context: .
+    command: 
+      bash -c "cd /app && python3 k8s_deploy.py"
+    volumes:
+      - $HOME/.kube:/home/root/.kube
+      - shared:/tango
+      - ./:/app
+    environment:
+      - "HOME=/home/root" 
+    ports:
+      - "8902:8902"
+volumes:
+  shared:    
