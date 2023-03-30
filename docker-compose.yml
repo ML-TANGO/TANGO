@@ -95,7 +95,7 @@ services:
     #   - NVIDIA_VISIBLE_DEVICES=all
     volumes:
       - ./base_model_select:/source
-      - ./shared:/shared
+      - shared:/shared
     ports:
       - "8081:8081"
 
@@ -157,7 +157,7 @@ services:
     #   - NVIDIA_VISIBLE_DEVICES=all
     volumes:
       - ./autonn/neck_nas:/source
-      - ./shared:/shared
+      - shared:/shared
       # - /Data:/shared/datasets # for local tests
     ports:
       - "8089:8089"
