@@ -209,10 +209,25 @@ def process_nas(userid, project_id):
         shutil.copyfile(final_model, str(best_pt_path))
         print(f'saved the best model: {str(best_pt_path)}')
 
+        exp_num = exp_num_check(proj_path)
+        shutil.copy(proj_path / 'project_info.yaml', proj_path / 'exp' + str(exp_num) + '_project_info.yaml')
+
         status_report(userid, project_id, status="success")
         print("process_nas ends")
     except ValueError as e:
         print(e)
+
+
+def exp_num_check(proj_path):
+    current_filelist = os.listdir(proj_path)
+    for filename in current_filelist:
+        exp_num_list = []
+        if 'exp' in filename[:3]:
+	    exp_num_list.append(int(filename.split('_')[0][2:]))
+    if len(exp_num_list)==0:
+        return 0
+    else:
+        return max(exp_num_list)+1
 
 
 @api_view(['GET'])
@@ -236,7 +251,7 @@ def get_ready_for_test(request, v7=V7):
     if v7:
         if request.method == 'GET':
             Path(proj_path).mkdir(parents=True, exist_ok=True)
-            shutil.copytree('neckNAS/etri/yolov7_utils/sample_yaml/coco128', common_root / 'data' / 'coco128')
+            shutil.copytree('neckNAS/etri/yolov7_utils/sample_yaml/coco128',  Path('/shared/') / 'datasets' / 'coco128')
             shutil.copy('neckNAS/etri/yolov7_utils/sample_yaml/hyp.scratch.p5.yaml', proj_path / 'hyp.scratch.p5.yaml')
     
             with open('neckNAS/etri/yolov7_utils/sample_yaml/args.yaml') as f:
@@ -247,9 +262,9 @@ def get_ready_for_test(request, v7=V7):
             args_yaml['cfg'] = 'yolov7x'
             args_yaml['data'] = str(proj_path / 'coco.yaml')
             args_yaml['hyp'] = str(proj_path / 'hyp.scratch.p5.yaml')
-            data_yaml['train'] = str(common_root / 'data' / 'coco128' / 'images' / 'train2017')
-            data_yaml['test'] = str(common_root / 'data' / 'coco128' / 'images' / 'train2017')
-            data_yaml['val'] = str(common_root / 'data' / 'coco128' / 'images' / 'train2017')
+            data_yaml['train'] = str(Path('/shared/') / 'datasets' / 'coco128' / 'images' / 'train2017')
+            data_yaml['test'] = str(Path('/shared/') / 'datasets' / 'coco128' / 'images' / 'train2017')
+            data_yaml['val'] = str(Path('/shared/') / 'datasets' / 'coco128' / 'images' / 'train2017')
     
             with open(proj_path / 'args.yaml', 'w') as f:
                 yaml.dump(args_yaml, f, default_flow_style=False)
