@@ -19,6 +19,67 @@ from . import models
 
 PROCESSES = []
 
+
+task_to_model_table = {'detction': 'yolov7', 
+                       'classification': 'resnet'}
+model_to_size_table = {'yolov7':
+                          {'cloud': '-E6E',
+                            'T4': '-W6',
+                            'Xavier': 'X',
+                            'RKNN': '-Tiny'
+                           },
+                       'resnet':
+                          {'cloud': '101',
+                           'T4': '50',
+                           'Xavier': '24',
+                           'RKNN': '18'
+                          }
+                        }
+
+@api_view(['GET'])
+def start(request):
+    print("_________GET /start_____________")
+    params = request.query_params
+    userid = params['user_id']
+    project_id = params['project_id']
+    print(userid, project_id) 
+
+    try:
+        bmsinfo = models.Info.objects.get(userid=userid,
+                                        project_id=project_id)
+    except models.Info.DoesNotExist:
+        bmsinfo = models.Info(userid=userid, project_id=project_id)  
+        print("new user or project")
+
+    data_yaml, proj_info_yaml = get_user_requirements(userid, project_id)
+    print(data_yaml, proj_info_yaml)
+	    
+    pr = mp.Process(target=task_to_model_mapping, args=(proj_info_yaml))
+    mp.set_start_method('spawn')
+	     
+    PROCESSES.append(pr)
+    print(f'{len(PROCESSES)}-th process is starting')
+    PROCESSES[-1].start()
+
+    bmsinfo.proj_info_yaml=str(proj_info_yaml)
+    bmsinfo.data_yaml=str(data_yaml)
+    bmsinfo.status="started"
+    
+    bmsinfo.process_id = len(PROCESSES)-1
+    bmsinfo.save()
+    return Response("started", status=200, content_type="text/plain")
+
+
+def task_to_model_mapping(yaml_path):
+    with open(yaml_path, 'r') as f:
+        proj_info = yaml.load(f, Loader=yaml.FullLoader)
+    task = proj_info['task_type']
+    model = task_to_model_table[task]
+    proj_info['model_size'] = model_to_size_table[model][task]
+    with open(yaml_path, 'w') as f:
+        yaml.dump(proj_info, f, default_flow_style=False)
+
+
 @api_view(['GET'])
 def start_api(request):
     print("_________GET /start_____________")
@@ -58,7 +119,7 @@ def start_api(request):
         PROCESSES[-1].start()
         
         print("does it come here\n")
-        bmsinfo.target_device=str(target_yaml)
+        bmsinfo.proj_info_yaml=str(target_yaml)
         bmsinfo.data_yaml=str(data_yaml)
         bmsinfo.status="started"
         
@@ -118,12 +179,15 @@ def status_request(request):
         bmsinfo.save()
         return Response("ready", status=200, content_type='text/plain')
 
+
 def get_user_requirements(userid, projid):
     common_root = Path('/shared/common/')
     proj_path = common_root / userid / projid
-    target_yaml_path = proj_path / 'project_info.yaml' # 'target.yaml'
+    proj_info_yaml_path = proj_path / 'project_info.yaml' # 'target.yaml'
     dataset_yaml_path = proj_path / 'datasets.yaml'
-    return dataset_yaml_path, target_yaml_path
+
+    return dataset_yaml_path, proj_info_yaml_path
+
 
 def status_report(userid, project_id, status="success"):
     try:
