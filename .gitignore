@@ -190,6 +190,7 @@ shared
 
 # AutoNN
 autonn/neck_nas/neckNAS/ku/runs/
+autonn/YoloE/yoloe_core/migrations
 
 #target_image_build
 target_image_build/.python-version
