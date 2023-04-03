@@ -196,7 +196,7 @@ def exp_num_check(proj_path):
     for filename in current_filelist:
         exp_num_list = []
         if 'exp' in filename[:3]:
-	    exp_num_list.append(int(filename.split('_')[0][2:]))
+            exp_num_list.append(int(filename.split('_')[0][2:]))
     if len(exp_num_list)==0:
         return 0
     else:
@@ -227,9 +227,9 @@ def get_ready_for_test(request):
         shutil.copy('yoloe_core/yolov7_utils/sample_yaml/hyp.scratch.p5.yaml', proj_path / 'hyp.scratch.p5.yaml')
     
         with open('yoloe_core/yolov7_utils/sample_yaml/args.yaml') as f:
-	    args_yaml = yaml.load(f, Loader=yaml.FullLoader)
+            args_yaml = yaml.load(f, Loader=yaml.FullLoader)
         with open('yoloe_core/yolov7_utils/sample_yaml/coco.yaml') as f:
-	    data_yaml = yaml.load(f, Loader=yaml.FullLoader)
+            data_yaml = yaml.load(f, Loader=yaml.FullLoader)
     
         args_yaml['cfg'] = 'yolov7x'
         args_yaml['data'] = str(proj_path / 'coco.yaml')
@@ -239,9 +239,9 @@ def get_ready_for_test(request):
         data_yaml['val'] = str(Path('/shared/') / 'datasets' / 'coco128' / 'images' / 'train2017')
     
         with open(proj_path / 'args.yaml', 'w') as f:
-	    yaml.dump(args_yaml, f, default_flow_style=False)
+            yaml.dump(args_yaml, f, default_flow_style=False)
         with open(proj_path / 'coco.yaml', 'w') as f:
-	    yaml.dump(data_yaml, f, default_flow_style=False)
+            yaml.dump(data_yaml, f, default_flow_style=False)
         return Response('ready_for_v7_test', status=200, content_type='text/plain')
 
 
