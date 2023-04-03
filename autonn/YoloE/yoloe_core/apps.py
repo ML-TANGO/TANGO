@@ -1,6 +1,6 @@
 from django.apps import AppConfig
 
 
-class Yolov7CoreConfig(AppConfig):
+class YoloECoreConfig(AppConfig):
     default_auto_field = 'django.db.models.BigAutoField'
-    name = 'yolov7_core'
+    name = 'yoloe_core'

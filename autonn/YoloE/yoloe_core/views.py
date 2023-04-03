@@ -20,7 +20,7 @@ PROCESSES = []
 
 def index(request):
     '''index'''
-    return render(request, 'yolov7_core/index.html')
+    return render(request, 'yoloe_core/index.html')
 
 
 @api_view(['GET', 'POST'])
@@ -49,7 +49,7 @@ def InfoList(request):
         )
         updatedInfo.save()
 
-        return render(request, "yolov7_core/index.html")
+        return render(request, "yoloe_core/index.html")
 
 
 @api_view(['GET'])
@@ -223,12 +223,12 @@ def get_ready_for_test(request):
     proj_path = common_root / userid / project_id
     if request.method == 'GET':
         Path(proj_path).mkdir(parents=True, exist_ok=True)
-        shutil.copytree('yolov7_core/yolov7_utils/sample_yaml/coco128',  Path('/shared/') / 'datasets' / 'coco128')
-        shutil.copy('yolov7_core/yolov7_utils/sample_yaml/hyp.scratch.p5.yaml', proj_path / 'hyp.scratch.p5.yaml')
+        shutil.copytree('yoloe_core/yolov7_utils/sample_yaml/coco128',  Path('/shared/') / 'datasets' / 'coco128')
+        shutil.copy('yoloe_core/yolov7_utils/sample_yaml/hyp.scratch.p5.yaml', proj_path / 'hyp.scratch.p5.yaml')
     
-        with open('yolov7_core/yolov7_utils/sample_yaml/args.yaml') as f:
+        with open('yoloe_core/yolov7_utils/sample_yaml/args.yaml') as f:
 	    args_yaml = yaml.load(f, Loader=yaml.FullLoader)
-        with open('yolov7_core/yolov7_utils/sample_yaml/coco.yaml') as f:
+        with open('yoloe_core/yolov7_utils/sample_yaml/coco.yaml') as f:
 	    data_yaml = yaml.load(f, Loader=yaml.FullLoader)
     
         args_yaml['cfg'] = 'yolov7x'

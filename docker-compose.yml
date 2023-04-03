@@ -163,6 +163,37 @@ services:
       - "8089:8089"
 
   #---------------------------------
+  # AutoNN: YoloE
+  #---------------------------------
+  autonn_YoloE:
+    build:
+      context: ./autonn/YoloE
+    shm_size: '256M'
+    ipc: host
+    command: >
+      sh -c "python manage.py makemigrations &&
+             python manage.py migrate &&
+             python manage.py runserver 0.0.0.0:8090"
+    # use the below lines commented out if you want to use gpu
+    # deploy:
+    #   resources:
+    #     reservations:
+    #       devices:
+    #         - driver: nvidia
+    #           capabilities:
+    #             - gpu
+    #             - utility
+    #             - compute
+    #             - video
+    # environment:
+    #   - NVIDIA_VISIBLE_DEVICES=all
+    volumes:
+      - ./autonn/YoloE:/source
+      - shared:/shared
+    ports:
+      - "8090:8090"
+
+  #---------------------------------
   # Target Image Build 
   #---------------------------------
   target_image_build:

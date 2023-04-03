@@ -18,5 +18,5 @@ from django.urls import path
 
 urlpatterns = [
     path('admin/', admin.site.urls),
-    path('', include('yolov7_core.urls')),
+    path('', include('yoloe_core.urls')),
 ]
