@@ -5,6 +5,7 @@ from rest_framework import status
 from django.http import HttpResponse
 from pathlib import Path
 import requests
+import shutil
 
 import torch
 import torch.multiprocessing as mp
@@ -81,6 +82,28 @@ def task_to_model_mapping(yaml_path):
 
 
 @api_view(['GET'])
+def get_ready_for_test(request):
+    print("_________GET /get_ready_for_test_____________")
+    params = request.query_params
+    userid = params['user_id']
+    project_id = params['project_id']
+    print(userid, project_id) 
+
+    pr = mp.Process(target=sample_yaml_cp, args=(userid, project_id))
+    mp.set_start_method('spawn')
+	     
+    PROCESSES.append(pr)
+    print(f'{len(PROCESSES)}-th process is starting')
+    PROCESSES[-1].start()
+
+    return Response("get ready for test", status=200, content_type="text/plain")
+
+
+def sample_yaml_cp(userid, project_id):
+    shutil.copy('sample_yaml/project_info.yaml', '/shared/common/'+userid+'/'+project_id+'/')
+
+
+@api_view(['GET'])
 def start_api(request):
     print("_________GET /start_____________")
     params = request.query_params
@@ -128,7 +151,6 @@ def start_api(request):
         return Response("started", status=200, content_type="text/plain")
         
         
-            
 @api_view(['GET'])
 def stop_api(request):
     print("_________GET /stop_____________")
