@@ -13,6 +13,7 @@ from rest_framework.decorators import api_view
 from pathlib import Path
 
 from .yolov7_utils.train import run_yolo
+from .yolov7_utils.train_aux import run_yolo_aux
 from . import models
 
 
@@ -173,7 +174,13 @@ def process_nas(userid, project_id):
         common_root = Path('/shared/common/')
         proj_path = common_root / userid / project_id
 
-        final_model = run_yolo(proj_path=proj_path, train_mode='search')
+        with open(proj_path / 'project_info.yaml', 'r') as f:
+            proj_info = yaml.safe_load(f)
+        if proj_info['model_size'] == 'x' or proj_info['model_size'] == '-tiny':
+            run_ps = run_yolo
+        else:
+            run_ps = run_yolo_aux
+        final_model = run_ps(proj_path=proj_path, train_mode='search')
         print('process_nas: train done')
 
         best_pt_path = proj_path / 'model.pt'
@@ -183,7 +190,7 @@ def process_nas(userid, project_id):
         print(f'saved the best model: {str(best_pt_path)}')
 
         exp_num = exp_num_check(proj_path)
-        shutil.copy(proj_path / 'project_info.yaml', proj_path / 'exp' + str(exp_num) + '_project_info.yaml')
+        shutil.copy(proj_path / 'project_info.yaml', proj_path / str('exp' + str(exp_num) + '_project_info.yaml'))
 
         status_report(userid, project_id, status="success")
         print("process_nas ends")
@@ -221,28 +228,20 @@ def get_ready_for_test(request):
 
     common_root = Path('/shared/common/')
     proj_path = common_root / userid / project_id
-    if request.method == 'GET':
-        Path(proj_path).mkdir(parents=True, exist_ok=True)
-        shutil.copytree('yoloe_core/yolov7_utils/sample_yaml/coco128',  Path('/shared/') / 'datasets' / 'coco128')
-        shutil.copy('yoloe_core/yolov7_utils/sample_yaml/hyp.scratch.p5.yaml', proj_path / 'hyp.scratch.p5.yaml')
-    
-        with open('yoloe_core/yolov7_utils/sample_yaml/args.yaml') as f:
-            args_yaml = yaml.load(f, Loader=yaml.FullLoader)
-        with open('yoloe_core/yolov7_utils/sample_yaml/coco.yaml') as f:
-            data_yaml = yaml.load(f, Loader=yaml.FullLoader)
-    
-        args_yaml['cfg'] = 'yolov7x'
-        args_yaml['data'] = str(proj_path / 'coco.yaml')
-        args_yaml['hyp'] = str(proj_path / 'hyp.scratch.p5.yaml')
-        data_yaml['train'] = str(Path('/shared/') / 'datasets' / 'coco128' / 'images' / 'train2017')
-        data_yaml['test'] = str(Path('/shared/') / 'datasets' / 'coco128' / 'images' / 'train2017')
-        data_yaml['val'] = str(Path('/shared/') / 'datasets' / 'coco128' / 'images' / 'train2017')
-    
-        with open(proj_path / 'args.yaml', 'w') as f:
-            yaml.dump(args_yaml, f, default_flow_style=False)
-        with open(proj_path / 'coco.yaml', 'w') as f:
-            yaml.dump(data_yaml, f, default_flow_style=False)
-        return Response('ready_for_v7_test', status=200, content_type='text/plain')
+
+    Path(proj_path).mkdir(parents=True, exist_ok=True)
+    Path('/shared/datasets/').mkdir(parents=True, exist_ok=True)
+
+    shutil.copy('sample_yaml/project_info.yaml', proj_path)
+    shutil.copytree('sample_data/coco128',  Path('/shared/') / 'datasets' / 'coco128')
+    with open('sample_yaml/dataset.yaml') as f:
+        data_yaml = yaml.load(f, Loader=yaml.FullLoader)
+    data_yaml['train'] = str(Path('/shared/') / 'datasets' / 'coco128' / 'images' / 'train2017')
+    data_yaml['test'] = str(Path('/shared/') / 'datasets' / 'coco128' / 'images' / 'train2017')
+    data_yaml['val'] = str(Path('/shared/') / 'datasets' / 'coco128' / 'images' / 'train2017')
+    with open(proj_path / 'dataset.yaml', 'w') as f:
+        yaml.dump(data_yaml, f, default_flow_style=False)
+    return Response('ready_for_v7_test', status=200, content_type='text/plain')
 
 
 def make_directory(path_list):
