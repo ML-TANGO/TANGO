@@ -26,10 +26,10 @@ PROCESSES = []
 task_to_model_table = {'detection': 'yolov7', 
                        'classification': 'resnet'}
 model_to_size_table = {'yolov7':
-                          {'cloud': '-E6E',
-                            'T4': '-W6',
-                            'Xavier': 'X',
-                            'RKNN': '-Tiny'
+                          {'cloud': '-e6e',
+                            'T4': '-w6',
+                            'Xavier': 'x',
+                            'RKNN': '-tiny'
                            },
                        'resnet':
                           {'cloud': '101',

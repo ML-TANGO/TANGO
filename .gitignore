@@ -192,6 +192,9 @@ shared
 autonn/neck_nas/neckNAS/ku/runs/
 autonn/YoloE/yoloe_core/migrations
 
+# BMS
+base_model_select/backend/migrations
+
 #target_image_build
 target_image_build/.python-version
 target_image_build/app/.python-version
