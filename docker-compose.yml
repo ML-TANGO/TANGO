@@ -81,8 +81,7 @@ services:
       context: ./base_model_select
     shm_size: '256M'
     command: >
-      sh -c "python generate_txt_file.py &&
-             python manage.py makemigrations &&
+      sh -c "python manage.py makemigrations &&
              python manage.py migrate &&
              python manage.py runserver 0.0.0.0:8081"
     # deploy:
@@ -165,7 +164,7 @@ services:
   #---------------------------------
   # AutoNN: YoloE
   #---------------------------------
-  autonn_YoloE:
+  autonn_yoloe:
     build:
       context: ./autonn/YoloE
     shm_size: '256M'
