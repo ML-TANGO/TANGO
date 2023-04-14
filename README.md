@@ -19,7 +19,7 @@ TANGO uses container technology and MSA (Micro Service Architecture). Containers
 Each component of TANGO is self-contained service component implemented with container technology.
 The component interacts with other component via REST APIs as depicted in the following image;
 
-<img src="./docs/media/TANGO_structure_v1.png" alt="TANGO Project Overview" width="800px"/>
+<img src="./docs/media/TANGO_structure_v2.png" alt="TANGO Project Overview" width="800px"/>
 
 ----
 
@@ -37,7 +37,13 @@ Data preparation consists of two main processes. First, you need to take or coll
 
 <img src="./docs/media/TANGO_labeling.png" alt="TANGO labeling" width="600px"/>
 
-### Auto NN: Automatic Neural Network Generation
+### Basic Model Selection
+
+Before applying automation techniques such as NAS and HPO, reducing the search space or limiting it to a specific neural network variation is very important in terms of the efficiency of automatic neural network generation. In the TANGO framework, it was named Base Model Selection and was assigned a role of recommending an appropriate neural network among existing well-known neural networks, so called SOTA model.
+
+Model selection is typically done through an algorithm search process. The system may evaluate a set of candidate SOTA models using metrics such as accuracy, precision, recall, or F1 score, and select the model that performs best on a validation dataset. 
+
+### Automatic Neural Network Generation
 
 AutoML (Automated Machine Learning) refers to the process of automating the end-to-end machine learning process, including tasks such as data preprocessing, model selection, hyperparameter tuning, and model deployment. The goal of AutoML is to make it easier for non-experts to build and deploy machine learning models, by removing the need for extensive domain knowledge or manual intervention.
 
@@ -45,12 +51,6 @@ Neural network model generation is a key process in the TANGO framework. The TAN
 
 <img src="./docs/media/TANGO_BMS_AutoNN.png" alt="TANGO labeling" width="500px"/>
 
-
-#### BMS: Basic Model Selection
-
-Before applying automation techniques such as NAS and HPO, reducing the search space or limiting it to a specific neural network variation is very important in terms of the efficiency of automatic neural network generation. In the TANGO framework, it was named Base Model Selection and was assigned a role of recommending an appropriate neural network among existing well-known neural networks, so called SOTA model.
-
-Model selection is typically done through an algorithm search process. The system may evaluate a set of candidate SOTA models using metrics such as accuracy, precision, recall, or F1 score, and select the model that performs best on a validation dataset. 
 
 #### NAS: Neural Architecture Search
 
@@ -72,38 +72,6 @@ During TANGO project configuration, users can specify theirs target device, whic
 
 <img src="./docs/media/TANGO_AutoNN_Deployment.png" alt="Deployment in TANGO" width="500px"/>
 
-### Object Detection Neural Networks
-
-TANGO framework currently supports automatic generation of an object detection model.  An object detection model typically consists of backbone, neck and heads
-
-The backbone refers to the feature extractor part of the model, which is responsible for extracting high-level features from the input image. This is typically a convolutional neural network (CNN) pre-trained on a large image classification dataset, such as ImageNet.
-
-The neck is the part of the model that connects the backbone to the head. Its role is to aggregate and refine the features extracted by the backbone, to prepare them for the final prediction stage. The neck can have various architectural designs, such as a simple average pooling layer, or a more complex set of convolutional and dense layers.
-
-The head refers to the prediction module, which uses the features from the neck to perform the final object detection task. It typically includes one or more fully connected layers, and a loss function that measures the model's performance on the task. The head can also include anchor boxes, anchor scaling and aspect ratios, and non-maximum suppression, which are techniques used to improve the model's accuracy and efficiency.
-
-These components work together to detect objects in an image, by first generating a set of candidate regions and then refining the predictions to produce accurate and precise bounding boxes. The specific design and architecture of an object detection model will depend on the requirements of the task and the available computational resources.
-
-<img src="./docs/media/object_detection_network.png" alt="Architecture of Object Detection Model " width="800px"/>
-
-In the case of the backbone and neck, appropriate models may depend on the capacity of the target device the user intends to use for inference and the object to be detected. To find the optimal models automatically, the TANGO framework performs Backbone NAS and Neck NAS respectively. For the heads, a heads in YOLO series model was used. which is mainly used in real-time object detection neural networks, was used. YOLO series models are known as the most successful real-time object detection model in 1-stage object detection. In the current TANGO framework, you can select Backbone NAS and/or Neck NAS within project workflow configuration.
-
-#### Backbone NAS
-
-In order to get the target device-tailored backbone that the TANGO framework aims for, the delay time measurement function for each operator in the neural network was modularized, and based on this, the complexity and search time of the search algorithm were minimized. For efficient multi-scale information extraction, a weight-sharing supernet learning was performed using an evolutionary algorithm-based neural network structure search strategy to output a backbone neural network.
-
-<img src="./docs/media/BB_NAS.png" alt="Backbone NAS concept" width="500px"/>
-
-#### Neck NAS
-
-Neck NAS is a module for finding a neural network that can more accurately predict object locations by performing NAS in the neck component, which is specialized for object detection neural networks. As one of the methods, a block-by-block search was performed based on YOLO's FPN+PAN structure.
-
-<img src="./docs/media/ku_neck_nas.png" alt="KU Neck NAS" width="800px"/>
-
-Unlike above example which illustrates block-based search, the neck structure itself can be searched. To this end, a super-neck was created based on the neck of YOLOv5, and a search was conducted to determine which connection had the best performance.
-
-<img src="./docs/media/etri_superneck.png" alt="ETRI SuperNeck" width="800px"/>
-
 ### No Code
 
 The TANGO framework aims to help users without specialized knowledge to create and use their own neural network models. To this end, it provides an environment that users can use without writing code, such as a project manager and a neural network visualization tool.
@@ -117,41 +85,35 @@ You can watch 2022 early version demo on Youtube. Click the below images.
 </a>
 
 
+----
 ## Source Tree Structure <a name="source_tree"></a>
 
 The source tree is organized with the MSA principles: each subdirectory contains component container source code. Due to the separation of source directory, component container developers just only work on their own isolated subdirectory and publish minimal REST API to serve project manager container's service request.
 
 ```bash
-$ tree -d -L 2
-.
-├── project_manager            # front-end server for TANGO
-│   ├── backend
-│   ├── data
-│   ├── tango
-│   ├── frontend
-│   └── static
-│
-├── labelling             # data labelling tool
-│   ├── backend
-│   └── labelling
-│
-├── base_model_select     # base model selection
-│
-├── autonn                # automatic neural network
-│   ├── autonn
-│   └── backend
-│
-├── target_image_build    # build neural network image to be deployed
-│   ├── backend
-│   └── target_image_build
-│
-├── target_deploy         # generated neural network deployment to target
-│   ├── backend
-│   └── target_deploy
-│
-├── visualization         # neural network model visualization
-│
-└── docs                  # project documentation
+TANGO
+  ├─── docker-compose.yml
+  ├─── project_manager
+  │ 
+  ├─── model_select
+  │      ├─── device_based
+  │      └─── data_feature_based
+  │ 
+  ├─── visualize
+  │      └─── vis2code
+  │ 
+  ├─── auto_nn
+  │      ├─── backbone_nas
+  │      ├─── neck_nas
+  │      └─── yolov7e
+  │
+  ├─── deploy_codegen 
+  │      └─── opt_codegen
+  │
+  └─── deploy_targets
+         ├─── cloud
+         ├─── k8s
+         └─── ondevice
 
 ```
 
@@ -187,6 +149,8 @@ YouTube Videos
   * 2022년 12월 7일(수) 15:30~17:30 
   * COEX 그랜드 컨퍼런스룸 402호
 
+
+----
 
 ## Acknowledgement <a name="ack"></a>
 
