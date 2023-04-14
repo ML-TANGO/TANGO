@@ -223,7 +223,7 @@ def exp_num_check(proj_path):
     for filename in current_filelist:
         exp_num_list = []
         if 'exp' in filename[:3]:
-	    exp_num_list.append(int(filename.split('_')[0][2:]))
+            exp_num_list.append(int(filename.split('_')[0][2:]))
     if len(exp_num_list)==0:
         return 0
     else:
