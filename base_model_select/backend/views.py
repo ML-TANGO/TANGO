@@ -57,8 +57,8 @@ def start(request):
     data_yaml, proj_info_yaml = get_user_requirements(userid, project_id)
     print(data_yaml, proj_info_yaml)
 	    
-    pr = mp.Process(target=task_to_model_mapping, args=(proj_info_yaml,), daemon=True)
-    mp.set_start_method('fork')
+    pr = mp.Process(target=task_to_model_mapping, args=(proj_info_yaml, userid, project_id), daemon=True)
+    mp.set_start_method('spawn')
 	     
     PROCESSES.append(pr)
     print(f'{len(PROCESSES)}-th process is starting')
@@ -73,7 +73,7 @@ def start(request):
     return Response("started", status=200, content_type="text/plain")
 
 
-def task_to_model_mapping(yaml_path):
+def task_to_model_mapping(yaml_path, userid, project_id):
     with open(yaml_path, 'r') as f:
         proj_info = yaml.load(f, Loader=yaml.FullLoader)
     task = proj_info['task_type']
@@ -82,6 +82,7 @@ def task_to_model_mapping(yaml_path):
     proj_info['model_size'] = model_to_size_table[model][target]
     with open(yaml_path, 'w') as f:
         yaml.dump(proj_info, f, default_flow_style=False)
+    status_report(userid, project_id, status="success")
 
 
 @api_view(['GET'])
