@@ -81,8 +81,7 @@ services:
       context: ./base_model_select
     shm_size: '256M'
     command: >
-      sh -c "python generate_txt_file.py &&
-             python manage.py makemigrations &&
+      sh -c "python manage.py makemigrations &&
              python manage.py migrate &&
              python manage.py runserver 0.0.0.0:8081"
     # deploy:
@@ -95,7 +94,7 @@ services:
     #   - NVIDIA_VISIBLE_DEVICES=all
     volumes:
       - ./base_model_select:/source
-      - ./shared:/shared
+      - shared:/shared
     ports:
       - "8081:8081"
 
@@ -106,16 +105,22 @@ services:
     build:
       context: ./autonn/backbone_nas
     shm_size: '256M'
+    ipc: host
     command: >
       sh -c "python manage.py makemigrations &&
              python manage.py migrate &&
              python manage.py runserver 0.0.0.0:8087"
+    # use the below lines commented out if you want to use gpu
     # deploy:
     #   resources:
     #     reservations:
     #       devices:
     #         - driver: nvidia
-    #           capabilities: [gpu]
+    #           capabilities:
+    #             - gpu
+    #             - utility
+    #             - compute
+    #             - video
     # environment:
     #   - NVIDIA_VISIBLE_DEVICES=all
     volumes:
@@ -131,24 +136,61 @@ services:
     build:
       context: ./autonn/neck_nas
     shm_size: '256M'
+    ipc: host
     command: >
       sh -c "python manage.py makemigrations &&
              python manage.py migrate &&
              python manage.py runserver 0.0.0.0:8089"
+    # use the below lines commented out if you want to use gpu
     # deploy:
     #   resources:
     #     reservations:
     #       devices:
     #         - driver: nvidia
-    #           capabilities: [gpu]
+    #           capabilities:
+    #             - gpu
+    #             - utility
+    #             - compute
+    #             - video
     # environment:
     #   - NVIDIA_VISIBLE_DEVICES=all
     volumes:
       - ./autonn/neck_nas:/source
-      - ./shared:/shared
+      - shared:/shared
       # - /Data:/shared/datasets # for local tests
     ports:
       - "8089:8089"
+
+  #---------------------------------
+  # AutoNN: YoloE
+  #---------------------------------
+  autonn_yoloe:
+    build:
+      context: ./autonn/YoloE
+    shm_size: '256M'
+    ipc: host
+    command: >
+      sh -c "python manage.py makemigrations &&
+             python manage.py migrate &&
+             python manage.py runserver 0.0.0.0:8090"
+    # use the below lines commented out if you want to use gpu
+    # deploy:
+    #   resources:
+    #     reservations:
+    #       devices:
+    #         - driver: nvidia
+    #           capabilities:
+    #             - gpu
+    #             - utility
+    #             - compute
+    #             - video
+    # environment:
+    #   - NVIDIA_VISIBLE_DEVICES=all
+    volumes:
+      - ./autonn/YoloE:/source
+      - shared:/shared
+    ports:
+      - "8090:8090"
 
   #---------------------------------
   # Target Image Build 

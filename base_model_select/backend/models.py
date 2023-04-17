@@ -13,7 +13,7 @@ class Info(models.Model):
     project_id = models.CharField(blank=True, null=True, max_length=50, default='')
 
     # target device ??
-    target_yaml = models.FileField(upload_to="temp_files/", default='')
+    proj_info_yaml = models.FileField(upload_to="temp_files/", default='')
 
     # datasets ??
     data_yaml = models.FileField(upload_to="temp_files/", default='')
