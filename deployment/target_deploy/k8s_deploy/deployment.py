@@ -51,8 +51,8 @@ class KubeJob:
     
 
     def create_job_object(self):
-        output_data=self.output_data.split('./')
-        self.output_data=output_data[1]
+        #output_data=self.output_data.split('./')
+       # self.output_data=output_data[1]
         #if 'train' in str(self.nn_file):
             
         container = client.V1Container(
@@ -60,7 +60,7 @@ class KubeJob:
             image= self.image_name,   # for test
             image_pull_policy= 'IfNotPresent',
             command=["bash", "-c"],
-            volume_mounts=[client.V1VolumeMount(name=self.job_name, mount_path='/app')],
+            volume_mounts=[client.V1VolumeMount(name=self.job_name, mount_path='/tango')],
             env=[
             client.V1EnvVar(name="NAME", value=str(self.job_name)),
             client.V1EnvVar(name="INPUT_DATA", value=str(self.input_data)),
@@ -76,7 +76,7 @@ class KubeJob:
             #    args=["cd /app/ && cd $(PRJ_PATH) && python3 $(NN_FILE) --cfg   --weights $(MODEL) --data models/$(ANN) --name $(NAME)"]
             
             #args=["cd /app/ && cd $(PRJ_PATH) && python3 $(NN_FILE)  --weights $(MODEL) --data data/$(ANN) "]) # --source $(INPUT_DATA) -w $(WEIGHT) -c $(ANN) --device cpu
-            args=["cd /app/ && cd $(PRJ_PATH) && python3 output.py"])
+            args=["cd $(PRJ_PATH) && python3 output.py"])
         volume = client.V1Volume(name=self.job_name, persistent_volume_claim=client.V1PersistentVolumeClaimVolumeSource(claim_name=self.job_name))
 
         template = client.V1PodTemplateSpec(spec=client.V1PodSpec(restart_policy="Never", containers=[container], volumes=[volume]))  #,node_selector={"kubernetes.io/hostname" : "etri-3"}
@@ -122,6 +122,7 @@ class KubeJob:
             read_job=batch_v1.read_namespaced_job(name=self.job_name,namespace=NAMESPACE)
         except:
             pass
+        print(read_job)
         if read_job is None:
             job=self.create_job_object()
             api_response = batch_v1.create_namespaced_job(
@@ -144,17 +145,15 @@ class KubeJob:
             body={'apiVersion': 'v1', 
             'kind': 'PersistentVolume', 
             'metadata': {'name': self.job_name, 'labels': {'name': self.job_name}}, 
-            'spec': {'capacity': {'storage': '500Gi'}, 'StorageClassName': "",
+            'spec': {'capacity': {'storage': '50Gi'}, 'StorageClassName': "",
             'accessModes': ['ReadWriteMany'],
             'nfs': {'server': self.nfs_ip, 'path': self.nfs_path}}}
             v1.create_persistent_volume(body=body)
 
     def run_deploy(self):
-        print(self.nfs_ip)
-        print(self.nfs_path)
         self.create_pv()
         self.create_pvc()
-        self.create_service()
+        time.sleep(1)
         try:
             pvc_get=v1.read_namespaced_persistent_volume_claim(name=self.job_name,namespace=NAMESPACE)
             p_status=pvc_get.status.phase
@@ -166,10 +165,12 @@ class KubeJob:
                 p_status=pvc_get.status.phase
                 if p_status=='Bound':
                     self.create_job()
-                    return
+                    self.create_service()
+                    return True
                 else:
                     time.sleep(1)
-            return
+                    
+            #return False
         
     def create_pvc(self):
         resp=None
@@ -186,7 +187,7 @@ class KubeJob:
             'apiVersion': 'v1', 
             'metadata': {'name': self.job_name}, 
             'spec': {'accessModes': ['ReadWriteMany'], 'StorageClassName': "",
-            'resources': {'requests': {'storage': '500Gi'}}, 
+            'resources': {'requests': {'storage': '50Gi'}}, 
             'selector': {'matchLabels': {'name': self.job_name}}}}
             v1.create_namespaced_persistent_volume_claim(namespace=NAMESPACE, body=body)
         
@@ -313,6 +314,7 @@ class Delete_kube:
 
     def delete_svc(self):
         resp=None
+        print(self.name)
         try:
             resp =v1.read_namespaced_service(name='svc-'+self.name, namespace=NAMESPACE)
             
