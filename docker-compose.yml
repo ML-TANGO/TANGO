@@ -95,7 +95,7 @@ services:
     #   - NVIDIA_VISIBLE_DEVICES=all
     volumes:
       - ./base_model_select:/source
-      - ./shared:/shared
+      - shared:/shared
     ports:
       - "8081:8081"
 
@@ -120,7 +120,7 @@ services:
     #   - NVIDIA_VISIBLE_DEVICES=all
     volumes:
       - ./autonn/backbone_nas:/source
-      - ../shared:/shared
+      - shared:/shared
     ports:
       - "8087:8087"
 
@@ -145,7 +145,7 @@ services:
     #   - NVIDIA_VISIBLE_DEVICES=all
     volumes:
       - ./autonn/neck_nas:/source
-      - ./shared:/shared
+      - shared:/shared
       # - /Data:/shared/datasets # for local tests
     ports:
       - "8089:8089"
@@ -185,7 +185,7 @@ services:
     build:
       context: ./deployment/code_gen
     volumes:
-      - ./shared:/tango
+      - shared:/tango
     command: >
       sh -c "cd /app && python3 code_gen.py"
     ports:
@@ -198,7 +198,7 @@ services:
     build:
       context: ./deployment/target_deploy/ondevice_deploy
     volumes:
-      - ./shared:/tango
+      - shared:/tango
     command: >
       sh -c "cd /app && python3 ondevice_deploy.py"
     ports:
@@ -223,7 +223,20 @@ services:
       - "8091:8091"
   #   depends_on:
   #     - postgresql
-
+  kube_deploy:
+    build:
+      context: ./deployment/target_deploy/k8s_deploy
+    container_name: "tango_k8s"
+    command:
+      bash -c "cd /app && python3 k8s_deploy.py"
+    volumes:
+      - $HOME/.kube:/home/root/.kube
+      - shared:/tango
+      - ./deployment/target_deploy/k8s_deploy:/app
+    environment:
+      - "HOME=/home/root"
+    ports:
+      - "8902:8902"
 #---------------------------------
 # Volumes 
 #---------------------------------

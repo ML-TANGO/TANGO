@@ -106,9 +106,9 @@ class KubeJob:
                 selector={"job-name": self.job_name},
                 type="NodePort",
                 ports=[client.V1ServicePort(
-                    port=self.svc_port,
-                    target_port=self.svc_port,
-                    node_port=30050) #### for test
+                    port=8901,
+                    target_port=8901,
+                    node_port=int(self.svc_port)) 
                     ]
             )
         )

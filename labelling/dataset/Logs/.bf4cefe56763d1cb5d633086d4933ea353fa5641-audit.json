@@ -1,0 +1,15 @@
+{
+    "keep": {
+        "days": true,
+        "amount": 14
+    },
+    "auditLog": "/var/appdata/Logs/.bf4cefe56763d1cb5d633086d4933ea353fa5641-audit.json",
+    "files": [
+        {
+            "date": 1681717242069,
+            "name": "/var/appdata/Logs/bluai-server-2023-04-17.log",
+            "hash": "af0e7997010255fcd3cd0f58075a76d7c6fd9bbd21df1165a841c8b29d2dc58d"
+        }
+    ],
+    "hashType": "sha256"
+}

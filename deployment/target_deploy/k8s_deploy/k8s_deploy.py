@@ -20,8 +20,8 @@ from http.server import HTTPServer, SimpleHTTPRequestHandler
 
 # for docker and project manager
 # "." for test /tango for docker container
-def_top_folder = "./tango/common"  # for test
-#def_top_folder = "/tango/common"    # for docker
+#def_top_folder = "./tango/common"  # for test
+def_top_folder = "/tango/common"    # for docker
 
 def_deployinfo_file = "deployment.yaml"
 def_zip_file = "nn_model.zip"
@@ -161,7 +161,7 @@ class K8SDeploy:
             self.m_last_run_state = -1
         return ret 
     def del_run(self):
-        kube_del=deployment.Delete_kube(name=self.m_current_projectid)
+        kube_del=deployment.Delete_kube(name=self.m_current_userid)
         kube_del.delete_job_pv_pvc()
 
     ####################################################################
