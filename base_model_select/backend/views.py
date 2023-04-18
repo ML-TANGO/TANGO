@@ -100,12 +100,6 @@ def get_ready_for_test(request):
         bmsinfo = models.Info(userid=userid, project_id=project_id)  
         print("new user or project")
 
-    # pr = mp.Process(target=sample_yaml_cp, args=(userid, project_id), daemon=True)
-    # mp.set_start_method('fork')
-	     # 
-    # PROCESSES.append(pr)
-    # print(f'{len(PROCESSES)}-th process is starting')
-    # PROCESSES[-1].start()
     sample_proj_yaml_cp(userid, project_id)
     create_data_yaml(userid, project_id)
     sample_data_cp()
