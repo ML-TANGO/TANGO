@@ -70,16 +70,16 @@ def start(request):
         nasinfo = models.Info(userid=userid,
                               project_id=project_id)
 
-    data_yaml, target_yaml = get_user_requirements(userid, project_id)
-    print(data_yaml, target_yaml)
+    data_yaml, proj_yaml = get_user_requirements(userid, project_id)
+    print(data_yaml, proj_yaml)
     
-    pr = multiprocessing.Process(target = process_yolo, args=(userid, project_id))
+    pr = multiprocessing.Process(target = process_yolo, args=(userid, project_id, data_yaml, proj_yaml))
     pr_id = get_process_id()
     PROCESSES[pr_id] = pr
     print(f'{len(PROCESSES)}-th process is starting')
     PROCESSES[pr_id].start()
     
-    nasinfo.target_device=str(target_yaml)
+    nasinfo.target_device=str(proj_yaml)
     nasinfo.data_yaml=str(data_yaml)
     nasinfo.status="started"
     nasinfo.process_id = pr_id
@@ -139,9 +139,9 @@ def status_request(request):
 def get_user_requirements(userid, projid):
     common_root = Path('/shared/common/')
     proj_path = common_root / userid / projid
-    target_yaml_path = proj_path / 'project_info.yaml' # 'target.yaml'
-    dataset_yaml_path = proj_path / 'datasets.yaml'
-    return dataset_yaml_path, target_yaml_path
+    proj_yaml_path = proj_path / 'project_info.yaml' # 'target.yaml'
+    dataset_yaml_path = Path('/shared/common/datasets/') / 'dataset.yaml'
+    return dataset_yaml_path, proj_yaml_path
 
 
 def status_report(userid, project_id, status="success"):
@@ -169,12 +169,12 @@ def status_report(userid, project_id, status="success"):
         print(e)
 
 
-def process_yolo(userid, project_id):
+def process_yolo(userid, project_id, data_yaml, proj_yaml):
     try:
         common_root = Path('/shared/common/')
-        proj_path = common_root / userid / project_id
+        proj_path = os.path.dirname(proj_yaml)
 
-        with open(proj_path / 'project_info.yaml', 'r') as f:
+        with open(proj_yaml, 'r') as f:
             proj_info = yaml.safe_load(f)
 
         large_env = ['cloud', 'T4']
@@ -182,17 +182,17 @@ def process_yolo(userid, project_id):
             run_ps = run_yolo_aux
         else:
             run_ps = run_yolo
-        final_model = run_ps(proj_path=proj_path, train_mode='search')
+        final_model = run_ps(proj_path, str(data_yaml), train_mode='search')
         print('process_yolo: train done')
 
-        best_pt_path = proj_path / 'model.pt'
+        best_pt_path = Path(proj_path) / 'model.pt'
         Path(proj_path).mkdir(parents=True, exist_ok=True)
         print(str(best_pt_path))
         shutil.copyfile(final_model, str(best_pt_path))
         print(f'saved the best model: {str(best_pt_path)}')
 
         exp_num = exp_num_check(proj_path)
-        shutil.copy(proj_path / 'project_info.yaml', proj_path / str('exp' + str(exp_num) + '_project_info.yaml'))
+        shutil.copy(proj_yaml, Path(proj_path) / str('exp' + str(exp_num) + '_project_info.yaml'))
 
         status_report(userid, project_id, status="success")
         print("process_yolo ends")
@@ -236,13 +236,13 @@ def get_ready_for_test(request):
         Path('/shared/datasets/').mkdir(parents=True, exist_ok=True)
     
         shutil.copy('sample_yaml/project_info.yaml', proj_path)
-        shutil.copytree('sample_data/coco128',  Path('/shared/') / 'datasets' / 'coco128')
+        shutil.copytree('sample_data/coco128',  Path('/shared/common/') / 'datasets' / 'coco128')
         with open('sample_yaml/dataset.yaml') as f:
             data_yaml = yaml.load(f, Loader=yaml.FullLoader)
-        data_yaml['train'] = str(Path('/shared/') / 'datasets' / 'coco128' / 'images' / 'train2017')
-        data_yaml['test'] = str(Path('/shared/') / 'datasets' / 'coco128' / 'images' / 'train2017')
-        data_yaml['val'] = str(Path('/shared/') / 'datasets' / 'coco128' / 'images' / 'train2017')
-        with open(proj_path / 'dataset.yaml', 'w') as f:
+        data_yaml['train'] = str(Path('/shared/common/') / 'datasets' / 'coco128' / 'images' / 'train2017')
+        data_yaml['test'] = str(Path('/shared/common/') / 'datasets' / 'coco128' / 'images' / 'train2017')
+        data_yaml['val'] = str(Path('/shared/common/') / 'datasets' / 'coco128' / 'images' / 'train2017')
+        with open(Path('/shared/common/datasets/') / 'dataset.yaml', 'w') as f:
             yaml.dump(data_yaml, f, default_flow_style=False)
         return Response('ready_for_v7_test', status=200, content_type='text/plain')
     except Exception as e:
