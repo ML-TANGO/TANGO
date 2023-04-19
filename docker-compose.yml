@@ -191,6 +191,7 @@ services:
     volumes:
       - ./autonn/YoloE:/source
       - ../shared:/shared
+    hostname: yoloe
     ports:
       - "8090:8090"
 
