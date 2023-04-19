@@ -54,14 +54,14 @@ function NeuralAndLoadPage({project_id, project_name, project_description})
     const [config_pannel, setConfig_pannel] = useState(true);          // config_pannel 창 상태
 
     /* Information */
-    const [dataset, setDataset] = useState('');                        // 데이터 셋 경로
+    const [dataset, setDataset] = useState('dataset.yaml');                        // 데이터 셋 경로
     const [dataset_list, setDataset_list] = useState([]);              // 데이터 셋 리스트
 
     const [target, setTarget] = useState('');                          // 타겟 변경
     const [target_list, setTarget_list] = useState([]);                // 타겟 리스트
 
     /* Configuration - Task Type*/
-    const [taskType, setTaskType] = useState('');                      // 데이터 셋 경로
+    const [taskType, setTaskType] = useState('detection');                      // 데이터 셋 경로
 
     /* Configuration - AutoNN */
     const [datasetFile, setDatasetFile] = useState('dataset.yaml');    // dataset file yaml 파일
@@ -148,8 +148,8 @@ function NeuralAndLoadPage({project_id, project_name, project_description})
     {
         if(!timerRef.current)
         {
-            // 타이머 시작 - 10초 주기
-            timerRef.current = setInterval(test, 10000)
+            // 타이머 시작 - 5초 주기
+            timerRef.current = setInterval(get_container_status, 5000)
         }
     }
 
@@ -170,10 +170,13 @@ function NeuralAndLoadPage({project_id, project_name, project_description})
         };
         Request.requestContainerStatus(param).then(result =>
         {
+            console.log("requestContainerStatus - result",result)
             const data = result.data;
 
             setContainer(data.container)
             setContainer_status(data.container_status)
+            if(data.message!=='')status_result_update(data.message)
+
 
             if(data.container_status !== '')
             {
@@ -300,6 +303,8 @@ function NeuralAndLoadPage({project_id, project_name, project_description})
         setCurrentWork('Base Model Select');
 
         status_result_update('Base Model Select - Start 요청')
+
+        startTimer();
     }
 
     // Visualization: 8091 port

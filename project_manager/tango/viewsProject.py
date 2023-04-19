@@ -31,6 +31,8 @@ from django.views.decorators.csrf import csrf_exempt, csrf_protect
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 root_path = os.path.dirname(os.path.dirname(BASE_DIR))
 
+response_message = ""
+
 # @permission_classes([IsAuthenticated])                  # 권한 체크 - 로그인 여부
 # @authentication_classes([JSONWebTokenAuthentication])   # 토큰 확인
 # @permission_classes([AllowAny])
@@ -42,6 +44,7 @@ root_path = os.path.dirname(os.path.dirname(BASE_DIR))
 def status_report(request):
 
     try:
+        global response_message
         # container_list = ['bms',
         #                   'viz2code',
         #                   'autonn',
@@ -73,6 +76,23 @@ def status_report(request):
 
         queryset.save()
 
+        if container_id == 'bms' and result == 'success':
+            print("bms end .. ---- success")
+            response_message += 'base model select 완료\n'
+            response_message += 'auto_nn_yolo_e 시작 요청\n'
+            url = 'http://yoloe:8090/start'
+            headers = {
+                'Content-Type' : 'text/plain'
+            }
+            payload = {
+                'user_id' : user_id,
+                'project_id' : project_id,
+            }
+            response = requests.get(url, headers=headers, params=payload)
+            print("project-manager : response")
+            print(response)
+            # response_message += response
+
         return HttpResponse(json.dumps({'status': 200}))
 
     except Exception as error:
@@ -84,6 +104,7 @@ def status_report(request):
 @api_view(['GET', 'POST'])
 @authentication_classes([OAuth2Authentication])   # 토큰 확인
 def status_result(request):
+    global response_message
     """
     project_list_get _summary_
 
@@ -101,8 +122,12 @@ def status_result(request):
         print(queryset.container)
         print(queryset.container_status)
 
+        print(response_message)
+        m = response_message
+        response_message = ''
         return HttpResponse(json.dumps({'container': queryset.container,
-                                        'container_status': queryset.container_status}))
+                                        'container_status': queryset.container_status,
+                                        'message': m,}))
 
     except Exception as e:
         print(e)
