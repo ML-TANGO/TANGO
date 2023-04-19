@@ -94,7 +94,7 @@ services:
     #   - NVIDIA_VISIBLE_DEVICES=all
     volumes:
       - ./base_model_select:/source
-      - shared:/shared
+      - ../shared:/shared
     ports:
       - "8081:8081"
 
@@ -188,7 +188,7 @@ services:
     #   - NVIDIA_VISIBLE_DEVICES=all
     volumes:
       - ./autonn/YoloE:/source
-      - shared:/shared
+      - ../shared:/shared
     ports:
       - "8090:8090"
 
