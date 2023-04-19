@@ -271,6 +271,13 @@ function NeuralAndLoadPage({project_id, project_name, project_description})
             Request.requestProjectInfo(project_id).then(res =>
             {
                 projectContentUpdate(res.data);
+
+                const cookies = new Cookies();
+                var user = cookies.get('userinfo')
+
+                RequestContainer.requestContainerStart('labelling', user, project_id).then(res=>{
+                    console.log("res",res)
+                })
             })
             .catch(error =>
             {
@@ -314,22 +321,28 @@ function NeuralAndLoadPage({project_id, project_name, project_description})
 
         console.log(responseData)
 
-        if(responseData.nas_type === 'neck_nas')
-        {
-            containerStart('autonn_nk');
+        containerStart('yolo_e');
 
-            setCurrentWork('Auto NN : Neck NAS');
+        setCurrentWork('Auto NN : YoloE');
 
-            status_result_update('Auto NN : Neck NAS - Start 요청')
-        }
-        else
-        {
-            containerStart('autonn_bb');
+        status_result_update('Auto NN : YoloE - Start 요청')
 
-            setCurrentWork('Auto NN : Backbone NAS');
+        // if(responseData.nas_type === 'neck_nas')
+        // {
+        //     containerStart('autonn_nk');
 
-            status_result_update('Auto NN : Backbone NAS - Start 요청')
-        }
+        //     setCurrentWork('Auto NN : Neck NAS');
+
+        //     status_result_update('Auto NN : Neck NAS - Start 요청')
+        // }
+        // else
+        // {
+        //     containerStart('autonn_bb');
+
+        //     setCurrentWork('Auto NN : Backbone NAS');
+
+        //     status_result_update('Auto NN : Backbone NAS - Start 요청')
+        // }
     }
 
     // Image Gen : 8888 port

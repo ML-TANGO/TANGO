@@ -13,11 +13,13 @@ services:
              ./wait_for_postgres.sh &&
              python manage.py makemigrations &&
              python manage.py migrate &&
+             python manage.py collectstatic --no-input &&
              python manage.py loaddata base_model_data.json &&
              python manage.py runserver 0.0.0.0:8085"
     volumes:
       - ./project_manager:/code
-      - shared:/shared
+      - ../shared:/shared
+    hostname: projectmanager
     ports:
       - "8085:8085"
     environment:
