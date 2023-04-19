@@ -568,7 +568,8 @@ def run_yolo_aux(proj_path, data=None, target=None, train_mode='search', final_a
         proj_info = yaml.safe_load(f)
     print(proj_info)
     opt.data = str(proj_path / 'dataset.yaml')    
-    opt.cfg = str(Path(os.path.dirname(__file__)) / 'cfg' / 'training' / str(str(proj_info['nas_type']) + str(proj_info['model_size']) +'.yaml'))
+    # opt.cfg = str(Path(os.path.dirname(__file__)) / 'cfg' / 'training' / str(str(proj_info['nas_type']) + str(proj_info['model_size']) +'.yaml'))
+    opt.cfg = str(proj_path / 'basemodel.yaml')    
     opt.hyp = Path(os.path.dirname(__file__)) / 'data' / 'hyp.scratch.p6.yaml'
     opt.img_size = [1280, 1280]
 

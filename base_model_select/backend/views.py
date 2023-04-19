@@ -7,6 +7,7 @@ django.setup()
 # import torch
 import multiprocessing as mp
 import yaml
+import random
 
 # sys.path.append('../yolov5')
 
@@ -41,41 +42,37 @@ model_to_size_table = {'yolov7':
 
 @api_view(['GET'])
 def start(request):
+    print("_________GET /start_____________")
+    params = request.query_params
+    userid = params['user_id']
+    project_id = params['project_id']
+    print(userid, project_id) 
+    
     try:
-        print("_________GET /start_____________")
-        params = request.query_params
-        userid = params['user_id']
-        project_id = params['project_id']
-        print(userid, project_id) 
+        bmsinfo = models.Info.objects.get(userid=userid,
+				        project_id=project_id)
+    except models.Info.DoesNotExist:
+        bmsinfo = models.Info(userid=userid, project_id=project_id)  
+        print("new user or project")
     
-        try:
-            bmsinfo = models.Info.objects.get(userid=userid,
-                                            project_id=project_id)
-        except models.Info.DoesNotExist:
-            bmsinfo = models.Info(userid=userid, project_id=project_id)  
-            print("new user or project")
+    data_yaml, proj_info_yaml = get_user_requirements(userid, project_id)
+    print(data_yaml, proj_info_yaml)
+	    
+    pr = mp.Process(target=task_to_model_mapping, args=(proj_info_yaml, userid, project_id), daemon=True)
+    mp.set_start_method('spawn')
+	     
+    pr_id = get_process_id()
+    PROCESSES[pr_id] = pr
+    print(f'{len(PROCESSES)}-th process is starting')
+    PROCESSES[pr_id].start()
     
-        data_yaml, proj_info_yaml = get_user_requirements(userid, project_id)
-        print(data_yaml, proj_info_yaml)
-	        
-        pr = mp.Process(target=task_to_model_mapping, args=(proj_info_yaml, userid, project_id), daemon=True)
-        mp.set_start_method('spawn')
-	         
-        pr_id = get_process_id()
-        PROCESSES[pr_id] = pr
-        print(f'{len(PROCESSES)}-th process is starting')
-        PROCESSES[pr_id].start()
+    bmsinfo.proj_info_yaml=str(proj_info_yaml)
+    bmsinfo.data_yaml=str(data_yaml)
+    bmsinfo.status="started"
     
-        bmsinfo.proj_info_yaml=str(proj_info_yaml)
-        bmsinfo.data_yaml=str(data_yaml)
-        bmsinfo.status="started"
-        
-        bmsinfo.process_id = pr_id
-        bmsinfo.save()
-        return Response("started", status=200, content_type="text/plain")
-
-    except Exception as e:
-        print(e)
+    bmsinfo.process_id = pr_id
+    bmsinfo.save()
+    return Response("started", status=200, content_type="text/plain")
 
 
 def task_to_model_mapping(yaml_path, userid, project_id):
@@ -84,35 +81,37 @@ def task_to_model_mapping(yaml_path, userid, project_id):
     task = proj_info['task_type']
     target = proj_info['target_info']
     model = task_to_model_table[task]
+    '''
     proj_info['model_size'] = model_to_size_table[model][target]
     with open(yaml_path, 'w') as f:
         yaml.dump(proj_info, f, default_flow_style=False)
+    '''
+    model_size = model_to_size_table[model][target]
+    shutil.copy(f'basemodel_yaml/{model}/{model}{model_size}.yaml', f'/shared/common/{userid}/{project_id}/basemodel.yaml')
+    
     status_report(userid, project_id, status="success")
 
 
 @api_view(['GET'])
 def get_ready_for_test(request):
+    print("_________GET /get_ready_for_test_____________")
+    params = request.query_params
+    userid = params['user_id']
+    project_id = params['project_id']
+    print(userid, project_id) 
+    
     try:
-        print("_________GET /get_ready_for_test_____________")
-        params = request.query_params
-        userid = params['user_id']
-        project_id = params['project_id']
-        print(userid, project_id) 
+        bmsinfo = models.Info.objects.get(userid=userid,
+				        project_id=project_id)
+    except models.Info.DoesNotExist:
+        bmsinfo = models.Info(userid=userid, project_id=project_id)  
+        print("new user or project")
     
-        try:
-            bmsinfo = models.Info.objects.get(userid=userid,
-                                            project_id=project_id)
-        except models.Info.DoesNotExist:
-            bmsinfo = models.Info(userid=userid, project_id=project_id)  
-            print("new user or project")
+    sample_proj_yaml_cp(userid, project_id)
+    create_data_yaml(userid, project_id)
+    sample_data_cp()
     
-        sample_proj_yaml_cp(userid, project_id)
-        create_data_yaml(userid, project_id)
-        sample_data_cp()
-    
-        return Response("get ready for test", status=200, content_type="text/plain")
-    except Exception as e:
-        print(e)
+    return Response("get ready for test", status=200, content_type="text/plain")
 
 
 def sample_proj_yaml_cp(userid, project_id):
@@ -256,7 +255,7 @@ def get_user_requirements(userid, projid):
 
 def status_report(userid, project_id, status="success"):
     try:
-        url = 'http://0.0.0.0:8085/status_report'
+        url = 'http://localhost:8085/status_report'
         headers = {
             'Content-Type' : 'text/plain'
         }

@@ -18,7 +18,6 @@ from .yolov7_utils.train_aux import run_yolo_aux
 from . import models
 
 
-
 PROCESSES = {}
 
 def index(request):
@@ -119,7 +118,7 @@ def status_request(request):
         nasinfo = models.Info.objects.get(userid=userid,
                                           project_id=project_id)
         if PROCESSES[nasinfo.process_id].is_alive():
-            print("found thread running nas")
+            print("found thread running yoloe")
             nasinfo.status = "running"
             nasinfo.save()
             return Response("running", status=200, content_type='text/plain')
@@ -147,7 +146,7 @@ def get_user_requirements(userid, projid):
 
 def status_report(userid, project_id, status="success"):
     try:
-        url = 'http://0.0.0.0:8085/status_report'
+        url = 'http://localhost:8085/status_report'
         headers = {
             'Content-Type' : 'text/plain'
         }
@@ -177,12 +176,12 @@ def process_yolo(userid, project_id):
 
         with open(proj_path / 'project_info.yaml', 'r') as f:
             proj_info = yaml.safe_load(f)
-        small_model = ['x', '-tiny'] 
-        # large model = ['-e6e', '-w6']
-        if proj_info['model_size'] in small_model:
-            run_ps = run_yolo
-        else:
+
+        large_env = ['cloud', 'T4']
+        if proj_info['target_info'] in large_env:
             run_ps = run_yolo_aux
+        else:
+            run_ps = run_yolo
         final_model = run_ps(proj_path=proj_path, train_mode='search')
         print('process_yolo: train done')
 
