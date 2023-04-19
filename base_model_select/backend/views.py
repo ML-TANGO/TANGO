@@ -7,6 +7,7 @@ django.setup()
 # import torch
 import multiprocessing as mp
 import yaml
+import random
 
 # sys.path.append('../yolov5')
 
@@ -21,7 +22,7 @@ from pathlib import Path
 from . import models
 
 
-PROCESSES = []
+PROCESSES = {}
 
 task_to_model_table = {'detection': 'yolov7', 
                        'classification': 'resnet'}
@@ -46,29 +47,30 @@ def start(request):
     userid = params['user_id']
     project_id = params['project_id']
     print(userid, project_id) 
-
+    
     try:
         bmsinfo = models.Info.objects.get(userid=userid,
-                                        project_id=project_id)
+				        project_id=project_id)
     except models.Info.DoesNotExist:
         bmsinfo = models.Info(userid=userid, project_id=project_id)  
         print("new user or project")
-
+    
     data_yaml, proj_info_yaml = get_user_requirements(userid, project_id)
     print(data_yaml, proj_info_yaml)
 	    
     pr = mp.Process(target=task_to_model_mapping, args=(proj_info_yaml, userid, project_id), daemon=True)
     mp.set_start_method('spawn')
 	     
-    PROCESSES.append(pr)
+    pr_id = get_process_id()
+    PROCESSES[pr_id] = pr
     print(f'{len(PROCESSES)}-th process is starting')
-    PROCESSES[-1].start()
-
+    PROCESSES[pr_id].start()
+    
     bmsinfo.proj_info_yaml=str(proj_info_yaml)
     bmsinfo.data_yaml=str(data_yaml)
     bmsinfo.status="started"
     
-    bmsinfo.process_id = len(PROCESSES)-1
+    bmsinfo.process_id = pr_id
     bmsinfo.save()
     return Response("started", status=200, content_type="text/plain")
 
@@ -79,9 +81,14 @@ def task_to_model_mapping(yaml_path, userid, project_id):
     task = proj_info['task_type']
     target = proj_info['target_info']
     model = task_to_model_table[task]
+    '''
     proj_info['model_size'] = model_to_size_table[model][target]
     with open(yaml_path, 'w') as f:
         yaml.dump(proj_info, f, default_flow_style=False)
+    '''
+    model_size = model_to_size_table[model][target]
+    shutil.copy(f'basemodel_yaml/{model}/{model}{model_size}.yaml', f'/shared/common/{userid}/{project_id}/basemodel.yaml')
+    
     status_report(userid, project_id, status="success")
 
 
@@ -92,24 +99,18 @@ def get_ready_for_test(request):
     userid = params['user_id']
     project_id = params['project_id']
     print(userid, project_id) 
-
+    
     try:
         bmsinfo = models.Info.objects.get(userid=userid,
-                                        project_id=project_id)
+				        project_id=project_id)
     except models.Info.DoesNotExist:
         bmsinfo = models.Info(userid=userid, project_id=project_id)  
         print("new user or project")
-
-    # pr = mp.Process(target=sample_yaml_cp, args=(userid, project_id), daemon=True)
-    # mp.set_start_method('fork')
-	     # 
-    # PROCESSES.append(pr)
-    # print(f'{len(PROCESSES)}-th process is starting')
-    # PROCESSES[-1].start()
+    
     sample_proj_yaml_cp(userid, project_id)
     create_data_yaml(userid, project_id)
     sample_data_cp()
-
+    
     return Response("get ready for test", status=200, content_type="text/plain")
 
 
@@ -122,25 +123,25 @@ def sample_proj_yaml_cp(userid, project_id):
 
 
 def sample_data_cp():
-    if not os.path.exists('/shared/datasets/'):
-        Path('/shared/datasets/').mkdir(parents=True, exist_ok=True)
-    shutil.copytree('sample_data/coco128',  Path('/shared/') / 'datasets' / 'coco128')
+    if not os.path.exists('/shared/common/datasets/'):
+        Path('/shared/common/datasets/').mkdir(parents=True, exist_ok=True)
+    shutil.copytree('sample_data/coco128',  Path('/shared/common/') / 'datasets' / 'coco128')
 
 
 def create_data_yaml(userid, project_id):
     common_path = Path('/shared/common/')
     proj_path = common_path / userid / project_id
-    if not os.path.exists('/shared/datasets/'):
-        Path('/shared/datasets/').mkdir(parents=True, exist_ok=True)
+    if not os.path.exists('/shared/common/datasets/'):
+        Path('/shared/common/datasets/').mkdir(parents=True, exist_ok=True)
 
     with open('sample_yaml/dataset.yaml') as f:
         data_yaml = yaml.load(f, Loader=yaml.FullLoader)
     
-    data_yaml['train'] = str(Path('/shared/') / 'datasets' / 'coco128' / 'images' / 'train2017')
-    data_yaml['test'] = str(Path('/shared/') / 'datasets' / 'coco128' / 'images' / 'train2017')
-    data_yaml['val'] = str(Path('/shared/') / 'datasets' / 'coco128' / 'images' / 'train2017')
+    data_yaml['train'] = str(Path('/shared/common/') / 'datasets' / 'coco128' / 'images' / 'train2017')
+    data_yaml['test'] = str(Path('/shared/common/') / 'datasets' / 'coco128' / 'images' / 'train2017')
+    data_yaml['val'] = str(Path('/shared/common/') / 'datasets' / 'coco128' / 'images' / 'train2017')
     
-    with open(proj_path / 'dataset.yaml', 'w') as f:
+    with open(Path('/shared/common/datasets/') / 'dataset.yaml', 'w') as f:
         yaml.dump(data_yaml, f, default_flow_style=False)
 
 @api_view(['GET'])
@@ -176,17 +177,18 @@ def start_api(request):
                 
         pr = mp.Process(target = queue_bms, args=(userid, project_id))
         mp.set_start_method('spawn')
+        pr_id = get_process_id()
                 
-        PROCESSES.append(pr)
+        PROCESSES[pr_id] = pr
         print(f'{len(PROCESSES)}-th process is starting')
-        PROCESSES[-1].start()
+        PROCESSES[pr_id].start()
         
         print("does it come here\n")
         bmsinfo.proj_info_yaml=str(target_yaml)
         bmsinfo.data_yaml=str(data_yaml)
         bmsinfo.status="started"
         
-        bmsinfo.process_id = len(PROCESSES)-1
+        bmsinfo.process_id = pr_id
         bmsinfo.save()
         return Response("started", status=200, content_type="text/plain")
         
@@ -253,7 +255,7 @@ def get_user_requirements(userid, projid):
 
 def status_report(userid, project_id, status="success"):
     try:
-        url = 'http://0.0.0.0:8085/status_report'
+        url = 'http://localhost:8085/status_report'
         headers = {
             'Content-Type' : 'text/plain'
         }
@@ -270,7 +272,7 @@ def status_report(userid, project_id, status="success"):
                                       project_id=project_id)
         bmsinfo.status = "ready"
         bmsinfo.save()
-        PROCESSES.pop(-1)
+        PROCESSES.pop(bmsinfo.process_id)
         
     except ValueError as e:
         print(e)
@@ -282,3 +284,14 @@ def queue_bms(userid, project_id):
         print("process_bms ends")
     except ValueError as e:
         print(e)
+
+
+def get_process_id():     # Assign Blank Process Number
+    while True:
+        pr_num = str(random.randint(10000, 99999))
+        try:
+            temp = PROCESSES[pr_num]
+        except KeyError:
+            break
+    return pr_num
+

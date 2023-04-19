@@ -521,7 +521,7 @@ def train(hyp, opt, device, tb_writer=None):
     return results, final
 
 
-def run_yolo_aux(proj_path, data=None, target=None, train_mode='search', final_arch=None):
+def run_yolo_aux(proj_path, dataset_yaml_path, data=None, target=None, train_mode='search', final_arch=None):
     '''
     parser = argparse.ArgumentParser()
     parser.add_argument('--weights', type=str, default='yolo7.pt', help='initial weights path')
@@ -564,11 +564,12 @@ def run_yolo_aux(proj_path, data=None, target=None, train_mode='search', final_a
 
     with open(Path(os.path.dirname(__file__)) / 'args.yaml', encoding='utf-8') as f:
         opt = argparse.Namespace(**yaml.safe_load(f))
-    with open(proj_path / 'project_info.yaml', encoding='utf-8') as f:
+    with open(Path(proj_path) / 'project_info.yaml', encoding='utf-8') as f:
         proj_info = yaml.safe_load(f)
     print(proj_info)
-    opt.data = str(proj_path / 'dataset.yaml')    
-    opt.cfg = str(Path(os.path.dirname(__file__)) / 'cfg' / 'training' / str(str(proj_info['nas_type']) + str(proj_info['model_size']) +'.yaml'))
+    opt.data = str(dataset_yaml_path)
+    # opt.cfg = str(Path(os.path.dirname(__file__)) / 'cfg' / 'training' / str(str(proj_info['nas_type']) + str(proj_info['model_size']) +'.yaml'))
+    opt.cfg = str(Path(proj_path) / 'basemodel.yaml')    
     opt.hyp = Path(os.path.dirname(__file__)) / 'data' / 'hyp.scratch.p6.yaml'
     opt.img_size = [1280, 1280]
 

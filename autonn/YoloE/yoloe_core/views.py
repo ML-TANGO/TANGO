@@ -5,6 +5,7 @@ import requests
 import shutil
 import multiprocessing
 import yaml
+import random
 
 from django.shortcuts import render
 from django.http import HttpResponse
@@ -17,7 +18,7 @@ from .yolov7_utils.train_aux import run_yolo_aux
 from . import models
 
 
-PROCESSES = []
+PROCESSES = {}
 
 def index(request):
     '''index'''
@@ -69,22 +70,21 @@ def start(request):
         nasinfo = models.Info(userid=userid,
                               project_id=project_id)
 
-    if request.method == 'GET':
-        data_yaml, target_yaml = get_user_requirements(userid, project_id)
-        print(data_yaml, target_yaml)
-
-        pr = multiprocessing.Process(target = process_nas, args=(userid, project_id))
-        PROCESSES.append(pr)
-        print(f'{len(PROCESSES)}-th process is starting')
-        PROCESSES[-1].start()
-
-        nasinfo.target_device=str(target_yaml)
-        nasinfo.data_yaml=str(data_yaml)
-        nasinfo.status="started"
-        # nasinfo.thread_id = len(THREADS)-1
-        nasinfo.process_id = len(PROCESSES)-1
-        nasinfo.save()
-        return Response("started", status=200, content_type="text/plain")
+    data_yaml, proj_yaml = get_user_requirements(userid, project_id)
+    print(data_yaml, proj_yaml)
+    
+    pr = multiprocessing.Process(target = process_yolo, args=(userid, project_id, data_yaml, proj_yaml))
+    pr_id = get_process_id()
+    PROCESSES[pr_id] = pr
+    print(f'{len(PROCESSES)}-th process is starting')
+    PROCESSES[pr_id].start()
+    
+    nasinfo.target_device=str(proj_yaml)
+    nasinfo.data_yaml=str(data_yaml)
+    nasinfo.status="started"
+    nasinfo.process_id = pr_id
+    nasinfo.save()
+    return Response("started", status=200, content_type="text/plain")
 
 
 @api_view(['GET'])
@@ -118,7 +118,7 @@ def status_request(request):
         nasinfo = models.Info.objects.get(userid=userid,
                                           project_id=project_id)
         if PROCESSES[nasinfo.process_id].is_alive():
-            print("found thread running nas")
+            print("found thread running yoloe")
             nasinfo.status = "running"
             nasinfo.save()
             return Response("running", status=200, content_type='text/plain')
@@ -139,14 +139,14 @@ def status_request(request):
 def get_user_requirements(userid, projid):
     common_root = Path('/shared/common/')
     proj_path = common_root / userid / projid
-    target_yaml_path = proj_path / 'project_info.yaml' # 'target.yaml'
-    dataset_yaml_path = proj_path / 'datasets.yaml'
-    return dataset_yaml_path, target_yaml_path
+    proj_yaml_path = proj_path / 'project_info.yaml' # 'target.yaml'
+    dataset_yaml_path = Path('/shared/common/datasets/') / 'dataset.yaml'
+    return dataset_yaml_path, proj_yaml_path
 
 
 def status_report(userid, project_id, status="success"):
     try:
-        url = 'http://0.0.0.0:8085/status_report'
+        url = 'http://localhost:8085/status_report'
         headers = {
             'Content-Type' : 'text/plain'
         }
@@ -163,37 +163,39 @@ def status_report(userid, project_id, status="success"):
                                       project_id=project_id)
         nasinfo.status = "ready"
         nasinfo.save()
-        PROCESSES.pop(-1)
+        PROCESSES.pop(nasinfo.process_id)
         print(f'report func: {threading.current_thread()}')
     except BaseException as e:
         print(e)
 
 
-def process_nas(userid, project_id):
+def process_yolo(userid, project_id, data_yaml, proj_yaml):
     try:
         common_root = Path('/shared/common/')
-        proj_path = common_root / userid / project_id
+        proj_path = os.path.dirname(proj_yaml)
 
-        with open(proj_path / 'project_info.yaml', 'r') as f:
+        with open(proj_yaml, 'r') as f:
             proj_info = yaml.safe_load(f)
-        if proj_info['model_size'] == 'x' or proj_info['model_size'] == '-tiny':
-            run_ps = run_yolo
-        else:
-            run_ps = run_yolo_aux
-        final_model = run_ps(proj_path=proj_path, train_mode='search')
-        print('process_nas: train done')
 
-        best_pt_path = proj_path / 'model.pt'
+        large_env = ['cloud', 'T4']
+        if proj_info['target_info'] in large_env:
+            run_ps = run_yolo_aux
+        else:
+            run_ps = run_yolo
+        final_model = run_ps(proj_path, str(data_yaml), train_mode='search')
+        print('process_yolo: train done')
+
+        best_pt_path = Path(proj_path) / 'model.pt'
         Path(proj_path).mkdir(parents=True, exist_ok=True)
         print(str(best_pt_path))
         shutil.copyfile(final_model, str(best_pt_path))
         print(f'saved the best model: {str(best_pt_path)}')
 
         exp_num = exp_num_check(proj_path)
-        shutil.copy(proj_path / 'project_info.yaml', proj_path / str('exp' + str(exp_num) + '_project_info.yaml'))
+        shutil.copy(proj_yaml, Path(proj_path) / str('exp' + str(exp_num) + '_project_info.yaml'))
 
         status_report(userid, project_id, status="success")
-        print("process_nas ends")
+        print("process_yolo ends")
     except ValueError as e:
         print(e)
 
@@ -212,36 +214,39 @@ def exp_num_check(proj_path):
 
 @api_view(['GET'])
 def get_ready_for_test(request):
-    print("_______GET /get_ready_for_test________")
-    params = request.query_params
-    userid = params['user_id']
-    project_id = params['project_id']
-
-    # check user id & project id
     try:
-        nasinfo = models.Info.objects.get(userid=userid,
-                                          project_id=project_id)
-    except models.Info.DoesNotExist:
-        print("new user or project")
-        nasinfo = models.Info(userid=userid,
-                              project_id=project_id)
-
-    common_root = Path('/shared/common/')
-    proj_path = common_root / userid / project_id
-
-    Path(proj_path).mkdir(parents=True, exist_ok=True)
-    Path('/shared/datasets/').mkdir(parents=True, exist_ok=True)
-
-    shutil.copy('sample_yaml/project_info.yaml', proj_path)
-    shutil.copytree('sample_data/coco128',  Path('/shared/') / 'datasets' / 'coco128')
-    with open('sample_yaml/dataset.yaml') as f:
-        data_yaml = yaml.load(f, Loader=yaml.FullLoader)
-    data_yaml['train'] = str(Path('/shared/') / 'datasets' / 'coco128' / 'images' / 'train2017')
-    data_yaml['test'] = str(Path('/shared/') / 'datasets' / 'coco128' / 'images' / 'train2017')
-    data_yaml['val'] = str(Path('/shared/') / 'datasets' / 'coco128' / 'images' / 'train2017')
-    with open(proj_path / 'dataset.yaml', 'w') as f:
-        yaml.dump(data_yaml, f, default_flow_style=False)
-    return Response('ready_for_v7_test', status=200, content_type='text/plain')
+        print("_______GET /get_ready_for_test________")
+        params = request.query_params
+        userid = params['user_id']
+        project_id = params['project_id']
+    
+        # check user id & project id
+        try:
+            nasinfo = models.Info.objects.get(userid=userid,
+                                              project_id=project_id)
+        except models.Info.DoesNotExist:
+            print("new user or project")
+            nasinfo = models.Info(userid=userid,
+                                  project_id=project_id)
+    
+        common_root = Path('/shared/common/')
+        proj_path = common_root / userid / project_id
+    
+        Path(proj_path).mkdir(parents=True, exist_ok=True)
+        Path('/shared/datasets/').mkdir(parents=True, exist_ok=True)
+    
+        shutil.copy('sample_yaml/project_info.yaml', proj_path)
+        shutil.copytree('sample_data/coco128',  Path('/shared/common/') / 'datasets' / 'coco128')
+        with open('sample_yaml/dataset.yaml') as f:
+            data_yaml = yaml.load(f, Loader=yaml.FullLoader)
+        data_yaml['train'] = str(Path('/shared/common/') / 'datasets' / 'coco128' / 'images' / 'train2017')
+        data_yaml['test'] = str(Path('/shared/common/') / 'datasets' / 'coco128' / 'images' / 'train2017')
+        data_yaml['val'] = str(Path('/shared/common/') / 'datasets' / 'coco128' / 'images' / 'train2017')
+        with open(Path('/shared/common/datasets/') / 'dataset.yaml', 'w') as f:
+            yaml.dump(data_yaml, f, default_flow_style=False)
+        return Response('ready_for_v7_test', status=200, content_type='text/plain')
+    except Exception as e:
+        print(e)
 
 
 def make_directory(path_list):
@@ -250,3 +255,14 @@ def make_directory(path_list):
         path = path / path_temp
         if not os.path.isdir(path):
             os.mkdir(path)
+
+
+def get_process_id():     # Assign Blank Process Number
+    while True:
+        pr_num = str(random.randint(10000, 99999))
+        try:
+            temp = PROCESSES[pr_num]
+        except KeyError:
+            break
+    return pr_num
+
