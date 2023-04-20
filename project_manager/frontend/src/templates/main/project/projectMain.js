@@ -323,12 +323,16 @@ function ProjectMain()
                                     <Kebab index={index} page={'project'} itemID={menu.id} itemName={menu.project_name} deleteItem={delProject} modifyItem={modifyProject} deleteAlter={"프로젝트를"} />
                                     <div className='item_title'>{menu.project_name}</div>
 
-                                    <div id='item_image' className='item_image' style={{backgroundColor:'white', borderRadius:'5px'}}>
+                                    {/* <div id='item_image' className='item_image' style={{backgroundColor:'white', borderRadius:'5px'}}>
                                         { menu.dataset === '' ?
                                             <div className="image_text">Please complete the project creation</div>
                                             :
                                             <img id="dataset_item_image" className="dataset_item_image" src={getDataset_image(menu.dataset)} style={{backgroundColor:'white', borderRadius:'5px', width:'100%', height:'100%'}}/>
                                         }
+                                    </div> */}
+
+                                    <div id='item_image' className='item_image' style={{backgroundColor:'white', borderRadius:'5px'}}>
+                                        <div className="image_text">Please complete the project creation</div>
                                     </div>
 
                                     <div className='item_content' style={{backgroundColor:'white', borderRadius:'5px'}}>{menu.task_type}</div>

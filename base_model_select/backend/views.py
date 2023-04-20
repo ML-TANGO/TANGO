@@ -255,7 +255,7 @@ def get_user_requirements(userid, projid):
 
 def status_report(userid, project_id, status="success"):
     try:
-        url = 'http://localhost:8085/status_report'
+        url = 'http://projectmanager:8085/status_report'
         headers = {
             'Content-Type' : 'text/plain'
         }
