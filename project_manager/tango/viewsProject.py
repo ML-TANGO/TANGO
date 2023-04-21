@@ -92,6 +92,9 @@ def status_report(request):
             print("project-manager : response")
             print(response)
             # response_message += response
+        elif container_id == 'yoloe' and result == 'success':
+            print("yoloe end .. ---- success")
+            response_message += 'yoloe 완료\n'
 
         return HttpResponse(json.dumps({'status': 200}))
 

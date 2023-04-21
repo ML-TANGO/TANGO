@@ -176,18 +176,18 @@ services:
              python manage.py migrate &&
              python manage.py runserver 0.0.0.0:8090"
     # use the below lines commented out if you want to use gpu
-    # deploy:
-    #   resources:
-    #     reservations:
-    #       devices:
-    #         - driver: nvidia
-    #           capabilities:
-    #             - gpu
-    #             - utility
-    #             - compute
-    #             - video
-    # environment:
-    #   - NVIDIA_VISIBLE_DEVICES=all
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              capabilities:
+                - gpu
+                - utility
+                - compute
+                - video
+    environment:
+      - NVIDIA_VISIBLE_DEVICES=all
     volumes:
       - ./autonn/YoloE:/source
       - ../shared:/shared

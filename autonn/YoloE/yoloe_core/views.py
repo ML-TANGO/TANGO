@@ -146,12 +146,12 @@ def get_user_requirements(userid, projid):
 
 def status_report(userid, project_id, status="success"):
     try:
-        url = 'http://localhost:8085/status_report'
+        url = 'http://projectmanager:8085/status_report'
         headers = {
             'Content-Type' : 'text/plain'
         }
         payload = {
-            'container_id' : "yolov7",
+            'container_id' : "yoloe",
             'user_id' : userid,
             'project_id' : project_id,
             'status' : status
@@ -205,7 +205,7 @@ def exp_num_check(proj_path):
     for filename in current_filelist:
         exp_num_list = []
         if 'exp' in filename[:3]:
-            exp_num_list.append(int(filename.split('_')[0][2:]))
+            exp_num_list.append(int(filename.split('_')[0][3:]))
     if len(exp_num_list)==0:
         return 0
     else:
