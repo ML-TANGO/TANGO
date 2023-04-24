@@ -202,8 +202,8 @@ def process_yolo(userid, project_id, data_yaml, proj_yaml):
 
 def exp_num_check(proj_path):
     current_filelist = os.listdir(proj_path)
+    exp_num_list = []
     for filename in current_filelist:
-        exp_num_list = []
         if 'exp' in filename[:3]:
             exp_num_list.append(int(filename.split('_')[0][3:]))
     if len(exp_num_list)==0:
