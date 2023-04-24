@@ -59,7 +59,6 @@ def start(request):
     print(data_yaml, proj_info_yaml)
 	    
     pr = mp.Process(target=task_to_model_mapping, args=(proj_info_yaml, userid, project_id), daemon=True)
-    mp.set_start_method('spawn')
 	     
     pr_id = get_process_id()
     PROCESSES[pr_id] = pr
@@ -176,7 +175,6 @@ def start_api(request):
         print(data_yaml, target_yaml)
                 
         pr = mp.Process(target = queue_bms, args=(userid, project_id))
-        mp.set_start_method('spawn')
         pr_id = get_process_id()
                 
         PROCESSES[pr_id] = pr
