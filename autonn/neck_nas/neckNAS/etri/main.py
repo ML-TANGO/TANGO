@@ -240,7 +240,7 @@ def parse_args():
     args = parser.parse_args()
     return args
 
-def run_nas(proj_path, data=None, target=None, train_mode='search', final_arch=None):
+def run_nas(proj_path, datayaml_path, data=None, target=None, train_mode='search', final_arch=None):
     print("__________run_nas__________________")
     LOGGER.info('run nas start (neck-nas, etri)')
 
@@ -253,10 +253,10 @@ def run_nas(proj_path, data=None, target=None, train_mode='search', final_arch=N
     
     with open(args_yaml, encoding='utf-8') as f:
         args = argparse.Namespace(**yaml.safe_load(f))
-    args.cfg = proj_path / 'basemodel.yaml'
-    args.neck_cfg = proj_path / 'superneck.yaml'
-    args.target = proj_path / 'target.yaml'
-    args.dataset = proj_path / 'coco128.yaml'
+    args.cfg = 'neckNAS/etri/yaml/basemodel.yaml'
+    args.neck_cfg = 'neckNAS/etri/yaml/superneck.yaml'
+    args.target = 'neckNAS/etri/yaml/target.yaml'
+    args.dataset = str(datayaml_path)
 
     if RANK in (-1, 0):
         print_args(vars(args))
@@ -735,7 +735,7 @@ def run_nas(proj_path, data=None, target=None, train_mode='search', final_arch=N
         )
         trainer.fit()
 
-    model_path = './test_model.pt'
+    model_path = './model.pt'
     torch.save(model, model_path)
 
     return model_path

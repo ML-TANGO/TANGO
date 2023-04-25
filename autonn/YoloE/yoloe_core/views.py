@@ -233,7 +233,7 @@ def get_ready_for_test(request):
         proj_path = common_root / userid / project_id
     
         Path(proj_path).mkdir(parents=True, exist_ok=True)
-        Path('/shared/datasets/').mkdir(parents=True, exist_ok=True)
+        Path('/shared/common/datasets/').mkdir(parents=True, exist_ok=True)
     
         shutil.copy('sample_yaml/project_info.yaml', proj_path)
         shutil.copytree('sample_data/coco128',  Path('/shared/common/') / 'datasets' / 'coco128')

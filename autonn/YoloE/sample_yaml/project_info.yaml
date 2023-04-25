@@ -12,7 +12,6 @@ target_serviceport : 5051      # optional, (only applicable for target_info == [
 
 # for autonn
 nas_type : yolov7              # possible enums are 'bb_nas' | 'neck_nas', default 'neck_nas'
-model_size: -w6
 dataset : dataset.yaml         # dataset path info for this project
 basemodel: basemodel.yaml      # base model
 
