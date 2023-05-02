@@ -189,6 +189,7 @@ def process_yolo(userid, project_id, data_yaml, proj_yaml):
         Path(proj_path).mkdir(parents=True, exist_ok=True)
         print(str(best_pt_path))
         shutil.copyfile(final_model, str(best_pt_path))
+        os.remove(final_model)
         print(f'saved the best model: {str(best_pt_path)}')
 
         exp_num = exp_num_check(proj_path)
