@@ -79,6 +79,7 @@ def status_report(request):
         if container_id == 'bms' and result == 'success':
             print("bms end .. ---- success")
             response_message += 'base model select 완료\n'
+            '''
             response_message += 'auto_nn_yolo_e 시작 요청\n'
             url = 'http://yoloe:8090/start'
             headers = {
@@ -91,6 +92,7 @@ def status_report(request):
             response = requests.get(url, headers=headers, params=payload)
             print("project-manager : response")
             print(response)
+            '''
             # response_message += response
         elif container_id == 'yoloe' and result == 'success':
             print("yoloe end .. ---- success")
