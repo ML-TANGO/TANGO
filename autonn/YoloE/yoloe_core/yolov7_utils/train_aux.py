@@ -4,6 +4,7 @@ import math
 import os
 import random
 import time
+import gc
 from copy import deepcopy
 from pathlib import Path
 from threading import Thread
@@ -599,6 +600,16 @@ def run_yolo_aux(proj_path, dataset_yaml_path, data=None, target=None, train_mod
         opt.name = 'evolve' if opt.evolve else opt.name
         opt.save_dir = increment_path(Path(opt.project) / opt.name, exist_ok=opt.exist_ok | opt.evolve)  # increment run
 
+    # Hyperparameters
+    with open(opt.hyp) as f:
+        hyp = yaml.load(f, Loader=yaml.SafeLoader)  # load hyps
+    if opt.batch_size == -1: 
+        model = Model(opt.cfg, ch=3, nc=80, anchors=hyp.get('anchors'))
+        opt.batch_size = get_batch_size_for_gpu(model, max(opt.img_size), amp=True)
+        del model
+        torch.cuda.empty_cache()
+        gc.collect()
+
     # DDP mode
     opt.total_batch_size = opt.batch_size
     device = select_device(opt.device, batch_size=opt.batch_size)
@@ -608,11 +619,7 @@ def run_yolo_aux(proj_path, dataset_yaml_path, data=None, target=None, train_mod
         device = torch.device('cuda', opt.local_rank)
         dist.init_process_group(backend='nccl', init_method='env://')  # distributed backend
         assert opt.batch_size % opt.world_size == 0, '--batch-size must be multiple of CUDA device count'
-        opt.batch_size = opt.total_batch_size // opt.world_size
-
-    # Hyperparameters
-    with open(opt.hyp) as f:
-        hyp = yaml.load(f, Loader=yaml.SafeLoader)  # load hyps
+        opt.total_batch_size = opt.world_size * opt.batch_size
 
     # Train
     logger.info(opt)
