@@ -31,14 +31,16 @@ model_to_size_table = {'yolov7':
                             'T4': '-w6',
                             'Xavier': 'x',
                             'RKNN': '-tiny',
-                            'pc': 'x'
+                            'pc': 'x',
+                            'ondevice': '-tiny'
                            },
                        'resnet':
                           {'cloud': '101',
                            'T4': '50',
                            'Xavier': '24',
                            'RKNN': '18',
-                           'pc':'50'
+                           'pc':'50',
+                           'ondevice': '18'
                           }
                         }
 

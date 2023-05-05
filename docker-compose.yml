@@ -158,7 +158,7 @@ services:
     #   - NVIDIA_VISIBLE_DEVICES=all
     volumes:
       - ./autonn/neck_nas:/source
-      - shared:/shared
+      - ../shared:/shared
       # - /Data:/shared/datasets # for local tests
     ports:
       - "8089:8089"
@@ -191,6 +191,8 @@ services:
     volumes:
       - ./autonn/YoloE:/source
       - ../shared:/shared
+      - ./autonn/YoloE/sample_yaml/dataset.yaml:/shared/common/datasets/dataset.yaml 	# TEMP FILE UNTIL LABELLING MODULE WORKING
+      - ${COCODIR:-./autonn/YoloE/sample_data/coco128}:/shared/common/datasets/coco	# TEMP FILE UNTIL LABELLING MODULE WORKING
     hostname: yoloe
     ports:
       - "8090:8090"
