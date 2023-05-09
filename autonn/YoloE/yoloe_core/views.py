@@ -185,7 +185,7 @@ def process_yolo(userid, project_id, data_yaml, proj_yaml):
         final_model = run_ps(proj_path, str(data_yaml), train_mode='search')
         print('process_yolo: train done')
 
-        best_pt_path = Path(proj_path) / 'model.pt'
+        best_pt_path = Path(proj_path) / 'yoloe.pt'
         Path(proj_path).mkdir(parents=True, exist_ok=True)
         print(str(best_pt_path))
         shutil.copyfile(final_model, str(best_pt_path))
