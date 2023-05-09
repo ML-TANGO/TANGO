@@ -63,16 +63,15 @@ services:
   #---------------------------------
   # Labelling tool 
   #---------------------------------
-  # khlee for temporary comment out
-  # labelling:
-  #    build:
-  #      context: ./labelling
-  #     volumes:
-  #      - ./labelling/dataset:/var/appdata
-  #      - ./labelling/datadb:/var/lib/mysql
-  #    ports:
-  #      - "8086:80"    # for Web UI
-  #      - "8095:10236" # for Rest API 
+  labelling:
+      build:
+      context: ./labelling
+      volumes:
+        - ./labelling/dataset:/var/appdata
+        - ./labelling/datadb:/var/lib/mysql
+      ports:
+        - "8086:80"    # for Web UI
+        - "8095:10236" # for Rest API 
 
   #---------------------------------
   # Base Model Selector
@@ -223,22 +222,22 @@ services:
   #---------------------------------
   # Visualizer 
   #---------------------------------
-  #viz2code:
-  #   build:
-  #    context: ./visualization
-  #  command: >
-  #    sh -c "cd ./visualization/frontend &&
-  #           npm run build &&
-  #           cd ..
-  #           python manage.py makemigrations &&
-  #           python manage.py migrate &&
-  #           python manage.py runserver react 0.0.0.0:8091"
-  #  volumes:
-  #    - ./viz2code:/source
-  #  ports:
-  #    - "8091:8091"
-  #   depends_on:
-  #     - postgresql
+  viz2code:
+    build:
+      context: ./visualization
+    command: >
+      sh -c "cd ./visualization/frontend &&
+             npm run build &&
+             cd ..
+             python manage.py makemigrations &&
+             python manage.py migrate &&
+             python manage.py runserver react 0.0.0.0:8091"
+    volumes:
+      - ./viz2code:/source
+    ports:
+      - "8091:8091"
+    depends_on:
+      - postgresql
 
 #---------------------------------
 # Volumes 
