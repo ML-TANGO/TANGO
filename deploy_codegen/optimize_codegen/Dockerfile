@@ -1,8 +1,8 @@
 FROM python:3.6
 WORKDIR /app
 COPY . /app
-COPY lib/. /app
-COPY lib/libprotobuf.so.10 /lib/x86_64-linux-gnu
+COPY lib2/. /app
+COPY lib2/libprotobuf.so.10 /lib/x86_64-linux-gnu
 COPY db/. /app/db
 COPY db/yolov3.body /app/db
 COPY db/yolov3.head /app/db
