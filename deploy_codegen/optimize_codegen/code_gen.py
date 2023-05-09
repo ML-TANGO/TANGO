@@ -45,7 +45,8 @@ def_rknn_template = "yolov5.template"
 # for TensorRT
 def_trt_converter_file_name = "tensorrt-converter.py"
 def_trt_inference_file_name = "tensorrt-infer-template.py"
-def_trt_calib_cache = "calibration.cache"
+def_trt_myutil_file_name = "./db/myutil.py"
+def_trt_calib_cache = "./db/calibration.cache"
 def_trt_engine = "v7-16.trt"
 def_trt_precision = "fp16" # "int8"
 def_trt_conf_thres = 0.4
@@ -1357,7 +1358,9 @@ class CodeGen:
         fi.close()
         infer_outf.close()
         #copy calib file
-        shutil.copy('./db/calibration.cache', self.m_current_code_folder)
+        shutil.copy(def_trt_myutil_file_name, self.m_current_code_folder)
+        #copy calib file
+        shutil.copy(def_trt_calib_cache, self.m_current_code_folder)
         #copy onnx file
         shutil.copy(self.get_real_filepath(self.m_nninfo_weight_onnx_file),
                 self.m_current_code_folder)

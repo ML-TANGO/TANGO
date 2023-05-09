@@ -63,15 +63,16 @@ services:
   #---------------------------------
   # Labelling tool 
   #---------------------------------
-  labelling:
-    build:
-      context: ./labelling
-    volumes:
-      - ./labelling/dataset:/var/appdata
-      - ./labelling/datadb:/var/lib/mysql
-    ports:
-      - "8086:80"    # for Web UI
-      - "8095:10236" # for Rest API 
+  # khlee for temporary comment out
+  # labelling:
+  #    build:
+  #      context: ./labelling
+  #     volumes:
+  #      - ./labelling/dataset:/var/appdata
+  #      - ./labelling/datadb:/var/lib/mysql
+  #    ports:
+  #      - "8086:80"    # for Web UI
+  #      - "8095:10236" # for Rest API 
 
   #---------------------------------
   # Base Model Selector
@@ -95,7 +96,7 @@ services:
     #   - NVIDIA_VISIBLE_DEVICES=all
     volumes:
       - ./base_model_select:/source
-      - ./shared:/shared
+      - shared:/shared
     ports:
       - "8081:8081"
 
@@ -120,7 +121,7 @@ services:
     #   - NVIDIA_VISIBLE_DEVICES=all
     volumes:
       - ./autonn/backbone_nas:/source
-      - ../shared:/shared
+      - shared:/shared
     ports:
       - "8087:8087"
 
@@ -145,25 +146,38 @@ services:
     #   - NVIDIA_VISIBLE_DEVICES=all
     volumes:
       - ./autonn/neck_nas:/source
-      - ./shared:/shared
+      - shared:/shared
       # - /Data:/shared/datasets # for local tests
     ports:
       - "8089:8089"
 
+      
   #---------------------------------
-  # Target Image Build 
+  # code_gen Build 
+  #---------------------------------
+  code_gen:
+    build:
+      context: ./deploy_codegen/optimize_codegen
+    volumes:
+      - shared:/tango
+    command: >
+      sh -c "cd /app && python3 code_gen.py"
+    ports:
+      - 8888:8888  
+      
+  #---------------------------------
+  # cloud deploy build - Target Image Build 
   #---------------------------------
   target_image_build:
     build:
-      context: ./target_image_build
+      context: ./deploy_targets/cloud/target_image_build
     command: >
       sh -c "python main.py"
     volumes:
-      - ./target_image_build:/source
-      - /var/run/docker.sock:/var/run/docker.sock
+      - ./deploy_targets/cloud/target_image_build:/source
+      - shared:/var/run/docker.sock
     ports:
       - "8088:8088"
-
   #---------------------------------
   # Image Deployment 
   #---------------------------------
@@ -177,28 +191,30 @@ services:
   #     - /var/run/docker.sock:/var/run/docker.sock
   #   ports:
   #     - "8890:8890"
-      
+  
   #---------------------------------
-  # code_gen Build 
-  #---------------------------------
-  code_gen:
+  # k8s deploy Build 
+  #---------------------------------    
+  k8s_deploy:
     build:
-      context: ./deployment/code_gen
+      context: ./deploy_targets/k8s
     volumes:
-      - ./shared:/tango
+      - shared:/tango
     command: >
-      sh -c "cd /app && python3 code_gen.py"
+      sh -c "cd /app && python3 k8s_deploy.py"
     ports:
-      - 8888:8888  
+      - 8901:8901
+
+  
 
   #---------------------------------
-  # ondevice_deploy Build 
+  # ondevice deploy Build 
   #---------------------------------    
   ondevice_deploy:
     build:
-      context: ./deployment/target_deploy/ondevice_deploy
+      context: ./deploy_targets/ondevice
     volumes:
-      - ./shared:/tango
+      - shared:/tango
     command: >
       sh -c "cd /app && python3 ondevice_deploy.py"
     ports:
@@ -207,20 +223,20 @@ services:
   #---------------------------------
   # Visualizer 
   #---------------------------------
-  viz2code:
-    build:
-      context: ./visualization
-    command: >
-      sh -c "cd ./visualization/frontend &&
-             npm run build &&
-             cd ..
-             python manage.py makemigrations &&
-             python manage.py migrate &&
-             python manage.py runserver react 0.0.0.0:8091"
-    volumes:
-      - ./viz2code:/source
-    ports:
-      - "8091:8091"
+  #viz2code:
+  #   build:
+  #    context: ./visualization
+  #  command: >
+  #    sh -c "cd ./visualization/frontend &&
+  #           npm run build &&
+  #           cd ..
+  #           python manage.py makemigrations &&
+  #           python manage.py migrate &&
+  #           python manage.py runserver react 0.0.0.0:8091"
+  #  volumes:
+  #    - ./viz2code:/source
+  #  ports:
+  #    - "8091:8091"
   #   depends_on:
   #     - postgresql
 
