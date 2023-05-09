@@ -60,6 +60,7 @@ def_TVM_height = 640
 def_TVM_data_type = "float16"
 def_TVM_lib_path = "mylib.so"
 def_TVM_code_path = "mycode.bin"
+def_TVM_myutil_file_name = "./db/myutil.py"
 
 
 # defualt values
@@ -1357,7 +1358,7 @@ class CodeGen:
             infer_outf.write(line2)
         fi.close()
         infer_outf.close()
-        #copy calib file
+        #copy util file
         shutil.copy(def_trt_myutil_file_name, self.m_current_code_folder)
         #copy calib file
         shutil.copy(def_trt_calib_cache, self.m_current_code_folder)
@@ -1418,6 +1419,8 @@ class CodeGen:
             infer_outf.write(line2)
         fi.close()
         infer_outf.close()
+        #copy util file
+        shutil.copy(def_TVM_myutil_file_name, self.m_current_code_folder)
         return
 
     ####################################################################
