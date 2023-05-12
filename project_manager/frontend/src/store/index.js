@@ -3,7 +3,6 @@ import Vuex from "vuex";
 
 import userStore from "@/store/modules/user";
 import projectStore from "@/store/modules/project";
-import targetStore from "@/store/modules/target";
 
 Vue.use(Vuex);
 
@@ -20,7 +19,6 @@ export default new Vuex.Store({
   actions: {},
   modules: {
     user: userStore,
-    project: projectStore,
-    target: targetStore
+    project: projectStore
   }
 });
