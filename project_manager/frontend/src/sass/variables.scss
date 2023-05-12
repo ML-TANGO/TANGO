@@ -1,0 +1,37 @@
+@font-face {
+  font-family: "NEXON Lv1 Gothic Low OTF";
+  font-weight: normal;
+  src: url("@/assets/font/NEXON/NEXONLv1GothicOTF.otf") format("opentype");
+}
+
+@font-face {
+  font-family: "NEXON Lv1 Gothic Low OTF";
+  font-weight: bold;
+  src: url("@/assets/font/NEXON/NEXONLv1GothicOTFBold.otf") format("opentype");
+}
+
+$body-font-family: "NEXON Lv1 Gothic Low OTF", serif;
+
+.v-text-field input {
+  font-size: 0.825em;
+}
+
+// v-btn - dark 테마 - disabled 일 경우 색상 변경
+.theme--dark.v-btn.v-btn--disabled.v-btn--has-bg {
+  background-color: #d3d3d3 !important;
+  color: white !important;
+}
+
+.v-btn {
+  text-transform: initial !important;
+  font-family: Arial, Helvetica, sans-serif;
+}
+
+.theme--light.v-banner.v-sheet:not(.v-sheet--outlined):not(.v-sheet--shaped) .v-banner__wrapper {
+  border-bottom: none;
+}
+
+.v-text-field--outlined.v-input--dense .v-label {
+  top: 10px;
+  font-size: 14px;
+}
