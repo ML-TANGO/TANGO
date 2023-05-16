@@ -2,8 +2,11 @@
   <v-app id="app">
     <v-main style="max-height: 100%">
       <div style="width: 100%; height: 100%" class="d-flex">
-        <div v-if="!noSidebar.includes(currentLocation)"></div>
+        <div v-if="!noSidebar.includes(currentLocation)">
+          <LeftSidebar @mini="setMini" />
+        </div>
         <div class="d-flex flex-column" style="width: 100%; height: 100%; position: relative">
+          <TopToolbar />
           <router-view />
         </div>
       </div>
@@ -12,10 +15,13 @@
 </template>
 
 <script>
+import LeftSidebar from "@/modules/common/toolbar/LeftSidebar.vue";
+import TopToolbar from "@/modules/common/toolbar/TopToolbar.vue";
 import { mapState } from "vuex";
 
 export default {
   name: "App",
+  components: { LeftSidebar, TopToolbar },
   data() {
     return {
       noSidebar: ["/login", "/create-account", "/find-password", "/change-password"],
@@ -33,8 +39,6 @@ export default {
   created() {
     const html = document.getElementsByTagName("html");
     html[0].style.overflowY = "hidden";
-
-    console.log("NODE_ENV : ", process.env.NODE_ENV);
   },
 
   methods: {
