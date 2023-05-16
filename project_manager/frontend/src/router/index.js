@@ -30,7 +30,7 @@ const routes = [
     path: "/project",
     name: "projects",
     component: ProjectDashboard
-  }
+  },
   {
     path: "/data",
     name: "datasets",

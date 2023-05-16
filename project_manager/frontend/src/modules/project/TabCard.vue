@@ -50,13 +50,13 @@
             <!-- footer action -->
             <div style="height: 40px; gap: 8px" class="d-flex justify-center align-center">
               <slot name="action">
-                <ProjectCreateDialog :step="step" @stepChange="onStepChange" @close="close">
+                <!-- <ProjectCreateDialog :step="step" @stepChange="onStepChange" @close="close">
                   <template v-slot:btn>
                     <v-btn height="30" style="width: 330px" outlined color="#FF3D54" @click="setupBtn">
                       To Set Up →
                     </v-btn>
                   </template>
-                </ProjectCreateDialog>
+                </ProjectCreateDialog> -->
               </slot>
             </div>
           </div>
@@ -90,11 +90,11 @@
 import { mapMutations } from "vuex";
 import { ProjectNamespace, ProjectMutations } from "@/store/modules/project";
 
-import ProjectCreateDialog from "@/modules/project/ProjectCreateDialog.vue";
+// import ProjectCreateDialog from "@/modules/project/ProjectCreateDialog.vue";
 
 import { deleteProject, getTargetInfo, getDatasetList } from "@/api";
 export default {
-  components: { ProjectCreateDialog },
+  // components: { ProjectCreateDialog },
 
   props: {
     status: {
