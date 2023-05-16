@@ -11,8 +11,9 @@ services:
     command: >
       sh -c "chmod 777 ./wait_for_postgres.sh &&
              ./wait_for_postgres.sh &&
-             python manage.py makemigrations &&
+             python manage.py makemigrations tango&&
              python manage.py migrate &&
+             python manage.py collectstatic --no-input &&
              python manage.py loaddata base_model_data.json &&
              python manage.py runserver 0.0.0.0:8085"
     volumes:

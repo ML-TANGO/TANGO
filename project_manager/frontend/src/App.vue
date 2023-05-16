@@ -33,6 +33,8 @@ export default {
   created() {
     const html = document.getElementsByTagName("html");
     html[0].style.overflowY = "hidden";
+
+    console.log("NODE_ENV : ", process.env.NODE_ENV);
   },
 
   methods: {
