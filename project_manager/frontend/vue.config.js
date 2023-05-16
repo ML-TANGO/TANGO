@@ -3,5 +3,8 @@ module.exports = defineConfig({
   transpileDependencies: ["vuetify"],
   outputDir: "build",
   publicPath: "/",
-  assetsDir: "static"
+  assetsDir: "static",
+  devServer: {
+    allowedHosts: "all"
+  }
 });
