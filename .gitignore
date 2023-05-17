@@ -196,3 +196,6 @@ target_image_build/.python-version
 target_image_build/app/.python-version
 target_image_build/app/bazelrc
 target_image_build/sql_app.db
+
+#project_manager
+!project_manager/frontend/src
