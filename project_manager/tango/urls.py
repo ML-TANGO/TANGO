@@ -47,7 +47,9 @@ urlpatterns = [
     url(r'^target_read', viewsTarget.target_read, name='target_read'),          # 타겟 조회 (리스트)
     url(r'^target_update', viewsTarget.target_update, name='target_update'),    # 타겟 수정
     url(r'^target_delete', viewsTarget.target_delete, name='target_delete'),    # 타겟 삭제
+    url(r'^target_info', viewsTarget.target_info, name='target_info'),    # 타겟 정보 가져오기
 
     url(r'^status_result', viewsProject.status_result, name='status_result'),       # 컨테이너 실행 상태 확인
+    url(r'^status_request', viewsProject.status_request, name='status_request'),       # 컨테이너 실행 상태 확인 요청
 ]
 

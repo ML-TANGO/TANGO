@@ -15,6 +15,7 @@ import threading
 import requests
 
 from datetime import datetime
+import time
 
 import django.middleware.csrf
 from django.http import HttpResponse
@@ -27,9 +28,14 @@ from oauth2_provider.contrib.rest_framework import OAuth2Authentication
 from .models import Project, AuthUser, Target
 
 from django.views.decorators.csrf import csrf_exempt, csrf_protect
+from django.forms.models import model_to_dict
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 root_path = os.path.dirname(os.path.dirname(BASE_DIR))
+
+response_message = ""
+last_logs_timestamp = 0
+last_container = ""
 
 # @permission_classes([IsAuthenticated])                  # 권한 체크 - 로그인 여부
 # @authentication_classes([JSONWebTokenAuthentication])   # 토큰 확인
@@ -37,11 +43,57 @@ root_path = os.path.dirname(os.path.dirname(BASE_DIR))
 
 
 # 컨테이너 상태 결과 응답
+@api_view(['POST'])
+@permission_classes([AllowAny])   # 토큰 확인
+def status_request(request):
+
+    try:
+        print("----------status_request----------")
+        user_id = request.data['user_id']
+        project_id = request.data['project_id']
+        container_id = request.data['container_id']
+
+        ports_by_container = {
+            'bms' : "8081",
+            'yoloe' : "8090",
+        }
+
+        print('user_id : ' + user_id)
+        print('project_id : ' + project_id)
+        print('container_id : ' + container_id)
+
+        url = 'http://'+ str(container_id) +':'+ str(ports_by_container[container_id]) +'/status_request'
+        headers = {
+            'Content-Type' : 'text/plain'
+        }
+        payload = {
+            'user_id' : user_id,
+            'project_id' : project_id,
+        }
+        response = requests.get(url, headers=headers, params=payload)
+
+        print("status-request " + str(container_id) + ' result.....')
+        print(response)
+
+        # queryset = Project.objects.get(id=project_id, create_user=str(user_id))
+        # queryset.container = container_id
+        # queryset.container_status = result
+
+        # queryset.save()
+
+        return HttpResponse(json.dumps({'status': 200}))
+
+    except Exception as error:
+        print(error)
+        return HttpResponse(error)
+
+# 컨테이너 상태 결과 응답
 @api_view(['GET'])
 @permission_classes([AllowAny])   # 토큰 확인
 def status_report(request):
 
     try:
+        global response_message
         # container_list = ['bms',
         #                   'viz2code',
         #                   'autonn',
@@ -60,18 +112,38 @@ def status_report(request):
         project_id = request.GET['project_id']
 
         container_id = request.GET['container_id']
-        result = request.GET['result']
+        result = request.GET['status']
 
         print('user_id : ' + user_id)
         print('project_id : ' + project_id)
         print('container_id : ' + container_id)
-        print('result : ' + result)
+        print('status : ' + result)
 
         queryset = Project.objects.get(id=project_id, create_user=str(user_id))
         queryset.container = container_id
         queryset.container_status = result
 
         queryset.save()
+
+        if container_id == 'bms' and result == 'success':
+            print("bms end .. ---- success")
+            response_message += 'base model select 완료\n'
+            response_message += 'auto_nn_yolo_e 시작 요청\n'
+            url = 'http://yoloe:8090/start'
+            headers = {
+                'Content-Type' : 'text/plain'
+            }
+            payload = {
+                'user_id' : user_id,
+                'project_id' : project_id,
+            }
+            response = requests.get(url, headers=headers, params=payload)
+            print("project-manager : response")
+            print(response)
+            response_message += response
+        elif container_id == 'yoloe' and result == 'success':
+            print("yoloe end .. ---- success")
+            response_message += 'yoloe 완료\n'
 
         return HttpResponse(json.dumps({'status': 200}))
 
@@ -94,15 +166,70 @@ def status_result(request):
         _type_: _description_
     """
 
+    global response_message
+    global last_logs_timestamp
+    global last_container
+
     try:
         project_id = request.data['project_id']
         queryset = Project.objects.get(id=project_id, create_user=str(request.user))
 
-        print(queryset.container)
-        print(queryset.container_status)
+        containerName = ''
+        if queryset.container == 'init' :
+            containerName = 'bms'
+        elif queryset.container == 'bms' :
+            containerName = 'autonn_yoloe'
+        elif queryset.container == 'yoloe' :
+            containerName = 'autonn_yoloe'
+        elif queryset.container == 'labelling' :
+            containerName = 'labelling'
+        elif queryset.container == 'autonn_bb' :
+            containerName = 'autonn_bb'
+        elif queryset.container == 'autonn_nk' :
+            containerName = 'autonn_nk'
+        else :
+            containerName = 'bms'
+
+        # print(last_container != containerName)
+        if last_container != containerName :
+            last_logs_timestamp = 0
+
+        # print(queryset.container)
+        # print(queryset.container_status)
+        
+        # print(datetime.now())
+
+        # print("last_logs_timestamp")
+        # print(last_logs_timestamp)
+
+        # if last_logs_timestamp == 0:
+        #     # print('docker logs --tail= ' + 'all' + ' -t tango-' + str(containerName) + '-1')
+        #     logs = os.popen('docker logs --tail=' + 'all' + ' -t tango-' + str(containerName) + '-1')
+        # else :
+        #     logs = os.popen('docker logs --since '+ str(last_logs_timestamp) + ' -t tango-' + str(containerName) + '-1')
+        # print('docker logs --since '+ str(int(last_logs_timestamp)) + ' -t tango-' + str(containerName) + '-1')
+        last_logs_timestamp = time.mktime(datetime.now().timetuple())
+        last_container = containerName
+        # print(last_logs_timestamp)
+        # print(last_container)
+
+        # dockerLogs = logs.read()
+        # print("dockerLogs")
+        # print("")
+        # print("")
+        # print(str(dockerLogs))
+        # print("m = response_message +  + str(dockerLogs)")
+        # m = response_message + '\n' + str(logs.read())
+        m = response_message
+        response_message = ''
+        # print("============================")
+        # print("============================")
+        # print("============================")
+        # print("============================")
 
         return HttpResponse(json.dumps({'container': queryset.container,
-                                        'container_status': queryset.container_status}))
+                                        'container_status': queryset.container_status,
+                                        'message': m,}))
 
     except Exception as e:
         print(e)
@@ -125,6 +252,13 @@ def project_list_get(request):
     try:
         queryset = Project.objects.filter(create_user=str(request.user))
         data = list(queryset.values())
+
+        print("project_list_info")
+        print(data)
+       
+        for project in data: 
+            if project['target_id'] is not None:
+                project['target_info'] = model_to_dict(Target.objects.get(id=int(project['target_id'])))
 
         return HttpResponse(json.dumps(data))
 
@@ -271,63 +405,73 @@ def project_info(request):
     Returns:
         _type_: _description_
     """
+    try:
+        queryset = Project.objects.filter(id=request.data['id'],
+                                        create_user=request.user)  # Project id로 검색
+        data = list(queryset.values())
 
-    queryset = Project.objects.filter(id=request.data['id'],
-                                      create_user=request.user)  # Project id로 검색
-    data = list(queryset.values())
+        print("project_info ===> ")
+        print(data[0])
 
-    # TODO : 타겟이 0이 아닌 경우 SW 정보 전달
-    if data[0]['target'] is not None:
-        print('타겟 정보 있음')
-        print(data[0]['target'])
+        # TODO : 타겟이 0이 아닌 경우 SW 정보 전달
+        if data[0]['target_id'] is not None:
+            print('타겟 정보 있음')
+            print(data[0]['target_id'])
 
-        # select_target = {
-        #     1: 'rk3399pro',
-        #     2: 'jetsonnano',
-        #     3: 'x86-cuda',
-        #     4: 'gcp',
-        # }
+            # select_target = {
+            #     1: 'rk3399pro',
+            #     2: 'jetsonnano',
+            #     3: 'x86-cuda',
+            #     4: 'gcp',
+            # }
 
-        # 타겟 정보
-        base_dir = os.path.dirname(os.path.abspath(os.path.dirname(__file__)))
-        # target_sw_path = os.path.join(base_dir, 'data/targets/' + data[0]['target'] + '/SW/sw_info.json')
-        #
-        # f = open(target_sw_path, 'r')
-        # target_sw_info = json.load(f)
+            # 타겟 정보
+            base_dir = os.path.dirname(os.path.abspath(os.path.dirname(__file__)))
+            # target_sw_path = os.path.join(base_dir, 'data/targets/' + data[0]['target'] + '/SW/sw_info.json')
+            #
+            # f = open(target_sw_path, 'r')
+            # target_sw_info = json.load(f)
 
-        # 데이터 셋 리스트 정보
-        dataset_path = os.path.join(base_dir, 'data/datasets/')
-        dataset_list = os.listdir(dataset_path)
-        dataset_list_dic = {"dataset_list": dataset_list}
+            # 데이터 셋 리스트 정보
+            dataset_path = os.path.join(base_dir, 'data/datasets/')
+            dataset_list = os.listdir(dataset_path)
+            dataset_list_dic = {"dataset_list": dataset_list}
 
-        # 타겟 리스트 정보
-        target_path = os.path.join(base_dir, 'data/targets/')
-        target_list = os.listdir(target_path)
-        target_list_dic = {"target_list": target_list}
+            # 타겟 리스트 정보
+            target_path = os.path.join(base_dir, 'data/targets/')
+            target_list = os.listdir(target_path)
+            target_list_dic = {"target_list": target_list}
 
-        # Dictionary 정보 합치기
-        # result = dict(data[0], **target_sw_info, **dataset_list_dic, **target_list_dic)
-        result = dict(data[0], **dataset_list_dic, **target_list_dic)
+            target_info = model_to_dict(Target.objects.get(id=int(data[0]['target_id'])))
+            target_info_dic = {"target_info": target_info}
 
-        return Response(result)
+            # Dictionary 정보 합치기
+            # result = dict(data[0], **target_sw_info, **dataset_list_dic, **target_list_dic)
+            result = dict(data[0], **dataset_list_dic, **target_list_dic, **target_info_dic)
 
-    else:
+            return Response(result)
 
-        # 데이터 셋 리스트 정보
-        base_dir = os.path.dirname(os.path.abspath(os.path.dirname(__file__)))
-        dataset_path = os.path.join(base_dir, 'data/datasets/')
-        dataset_list = os.listdir(dataset_path)
-        dataset_list_dic = {"dataset_list": dataset_list}
+        else:
 
-        # 타겟 리스트 정보
-        target_path = os.path.join(base_dir, 'data/targets/')
-        target_list = os.listdir(target_path)
-        target_list_dic = {"target_list": target_list}
+            # 데이터 셋 리스트 정보
+            base_dir = os.path.dirname(os.path.abspath(os.path.dirname(__file__)))
+            dataset_path = os.path.join(base_dir, 'data/datasets/')
+            dataset_list = os.listdir(dataset_path)
+            dataset_list_dic = {"dataset_list": dataset_list}
 
-        # 딕셔너리 정보 합치기
-        result = dict(data[0], **dataset_list_dic, **target_list_dic)
+            # 타겟 리스트 정보
+            target_path = os.path.join(base_dir, 'data/targets/')
+            target_list = os.listdir(target_path)
+            target_list_dic = {"target_list": target_list}
 
-        return Response(result)
+
+            # 딕셔너리 정보 합치기
+            result = dict(data[0], **dataset_list_dic, **target_list_dic)
+
+            return Response(result)
+    except Exception as e:
+        print('error - project_info-=============')
+        print(e)
 
 
 # Project 업데이트
@@ -348,11 +492,18 @@ def project_update(request):
     try:
 
         print(request.data)
+        
+        target = ''
 
-        target = str(request.data['project_target'])
+        try:
+            target = int(request.data['project_target']) 
+        except:
+            target = ''
+        
         dataset = str(request.data['project_dataset'])
 
-        task_type = str(request.data['task_type'])
+        # task_type = str(request.data['task_type'])
+        task_type = 'detection'
         autonn_dataset_file = str(request.data['autonn_dataset_file'])
         autonn_basemodel = str(request.data['autonn_base_model'])
         nas_type = str(request.data['nas_type'])
@@ -367,11 +518,36 @@ def project_update(request):
         queryset = Project.objects.get(id=request.data['project_id'],
                                        create_user=request.user)
 
+        print('queryset')
+        print(queryset)
+
+        if target == '':
+            # queryset.target = target
+            queryset.dataset = dataset
+            queryset.task_type = task_type
+            queryset.autonn_dataset_file = autonn_dataset_file
+            queryset.autonn_basemodel = autonn_basemodel
+            queryset.nas_type = nas_type
+            queryset.deploy_weight_level = deploy_weight_level
+            queryset.deploy_precision_level = deploy_precision_level
+            queryset.deploy_processing_lib = deploy_processing_lib
+            queryset.deploy_user_edit = deploy_user_edit
+            queryset.deploy_input_method = deploy_input_method
+            queryset.deploy_input_data_path = deploy_input_data_path
+            queryset.deploy_output_method = deploy_output_method
+            queryset.container = ''
+            queryset.container_status = ''
+
+            queryset.save()
+            return Response(status=200)
+
         # 타겟 정보 수신
         data = Target.objects.get(id=int(target))
+        print("target - data")
+        print(data.target_info)
         if data.target_info != 'ondevice':
 
-            queryset.target = target
+            queryset.target = Target.objects.get(id=int(target))
             queryset.dataset = dataset
             queryset.task_type = task_type
             queryset.autonn_dataset_file = autonn_dataset_file
@@ -389,7 +565,7 @@ def project_update(request):
 
             queryset.save()
         else:
-            queryset.target = target
+            queryset.target = Target.objects.get(id=int(target))
             queryset.dataset = dataset
             queryset.task_type = task_type
             queryset.autonn_dataset_file = autonn_dataset_file
@@ -406,7 +582,6 @@ def project_update(request):
             queryset.container_status = ''
 
             queryset.save()
-
 
         project_info_content = ""
         if data.target_info != 'ondevice':
@@ -478,7 +653,7 @@ def project_update(request):
                                     "# input_data_location : {17}\n" \
                                     "# output_method : {18}\n" \
                                     "# user_editing : {19}\n".format(task_type,
-                                                                     data.target_info,
+                                                                     'on_device',
                                                                      data.target_cpu,
                                                                      data.target_acc,
                                                                      data.target_memory,
@@ -498,12 +673,14 @@ def project_update(request):
                                                                      deploy_output_method,
                                                                      deploy_user_edit)
 
+        print('project_info_content')
         print(project_info_content)
 
         # project_info.yaml 파일 생성
         common_path = os.path.join(root_path, "shared/common/{0}/{1}".format(str(request.user),
                                                                              str(request.data['project_id'])))
 
+        print('common_path')
         print(common_path)
 
         # 디렉토리 유뮤 확인
@@ -517,6 +694,7 @@ def project_update(request):
         return Response(status=200)
 
     except Exception as e:
+        print('error')
         print(e)
 
 
