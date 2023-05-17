@@ -5,7 +5,13 @@
         <div v-if="!noSidebar.includes(currentLocation)">
           <LeftSidebar @mini="setMini" />
         </div>
-        <div class="d-flex flex-column" style="width: 100%; height: 100%; position: relative">
+        <div
+          class="d-flex flex-column side-transition"
+          style="height: 100%; position: relative"
+          :style="{
+            width: noSidebar.includes(currentLocation) ? '100%' : mini ? 'calc(100% - 90px)' : 'calc(100% - 250px)'
+          }"
+        >
           <TopToolbar />
           <router-view />
         </div>
@@ -71,5 +77,13 @@ body {
 
 *::-webkit-scrollbar-track {
   background-color: transparent; /* 배경 색상 */
+}
+</style>
+
+<style lang="scss" scoped>
+.side-transition {
+  transition-duration: 0.2s !important;
+  transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1) !important;
+  transition-property: transform, visibility, width, all !important;
 }
 </style>
