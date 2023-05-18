@@ -18,7 +18,7 @@ services:
              python manage.py runserver 0.0.0.0:8085"
     volumes:
       - ./project_manager:/code
-      - ../shared:/shared
+      - shared:/shared
     hostname: projectmanager
     ports:
       - "8085:8085"
@@ -48,7 +48,6 @@ services:
   mariadb:
       container_name: "mariadb"
       image: mariadb:10
-      restart: always
       ports:
         - 3306:3306
       volumes:
@@ -96,7 +95,7 @@ services:
     #   - NVIDIA_VISIBLE_DEVICES=all
     volumes:
       - ./base_model_select:/source
-      - ../shared:/shared
+      - shared:/shared
     ports:
       - "8081:8081"
 
@@ -127,7 +126,7 @@ services:
     #   - NVIDIA_VISIBLE_DEVICES=all
     volumes:
       - ./autonn/backbone_nas:/source
-      - ../shared:/shared
+      - shared:/shared
     ports:
       - "8087:8087"
 
@@ -158,7 +157,7 @@ services:
     #   - NVIDIA_VISIBLE_DEVICES=all
     volumes:
       - ./autonn/neck_nas:/source
-      - ../shared:/shared
+      - shared:/shared
       # - /Data:/shared/datasets # for local tests
     ports:
       - "8089:8089"
@@ -190,7 +189,7 @@ services:
       - NVIDIA_VISIBLE_DEVICES=all
     volumes:
       - ./autonn/YoloE:/source
-      - ../shared:/shared
+      - shared:/shared
       - ./autonn/YoloE/sample_yaml/dataset.yaml:/shared/common/datasets/dataset.yaml 	# TEMP FILE UNTIL LABELLING MODULE WORKING
       - ${COCODIR:-./autonn/YoloE/sample_data/coco128}:/shared/common/datasets/coco	# TEMP FILE UNTIL LABELLING MODULE WORKING
     hostname: yoloe
@@ -232,7 +231,7 @@ services:
     build:
       context: ./deployment/code_gen
     volumes:
-      - ./shared:/tango
+      - shared:/tango
     command: >
       sh -c "cd /app && python3 code_gen.py"
     ports:
@@ -245,7 +244,7 @@ services:
     build:
       context: ./deployment/target_deploy/ondevice_deploy
     volumes:
-      - ./shared:/tango
+      - shared:/tango
     command: >
       sh -c "cd /app && python3 ondevice_deploy.py"
     ports:
