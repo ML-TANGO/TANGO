@@ -139,7 +139,20 @@ def get_user_requirements(userid, projid):
     common_root = Path('/shared/common/')
     proj_path = common_root / userid / projid
     proj_yaml_path = proj_path / 'project_info.yaml' # 'target.yaml'
-    dataset_yaml_path = Path('/shared/common/datasets/') / 'dataset.yaml'
+
+    ##### Previous Code #####
+    # dataset_yaml_path = Path('/shared/datasets/') / 'dataset.yaml'
+
+    ##### Changed Code #####
+    with open(proj_yaml_path, 'r') as f:
+        proj_info = yaml.safe_load(f)
+    dataset_on_proj = proj_info['dataset']
+    if os.path.isdir('/shared/datasets/' + dataset_on_proj):
+        dataset_yaml_path = Path('/shared/datasets/') / dataset_on_proj / 'dataset.yaml'
+    else:
+        print(f'There is no /shared/datasets/{dataset_on_proj}. Instead COCO dataset will be used.')
+        dataset_yaml_path = Path('/shared/datasets/coco/') / 'dataset.yaml'
+
     return dataset_yaml_path, proj_yaml_path
 
 
@@ -227,16 +240,16 @@ def get_ready_for_test(request):
         proj_path = common_root / userid / project_id
     
         Path(proj_path).mkdir(parents=True, exist_ok=True)
-        Path('/shared/common/datasets/').mkdir(parents=True, exist_ok=True)
+        Path('/shared/datasets/').mkdir(parents=True, exist_ok=True)
     
         shutil.copy('sample_yaml/project_info.yaml', proj_path)
-        shutil.copytree('sample_data/coco128',  Path('/shared/common/') / 'datasets' / 'coco128')
+        shutil.copytree('sample_data/coco128',  Path('/shared/') / 'datasets' / 'coco')
         with open('sample_yaml/dataset.yaml') as f:
             data_yaml = yaml.load(f, Loader=yaml.FullLoader)
-        data_yaml['train'] = str(Path('/shared/common/') / 'datasets' / 'coco128' / 'images' / 'train2017')
-        data_yaml['test'] = str(Path('/shared/common/') / 'datasets' / 'coco128' / 'images' / 'train2017')
-        data_yaml['val'] = str(Path('/shared/common/') / 'datasets' / 'coco128' / 'images' / 'train2017')
-        with open(Path('/shared/common/datasets/') / 'dataset.yaml', 'w') as f:
+        data_yaml['train'] = str(Path('/shared/') / 'datasets' / 'coco' / 'images' / 'train2017')
+        data_yaml['test'] = str(Path('/shared/') / 'datasets' / 'coco' / 'images' / 'train2017')
+        data_yaml['val'] = str(Path('/shared/') / 'datasets' / 'coco' / 'images' / 'train2017')
+        with open(Path('/shared/datasets/coco/') / 'dataset.yaml', 'w') as f:
             yaml.dump(data_yaml, f, default_flow_style=False)
         return Response('ready_for_neck_nas_test', status=200, content_type='text/plain')
     except Exception as e:
