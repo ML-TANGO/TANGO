@@ -49,7 +49,7 @@ export default {
   },
 
   methods: {
-    ...mapMutations(["setLoding"]),
+    ...mapMutations(["setLoading"]),
     status(info) {
       console.log("info", info);
 

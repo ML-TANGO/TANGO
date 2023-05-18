@@ -3,6 +3,7 @@ import Vuex from "vuex";
 
 import userStore from "@/store/modules/user";
 import projectStore from "@/store/modules/project";
+import targetStore from "@/store/modules/targetStore";
 
 Vue.use(Vuex);
 
@@ -12,13 +13,14 @@ export default new Vuex.Store({
   },
   getters: {},
   mutations: {
-    setLoding(state, payload) {
+    setLoading(state, payload) {
       state.loading = payload;
     }
   },
   actions: {},
   modules: {
     user: userStore,
-    project: projectStore
+    project: projectStore,
+    target: targetStore
   }
 });

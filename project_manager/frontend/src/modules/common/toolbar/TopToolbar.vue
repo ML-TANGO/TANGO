@@ -18,15 +18,18 @@
       <v-menu bottom offset-y :rounded="'lg'" :nudge-bottom="15" :nudge-left="30">
         <template v-slot:activator="{ on, attrs }">
           <div v-bind="attrs" v-on="on">
-            <div style="font-size: 16px; color: black; text-align: start">
+            <!-- <div style="font-size: 16px; color: black; text-align: start">
               <div class="font-weight-bold;" style="font-size: 13px">gmlee</div>
               <div style="font-size: 11px; color: #ccc">gmlee@teslasystem.co.kr</div>
-            </div>
+            </div> -->
+            <v-btn icon>
+              <v-icon>mdi-menu</v-icon>
+            </v-btn>
           </div>
         </template>
 
         <v-list dense style="width: 200px" class="px-3">
-          <v-list-item @click="logout">
+          <v-list-item>
             <v-list-item-icon>
               <v-icon color="black">mdi-cog</v-icon>
             </v-list-item-icon>
@@ -70,7 +73,7 @@ export default {
 <style lang="scss" scoped>
 .top-layout {
   display: grid;
-  grid-template-columns: auto 60px 200px;
+  grid-template-columns: auto 60px 60px;
   align-items: center;
 }
 </style>

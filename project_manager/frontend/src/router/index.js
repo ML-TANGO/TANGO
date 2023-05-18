@@ -1,11 +1,13 @@
 import Vue from "vue";
 import VueRouter from "vue-router";
 import ProjectDashboard from "@/pages/ProjectDashboard.vue";
+// import ProjectDetail from "@/pages/ProjectDetail.vue";
 import LoginPage from "@/pages/LoginPage.vue";
 import CreatAccountPage from "@/pages/CreateAccountPage.vue";
 import NotFoundPage from "@/pages/NotFoundPage.vue";
 import VisualizationPage from "@/pages/VisualizationPage.vue";
 import DataManagement from "@/pages/DataManagement.vue";
+import TargetManagement from "@/pages/TargetManagement.vue";
 
 import Cookies from "universal-cookie";
 
@@ -30,6 +32,16 @@ const routes = [
     path: "/project",
     name: "projects",
     component: ProjectDashboard
+  },
+  // {
+  //   path: "/project/:id",
+  //   name: "ProjectDetail",
+  //   component: <div></div> //ProjectDetail
+  // },
+  {
+    path: "/target",
+    name: "targets",
+    component: TargetManagement
   },
   {
     path: "/data",

@@ -31,7 +31,7 @@ export default {
   data() {
     return {
       noSidebar: ["/login", "/create-account", "/find-password", "/change-password"],
-      mini: true
+      mini: false
     };
   },
 
