@@ -13,6 +13,7 @@ from rest_framework.response import Response
 from rest_framework.decorators import api_view
 from pathlib import Path
 from distutils.dir_util import copy_tree
+import argparse
 
 from .yolov7_utils.train import run_yolo
 from .yolov7_utils.train_aux import run_yolo_aux
@@ -190,6 +191,7 @@ def process_yolo(userid, project_id, data_yaml, proj_yaml):
 
         with open(proj_yaml, 'r') as f:
             proj_info = yaml.safe_load(f)
+        print(proj_info)
 
         large_env = ['cloud', 'T4']
         if proj_info['target_info'] in large_env:
@@ -208,6 +210,9 @@ def process_yolo(userid, project_id, data_yaml, proj_yaml):
         
         # by jykwak
         src_root = Path('/source/yoloe_core/yolov7_utils/')
+        with open(src_root / 'args.yaml', encoding='utf-8') as f:
+            opt = argparse.Namespace(**yaml.safe_load(f))
+        input_shape = opt.img_size
         src_yaml_root = Path('/source/sample_yaml/')
         src_info_path = src_yaml_root / 'neural_net_info.yaml'
         from_py_modelfolder_path = src_root / 'models'
@@ -221,7 +226,8 @@ def process_yolo(userid, project_id, data_yaml, proj_yaml):
         copy_tree(str(from_py_utilfolder_path), str(to_py_utilfolder_path))
         # print(str(to_py_modelfolder_path))
         # print(str(to_py_utilfolder_path))
-        create_nn_info(src_info_path, final_info_path, best_pt_path)
+        create_nn_info(src_info_path, final_info_path, best_pt_path, input_shape)
+        # create_nn_info(src_info_path, final_info_path, "", input_shape)
         # print(str(final_info_path))                
 
         exp_num = exp_num_check(proj_path)
@@ -236,7 +242,8 @@ def process_yolo(userid, project_id, data_yaml, proj_yaml):
 def create_nn_info(
                 src_info_path,
                 final_info_path,
-                final_pt_path):
+                final_pt_path, 
+                input_shape):
     with open(src_info_path) as f:
         nn_yaml = yaml.load(f, Loader=yaml.FullLoader)
         # nn_yaml = yaml.safe_load(f)
@@ -247,34 +254,20 @@ def create_nn_info(
     for k in nn_yaml.keys():
         # print(k)
         # print(nn_yaml[k])
-        nn_info[str(k)] = str(nn_yaml[k])
+        if type(nn_yaml[k]) == str:
+            nn_info[str(k)] = str(nn_yaml[k])
+        else:
+            nn_info[str(k)] = nn_yaml[k]
     nn_info['class_file'] = final_py_list
-    nn_info['class_name'] = str("Model()")
+    nn_info['class_name'] = str("Model(cfg='basemodel.yaml')")
     nn_info['weight_file']= str("yoloe.pt")
-    nn_info['input_tensor_shape'] = str([1, 3, 640, 640])
+    # nn_info['input_tensor_shape'] = [1, 3, 640, 640]
+    print(input_shape)
+    nn_info['input_tensor_shape'] = [1, 3, input_shape[0], input_shape[1]]
     # print(nn_info)  
 
     with open(final_info_path, 'w') as file:
-        yaml.dump(nn_info, file, default_flow_style=False)     
-
-
-def create_bb_info(
-                final_info_path,
-                final_pt_path,
-                final_py_path,
-                arch):
-    nn_info = {
-        "target device": "Android S10",
-        "Application": "Object Detection",
-        'class_file': str(final_py_path),
-        'class_name': "BestModel()",
-        "architecture": json.dumps(arch),
-        'weight_file': str(final_pt_path),
-        "input_shape": str([1, 3, 224, 224]),
-    }
-
-    with open(final_info_path, 'w') as file:
-        yaml.dump(nn_info, file, default_flow_style=False)
+        yaml.dump(nn_info, file, default_flow_style=False)   
 
 def exp_num_check(proj_path):
     current_filelist = os.listdir(proj_path)

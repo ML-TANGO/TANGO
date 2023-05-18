@@ -3,7 +3,7 @@
 
 # NN Model
 class_file: ['models/yolo.py', 'basemodel.yaml', 'models/common.py', 'models/experimental.py', 'utils/autoanchor.py', 'utils/datasets.py', 'utils/general.py', 'utils/torch_utils.py', 'utils/loss.py', 'utils/metrics.py', 'utils/plots.py']
-class_name: 'Model()'
+class_name: Model(cfg='basemodel.yaml')
 weight_file: yoloe.pt
 
 
@@ -18,12 +18,11 @@ anchors:
 
 
 # Output
-output_format_allow_list: True # mutiple detection per image
 output_number: 3 # number of output layers (ex. 3-floor pyramid; P3, P4, P5)
 output_size: # [batch_size, anchors, pred, height, width]
-  [[1, 3, 85, 20, 20],
-   [1, 3, 85, 40, 40],
-   [1, 3, 85, 80, 80],
+  [[1, 3, 20, 20, 85],
+   [1, 3, 40, 40, 85],
+   [1, 3, 80, 80, 85],
   ]
 output_pred_format: # 85 = 4(coordinate) + 1(confidence score) + 80(probablity of classes)
   ['x', 'y', 'w', 'h', 'confidence', 'probability_of_classes']
@@ -32,4 +31,3 @@ output_pred_format: # 85 = 4(coordinate) + 1(confidence score) + 80(probablity o
 # Post-processing
 conf_thres: 0.25 # for NMS
 iou_thres: 0.45 # for NMS
-need_nms: True # need to add non-maximum suppression(NMS) codes
