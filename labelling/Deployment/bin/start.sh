@@ -46,3 +46,4 @@ service nginx start
 # server start
 cd ../Server
 NODE_ENV=production node ./dist/index.js
+

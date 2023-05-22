@@ -1,5 +1,6 @@
 FROM python:3.10
 USER root
+ENV PIP_DEFAULT_TIMEOUT=1000
 WORKDIR /souce
 COPY requirements.txt ./
 RUN python3 --version
@@ -23,6 +24,8 @@ RUN apt-get update && apt-get upgrade -y && \
     apt-get install -y nodejs \
     npm                       # note this one
 RUN apt-get install -y postgresql postgresql-contrib
+RUN npm config set fetch-retry-mintimeout 3000000
+RUN npm config set fetch-retry-maxtimeout 18000000
 RUN npm install pnpm -g
 RUN npm install
 WORKDIR /souce/frontend

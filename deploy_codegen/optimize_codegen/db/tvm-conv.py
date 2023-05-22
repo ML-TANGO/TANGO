@@ -25,13 +25,13 @@ def_TVM_width = 224
 def_TVM_height = 224 
 def_TVM_lib_path = "mylib.so"
 def_TVM_code_path = "mycode.bin"
-def_TVM_model_path = "nn_model.onnx"
+def_TVM_model_path = model_path
 
 class TVMConverter:
-    self.dev_type = def_TVM_dev_type
-    self.data_type = def_TVM_data_type
-    self.width = def_TVM_width  
-    self.height = def_TVM_height  
+    dev_type = def_TVM_dev_type
+    data_type = 0
+    width = def_TVM_width  
+    height = def_TVM_height  
 
     def run(self, dev_type=def_TVM_dev_type, 
             model_path=def_TVM_model_path, 
@@ -46,8 +46,7 @@ class TVMConverter:
                 if (d.HasField("dim_value")):
                     tmp_list.append(d.dim_value)
             i_shape = tuple(tmp_list)
-            (self.width, self.height) = i_shape 
-            print(i_shape)
+            (x_, y_, self.width, self.height) = i_shape 
         else:
             i_shape = (1, 1, 224, 224)
 

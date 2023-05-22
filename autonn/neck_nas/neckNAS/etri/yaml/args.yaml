@@ -5,7 +5,7 @@ target: 'neckNAS/etri/yaml/target.yaml'       # target
 dataset: 'neckNAS/etri/yaml/coco128.yaml'     # dataset
 train_mode: 'search'                          # ['search', 'retrain']
 nas_type: 'ConcatEntirePath'                  # ['ConcatBasedNet', 'ConcatEntirePath', 'Yolov5Trainer']
-search_type: 'two_stage'                      # ['one_stage', 'two_stage']
+search_type: 'one_stage'                      # ['one_stage', 'two_stage']
 weights: ''                                   # pre-trained weights
 hyp: 'neckNAS/etri/yaml/hyp.scratch-low.yaml' # hyper-parameter
 epochs: 300                                   # total epochs
@@ -39,6 +39,6 @@ local_rank: -1                                # ddp parameter
 checkpoint_path: ''                           # path to save ckpt (.pt)
 arch_path: ''                                 # path to save network architecture (.yaml)
 no_warmup: False                              # train without warmup at the begining
-log_frequency: 10                             # save logs every x epochs
+log_freq: 10                                  # save logs every x epochs
 arch_lr: 0.001                                # learning rate for architecture parameters
 exported_arch_path: ''                        # path to the best architecture

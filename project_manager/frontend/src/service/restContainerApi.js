@@ -8,6 +8,12 @@ export function requestContainerStart(container, uid, pid)
     let port = "";
     switch(container)
     {
+        case 'yolo_e':
+            port = '8090'
+            break;
+        case 'labelling':
+            port = "8095"
+            break;
         case 'bms':
             port = "8081";
             break;
