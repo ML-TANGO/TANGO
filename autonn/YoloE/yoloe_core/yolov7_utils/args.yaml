@@ -3,8 +3,8 @@ weights: ''
 cfg: ''
 data: ''
 hyp: ''
-epochs: 1
-batch_size: 16
+epochs: 10
+batch_size: -1
 img_size: [640, 640]
 rect: False
 resume: False
@@ -15,7 +15,7 @@ evolve: False
 bucket: ''
 cache_images: False
 image_weights: False
-device: 0, 1
+device: ''
 multi_scale: False
 single_cls: False
 adam: False

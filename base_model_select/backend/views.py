@@ -30,13 +30,17 @@ model_to_size_table = {'yolov7':
                           {'cloud': '-e6e',
                             'T4': '-w6',
                             'Xavier': 'x',
-                            'RKNN': '-tiny'
+                            'RKNN': '-tiny',
+                            'pc': 'x',
+                            'ondevice': '-tiny'
                            },
                        'resnet':
                           {'cloud': '101',
                            'T4': '50',
                            'Xavier': '24',
-                           'RKNN': '18'
+                           'RKNN': '18',
+                           'pc':'50',
+                           'ondevice': '18'
                           }
                         }
 
@@ -59,7 +63,6 @@ def start(request):
     print(data_yaml, proj_info_yaml)
 	    
     pr = mp.Process(target=task_to_model_mapping, args=(proj_info_yaml, userid, project_id), daemon=True)
-    mp.set_start_method('spawn')
 	     
     pr_id = get_process_id()
     PROCESSES[pr_id] = pr
@@ -123,25 +126,25 @@ def sample_proj_yaml_cp(userid, project_id):
 
 
 def sample_data_cp():
-    if not os.path.exists('/shared/common/datasets/'):
-        Path('/shared/common/datasets/').mkdir(parents=True, exist_ok=True)
-    shutil.copytree('sample_data/coco128',  Path('/shared/common/') / 'datasets' / 'coco128')
+    if not os.path.exists('/shared/datasets/'):
+        Path('/shared/datasets/').mkdir(parents=True, exist_ok=True)
+    shutil.copytree('sample_data/coco128',  Path('/shared/') / 'datasets' / 'coco')
 
 
 def create_data_yaml(userid, project_id):
     common_path = Path('/shared/common/')
     proj_path = common_path / userid / project_id
-    if not os.path.exists('/shared/common/datasets/'):
-        Path('/shared/common/datasets/').mkdir(parents=True, exist_ok=True)
+    if not os.path.exists('/shared/datasets/'):
+        Path('/shared/datasets/').mkdir(parents=True, exist_ok=True)
 
     with open('sample_yaml/dataset.yaml') as f:
         data_yaml = yaml.load(f, Loader=yaml.FullLoader)
     
-    data_yaml['train'] = str(Path('/shared/common/') / 'datasets' / 'coco128' / 'images' / 'train2017')
-    data_yaml['test'] = str(Path('/shared/common/') / 'datasets' / 'coco128' / 'images' / 'train2017')
-    data_yaml['val'] = str(Path('/shared/common/') / 'datasets' / 'coco128' / 'images' / 'train2017')
+    data_yaml['train'] = str(Path('/shared/') / 'datasets' / 'coco128' / 'images' / 'train2017')
+    data_yaml['test'] = str(Path('/shared/') / 'datasets' / 'coco128' / 'images' / 'train2017')
+    data_yaml['val'] = str(Path('/shared/') / 'datasets' / 'coco128' / 'images' / 'train2017')
     
-    with open(Path('/shared/common/datasets/') / 'dataset.yaml', 'w') as f:
+    with open(Path('/shared/datasets/coco/') / 'dataset.yaml', 'w') as f:
         yaml.dump(data_yaml, f, default_flow_style=False)
 
 @api_view(['GET'])
@@ -176,7 +179,6 @@ def start_api(request):
         print(data_yaml, target_yaml)
                 
         pr = mp.Process(target = queue_bms, args=(userid, project_id))
-        mp.set_start_method('spawn')
         pr_id = get_process_id()
                 
         PROCESSES[pr_id] = pr
