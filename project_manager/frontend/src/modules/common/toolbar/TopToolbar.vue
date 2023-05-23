@@ -29,7 +29,7 @@
         </template>
 
         <v-list dense style="width: 200px" class="px-3">
-          <v-list-item>
+          <v-list-item @click="logout">
             <v-list-item-icon>
               <v-icon color="black">mdi-cog</v-icon>
             </v-list-item-icon>

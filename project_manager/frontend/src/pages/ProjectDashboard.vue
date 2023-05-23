@@ -43,7 +43,7 @@
       </v-tab-item>
     </v-tabs-items>
 
-    <!-- <ProjectCreateDialog :step="step" @stepChange="onStepChange" @close="close">
+    <ProjectCreateDialog :step="step" @stepChange="onStepChange" @close="close">
       <template v-slot:btn>
         <v-btn
           class="elevation-23"
@@ -60,7 +60,7 @@
           NEW PROJECT&nbsp;<v-icon :size="20">mdi-plus</v-icon>
         </v-btn>
       </template>
-    </ProjectCreateDialog> -->
+    </ProjectCreateDialog>
   </v-card>
 </template>
 <script>
@@ -70,7 +70,7 @@ import { ProjectNamespace, ProjectMutations } from "@/store/modules/project";
 import AllStatusTab from "@/modules/project/tabs/AllStatusTab.vue";
 import TabView from "@/modules/project/tabs/TabView.vue";
 import NoResultTab from "@/modules/project/tabs/NoResultTab.vue";
-// import ProjectCreateDialog from "@/modules/project/ProjectCreateDialog.vue";
+import ProjectCreateDialog from "@/modules/project/ProjectCreateDialog.vue";
 
 import { getProjectList } from "@/api";
 
@@ -78,7 +78,7 @@ export default {
   components: {
     AllStatusTab,
     TabView,
-    // ProjectCreateDialog,
+    ProjectCreateDialog,
     NoResultTab
   },
   data() {

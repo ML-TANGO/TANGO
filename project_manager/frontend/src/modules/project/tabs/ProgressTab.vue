@@ -93,10 +93,10 @@ export default {
       if (log.message !== "\n") {
         this.vale += log.message;
       }
-      // this.$nextTick(() => {
-      //   const element = document.getElementById("log");
-      //   // element.scrollTop = element.scrollHeight;
-      // });
+      this.$nextTick(() => {
+        const element = document.getElementById("log");
+        element.scrollTop = element.scrollHeight;
+      });
     },
 
     start(container) {

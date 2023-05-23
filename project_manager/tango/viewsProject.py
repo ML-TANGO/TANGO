@@ -141,6 +141,12 @@ def status_report(request):
                 'project_id' : project_id,
             }
             response = requests.get(url, headers=headers, params=payload)
+
+            queryset = Project.objects.get(id=project_id, create_user=str(user_id))
+            queryset.container = 'yoloe'
+            queryset.container_status = 'running'
+            queryset.save()
+
             print("project-manager : response")
             print(response)
             response_message += response
@@ -206,11 +212,11 @@ def status_result(request):
         # print("last_logs_timestamp")
         # print(last_logs_timestamp)
 
-        # if last_logs_timestamp == 0:
-        #     # print('docker logs --tail= ' + 'all' + ' -t tango-' + str(containerName) + '-1')
-        #     logs = os.popen('docker logs --tail=' + 'all' + ' -t tango-' + str(containerName) + '-1')
-        # else :
-        #     logs = os.popen('docker logs --since '+ str(last_logs_timestamp) + ' -t tango-' + str(containerName) + '-1')
+        if last_logs_timestamp == 0:
+            # print('docker logs --tail= ' + 'all' + ' -t tango-' + str(containerName) + '-1')
+            logs = os.popen('docker logs --tail=' + 'all' + ' -t tango-' + str(containerName) + '-1')
+        else :
+            logs = os.popen('docker logs --since '+ str(last_logs_timestamp) + ' -t tango-' + str(containerName) + '-1')
         # print('docker logs --since '+ str(int(last_logs_timestamp)) + ' -t tango-' + str(containerName) + '-1')
         last_logs_timestamp = time.mktime(datetime.now().timetuple())
         last_container = containerName
@@ -223,17 +229,12 @@ def status_result(request):
         # print("")
         # print(str(dockerLogs))
         # print("m = response_message +  + str(dockerLogs)")
-        # m = response_message + '\n' + str(logs.read())
-        m = response_message
+        m = response_message + '\n' + str(logs.read())
         response_message = ''
         # print("============================")
         # print("============================")
         # print("============================")
         # print("============================")
-
-        print(response_message)
-        m = response_message
-        response_message = ''
         return HttpResponse(json.dumps({'container': queryset.container,
                                         'container_status': queryset.container_status,
                                         'message': m,}))

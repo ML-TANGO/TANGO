@@ -1,7 +1,7 @@
 import Vue from "vue";
 import VueRouter from "vue-router";
 import ProjectDashboard from "@/pages/ProjectDashboard.vue";
-// import ProjectDetail from "@/pages/ProjectDetail.vue";
+import ProjectDetail from "@/pages/ProjectDetail.vue";
 import LoginPage from "@/pages/LoginPage.vue";
 import CreatAccountPage from "@/pages/CreateAccountPage.vue";
 import NotFoundPage from "@/pages/NotFoundPage.vue";
@@ -33,11 +33,11 @@ const routes = [
     name: "projects",
     component: ProjectDashboard
   },
-  // {
-  //   path: "/project/:id",
-  //   name: "ProjectDetail",
-  //   component: <div></div> //ProjectDetail
-  // },
+  {
+    path: "/project/:id",
+    name: "ProjectDetail",
+    component: ProjectDetail
+  },
   {
     path: "/target",
     name: "targets",

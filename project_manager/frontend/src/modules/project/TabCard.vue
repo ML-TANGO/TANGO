@@ -50,13 +50,13 @@
             <!-- footer action -->
             <div style="height: 40px; gap: 8px" class="d-flex justify-center align-center">
               <slot name="action">
-                <!-- <ProjectCreateDialog :step="step" @stepChange="onStepChange" @close="close">
+                <ProjectCreateDialog :step="step" @stepChange="onStepChange" @close="close">
                   <template v-slot:btn>
                     <v-btn height="30" style="width: 330px" outlined color="#FF3D54" @click="setupBtn">
                       To Set Up →
                     </v-btn>
                   </template>
-                </ProjectCreateDialog> -->
+                </ProjectCreateDialog>
               </slot>
             </div>
           </div>
@@ -72,14 +72,14 @@
             position: absolute;
             top: -15px;
             right: 10px;
-            background: white;
+            background-color: white;
             border: 1px solid #4a80ff;
             border-radius: 8px;
             transition: 3s;
           "
         >
           <v-btn icon height="30" @click="onDelete">
-            <v-icon size="20">mdi-delete</v-icon>
+            <v-icon size="20" color="#ff3d54">mdi-delete</v-icon>
           </v-btn>
         </div>
       </v-fab-transition>
@@ -90,11 +90,11 @@
 import { mapMutations } from "vuex";
 import { ProjectNamespace, ProjectMutations } from "@/store/modules/project";
 
-// import ProjectCreateDialog from "@/modules/project/ProjectCreateDialog.vue";
+import ProjectCreateDialog from "@/modules/project/ProjectCreateDialog.vue";
 
 import { deleteProject, getTargetInfo, getDatasetList } from "@/api";
 export default {
-  // components: { ProjectCreateDialog },
+  components: { ProjectCreateDialog },
 
   props: {
     status: {
@@ -148,7 +148,8 @@ export default {
 
     async setupBtn() {
       this.SET_PROJECT(this.projectInfo);
-      if (this.projectInfo?.container) {
+      console.log("this.projectInfo", this.projectInfo);
+      if (this.projectInfo.container === "" || this.projectInfo.container === "init") {
         await this.setDialog();
       } else {
         this.$swal
