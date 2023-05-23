@@ -94,6 +94,7 @@ def status_report(request):
 
     try:
         global response_message
+        global response_message
         # container_list = ['bms',
         #                   'viz2code',
         #                   'autonn',
@@ -113,10 +114,12 @@ def status_report(request):
 
         container_id = request.GET['container_id']
         result = request.GET['status']
+        result = request.GET['status']
 
         print('user_id : ' + user_id)
         print('project_id : ' + project_id)
         print('container_id : ' + container_id)
+        print('status : ' + result)
         print('status : ' + result)
 
         queryset = Project.objects.get(id=project_id, create_user=str(user_id))
@@ -156,6 +159,7 @@ def status_report(request):
 @api_view(['GET', 'POST'])
 @authentication_classes([OAuth2Authentication])   # 토큰 확인
 def status_result(request):
+    global response_message
     """
     project_list_get _summary_
 
@@ -227,6 +231,9 @@ def status_result(request):
         # print("============================")
         # print("============================")
 
+        print(response_message)
+        m = response_message
+        response_message = ''
         return HttpResponse(json.dumps({'container': queryset.container,
                                         'container_status': queryset.container_status,
                                         'message': m,}))
