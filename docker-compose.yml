@@ -18,7 +18,7 @@ services:
              python manage.py runserver 0.0.0.0:8085"
     volumes:
       - ./project_manager:/code
-      - ../shared:/shared
+      - shared:/tango_shared
       - /var/run/docker.sock:/var/run/docker.sock
     hostname: projectmanager
     ports:
@@ -96,7 +96,7 @@ services:
     #   - NVIDIA_VISIBLE_DEVICES=all
     volumes:
       - ./base_model_select:/source
-      - ../shared:/shared
+      - shared:/shared
     ports:
       - "8081:8081"
 
@@ -190,7 +190,7 @@ services:
       - NVIDIA_VISIBLE_DEVICES=all
     volumes:
       - ./autonn/YoloE:/source
-      - ../shared:/shared
+      - shared:/shared
       - ./autonn/YoloE/sample_yaml/dataset.yaml:/shared/datasets/coco/dataset.yaml 	# TEMP FILE UNTIL LABELLING MODULE WORKING
       - ${COCODIR:-./autonn/YoloE/sample_data/coco128}:/shared/datasets/coco		# TEMP FILE UNTIL LABELLING MODULE WORKING
     hostname: yoloe
