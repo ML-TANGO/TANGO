@@ -18,7 +18,7 @@ services:
              python manage.py runserver 0.0.0.0:8085"
     volumes:
       - ./project_manager:/code
-      - shared:/tango_shared
+      - shared:/shared
       - /var/run/docker.sock:/var/run/docker.sock
     hostname: projectmanager
     ports:
