@@ -119,7 +119,9 @@ export default {
       if (scale > 1.08) this.dir = -1;
       else if (scale < 1) this.dir = 1;
       this.period = scale;
-      if (this.runContainer) this.runContainer.scale({ x: scale });
+      if (this.runContainer) {
+        this.runContainer.scale({ x: scale });
+      }
     }, layer);
 
     this.animation.start();

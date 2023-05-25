@@ -4,7 +4,7 @@
       <div class="d-flex justify-space-between" style="width: 100%">
         <p class="text-h5 mb-4" style="color: #4a80ff">DataSet</p>
         <p class="mr-4" v-if="selected !== -1">
-          Selected Dataset: <span style="color: #4a80ff"> {{ selelctedItem.TITLE }} </span>
+          Selected Dataset: <span style="color: #4a80ff"> {{ selelctedItem.name }} </span>
         </p>
       </div>
       <div style="width: 100%; height: 350px; backface-visibility: hidden; flex: 1 1 auto; overflow-y: auto">
@@ -34,7 +34,7 @@ import { ProjectNamespace, ProjectMutations } from "@/store/modules/project";
 
 import DatasetCard from "@/modules/common/card/DatasetCard.vue";
 
-import { getDatasetList } from "@/api";
+import { getDatasetListTango } from "@/api";
 
 export default {
   components: { DatasetCard },
@@ -54,10 +54,10 @@ export default {
 
   async created() {
     try {
-      this.items = await getDatasetList();
+      this.items = await getDatasetListTango();
 
-      if (this.selectedImage?.DATASET_CD) {
-        this.selected = this.items.findIndex(q => q.DATASET_CD === this.selectedImage.DATASET_CD);
+      if (this.selectedImage?.name) {
+        this.selected = this.items.findIndex(q => q.name === this.selectedImage.name);
         this.selelctedItem = this.selectedImage;
       }
     } catch {
@@ -77,7 +77,7 @@ export default {
 
     next() {
       console.log("this.selelctedItem", this.selelctedItem);
-      this.$emit("next", { dataset: this.selelctedItem.DATASET_CD });
+      this.$emit("next", { dataset: this.selelctedItem.name });
       this.SET_SELECTED_IMAGE(this.selelctedItem);
     },
 

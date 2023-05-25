@@ -9,7 +9,7 @@ from django.urls import path, include
 from django.conf.urls import url
 from django.contrib import admin
 
-from . import views, viewsProject, viewsTarget
+from . import views, viewsProject, viewsTarget, viewsDataset
 
 from rest_framework import routers
 from rest_framework_jwt.views import obtain_jwt_token, verify_jwt_token, refresh_jwt_token
@@ -51,5 +51,7 @@ urlpatterns = [
 
     url(r'^status_result', viewsProject.status_result, name='status_result'),       # 컨테이너 실행 상태 확인
     url(r'^status_request', viewsProject.status_request, name='status_request'),       # 컨테이너 실행 상태 확인 요청
+
+    url(r'^get_dataset_list', viewsDataset.get_dataset_list, name='get_dataset_list'),       # 컨테이너 실행 상태 확인 요청
 ]
 

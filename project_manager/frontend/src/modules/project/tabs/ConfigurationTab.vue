@@ -119,7 +119,7 @@ import DatasetCard from "@/modules/common/card/DatasetCard.vue";
 import TargetCard from "@/modules/common/card/TargetCard.vue";
 import SkeletonLoaderCard from "@/modules/common/card/SkeletonLoaderCard.vue";
 
-import { getTargetInfo, getDatasetList } from "@/api";
+import { getTargetInfo, getDatasetListTango } from "@/api";
 export default {
   components: { DatasetCard, TargetCard, SkeletonLoaderCard },
 
@@ -190,8 +190,8 @@ export default {
           console.log("config tab ===> ", this.selectedTarget);
         });
 
-        await getDatasetList(this.projectInfo.dataset).then(res => {
-          const datasetInfo = res.find(q => q.DATASET_CD === this.projectInfo.dataset);
+        await getDatasetListTango().then(res => {
+          const datasetInfo = res.find(q => q.name === this.projectInfo.dataset);
           if (datasetInfo) {
             this.selectedImage = datasetInfo;
             this.isDatasetLoading = true;

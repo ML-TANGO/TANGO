@@ -12,7 +12,7 @@
     </TabBase>
     <div>
       <TabBase :count="-1" title="Progress">
-        <template #content> <ProgressTab :projectInfo="projectInfo" /> </template>
+        <template #content> <ProgressTab :projectInfo="projectInfo" @restart="restart" /> </template>
       </TabBase>
     </div>
   </v-card>
@@ -30,7 +30,7 @@ import {
   getProjectInfo,
   getStatusResult,
   getTargetInfo,
-  getDatasetList,
+  getDatasetListTango,
   stopContainer
   // postStatusRequest
 } from "@/api";
@@ -83,9 +83,6 @@ export default {
   },
 
   mounted() {
-    // user_id = request.data['user_id']
-    // project_id = request.data['project_id']
-    // container_id = request.data['container_id']
     this.interval = setInterval(() => {
       if (this.projectInfo.id) {
         getStatusResult(this.projectInfo.id).then(res => {
@@ -94,12 +91,6 @@ export default {
           console.log("setInterval ===> ", res);
           this.$EventBus.$emit("logUpdate", res);
         });
-
-        // postStatusRequest({
-        //   user_id: this.projectInfo.create_user,
-        //   project_id: this.projectInfo.id,
-        //   container_id: this.projectInfo.container
-        // });
       }
     }, 5000);
   },
@@ -114,6 +105,11 @@ export default {
       SET_SELECTED_TARGET: ProjectMutations.SET_SELECTED_TARGET,
       SET_SELECTED_IMAGE: ProjectMutations.SET_SELECTED_IMAGE
     }),
+
+    restart() {
+      this.projectInfo.container = "init";
+      this.projectInfo.container_status = "init";
+    },
 
     onStepChange(step) {
       this.step = step;
@@ -142,8 +138,8 @@ export default {
 
             //선택한 dataset 정보
             if (this.projectInfo?.dataset && this.projectInfo.dataset !== "") {
-              const datasetList = await getDatasetList();
-              const datasetInfo = datasetList.find(q => q.DATASET_CD === this.projectInfo.dataset);
+              const datasetList = await getDatasetListTango();
+              const datasetInfo = datasetList.find(q => q.name === this.projectInfo.dataset);
               console.log("datasetLista", datasetList);
               console.log("datasetInfo", datasetInfo);
               if (datasetInfo) this.SET_SELECTED_IMAGE(datasetInfo);

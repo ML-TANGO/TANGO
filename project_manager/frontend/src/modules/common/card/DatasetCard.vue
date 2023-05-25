@@ -12,13 +12,15 @@
     @mouseover="onMouseover"
     @mouseleave="onMouseleave"
   >
-    <div class="d-flex justify-center align-center pa-3">
+    <!-- <div class="d-flex justify-center align-center pa-3">
       <v-img :src="getDatasetImage(item?.THUM_NAIL)" width="60" max-width="60" contain></v-img>
-    </div>
-    <div class="ml-3 d-flex flex-column justify-center" style="width: 240px">
+    </div> -->
+    <div class="ml-3 d-flex flex-column justify-center" style="width: 380px">
       <div class="d-flex align-center" style="gap: 10px">
-        <p style="color: #000000ff; letter-spacing: 1px; font-size: 14px" class="pa-0 ma-0">{{ item?.TITLE }}</p>
-        <v-chip
+        <p style="color: #4a80ff; letter-spacing: 1px; font-size: 18px; font-weight: bold" class="pa-0 ma-0">
+          {{ item?.name }}
+        </p>
+        <!-- <v-chip
           style="font-size: 8px; height: 20px; color: white"
           :style="{ backgroundColor: isSelected ? '#25c0dc' : '#25c0dc' }"
         >
@@ -29,30 +31,33 @@
           :style="{ backgroundColor: isSelected ? '#25c0dc' : '#25c0dc' }"
         >
           {{ ObjectType[item?.OBJECT_TYPE] }}
-        </v-chip>
+        </v-chip> -->
       </div>
       <div class="d-flex align-center mt-3" style="gap: 10px">
-        <small style="color: #aaa; font-size: 11px">{{ item?.UPT_DTM?.slice(0, 10) }}</small>
-        <small style="color: #aaa; font-size: 11px">
+        <small style="color: #aaa; font-size: 11px">폴더 생성일</small>
+        <small style="color: #000; font-size: 11px">{{ item?.creation_time }}</small>
+        <!-- <small style="color: #aaa; font-size: 11px">마지막 수정 날짜</small>
+        <small style="color: #000; font-size: 11px">{{ item?.last_modified_time?.slice(0, 10) }}</small> -->
+        <!-- <small style="color: #aaa; font-size: 11px">
           created by
           <span style="color: #4a80ff">{{ item?.CRN_USR }}</span>
-        </small>
+        </small> -->
       </div>
     </div>
     <v-divider vertical class="ml-11 mr-10" />
     <div class="d-flex align-center" style="gap: 60px; height: 100%">
       <div class="d-flex flex-column text-center">
         <small class="mb-2" style="letter-spacing: 1px; color: #aaa; font-size: 11px">FILES</small>
-        <p class="ma-0" style="font-size: 14px">{{ item?.FILE_COUNT || "-" }}</p>
+        <p class="ma-0" style="font-size: 14px">{{ item?.file_count || "-" }}</p>
       </div>
       <div class="d-flex flex-column text-center">
         <small class="mb-2" style="letter-spacing: 1px; color: #aaa; font-size: 11px">SIZE</small>
-        <p class="ma-0" style="font-size: 14px">{{ item?.DATA_SIZE ? prettyBytes(item?.DATA_SIZE) : "-" }}</p>
+        <p class="ma-0" style="font-size: 14px">{{ item?.size ? prettyBytes(item?.size) : "-" }}</p>
       </div>
-      <div class="d-flex flex-column text-center">
+      <!-- <div class="d-flex flex-column text-center">
         <small class="mb-2" style="letter-spacing: 1px; color: #aaa; font-size: 11px">CLASS</small>
         <p class="ma-0" style="font-size: 14px">{{ item?.CLASS_COUNT || "-" }}</p>
-      </div>
+      </div> -->
     </div>
   </div>
 </template>

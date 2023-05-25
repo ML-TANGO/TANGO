@@ -2,7 +2,9 @@
   <div class="d-flex flex-column" style="gap: 15px; margin-left: -16px">
     <div>
       <div style="width: 100%" class="d-flex justify-center">
-        <v-btn class="mb-3" color="#4a80ff" width="380" dark @click="autoCreate">신경망 자동 생성</v-btn>
+        <v-btn class="mb-3" color="#4a80ff" width="380" dark @click="autoCreate">
+          Automatic Generation of Neural Networks
+        </v-btn>
       </div>
       <h4 class="ml-3 mb-3">Progress - Auto NN</h4>
       <v-card color="#DFDFDF" class="" style="border-radius: 4px" height="180">
@@ -55,7 +57,7 @@ import { ProjectNamespace, ProjectMutations } from "@/store/modules/project";
 
 import ProgressCanvas from "@/modules/project/components/ProgressCanvas.vue";
 
-import { startContainer, stopContainer, getStatusResult } from "@/api";
+import { startContainer /*, stopContainer, getStatusResult*/ } from "@/api";
 export default {
   components: { ProgressCanvas },
   props: {
@@ -115,6 +117,8 @@ export default {
         })
         .then(async result => {
           if (result.isConfirmed) {
+            this.vale = "";
+            this.$emit("restart");
             startContainer(container, this.projectInfo.create_user, this.projectInfo.id);
           }
         });
@@ -140,13 +144,13 @@ export default {
           })
           .then(async result => {
             if (result.isConfirmed) {
-              await getStatusResult(this.projectInfo.id);
-              await stopContainer(this.projectInfo.container, this.projectInfo.create_user, this.projectInfo.id);
+              // await getStatusResult(this.projectInfo.id);
+              // await stopContainer(this.projectInfo.container, this.projectInfo.create_user, this.projectInfo.id);
               startContainer("bms", this.projectInfo.create_user, this.projectInfo.id);
             }
           });
       } else {
-        await getStatusResult(this.projectInfo.id);
+        // await getStatusResult(this.projectInfo.id);
         startContainer("bms", this.projectInfo.create_user, this.projectInfo.id);
       }
     }

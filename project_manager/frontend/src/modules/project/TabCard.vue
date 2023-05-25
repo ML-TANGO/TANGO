@@ -92,7 +92,7 @@ import { ProjectNamespace, ProjectMutations } from "@/store/modules/project";
 
 import ProjectCreateDialog from "@/modules/project/ProjectCreateDialog.vue";
 
-import { deleteProject, getTargetInfo, getDatasetList } from "@/api";
+import { deleteProject, getTargetInfo, getDatasetListTango } from "@/api";
 export default {
   components: { ProjectCreateDialog },
 
@@ -245,8 +245,8 @@ export default {
       }
 
       if (this.projectInfo?.dataset && this.projectInfo.dataset !== "") {
-        const datasetList = await getDatasetList(this.projectInfo.dataset);
-        const datasetInfo = datasetList.find(q => q.DATASET_CD === this.projectInfo.dataset);
+        const datasetList = await getDatasetListTango();
+        const datasetInfo = datasetList.find(q => q.name === this.projectInfo.dataset);
         if (datasetInfo) this.SET_SELECTED_IMAGE(datasetInfo);
       }
     }
