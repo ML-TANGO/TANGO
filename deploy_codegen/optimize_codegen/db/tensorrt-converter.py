@@ -1,4 +1,4 @@
-
+'''
 import os
 import numpy as np
 import tensorrt as trt
@@ -9,7 +9,7 @@ import tensorrt as trt
 #def_onnx_model = "newonnx/yolov7x.onnx"
 #def_onnx_model = "newonnx/yolov7-e6.onnx"  
 #def_onnx_model = "newonnx/yolov7-tiny.onnx"  
-def_onnx_model = "yolov7-tiny.onnx"
+def_onnx_model = "newonnx/yolov7.onnx"
 def_calib_cache = "calibration.cache"
 def_trt_engine = "v7-16.trt"
 def_trt_precision = "fp16"
@@ -17,6 +17,8 @@ def_trt_precision = "fp16"
 def_trt_conf_thres = 0.4
 def_trt_iou_thres = 0.5
 def_trt_max_detection = 100
+'''
+
 
 ###############################################################
 class EngineCalibrator(trt.IInt8EntropyCalibrator2):

@@ -25,8 +25,8 @@ import requests
 # import      subprocess
 # import      importlib
 # code_gen.py
-# import      torch
-# import      torch.onnx
+import      torch
+import      torch.onnx
 # from        torchvision import  models
 # from        onnxruntime.quantization import  quantize_dynamic
 # from        onnxruntime.quantization import  QuantType
@@ -34,6 +34,7 @@ import requests
 
 # for docker and project manager
 def_top_folder = "/tango/common"    # for docker
+def_top_data_folder = "/tango/datasets"    # for docker
 # def_top_folder = "/home/khlee/workspace/github515/tango/common"    # for test
 def_code_folder_name = "nn_model"
 
@@ -88,9 +89,10 @@ def_deploy_nfs_ip = '1.2.3.4'
 def_deploy_nfs_path = "/tango/common/model" 
 
 def_class_file = ""  # 'input.py'
+def_model_definition_file = ""
 def_weight_pt_file = ""  # 'input.pt'
-def_weight_onnx_file = ""  # ' input.onnx'
-def_annotation_file = ""  # 'coco.dat'
+def_weight_onnx_file = "tango.onnx"  # ' input.onnx'
+def_annotation_file = "dataset.yaml"  # 'coco.dat'
 
 def_newline = '\n'
 def_4blank = "    "
@@ -154,6 +156,7 @@ class CodeGen:
     # for neural network dependent information
     m_nninfo_class_name = ""
     m_nninfo_class_file = def_class_file
+    m_nninfo_model_definition_file = def_model_definition_file
     m_nninfo_weight_pt_file = def_weight_pt_file
     m_nninfo_weight_onnx_file = def_weight_onnx_file
     m_nninfo_annotation_file = def_annotation_file
@@ -183,6 +186,41 @@ class CodeGen:
     m_deploy_network_serviceport = 0
 
     m_last_run_state = 0
+
+    ####################################################################
+    def copy_subfolderfile(self, src, dst):
+        """
+        copy a file of a subfoler to dst folder 
+
+        Args:
+            src : src file path  not folder name (string)
+            dst : target folder path not file name(string)
+        Returns: int
+            0 : success
+            -1 : file error
+        """
+        # check if src is a file name or a file path
+        # if file path, 
+        #     check path already exists or not
+        #     if a path does not exist, make the folder
+        path_folders = src.split('/')
+        items = len(path_folders)
+        # folder in folder
+        tmp_path = self.get_real_filepath(dst)
+        for i in range(items):
+            if i == (items - 1):
+                shutil.copy(self.get_real_filepath(src), tmp_path)
+                break
+            else:
+                # get real path and add path_folders[i]
+                # check directory is exist
+                tmp_path = "%s%s%s" % (tmp_path, "/", path_folders[i])
+                if not os.path.exists(tmp_path):
+                    os.makedirs(tmp_path)
+        return 0
+                    
+                    
+
 
     ####################################################################
     def set_folder(self, uid, pid):
@@ -289,9 +327,11 @@ class CodeGen:
             elif key == 'user_editing':
                 self.m_sysinfo_user_editing = value  # yes/no
             elif key == 'confidence_thresh':
-                self.m_sysinfo_confidence_thresh = value  # yes/no
+                self.m_sysinfo_confidence_thresh = value  
             elif key == 'iou_thresh':
-                self.m_sysinfo_iou_thresh = value  # yes/no
+                self.m_sysinfo_iou_thresh = value  
+            elif key == 'dataset':
+                self.m_nninfo_annotation_file = "%s/%s/%s" % (def_top_data_folder, value, def_annotation_file)
         f.close()
         return 0
 
@@ -317,6 +357,10 @@ class CodeGen:
             if key == 'class_file':
                 # subval = value.get('os')
                 self.m_nninfo_class_file = value
+                if len(value) == 1:
+                    self.m_nninfo_model_definition_file = value
+                else:
+                    self.m_nninfo_model_definition_file = value[0]
             elif key == 'class_name':
                 self.m_nninfo_class_name = value
             elif key == 'weight_file':
@@ -332,7 +376,7 @@ class CodeGen:
                             self.m_nninfo_weight_onnx_file = tmp_str  # .onnx
                 else:
                     self.m_nninfo_weight_pt_file = value
-                    self.m_nninfo_weight_onnx_file = value
+                    # self.m_nninfo_weight_onnx_file = value
             elif key == 'label_info_file':
                 self.m_nninfo_annotation_file = value
                 # parsing  labelmap
@@ -470,18 +514,87 @@ class CodeGen:
             self.make_requirements_file_for_others()
         elif self.m_sysinfo_engine_type == "tensorrt":
             print("TRT111")
+            # convert .py to onnx and copy
+            if isinstance(self.m_nninfo_class_file, list):
+                t_file = self.m_nninfo_class_file[0]
+            else:
+                t_file = self.m_nninfo_class_file
+            t_file = "%s%s" % (t_file, "\n")
+            tmp = t_file.split("/")
+            cnt = len(tmp)
+            t_file = tmp[0]
+            for  i in range(cnt-1):
+                t_file = "%s.%s" % (t_file, tmp[i+1])
+            t_file = t_file.split(".py\n")[0]
+            t_file = t_file.split("\n")[0]
+            t_split  = self.m_nninfo_model_definition_file.split("(")
+            t_class_name = t_split[0]
+            tmp_param = t_split[1].split(")")[0]
+            tmp_param = tmp_param.split("=")[1]
+
+            t_impmod = __import__(t_file)
+            t_cls = getattr(t_impmod, t_class_name)
+            pt_model = t_cls(cfg=tmp_param)
+            # model.eval
+            pt_model.eval()
+            # convert and save onnx file 
+            dummy = torch.randn(
+                    self.m_nninfo_input_tensor_shape[0], 
+                    self.m_nninfo_input_tensor_shape[1], 
+                    self.m_nninfo_input_tensor_shape[2], 
+                    self.m_nninfo_input_tensor_shape[3], 
+                    requires_grad=True)
+            torch.onnx.export(pt_model, dummy,
+                    self.m_nninfo_weight_onnx_file,
+                    export_params=True, 
+                    input_names=['input'],
+                    output_names=['output'])
+
             self.gen_tensorrt_code(self.m_nninfo_input_tensor_shape[1], 
                     self.m_nninfo_input_tensor_shape[2], 
                     self.m_nninfo_input_data_type) 
-            # copy annotaion file 
-            shutil.copy(self.get_real_filepath(self.m_nninfo_annotation_file), 
-                    self.m_current_code_folder)
             self.make_requirements_file_for_others()
         elif self.m_sysinfo_engine_type == "tvm":
             tvm_dev_type = def_TVM_dev_type    # 0 llvm ,1 cuda,  
             tvm_width = def_TVM_width  
             tvm_height = def_TVM_height  
             tvm_data_type = def_TVM_data_type 
+            # convert .py to onnx and copy
+            if isinstance(self.m_nninfo_class_file, list):
+                t_file = self.m_nninfo_class_file[0]
+            else:
+                t_file = self.m_nninfo_class_file
+            t_file = "%s%s" % (t_file, "\n")
+            tmp = t_file.split("/")
+            cnt = len(tmp)
+            t_file = tmp[0]
+            for  i in range(cnt-1):
+                t_file = "%s.%s" % (t_file, tmp[i+1])
+            t_file = t_file.split(".py\n")[0]
+            t_file = t_file.split("\n")[0]
+            t_split  = self.m_nninfo_model_definition_file.split("(")
+            t_class_name = t_split[0]
+            tmp_param = t_split[1].split(")")[0]
+            tmp_param = tmp_param.split("=")[1]
+
+            t_impmod = __import__(t_file)
+            t_cls = getattr(t_impmod, t_class_name)
+            pt_model = t_cls(cfg=tmp_param)
+            # model.eval
+            pt_model.eval()
+            # convert and save onnx file 
+            dummy = torch.randn(
+                    self.m_nninfo_input_tensor_shape[0], 
+                    self.m_nninfo_input_tensor_shape[1], 
+                    self.m_nninfo_input_tensor_shape[2], 
+                    self.m_nninfo_input_tensor_shape[3], 
+                    requires_grad=True)
+            torch.onnx.export(pt_model, dummy,
+                    self.m_nninfo_weight_onnx_file,
+                    export_params=True, 
+                    input_names=['input'],
+                    output_names=['output'])
+
             onnx_model = onnx.load(self.get_real_filepath(self.m_nninfo_weight_onnx_file))
             input_name = onnx_model.graph.input[0].name
             tensor_type = onnx_model.graph.input[0].type.tensor_type
@@ -559,7 +672,7 @@ class CodeGen:
                 # after converting and copying, remove temporary converted file 
                 os.remove(def_TVM_code_path)
             # copy annotaion file 
-            shutil.copy(self.get_real_filepath(self.m_nninfo_annotation_file), 
+            shutil.copy(self.m_nninfo_annotation_file, 
                     self.m_current_code_folder)
 
             self.gen_tvm_code(tvm_dev_type, tvm_width, tvm_height, tvm_data_type)
@@ -1203,10 +1316,9 @@ class CodeGen:
             f.write(tmp_str)
             f.close()
 
-        # copy annotation file
         # self.m_nninfo_annotation_file
-        if os.path.isfile(self.get_real_filepath(self.m_nninfo_annotation_file)):
-            shutil.copy(self.get_real_filepath(self.m_nninfo_annotation_file), self.m_current_code_folder)
+        if os.path.isfile(self.m_nninfo_annotation_file):
+            shutil.copy(self.m_nninfo_annotation_file, self.m_current_code_folder)
 
         return 0
 
@@ -1365,6 +1477,17 @@ class CodeGen:
         #copy onnx file
         shutil.copy(self.get_real_filepath(self.m_nninfo_weight_onnx_file),
                 self.m_current_code_folder)
+        # copy annotation file
+        if os.path.isfile(self.m_nninfo_annotation_file):
+            shutil.copy(self.m_nninfo_annotation_file, self.m_current_code_folder)
+        # copy model file and related files
+        if isinstance(self.m_nninfo_class_file, list):
+            num_files = len(self.m_nninfo_class_file)
+            if num_files >= 1:
+                for i in range(num_files):
+                    copy_subfolderfile(self.m_nninfo_class_file[i], self.m_current_code_folder)
+        else:
+            shutil.copy(self.get_real_filepath(self.m_nninfo_class_file), self.m_current_code_folder)
         return
 
 
@@ -1421,6 +1544,18 @@ class CodeGen:
         infer_outf.close()
         #copy util file
         shutil.copy(def_TVM_myutil_file_name, self.m_current_code_folder)
+        # copy annotation file
+        if os.path.isfile(self.m_nninfo_annotation_file):
+            shutil.copy(self.m_nninfo_annotation_file, self.m_current_code_folder)
+        # copy model file and related files
+        if isinstance(self.m_nninfo_class_file, list):
+            num_files = len(self.m_nninfo_class_file)
+            if num_files >= 1:
+                for i in range(num_files):
+                    copy_subfolderfile(self.m_nninfo_class_file[i], self.m_current_code_folder)
+        else:
+            shutil.copy(self.get_real_filepath(self.m_nninfo_class_file), self.m_current_code_folder)
+
         return
 
     ####################################################################
@@ -1615,25 +1750,28 @@ class CodeGen:
         except socket.error as err:
             print(err)
         prj_url = "%s%s%s" % ('http://', host, ':8085/status_report')
-        prj_data = 'container_id=code_gen'
-        prj_data = "%s%s%s%s%s" % (prj_data, '&user_id=', self.m_current_userid,
-                                   '&project_id=', self.m_current_projectid)
+
         # add result code
+        prj_url = "%s?container_id=code_gen&user_id=%s&project_id=%s" % (prj_url, self.m_current_userid, self.m_current_projectid)
         if self.m_last_run_state == 0:  # success
-            prj_data = "%s%s" % (prj_data, '&result=success')
+            prj_url = "%s&status=success" % prj_url 
         else:
-            prj_data = "%s%s" % (prj_data, '&result=failed')
+            prj_url = "%s&status=failed" % prj_url 
 
         headers = {
             'Host': '0.0.0.0:8085',
             'Origin': 'http://0.0.0.0:8888',
             'Accept': "application/json, text/plain",
             'Access-Control_Allow_Origin': '*',
-            'Access-Control-Allow-Credentials': "true"
+            'Access-Control-Allow-Credentials': "true",
+            'vary': 'origin',
+            'referrer-policy': 'same-origin'
+            # 'Content-type': 'applocation/json'
             }
 
         try:
-            requests.get(url=prj_url, headers=headers, params=prj_data)
+            ret = requests.get(url=prj_url, headers=headers)
+            # ret = requests.get(url=prj_url, headers=headers, params=prj_data)
         except requests.exceptions.HTTPError as err:
             print("Http Error:", err)
         except requests.exceptions.ConnectionError as err:
@@ -1642,6 +1780,7 @@ class CodeGen:
             print("Timeout Error:", err)
         except requests.exceptions.RequestException as err:
             print("OOps: Something Else", err)
+        print("response for report")
         return
 
 
@@ -1666,6 +1805,7 @@ class MyHandler(SimpleHTTPRequestHandler):
         self.send_header("Access-Control-Allow-Methods", "GET, OPTION")
         self.send_header("Access-Control-Allow-Credentials", "true")
         self.send_header("Access-Control-Allow-Headers", "Content-Type, Origin, Accept, token")
+        self.send_header("vary", "origin")
 
     def do_GET(self):
         """
@@ -1711,10 +1851,11 @@ class MyHandler(SimpleHTTPRequestHandler):
         print("code_gen: cmd =", cmd)
 
         if cmd == "start":
-            buf = 'starting'
-            self.send_response(200, 'ok')
+            buf = 'started'
+            self.send_response(200, 'OK')
             self.send_cors_headers()
             self.send_header("Content-Type", "text/plain")
+            self.send_header("Content-Length", "%d" % len(buf))
             self.end_headers()
             self.wfile.write(buf.encode())
             print("code_gen: send_ack")
@@ -1830,7 +1971,7 @@ if __name__ == '__main__':
     except KeyboardInterrupt as e:
         time.sleep(1)
         server.socket.close()
-        print("OnDevice Deploy Module End", e)
+        print("code_gen Module End", e)
 
 '''
 #스트링으로 함수 호출하기 #1

@@ -110,7 +110,7 @@ class OnDeviceDeploy:
     ####################################################################
     def get_code_filepath(self, filename):
         """
-        Get absolute file path for code generation
+        Get absolute file path 
 
         Args:
             filename : filename
@@ -262,26 +262,26 @@ class OnDeviceDeploy:
         except socket.error as err:
             print(err)
         prj_url = "%s%s%s" % ('http://', host, ':8085/status_report')
-        print(prj_url)
-        prj_data = 'container_id=ondevice_deploy'
-        prj_data = "%s%s%s%s%s" % (prj_data, '&user_id=', self.m_current_userid,
-                                   '&project_id=', self.m_current_projectid)
-        # add result code
+
+        prj_url = "%s?container_id=ondevice_deploy&user_id=%s&project_id=%s" % (prj_url, self.m_current_userid, self.m_current_projectid)
         if self.m_last_run_state == 0:  # success
-            prj_data = "%s%s" % (prj_data, '&result=success')
+            prj_url = "%s&status=success" % prj_url
         else:
-            prj_data = "%s%s" % (prj_data, '&result=failed')
+            prj_url = "%s&status=failed" % prj_url
+
 
         headers = {
             'Host': '0.0.0.0:8085',
             'Origin': 'http://0.0.0.0:8891',
             'Accept': "application/json, text/plain",
             'Access-Control_Allow_Origin': '*',
-            'Access-Control-Allow-Credentials': "true"
+            'Access-Control-Allow-Credentials': "true",
+            'vary': 'origin',
+            'referrer-policy': 'same-origin'
             }
 
         try:
-            requests.get(url=prj_url, headers=headers, params=prj_data)
+            ret = requests.get(url=prj_url, headers=headers, params=prj_data)
         except requests.exceptions.HTTPError as err:
             print("HTTPError:", err)
         except requests.exceptions.ConnectionError as err:
@@ -355,8 +355,8 @@ class MyHandler(SimpleHTTPRequestHandler):
         print("cmd =", cmd)
 
         if cmd == "start":
-            buf = 'starting'
-            self.send_response(200, 'ok')
+            buf = 'started'
+            self.send_response(200, 'OK')
             self.send_cors_headers()
             self.send_header("Content-Type", "text/plain")
             self.end_headers()

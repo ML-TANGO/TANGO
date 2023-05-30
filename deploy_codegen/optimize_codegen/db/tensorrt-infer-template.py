@@ -1,4 +1,5 @@
-def_model = "v7-16.trt"
+'''
+def_model = "7x-16.trt"
 def_label_yaml = "coco.yaml"
 # from user's selection
 # input_location can be  a number = camera device id(defualt 0) or
@@ -9,11 +10,11 @@ def_label_yaml = "coco.yaml"
 #                        number 1 = text output or
 #                        url = stream output or
 #                        directory 
-#def_input_location = "./images" # number=camera, url, or file_path
-def_input_location = "./480.mp4" # number=camera, url, or file_path
+def_input_location = "./images" # number=camera, url, or file_path
 def_output_location = "./result" # 0=screen, 1=text, url,or folder_path
 def_conf_thres = 0.7
 def_iou_thres = 0.5
+'''
 
 """ copyright notice
 This module is for testing code for neural network model.
@@ -91,7 +92,7 @@ class TRTRun():
         self.vid_writer = 0
         self.vid_path = ""
         self.text_out = False
-        self.view_img = True
+        self.view_img = False
         self.save_img = False
         self.stream_out = False
         self.width = 640
@@ -103,7 +104,7 @@ class TRTRun():
         elif "://" in self.output_location:
             self.stream_out = True
         else:
-            self.save_img = False
+            self.save_img = True
         with open(self.label_yaml) as f:
             classes = yaml.safe_load(f)
             self.classes = classes['names']
@@ -293,7 +294,6 @@ class TRTRun():
             i_file = filename
         self.video = cv2.VideoCapture(i_file)
         print("Press q to quit")
-        fps = 0
         while (self.video.isOpened()):
             flag, img = self.video.read()
             if flag == False:
@@ -302,22 +302,17 @@ class TRTRun():
             # inference
             image = preproc_image.transpose(0, 3, 1, 2) 
             image = np.ascontiguousarray(image)
-            start_time = time.time()
             cuda.memcpy_htod(self.inputs[0]['allocation'], image)
             self.context.execute_v2(self.allocations)
             for o in range(len(self.outputs)):
                 cuda.memcpy_dtoh(self.outputs[o]['host_allocation'],
                     self.outputs[o]['allocation'])
-            end_time = time.time()
             num_detections = self.outputs[0]['host_allocation']
             nmsed_boxes = self.outputs[1]['host_allocation']
             nmsed_scores = self.outputs[2]['host_allocation']
             nmsed_classes = self.outputs[3]['host_allocation']
             result = [num_detections, nmsed_boxes, nmsed_scores, nmsed_classes]
             self.postprocess(preproc_image, result, save_path)
-            fps = 1 / (end_time - start_time)
-            print(fps)
-            #frame = cv2.putText(frame, "FPS:%d " %fps, (0, 40), cv2.FONT_HERSHEY_SIMPLEX, 1,(0, 0, 255), 2)
             if cv2.waitKey(1) == ord('q'):
                 break
         self.video.release()
@@ -448,7 +443,7 @@ class TRTRun():
         if self.view_img:
             cv2.imshow("result", image)
             cv2.waitKey(1)
-            #time.sleep(1)
+            time.sleep(1)
         elif self.save_img:
             if still_image:
                 cv2.imwrite(str(save_path), 

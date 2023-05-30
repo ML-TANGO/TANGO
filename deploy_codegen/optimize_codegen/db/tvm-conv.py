@@ -20,16 +20,16 @@ model_path = "./onnx/yolov7_post_640x640.onnx"
 
 
 # 0 for x86, 1 for cuda, 2 for arm, 3 for opencl
-def_TVM_dev_type = 1 
+def_TVM_dev_type = 0 
 def_TVM_width = 224 
 def_TVM_height = 224 
 def_TVM_lib_path = "mylib.so"
 def_TVM_code_path = "mycode.bin"
-def_TVM_model_path = model_path
+def_TVM_model_path = "nn_model.onnx"
 
 class TVMConverter:
     dev_type = def_TVM_dev_type
-    data_type = 0
+    data_type = def_TVM_data_type
     width = def_TVM_width  
     height = def_TVM_height  
 
@@ -47,6 +47,7 @@ class TVMConverter:
                     tmp_list.append(d.dim_value)
             i_shape = tuple(tmp_list)
             (x_, y_, self.width, self.height) = i_shape 
+            print(i_shape)
         else:
             i_shape = (1, 1, 224, 224)
 

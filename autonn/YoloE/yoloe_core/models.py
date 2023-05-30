@@ -27,4 +27,4 @@ class Info(models.Model):
     # thread_id = models.IntegerField(blank=True, null=True)
 
     # process index ( 0, 1, ..., N )
-    process_id = models.IntegerField(blank=True, null=True)
+    process_id = models.CharField(blank=True, null=True, max_length=50)
