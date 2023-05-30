@@ -225,7 +225,7 @@ def status_request(request):
         bmsinfo = models.Info.objects.get(userid=userid, project_id=project_id)
         # if THREADS[bmsinfo.thread_id].is_alive():
         print("process iD is", bmsinfo.process_id)
-        if PROCESSES[bmsinfo.process_id].is_alive():
+        if PROCESSES[str(bmsinfo.process_id)].is_alive():
             print("found thread running nas")
             bmsinfo.status = "running"
             bmsinfo.save()

@@ -119,7 +119,7 @@ def status_request(request):
     try:
         nasinfo = models.Info.objects.get(userid=userid,
                                           project_id=project_id)
-        if PROCESSES[nasinfo.process_id].is_alive():
+        if PROCESSES[str(nasinfo.process_id)].is_alive():
             print("found thread running yoloe")
             nasinfo.status = "running"
             nasinfo.save()
