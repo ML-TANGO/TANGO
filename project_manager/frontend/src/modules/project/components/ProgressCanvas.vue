@@ -4,7 +4,7 @@
       <v-layer ref="layer" :config="{ offset: { x: 15, y: 0 } }">
         <v-group
           ref="bms"
-          :config="{ x: stageWidth / 6, y: 75, offset: { x: 85, y: 40 } }"
+          :config="{ x: stageWidth / 5, y: 95, offset: { x: 85, y: 40 } }"
           @mousedown="onMousedown($event, 'bms')"
           @mouseover="onMouseover($event, 'bms')"
           @mouseout="onMouseout($event, 'bms')"
@@ -14,8 +14,8 @@
         </v-group>
         <v-group
           ref="autoNN"
-          :config="{ x: (stageWidth / 6) * 2, y: 75, offset: { x: 85, y: 40 } }"
-          @mousedown="onMousedown($event, 'autoNN')"
+          :config="{ x: (stageWidth / 5) * 2, y: 95, offset: { x: 85, y: 40 } }"
+          @mousedown="onMousedown($event, 'yoloe')"
           @mouseover="onMouseover($event, 'autoNN')"
           @mouseout="onMouseout($event, 'autoNN')"
         >
@@ -23,34 +23,24 @@
           <v-text :config="{ x: 80, y: 32, text: 'Auto NN', ...configText }" />
         </v-group>
         <v-group
-          ref="imageGen"
-          :config="{ x: (stageWidth / 6) * 3, y: 75, offset: { x: 85, y: 40 } }"
-          @mousedown="onMousedown($event, 'imageGen')"
-          @mouseover="onMouseover($event, 'imageGen')"
-          @mouseout="onMouseout($event, 'imageGen')"
+          ref="codeGen"
+          :config="{ x: (stageWidth / 5) * 3, y: 95, offset: { x: 85, y: 40 } }"
+          @mousedown="onMousedown($event, 'codeGen')"
+          @mouseover="onMouseover($event, 'codeGen')"
+          @mouseout="onMouseout($event, 'codeGen')"
         >
-          <v-line :config="createArrow(setStatus('imageGen', running))"></v-line>
-          <v-text :config="{ x: 70, y: 32, text: 'Image Gen', ...configText }" />
+          <v-line :config="createArrow(setStatus('codeGen', running))"></v-line>
+          <v-text :config="{ x: 70, y: 32, text: 'Code Gen', ...configText }" />
         </v-group>
         <v-group
           ref="imageDepoly"
-          :config="{ x: (stageWidth / 6) * 4, y: 75, offset: { x: 85, y: 40 } }"
+          :config="{ x: (stageWidth / 5) * 4, y: 95, offset: { x: 85, y: 40 } }"
           @mousedown="onMousedown($event, 'imageDepoly')"
           @mouseover="onMouseover($event, 'imageDepoly')"
           @mouseout="onMouseout($event, 'imageDepoly')"
         >
           <v-line :config="createArrow(setStatus('imageDepoly', running))"></v-line>
           <v-text :config="{ x: 65, y: 32, text: 'Image Depoly', ...configText }" />
-        </v-group>
-        <v-group
-          ref="runImage"
-          :config="{ x: (stageWidth / 6) * 5, y: 75, offset: { x: 85, y: 40 } }"
-          @mousedown="onMousedown($event, 'runImage')"
-          @mouseover="onMouseover($event, 'runImage')"
-          @mouseout="onMouseout($event, 'runImage')"
-        >
-          <v-line :config="createArrow(setStatus('runImage', running))"></v-line>
-          <v-text :config="{ x: 75, y: 32, text: 'Run Image', ...configText }" />
         </v-group>
       </v-layer>
     </v-stage>
@@ -85,7 +75,7 @@ export default {
 
       orgStroke: "",
 
-      runningOrder: ["bms", ["autoNN", "yoloe", "auto_nk"], "imageGen", "imageDepoly", "runImage"]
+      runningOrder: ["bms", ["autoNN", "yoloe", "auto_nk"], "codeGen", "imageDepoly"]
       // currentIndex: -1
     };
   },

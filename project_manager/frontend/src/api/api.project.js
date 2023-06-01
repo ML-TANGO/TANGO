@@ -83,3 +83,15 @@ export async function deleteProject(id) {
 
   return response.data;
 }
+
+export async function updateProjectType(id, type) {
+  let response = null;
+
+  try {
+    response = await axios.post("/api/project_type", { id: id, type: type });
+  } catch (error) {
+    throw new Error(error);
+  }
+
+  return response.data;
+}

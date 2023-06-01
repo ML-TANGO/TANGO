@@ -28,11 +28,12 @@ import TabBase from "@/modules/project/TabBase.vue";
 
 import {
   getProjectInfo,
-  getStatusResult,
+  // getStatusResult,
   getTargetInfo,
   getDatasetListTango,
-  stopContainer
-  // postStatusRequest
+  stopContainer,
+  postStatusRequest
+  // checkContainerStatus_TEST
 } from "@/api";
 
 import Cookies from "universal-cookie";
@@ -85,7 +86,17 @@ export default {
   mounted() {
     this.interval = setInterval(() => {
       if (this.projectInfo.id) {
-        getStatusResult(this.projectInfo.id).then(res => {
+        // getStatusResult(this.projectInfo.id).then(res => {
+        //   this.projectInfo.container = res.container;
+        //   this.projectInfo.container_status = res.container_status;
+        //   console.log("setInterval ===> ", res);
+        //   this.$EventBus.$emit("logUpdate", res);
+        // });
+
+        postStatusRequest({
+          user_id: this.projectInfo.create_user,
+          project_id: this.projectInfo.id
+        }).then(res => {
           this.projectInfo.container = res.container;
           this.projectInfo.container_status = res.container_status;
           console.log("setInterval ===> ", res);

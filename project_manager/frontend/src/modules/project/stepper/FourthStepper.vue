@@ -6,7 +6,7 @@
       <!-- TASK TYPE -->
       <div class="d-flex align-center" style="gap: 25px">
         <div style="width: 150px">TASK TYPE</div>
-        <v-radio-group v-model="taskType" row hide-details="" class="ma-0" readonly>
+        <v-radio-group v-model="taskType" row hide-details="" class="ma-0">
           <v-radio label="Classification" value="classification"></v-radio>
           <v-radio label="Detection" value="detection"></v-radio>
         </v-radio-group>
@@ -15,7 +15,7 @@
       <v-divider class="mt-3 mb-3"></v-divider>
 
       <!-- AUTONN -->
-      <div class="d-flex align-center" style="gap: 25px">
+      <!-- <div class="d-flex align-center" style="gap: 25px">
         <div style="width: 150px">AutonNN Config</div>
         <div class="d-flex align-center" style="gap: 5px">
           <v-text-field v-model="dataset" outlined dense label="Dataset file" hide-details readonly />
@@ -26,10 +26,10 @@
         </div>
       </div>
 
-      <v-divider class="mt-3 mb-3"></v-divider>
+      <v-divider class="mt-3 mb-3"></v-divider> -->
 
       <!-- nas Type -->
-      <div class="d-flex align-center" style="gap: 25px">
+      <!-- <div class="d-flex align-center" style="gap: 25px">
         <div style="width: 150px">NAS Type</div>
         <v-radio-group v-model="nasType" row hide-details class="ma-0">
           <v-radio label="Backbone Nas" value="bb_nas"></v-radio>
@@ -37,7 +37,7 @@
         </v-radio-group>
       </div>
 
-      <v-divider class="mt-3 mb-3" v-if="selectedTarget.info !== 'ondevice'"></v-divider>
+      <v-divider class="mt-3 mb-3" v-if="selectedTarget.info !== 'ondevice'"></v-divider> -->
 
       <!-- Deploy Config -->
       <div class="d-flex" style="gap: 25px" v-if="selectedTarget.info !== 'ondevice'">
@@ -143,7 +143,7 @@ export default {
 
   created() {
     this.taskType = this.selectedImage.OBJECT_TYPE === "C" ? "classification" : "detection";
-    this.nasType = this.project.nas_type;
+    this.nasType = this.project.nas_type || "neck_nas";
     this.basemodel = this.project.autonn_basemodel || "basemode.yaml";
     this.dataset = this.project.autonn_dataset_file || "dataset.yaml";
     this.lightWeightLv = this.project.deploy_weight_level;

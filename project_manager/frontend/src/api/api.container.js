@@ -56,6 +56,23 @@ export async function checkContainerStatus(container, uid, pid) {
   return response.data;
 }
 
+export async function checkContainerStatus_TEST(container, uid, pid) {
+  let response = null;
+
+  console.log(uid, pid);
+  try {
+    response = await axios.get(
+      "http://bms:8081/status_request",
+      { params: { user_id: uid, project_id: pid } },
+      { withCredentials: true }
+    );
+  } catch (error) {
+    throw new Error(error);
+  }
+
+  return response.data;
+}
+
 export async function updateContainerStatus(param) {
   let response = null;
 
@@ -87,6 +104,28 @@ export async function postStatusRequest(data) {
 
   try {
     response = await request.post("/api/status_request", data);
+  } catch (error) {
+    throw new Error(error);
+  }
+
+  return response.data;
+}
+
+/* 컨테이너 상태 요청 */
+/**
+ * user_id , project_id , container_id
+ * @param {*} data
+ * @returns
+ */
+export async function containerStart(container, user, project) {
+  let response = null;
+
+  try {
+    response = await request.post("/api/container_start", {
+      user_id: user,
+      project_id: project,
+      container_id: container
+    });
   } catch (error) {
     throw new Error(error);
   }

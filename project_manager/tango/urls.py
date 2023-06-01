@@ -34,6 +34,7 @@ urlpatterns = [
     url(r'^project_rename', viewsProject.project_rename, name='project_rename'),         # 프로젝트 이름 수정
     url(r'^project_info', viewsProject.project_info, name='project_info'),               # 프로젝트 삭제
     url(r'^project_update', viewsProject.project_update, name='project_update'),         # 프로젝트 이름 수정
+    url(r'^project_type', viewsProject.project_type_update, name='project_type_update'), # 프로젝트 워크플로우 진행 방식 수정
 
     # 프로젝트 설명 수정
     url(r'^project_description_update', viewsProject.project_description_update, name='project_description_update'),
@@ -49,6 +50,7 @@ urlpatterns = [
     url(r'^target_delete', viewsTarget.target_delete, name='target_delete'),    # 타겟 삭제
     url(r'^target_info', viewsTarget.target_info, name='target_info'),    # 타겟 정보 가져오기
 
+    url(r'^container_start', viewsProject.container_start, name='container_start'),       # 컨테이너 실행
     url(r'^status_result', viewsProject.status_result, name='status_result'),       # 컨테이너 실행 상태 확인
     url(r'^status_request', viewsProject.status_request, name='status_request'),       # 컨테이너 실행 상태 확인 요청
 

@@ -122,8 +122,7 @@ export default {
       itemBasicinfosColumn: [
         { title: "Dataset", value: "dataset" },
         { title: "Target", value: "target_info" },
-        { title: "Task Type", value: "task_type" },
-        { title: "Nas Type", value: "nas_type" }
+        { title: "Task Type", value: "task_type" }
       ],
       itemDetailInfosColumn: ["autonn_dataset_file", "autonn_basemodel"] // 등등 추가 예정
     };
@@ -136,6 +135,15 @@ export default {
 
     itemDetailInfos() {
       return this.itemBasicinfosColumn.map(q => ({ title: q, content: this.projectInfo[q] }));
+    }
+  },
+
+  watch: {
+    status: {
+      immediate: true,
+      handler() {
+        console.log("this.status", this.status);
+      }
     }
   },
 

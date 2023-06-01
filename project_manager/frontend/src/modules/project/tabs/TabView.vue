@@ -17,9 +17,12 @@ export default {
   },
   methods: {
     status(info) {
-      console.log("info", info);
-
       if (!info?.dataset || info?.dataset === "") return { title: "Dataset", color: "#FF3D54" };
+      else if (info.container !== "" && info.container !== "init") {
+        return { title: info?.container_status.toUpperCase(), color: "#4a80ff" };
+      } else if (info?.container_status === "fail") return { title: info?.container_status, color: "#FF3D54" };
+      else if (info?.container_status === "success") return { title: info?.container, color: "#4a80ff" };
+      else if (info?.container_status === "" && info?.container === "") return { title: "READY", color: "#4a80ff" };
       else if (!info?.target_id || info?.target_id === "") return { title: "Target", color: "#FF3D54" };
       else if (!info?.task_type || info?.task_type === "") return { title: "Task Type", color: "#FF3D54" };
       else if (!info?.nas_type || info?.nas_type === "") return { title: "Nas Type", color: "#FF3D54" };
@@ -38,10 +41,7 @@ export default {
           return { title: "Input Data Path", color: "#FF3D54" };
         else if (!info?.deploy_output_method || info?.deploy_output_method === "")
           return { title: "Output Method", color: "#FF3D54" };
-      } else if (info?.container_status === "fail") return { title: info?.container, color: "#FF3D54" };
-      else if (info?.container_status === "success") return { title: info?.container, color: "#4a80ff" };
-      else if (info?.container_status === "" && info?.container === "") return { title: "READY", color: "#4a80ff" };
-      else return { title: "READY", color: "#4a80ff" };
+      } else return { title: "READY", color: "#4a80ff" };
     }
   }
 };

@@ -28,7 +28,7 @@
       </v-tab-item>
       <!-- IMAGE GEN -->
       <v-tab-item>
-        <TabView v-if="isData(this.projectsByTab['Image Gen'])" :items="this.projectsByTab['Image Gen']" />
+        <TabView v-if="isData(this.projectsByTab['Code Gen'])" :items="this.projectsByTab['Code Gen']" />
         <NoResultTab v-else />
       </v-tab-item>
       <!-- IMAGE DEPOLY -->
@@ -37,10 +37,10 @@
         <NoResultTab v-else />
       </v-tab-item>
       <!-- RUN IMAGE -->
-      <v-tab-item>
+      <!-- <v-tab-item>
         <TabView v-if="isData(this.projectsByTab['Run Image'])" :items="this.projectsByTab['Run Image']" />
         <NoResultTab v-else />
-      </v-tab-item>
+      </v-tab-item> -->
     </v-tabs-items>
 
     <ProjectCreateDialog :step="step" @stepChange="onStepChange" @close="close">
@@ -85,14 +85,14 @@ export default {
     return {
       tab: null,
       step: 1,
-      items: ["All Status", "Preparing", "BMS", "Auto NN", "Image Gen", "Image Deploy", "Run Image"],
-      defaultValue: { Preparing: [], BMS: [], "Auto NN": [], "Image Gen": [], "Image Deploy": [], "Run Image": [] },
+      items: ["All Status", "Preparing", "BMS", "Auto NN", "Code Gen", "Image Deploy"],
+      defaultValue: { Preparing: [], BMS: [], "Auto NN": [], "Code Gen": [], "Image Deploy": [] },
       projectsByTab: {},
       tabItems: [
         { key: "Preparing", allowed: ["", "init"] },
         { key: "BMS", allowed: ["bms"] },
         { key: "Auto NN", allowed: ["autonk", "yoloe", "autobb"] },
-        { key: "Image Gen", allowed: ["image_gen"] },
+        { key: "Code Gen", allowed: ["code_gen"] },
         { key: "Image Deploy", allowed: ["image_depoly"] },
         { key: "Run Image", allowed: ["run_image"] }
       ]

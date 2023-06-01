@@ -24,21 +24,21 @@
           <v-radio label="Detection" value="detection"></v-radio>
         </v-radio-group>
       </div>
-      <div style="width: 25%">
+      <!-- <div style="width: 25%">
         <h4 class="ml-3 mt-3">Nas Type</h4>
         <v-radio-group v-model="nasType" row hide-details class="ma-0 mt-2 ml-3" readonly>
           <v-radio label="Backbone Nas" value="bb_nas"></v-radio>
           <v-radio label="Neck Nas" value="neck_nas"></v-radio>
         </v-radio-group>
-      </div>
-      <div style="width: 25%">
+      </div> -->
+      <!-- <div style="width: 25%">
         <h4 class="ml-3 mt-3">Dataset File</h4>
         <v-text-field v-model="datasetFile" outlined dense hide-details class="ml-3" readonly />
       </div>
       <div style="width: 25%">
         <h4 class="ml-3 mt-3">BaseModel</h4>
         <v-text-field v-model="baseModel" outlined dense hide-details class="ml-3" readonly />
-      </div>
+      </div> -->
     </div>
 
     <div v-if="selectedTarget?.info && selectedTarget?.info !== 'ondevice'">

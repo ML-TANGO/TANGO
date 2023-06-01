@@ -2,34 +2,20 @@
   <div class="d-flex flex-column" style="gap: 15px; margin-left: -16px">
     <div>
       <div style="width: 100%" class="d-flex justify-center">
-        <v-btn class="mb-3" color="#4a80ff" width="380" dark @click="autoCreate">
-          Automatic Generation of Neural Networks
-        </v-btn>
+        <div style="gap: 15px" class="d-flex align-center">
+          <v-btn class="mb-3" color="#4a80ff" width="380" dark @click="menualCreate">
+            Manually Generation of Neural Networks
+          </v-btn>
+
+          <v-btn class="mb-3" color="#4a80ff" width="380" dark @click="autoCreate">
+            Automatic Generation of Neural Networks
+          </v-btn>
+        </div>
       </div>
       <h4 class="ml-3 mb-3">Progress - Auto NN</h4>
       <v-card color="#DFDFDF" class="" style="border-radius: 4px" height="180">
         <div>
           <ProgressCanvas :running="projectInfo?.container" @start="start" />
-
-          <div style="width: 268px; height: 35px; position: relative; top: -64px; left: 250px" class="visual">
-            <v-btn
-              style="
-                position: absolute;
-                bottom: -20px;
-                left: calc(50% - 60px);
-                border-radius: 4px;
-                width: 120px;
-                height: 40px;
-                background: #4a80ff;
-                color: white;
-                border: none;
-                padding-bottom: -20px;
-              "
-              class="d-flex align-center justify-center"
-            >
-              Visualization
-            </v-btn>
-          </div>
         </div>
       </v-card>
     </div>
@@ -46,6 +32,7 @@
           height="200"
           style="font-size: 12px"
           readonly
+          autofocus
         ></v-textarea>
       </v-card>
     </div>
@@ -57,7 +44,9 @@ import { ProjectNamespace, ProjectMutations } from "@/store/modules/project";
 
 import ProgressCanvas from "@/modules/project/components/ProgressCanvas.vue";
 
-import { startContainer /*, stopContainer, getStatusResult*/ } from "@/api";
+import { ProjectType } from "@/shared/consts";
+
+import { containerStart /* startContainer , stopContainer, getStatusResult*/, updateProjectType } from "@/api";
 export default {
   components: { ProgressCanvas },
   props: {
@@ -117,9 +106,15 @@ export default {
         })
         .then(async result => {
           if (result.isConfirmed) {
-            this.vale = "";
             this.$emit("restart");
-            startContainer(container, this.projectInfo.create_user, this.projectInfo.id);
+
+            await updateProjectType(this.projectInfo.id, ProjectType.MANUAL);
+            const res = await containerStart(container, this.projectInfo.create_user, this.projectInfo.id);
+            this.vale += res.message;
+
+            this.SET_PROJECT({
+              project_type: ProjectType.MANUAL
+            });
           }
         });
 
@@ -146,13 +141,56 @@ export default {
             if (result.isConfirmed) {
               // await getStatusResult(this.projectInfo.id);
               // await stopContainer(this.projectInfo.container, this.projectInfo.create_user, this.projectInfo.id);
-              startContainer("bms", this.projectInfo.create_user, this.projectInfo.id);
+              await updateProjectType(this.projectInfo.id, ProjectType.AUTO);
+              const res = await containerStart("bms", this.projectInfo.create_user, this.projectInfo.id);
+              this.vale += res.message;
             }
           });
       } else {
         // await getStatusResult(this.projectInfo.id);
-        startContainer("bms", this.projectInfo.create_user, this.projectInfo.id);
+        await updateProjectType(this.projectInfo.id, ProjectType.AUTO);
+        const res = await containerStart("bms", this.projectInfo.create_user, this.projectInfo.id);
+        this.vale += res.message;
       }
+
+      this.SET_PROJECT({
+        project_type: ProjectType.AUTO
+      });
+    },
+
+    async menualCreate() {
+      // 실행중인 컨테이너가 있다면 종료
+      if (this.projectInfo?.container && this.projectInfo?.container !== "" && this.projectInfo?.container !== "init") {
+        this.$swal
+          .fire({
+            title: `실행 중인 작업이 있습니다.`,
+            text: "다시 시작 하시겠습니까?",
+            icon: "warning",
+            showCancelButton: true,
+            confirmButtonColor: "#3085d6",
+            cancelButtonColor: "#d33",
+            confirmButtonText: "확인",
+            cancelButtonText: "취소"
+          })
+          .then(async result => {
+            if (result.isConfirmed) {
+              // await getStatusResult(this.projectInfo.id);
+              // await stopContainer(this.projectInfo.container, this.projectInfo.create_user, this.projectInfo.id);
+              await updateProjectType(this.projectInfo.id, ProjectType.MANUAL);
+              // updateProjectType(this.projectInfo.id, ProjectType.MANUAL);
+              // startContainer("bms", this.projectInfo.create_user, this.projectInfo.id);
+            }
+          });
+      } else {
+        // await getStatusResult(this.projectInfo.id);
+        await updateProjectType(this.projectInfo.id, ProjectType.MANUAL);
+        // updateProjectType(this.projectInfo.id, ProjectType.MANUAL);
+        // startContainer("bms", this.projectInfo.create_user, this.projectInfo.id);
+      }
+
+      this.SET_PROJECT({
+        project_type: ProjectType.MANUAL
+      });
     }
   }
 };

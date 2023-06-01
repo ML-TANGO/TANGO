@@ -13,6 +13,7 @@ import math
 import socket
 import threading
 import requests
+import asyncio
 
 from datetime import datetime
 import time
@@ -30,12 +31,17 @@ from .models import Project, AuthUser, Target
 from django.views.decorators.csrf import csrf_exempt, csrf_protect
 from django.forms.models import model_to_dict
 
+from .projectHandler import *
+
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 root_path = os.path.dirname(os.path.dirname(BASE_DIR))
 
-response_message = ""
-last_logs_timestamp = 0
-last_container = ""
+# response_message = ""
+# last_logs_timestamp = 0
+# last_container = ""
+
+response_data = {}
+
 
 # @permission_classes([IsAuthenticated])                  # 권한 체크 - 로그인 여부
 # @authentication_classes([JSONWebTokenAuthentication])   # 토큰 확인
@@ -45,43 +51,90 @@ last_container = ""
 # 컨테이너 상태 결과 응답
 @api_view(['POST'])
 @permission_classes([AllowAny])   # 토큰 확인
+def container_start(request):
+
+    try:
+        print("----------container_start----------")
+        user_id = request.data['user_id']
+        project_id = request.data['project_id']
+        container_id = request.data['container_id']
+       
+        response = asyncio.run(start_handler(container_id, user_id, project_id))
+        # response = asyncio.get_event_loop().run_until_complete(start_handler(container_id, user_id, project_id))
+        # response = start_handler(container_id, user_id, project_id)
+        # host, port = get_container_info(container_id)
+        # response = continer_start_api(host + ':' + port, user_id, project_id)
+
+        # asyncio.run(aiohttp_request_handler())
+
+        print(str(container_id) + ' start - ' + str(response))
+
+        queryset = Project.objects.get(id=project_id, create_user=str(user_id))
+        queryset.container = container_id
+        queryset.container_status = 'started'
+        queryset.save()
+
+        return HttpResponse(json.dumps({'status': 200, 'message': str(container_id) + ' 시작 요청\n'}))
+
+    except Exception as error:
+        print('container start error - ' + str(error))
+        return HttpResponse(error)
+
+
+# 컨테이너 상태 결과 응답
+@api_view(['POST'])
+@permission_classes([AllowAny])   # 토큰 확인
 def status_request(request):
 
     try:
         print("----------status_request----------")
+        global response_data
+
         user_id = request.data['user_id']
         project_id = request.data['project_id']
-        container_id = request.data['container_id']
+        #container_id = request.data['container_id']
 
-        ports_by_container = {
-            'bms' : "8081",
-            'yoloe' : "8090",
-        }
+        queryset = Project.objects.get(id=project_id, create_user=str(user_id))
+        container_id = queryset.container
 
-        print('user_id : ' + user_id)
-        print('project_id : ' + project_id)
-        print('container_id : ' + container_id)
-
-        url = 'http://'+ str(container_id) +':'+ str(ports_by_container[container_id]) +'/status_request'
-        headers = {
-            'Content-Type' : 'text/plain'
-        }
-        payload = {
-            'user_id' : user_id,
-            'project_id' : project_id,
-        }
-        response = requests.get(url, headers=headers, params=payload)
+        if user_id not in response_data:
+            response_data[user_id] = {}
+        
+        if project_id not in response_data[user_id]:
+            response_data[user_id][project_id] = {
+                'last_container' : container_id,
+                'last_logs_timestamp' : 0,
+                'response_message' : ''
+            }
+        
+        # response = asyncio.get_event_loop().run_until_complete(request_handler(container_id, user_id, project_id))
+        # response = request_handler(container_id, user_id, project_id)
+        # host, port = get_container_info(container_id)
+        # response = continer_request_api(host + ':' + port, user_id, project_id)
+        response = asyncio.run(request_handler(container_id, user_id, project_id))
+        # print(response)
+        queryset.container = container_id
+        queryset.container_status = response
+        queryset.save()
 
         print("status-request " + str(container_id) + ' result.....')
         print(response)
 
-        # queryset = Project.objects.get(id=project_id, create_user=str(user_id))
-        # queryset.container = container_id
-        # queryset.container_status = result
+        if response_data[user_id][project_id]['last_container'] != queryset.container:
+            response_data[user_id][project_id]['last_logs_timestamp'] = 0
 
-        # queryset.save()
+        logs = get_docker_log_handler(queryset.container, response_data[user_id][project_id]['last_logs_timestamp'])
+        response_data[user_id][project_id]['last_logs_timestamp'] = time.mktime(datetime.now().timetuple())
+        response_data[user_id][project_id]['last_container'] = queryset.container
 
-        return HttpResponse(json.dumps({'status': 200}))
+        m = response_data[user_id][project_id]['response_message'] + '\n' + str(logs)
+        response_data[user_id][project_id]['response_message'] = ''
+
+
+        # return HttpResponse(json.dumps({'response': response}))
+        return HttpResponse(json.dumps({'container': queryset.container,
+                                'container_status': queryset.container_status,
+                                'message': m,}))
 
     except Exception as error:
         print(error)
@@ -93,70 +146,60 @@ def status_request(request):
 def status_report(request):
 
     try:
-        global response_message
-        global response_message
-        # container_list = ['bms',
-        #                   'viz2code',
-        #                   'autonn',
-        #                   'code_gen',
-        #                   'cloud_deployment',
-        #                   'ondevice_deployment']
-        #
-        # container_id = request.GET['container_id']
-        #
-        # if container_id not in container_list:
-        #     return HttpResponse(status=400, content={'Container ID Not Find'})
-
-        print('status_report')
+        print("@@@@@@@@@@@@@@@@@@@@@@@ status report @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@")
+        global response_data
 
         user_id = request.GET['user_id']
         project_id = request.GET['project_id']
-
         container_id = request.GET['container_id']
         result = request.GET['status']
-        result = request.GET['status']
-
-        print('user_id : ' + user_id)
-        print('project_id : ' + project_id)
-        print('container_id : ' + container_id)
-        print('status : ' + result)
-        print('status : ' + result)
 
         queryset = Project.objects.get(id=project_id, create_user=str(user_id))
         queryset.container = container_id
         queryset.container_status = result
-
         queryset.save()
 
-        if container_id == 'bms' and result == 'success':
-            print("bms end .. ---- success")
-            response_message += 'base model select 완료\n'
-            response_message += 'auto_nn_yolo_e 시작 요청\n'
-            url = 'http://yoloe:8090/start'
-            headers = {
-                'Content-Type' : 'text/plain'
-            }
-            payload = {
-                'user_id' : user_id,
-                'project_id' : project_id,
-            }
-            response = requests.get(url, headers=headers, params=payload)
+        if user_id not in response_data:
+            response_data[user_id] = {} 
 
-            queryset = Project.objects.get(id=project_id, create_user=str(user_id))
-            queryset.container = 'yoloe'
-            queryset.container_status = 'running'
-            queryset.save()
+        if project_id not in response_data[user_id]:
+            response_data[user_id][project_id] = {
+                'last_container' : container_id,
+                'last_logs_timestamp' : 0,
+                'response_message' : ''
+            }
 
-            print("project-manager : response")
-            print(response)
-            response_message += response
-        elif container_id == 'yoloe' and result == 'success':
-            print("yoloe end .. ---- success")
-            response_message += 'yoloe 완료\n'
+        if queryset.project_type == 'auto':
+            if container_id == 'bms' and result == 'success':
+                print("bms end .. ---- success")
+                response_data[user_id][project_id]['response_message'] += 'base model select 완료\n'
+
+                response_data[user_id][project_id]['response_message'] += 'auto_nn_yolo_e 시작 요청\n'
+                print('autonn - yoloe - start request')
+                # response = asyncio.get_event_loop().run_until_complete(start_handler(container_id, user_id, project_id))
+                # response = start_handler(container_id, user_id, project_id)
+                response = asyncio.run(start_handler('yoloe', user_id, project_id))
+                print(response)
+
+                queryset = Project.objects.get(id=project_id, create_user=str(user_id))
+                queryset.container = 'yoloe'
+                queryset.container_status = 'running'
+                queryset.save()
+            elif container_id == 'yoloe' and result == 'success':
+                print("yoloe end .. ---- success")
+                response_data[user_id][project_id]['response_message'] += 'yoloe 완료\n'
+        else:
+            if container_id == 'bms' and result == 'success':
+                print("bms end .. ---- success")
+                response_data[user_id][project_id]['response_message'] += 'base model select 완료\n'
+            elif container_id == 'yoloe' and result == 'success':
+                print("yoloe end .. ---- success")
+                response_data[user_id][project_id]['response_message'] += 'yoloe 완료\n'
 
         return HttpResponse(json.dumps({'status': 200}))
 
     except Exception as error:
+        print("status_report - error")
         print(error)
         return HttpResponse(error)
 
@@ -165,9 +208,8 @@ def status_report(request):
 @api_view(['GET', 'POST'])
 @authentication_classes([OAuth2Authentication])   # 토큰 확인
 def status_result(request):
-    global response_message
     """
-    project_list_get _summary_
+    status_result _summary_
 
     Args:
         request (_type_): _description_
@@ -176,65 +218,19 @@ def status_result(request):
         _type_: _description_
     """
 
-    global response_message
-    global last_logs_timestamp
-    global last_container
-
     try:
         project_id = request.data['project_id']
         queryset = Project.objects.get(id=project_id, create_user=str(request.user))
-
-        containerName = ''
-        if queryset.container == 'init' :
-            containerName = 'bms'
-        elif queryset.container == 'bms' :
-            containerName = 'autonn_yoloe'
-        elif queryset.container == 'yoloe' :
-            containerName = 'autonn_yoloe'
-        elif queryset.container == 'labelling' :
-            containerName = 'labelling'
-        elif queryset.container == 'autonn_bb' :
-            containerName = 'autonn_bb'
-        elif queryset.container == 'autonn_nk' :
-            containerName = 'autonn_nk'
-        else :
-            containerName = 'bms'
-
-        # print(last_container != containerName)
-        if last_container != containerName :
+        if last_container != queryset.container:
             last_logs_timestamp = 0
 
-        # print(queryset.container)
-        # print(queryset.container_status)
-        
-        # print(datetime.now())
-
-        # print("last_logs_timestamp")
-        # print(last_logs_timestamp)
-
-        if last_logs_timestamp == 0:
-            # print('docker logs --tail= ' + 'all' + ' -t tango-' + str(containerName) + '-1')
-            logs = os.popen('docker logs --tail=' + 'all' + ' -t tango-' + str(containerName) + '-1')
-        else :
-            logs = os.popen('docker logs --since '+ str(last_logs_timestamp) + ' -t tango-' + str(containerName) + '-1')
-        # print('docker logs --since '+ str(int(last_logs_timestamp)) + ' -t tango-' + str(containerName) + '-1')
+        logs = get_docker_log_handler(queryset.container, last_logs_timestamp)
         last_logs_timestamp = time.mktime(datetime.now().timetuple())
-        last_container = containerName
-        # print(last_logs_timestamp)
-        # print(last_container)
+        last_container = queryset.container
 
-        # dockerLogs = logs.read()
-        # print("dockerLogs")
-        # print("")
-        # print("")
-        # print(str(dockerLogs))
-        # print("m = response_message +  + str(dockerLogs)")
-        m = response_message + '\n' + str(logs.read())
+        m = response_message + '\n' + str(logs)
         response_message = ''
-        # print("============================")
-        # print("============================")
-        # print("============================")
-        # print("============================")
+
         return HttpResponse(json.dumps({'container': queryset.container,
                                         'container_status': queryset.container_status,
                                         'message': m,}))
@@ -332,6 +328,38 @@ def project_description_update(request):
                                    create_user=request.user)
         data.project_description = form['description']
         data.save()
+
+        return Response(status=200)
+
+    except Exception as e:
+        print(e)
+        return Response(status=500)
+    
+# Project 워크플로우 진행 방식 수정
+@api_view(['GET', 'POST'])
+@authentication_classes([OAuth2Authentication])   # 토큰 확인
+def project_type_update(request):
+    """
+    project_type_update _summary_
+
+    Args:
+        request (_type_): _description_
+
+    Returns:
+        _type_: _description_
+    """
+
+    try:
+        form = request.data
+
+        data = Project.objects.get(id=form['id'],
+                                   create_user=request.user)
+        projectType = form['type']
+        data.project_type = projectType.lower()
+        data.save()
+
+        print(data.project_type)
+        print(projectType.lower())
 
         return Response(status=200)
 
@@ -607,8 +635,8 @@ def project_update(request):
                                    "target_serviceport : {9}\n\n" \
                                    "#for autonn\n" \
                                    "dataset : {10}\n" \
-                                   "basemodel : {11}\n" \
-                                   "nas_type : {12}\n\n" \
+                                   "#basemodel : {11}\n" \
+                                   "#nas_type : {12}\n\n" \
                                    "#for deploy\n" \
                                    "# lightweight_level : {13}\n" \
                                    "# precision_level : {14}\n" \
@@ -626,7 +654,7 @@ def project_update(request):
                                                                   data.target_host_ip,
                                                                   data.target_host_port,
                                                                   data.target_host_service_port,
-                                                                  autonn_dataset_file,
+                                                                  dataset,
                                                                   autonn_basemodel,
                                                                   nas_type,
                                                                   deploy_weight_level,
@@ -651,8 +679,8 @@ def project_update(request):
                                     "# target_serviceport : {9}\n\n" \
                                     "#for autonn\n" \
                                     "dataset : {10}\n" \
-                                    "basemodel : {11}\n" \
-                                    "nas_type : {12}\n\n" \
+                                    "#basemodel : {11}\n" \
+                                    "#nas_type : {12}\n\n" \
                                     "#for deploy\n" \
                                     "# lightweight_level : {13}\n" \
                                     "# precision_level : {14}\n" \
@@ -670,7 +698,7 @@ def project_update(request):
                                                                      data.target_host_ip,
                                                                      data.target_host_port,
                                                                      data.target_host_service_port,
-                                                                     autonn_dataset_file,
+                                                                     dataset,
                                                                      autonn_basemodel,
                                                                      nas_type,
                                                                      deploy_weight_level,
