@@ -12,6 +12,8 @@ const mutations = {
 
   [Mutations.INIT_PROJECT](state) {
     state.project = {};
+    state.selectedTarget = {};
+    state.selectedImage = {};
   },
 
   [Mutations.SET_SELECTED_TARGET](state, data) {

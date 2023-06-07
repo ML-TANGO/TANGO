@@ -43,7 +43,7 @@
             </div>
             <div class="d-flex flex-column text-center" style="width: 70px">
               <small class="mb-2" style="letter-spacing: 1px; color: #aaa; font-size: 10px">Memory</small>
-              <p class="ma-0" style="font-size: 13px">{{ prettyBytes(Number(item?.memory) || 0) }}</p>
+              <p class="ma-0" style="font-size: 13px">{{ Number(item?.memory) }} MB</p>
             </div>
             <div class="d-flex flex-column text-center" style="width: 55px">
               <small class="mb-2" style="letter-spacing: 1px; color: #aaa; font-size: 10px">OS</small>

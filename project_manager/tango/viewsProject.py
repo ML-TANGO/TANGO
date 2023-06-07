@@ -648,7 +648,7 @@ def project_update(request):
                                                                   data.target_info,
                                                                   data.target_cpu,
                                                                   data.target_acc,
-                                                                  data.target_memory,
+                                                                  int(int(data.target_memory) / 1024),
                                                                   data.target_os,
                                                                   data.target_engine,
                                                                   data.target_host_ip,
@@ -689,10 +689,10 @@ def project_update(request):
                                     "# input_data_location : {17}\n" \
                                     "# output_method : {18}\n" \
                                     "# user_editing : {19}\n".format(task_type,
-                                                                     'on_device',
+                                                                     'ondevice',
                                                                      data.target_cpu,
                                                                      data.target_acc,
-                                                                     data.target_memory,
+                                                                     int(int(data.target_memory) / 1024),
                                                                      data.target_os,
                                                                      data.target_engine,
                                                                      data.target_host_ip,

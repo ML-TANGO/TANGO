@@ -13,7 +13,7 @@
         <div class="d-flex justify-center align-center pa-3">
           <v-img :src="item.image" width="50" max-width="50" contain></v-img>
         </div>
-        <div class="ml-3 d-flex flex-column justify-center" style="width: 400px">
+        <div class="ml-3 d-flex flex-column justify-center" style="width: 340px">
           <div class="d-flex align-center" style="gap: 10px">
             <p style="color: #000000ff; letter-spacing: 1px; font-size: 14px" class="pa-0 ma-0">{{ item.name }}</p>
           </div>
@@ -32,9 +32,9 @@
               <small class="mb-2" style="letter-spacing: 1px; color: #aaa; font-size: 10px">Info</small>
               <p class="ma-0" style="font-size: 13px">{{ item.info }}</p>
             </div>
-            <div class="d-flex flex-column text-center" style="width: 80px">
+            <div class="d-flex flex-column text-center" style="width: 100px">
               <small class="mb-2" style="letter-spacing: 1px; color: #aaa; font-size: 10px">Memory</small>
-              <p class="ma-0" style="font-size: 13px">{{ prettyBytes(Number(item?.memory) || 0) }}</p>
+              <p class="ma-0" style="font-size: 13px">{{ Number(item?.memory) }} MB</p>
             </div>
             <div class="d-flex flex-column text-center" style="width: 80px">
               <small class="mb-2" style="letter-spacing: 1px; color: #aaa; font-size: 10px">OS</small>

@@ -76,6 +76,10 @@ export default {
     });
   },
 
+  beforeDestroy() {
+    this.INIT_PROJECT();
+  },
+
   methods: {
     ...mapMutations(ProjectNamespace, {
       SET_PROJECT: ProjectMutations.SET_PROJECT,

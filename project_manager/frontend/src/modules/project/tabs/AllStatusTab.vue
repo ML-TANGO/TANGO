@@ -44,7 +44,7 @@ export default {
       return info => {
         if (!info?.dataset || info?.dataset === "") return { title: "Dataset", color: "#FF3D54" };
         else if (info.container !== "" && info.container !== "init") {
-          return { title: info?.container_status.toUpperCase(), color: "#4a80ff" };
+          return { title: info?.container_status?.toUpperCase() || "READY", color: "#4a80ff" };
         } else if (info?.container_status === "fail") return { title: info?.container_status, color: "#FF3D54" };
         else if (info?.container_status === "success") return { title: info?.container, color: "#4a80ff" };
         else if (info?.container_status === "" && info?.container === "") return { title: "READY", color: "#4a80ff" };
@@ -73,6 +73,7 @@ export default {
 
   watch: {
     itemByTabs() {
+      console.log(this.itemByTabs);
       this.totalCount = Object.keys(this.itemByTabs).reduce((acc, val) => {
         acc += this.itemByTabs[val].length;
         return acc;

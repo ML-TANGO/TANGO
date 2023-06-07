@@ -71,7 +71,7 @@
               type="number"
               outlined
               dense
-              label="Memory"
+              label="Memory (MB)"
               hide-details
               style="width: 50%"
               @change="memoryChange"
