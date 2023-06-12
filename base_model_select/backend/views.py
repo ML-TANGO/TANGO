@@ -1,6 +1,6 @@
 import requests
 import shutil
-import os 
+import os
 import sys
 import django
 django.setup()
@@ -24,7 +24,7 @@ from . import models
 
 PROCESSES = {}
 
-task_to_model_table = {'detection': 'yolov7', 
+task_to_model_table = {'detection': 'yolov7',
                        'classification': 'resnet'}
 model_to_size_table = {'yolov7':
                           {'cloud': '-e6e',
@@ -50,31 +50,32 @@ def start(request):
     params = request.query_params
     userid = params['user_id']
     project_id = params['project_id']
-    print(userid, project_id) 
-    
+    print(userid, project_id)
+
     try:
         bmsinfo = models.Info.objects.get(userid=userid,
 				        project_id=project_id)
     except models.Info.DoesNotExist:
-        bmsinfo = models.Info(userid=userid, project_id=project_id)  
+        bmsinfo = models.Info(userid=userid, project_id=project_id)
         print("new user or project")
-    
-    data_yaml, proj_info_yaml = get_user_requirements(userid, project_id)
-    print(data_yaml, proj_info_yaml)
-	    
+
+    proj_info_yaml = get_user_requirements(userid, project_id)
+
     pr = mp.Process(target=task_to_model_mapping, args=(proj_info_yaml, userid, project_id), daemon=True)
-	     
+
     pr_id = get_process_id()
     PROCESSES[pr_id] = pr
     print(f'{len(PROCESSES)}-th process is starting')
     PROCESSES[pr_id].start()
-    
+
     bmsinfo.proj_info_yaml=str(proj_info_yaml)
     bmsinfo.data_yaml=str(data_yaml)
     bmsinfo.status="started"
-    
+
     bmsinfo.process_id = pr_id
+    print("PROCESS ID TYPE CHECK(before save): ", type(bmsinfo.process_id), bmsinfo.process_id)
     bmsinfo.save()
+    print("PROCESS ID TYPE CHECK(after save) : ", type(bmsinfo.process_id), bmsinfo.process_id)
     return Response("started", status=200, content_type="text/plain")
 
 
@@ -91,7 +92,7 @@ def task_to_model_mapping(yaml_path, userid, project_id):
     '''
     model_size = model_to_size_table[model][target]
     shutil.copy(f'basemodel_yaml/{model}/{model}{model_size}.yaml', f'/shared/common/{userid}/{project_id}/basemodel.yaml')
-    
+
     status_report(userid, project_id, status="success")
 
 
@@ -101,19 +102,19 @@ def get_ready_for_test(request):
     params = request.query_params
     userid = params['user_id']
     project_id = params['project_id']
-    print(userid, project_id) 
-    
+    print(userid, project_id)
+
     try:
         bmsinfo = models.Info.objects.get(userid=userid,
 				        project_id=project_id)
     except models.Info.DoesNotExist:
-        bmsinfo = models.Info(userid=userid, project_id=project_id)  
+        bmsinfo = models.Info(userid=userid, project_id=project_id)
         print("new user or project")
-    
+
     sample_proj_yaml_cp(userid, project_id)
     create_data_yaml(userid, project_id)
     sample_data_cp()
-    
+
     return Response("get ready for test", status=200, content_type="text/plain")
 
 
@@ -139,11 +140,11 @@ def create_data_yaml(userid, project_id):
 
     with open('sample_yaml/dataset.yaml') as f:
         data_yaml = yaml.load(f, Loader=yaml.FullLoader)
-    
+
     data_yaml['train'] = str(Path('/shared/') / 'datasets' / 'coco128' / 'images' / 'train2017')
     data_yaml['test'] = str(Path('/shared/') / 'datasets' / 'coco128' / 'images' / 'train2017')
     data_yaml['val'] = str(Path('/shared/') / 'datasets' / 'coco128' / 'images' / 'train2017')
-    
+
     with open(Path('/shared/datasets/coco/') / 'dataset.yaml', 'w') as f:
         yaml.dump(data_yaml, f, default_flow_style=False)
 
@@ -153,48 +154,48 @@ def start_api(request):
     params = request.query_params
     userid = params['user_id']
     project_id = params['project_id']
-    print(userid, project_id) 
-    
+    print(userid, project_id)
+
     try:
         bmsinfo = models.Info.objects.get(userid=userid,
                                         project_id=project_id)
     except models.Info.DoesNotExist:
-        bmsinfo = models.Info(userid=userid, project_id=project_id)  
+        bmsinfo = models.Info(userid=userid, project_id=project_id)
         print("new user or project")
-        
+
         # if bmsinfo.status != "ready":
         #     print(f"existed user & project : {bmsinfo.status}... ignore this start signal")
         #     return Response("error", status=200, content_type="text/plain")
-    
+
         # for i in models.Info.objects.all():
         #     if i.status != "ready":
         #         print("not allow runnnig one more bms at the same time..."
         #               " ignore this start signal")
         #         return Response("error", status=200, content_type="text/plain")
-    
+
 
     if request.method == 'GET':
-        
+
         data_yaml, target_yaml = get_user_requirements(userid, project_id)
         print(data_yaml, target_yaml)
-                
+
         pr = mp.Process(target = queue_bms, args=(userid, project_id))
         pr_id = get_process_id()
-                
+
         PROCESSES[pr_id] = pr
         print(f'{len(PROCESSES)}-th process is starting')
         PROCESSES[pr_id].start()
-        
+
         print("does it come here\n")
         bmsinfo.proj_info_yaml=str(target_yaml)
         bmsinfo.data_yaml=str(data_yaml)
         bmsinfo.status="started"
-        
+
         bmsinfo.process_id = pr_id
         bmsinfo.save()
         return Response("started", status=200, content_type="text/plain")
-        
-        
+
+
 @api_view(['GET'])
 def stop_api(request):
     print("_________GET /stop_____________")
@@ -207,8 +208,8 @@ def stop_api(request):
         print("no such user or project...")
         return Response('failed', status=200, content_type='text/plain')
 
-    PROCESSES[bmsinfo.process_id].terminate()
-    PROCESSES.pop(bmsinfo.process_id)
+    PROCESSES[str(bmsinfo.process_id)].terminate()
+    PROCESSES.pop(str(bmsinfo.process_id))
     # bmsinfo.delete()
     bmsinfo.status = "stopped"
     bmsinfo.save()
@@ -220,7 +221,7 @@ def status_request(request):
     params = request.query_params
     userid = params['user_id']
     project_id = params['project_id']
-    print(userid, project_id) 
+    print(userid, project_id)
     try:
         bmsinfo = models.Info.objects.get(userid=userid, project_id=project_id)
         # if THREADS[bmsinfo.thread_id].is_alive():
@@ -235,7 +236,7 @@ def status_request(request):
             bmsinfo.status = "stopped"
             bmsinfo.save()
             return Response("stopped", status=200, content_type='text/plain')
-        
+
     except models.Info.DoesNotExist:
         # print("no such user or project...")
         # return Response('failed', status=200, content_type='text/plain')
@@ -250,9 +251,8 @@ def get_user_requirements(userid, projid):
     common_root = Path('/shared/common/')
     proj_path = common_root / userid / projid
     proj_info_yaml_path = proj_path / 'project_info.yaml' # 'target.yaml'
-    dataset_yaml_path = proj_path / 'datasets.yaml'
 
-    return dataset_yaml_path, proj_info_yaml_path
+    return proj_info_yaml_path
 
 
 def status_report(userid, project_id, status="success"):
@@ -274,14 +274,14 @@ def status_report(userid, project_id, status="success"):
                                       project_id=project_id)
         bmsinfo.status = "ready"
         bmsinfo.save()
-        PROCESSES.pop(bmsinfo.process_id)
-        
+        PROCESSES.pop(str(bmsinfo.process_id))
+
     except ValueError as e:
         print(e)
 
 def queue_bms(userid, project_id):
     try:
-        # docker_run(userid, project_id)        
+        # docker_run(userid, project_id)
         status_report(userid, project_id, status="success")
         print("process_bms ends")
     except ValueError as e:
