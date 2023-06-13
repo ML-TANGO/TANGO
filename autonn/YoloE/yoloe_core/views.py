@@ -74,18 +74,20 @@ def start(request):
 
     data_yaml, proj_yaml = get_user_requirements(userid, project_id)
     print(data_yaml, proj_yaml)
-    
+
     pr = multiprocessing.Process(target = process_yolo, args=(userid, project_id, data_yaml, proj_yaml))
     pr_id = get_process_id()
     PROCESSES[pr_id] = pr
     print(f'{len(PROCESSES)}-th process is starting')
     PROCESSES[pr_id].start()
-    
+
     nasinfo.target_device=str(proj_yaml)
     nasinfo.data_yaml=str(data_yaml)
     nasinfo.status="started"
     nasinfo.process_id = pr_id
+    print("PROCESS ID TYPE CHECK(before save): ", type(nasinfo.process_id), nasinfo.process_id)
     nasinfo.save()
+    print("PROCESS ID TYPE CHECK(after save) : ", type(nasinfo.process_id), nasinfo.process_id)
     return Response("started", status=200, content_type="text/plain")
 
 
@@ -102,8 +104,8 @@ def stop(request):
         print("no such user or project...")
         return Response('failed', status=200, content_type='text/plain')
 
-    PROCESSES[nasinfo.process_id].terminate()
-    PROCESSES.pop(nasinfo.process_id)
+    PROCESSES[str(nasinfo.process_id)].terminate()
+    # PROCESSES.pop(str(nasinfo.process_id))
     nasinfo.status = "stopped"
     nasinfo.save()
 
@@ -116,9 +118,19 @@ def status_request(request):
     params = request.query_params
     userid = params['user_id']
     project_id = params['project_id']
+
     try:
         nasinfo = models.Info.objects.get(userid=userid,
                                           project_id=project_id)
+    except models.Info.DoesNotExist:
+        print("new user or project")
+        nasinfo = models.Info(userid=userid,
+                      project_id=project_id)
+        nasinfo.status = "ready"
+        nasinfo.save()
+        return Response("ready", status=200, content_type='text/plain')
+
+    try:
         if PROCESSES[str(nasinfo.process_id)].is_alive():
             print("found thread running yoloe")
             nasinfo.status = "running"
@@ -126,15 +138,8 @@ def status_request(request):
             return Response("running", status=200, content_type='text/plain')
         else:
             print("tracked nas you want, but not running anymore")
-            nasinfo.status = "stopped"
-            nasinfo.save()
-            return Response("stopped", status=200, content_type='text/plain')
-    except models.Info.DoesNotExist:
-        print("new user or project")
-        nasinfo = models.Info(userid=userid,
-                      project_id=project_id)
-        nasinfo.status = "ready"
-        nasinfo.save()
+            return Response(nasinfo.status, status=200, content_type='text/plain')
+    except KeyError:
         return Response("ready", status=200, content_type='text/plain')
 
 
@@ -176,9 +181,9 @@ def status_report(userid, project_id, status="success"):
 
         nasinfo = models.Info.objects.get(userid=userid,
                                       project_id=project_id)
-        nasinfo.status = "ready"
+        nasinfo.status = "completed"
         nasinfo.save()
-        PROCESSES.pop(nasinfo.process_id)
+        # PROCESSES.pop(str(nasinfo.process_id))
         print(f'report func: {threading.current_thread()}')
     except BaseException as e:
         print(e)
@@ -187,7 +192,7 @@ def status_report(userid, project_id, status="success"):
 def process_yolo(userid, project_id, data_yaml, proj_yaml):
     try:
         common_root = Path('/shared/common/')
-        proj_path = os.path.dirname(proj_yaml) 
+        proj_path = os.path.dirname(proj_yaml)
 
         with open(proj_yaml, 'r') as f:
             proj_info = yaml.safe_load(f)
@@ -207,7 +212,7 @@ def process_yolo(userid, project_id, data_yaml, proj_yaml):
         shutil.copyfile(final_model, str(best_pt_path))
         os.remove(final_model)
         print(f'saved the best model: {str(best_pt_path)}')
-        
+
         # by jykwak
         src_root = Path('/source/yoloe_core/yolov7_utils/')
         with open(src_root / 'args.yaml', encoding='utf-8') as f:
@@ -216,19 +221,19 @@ def process_yolo(userid, project_id, data_yaml, proj_yaml):
         src_yaml_root = Path('/source/sample_yaml/')
         src_info_path = src_yaml_root / 'neural_net_info.yaml'
         from_py_modelfolder_path = src_root / 'models'
-        from_py_utilfolder_path = src_root / 'utils'        
+        from_py_utilfolder_path = src_root / 'utils'
         prjct_path = Path('/shared/common/') / userid / project_id
         # print(str(prjct_path))
         final_info_path = prjct_path / 'neural_net_info.yaml'
         to_py_modelfolder_path = prjct_path / 'models'
-        to_py_utilfolder_path = prjct_path / 'utils'               
+        to_py_utilfolder_path = prjct_path / 'utils'
         copy_tree(str(from_py_modelfolder_path), str(to_py_modelfolder_path))
         copy_tree(str(from_py_utilfolder_path), str(to_py_utilfolder_path))
         # print(str(to_py_modelfolder_path))
         # print(str(to_py_utilfolder_path))
         create_nn_info(src_info_path, final_info_path, best_pt_path, input_shape)
         # create_nn_info(src_info_path, final_info_path, "", input_shape)
-        # print(str(final_info_path))                
+        # print(str(final_info_path))
 
         exp_num = exp_num_check(proj_path)
         shutil.copy(proj_yaml, Path(proj_path) / str('exp' + str(exp_num) + '_project_info.yaml'))
@@ -242,7 +247,7 @@ def process_yolo(userid, project_id, data_yaml, proj_yaml):
 def create_nn_info(
                 src_info_path,
                 final_info_path,
-                final_pt_path, 
+                final_pt_path,
                 input_shape):
     with open(src_info_path) as f:
         nn_yaml = yaml.load(f, Loader=yaml.FullLoader)
@@ -264,10 +269,10 @@ def create_nn_info(
     # nn_info['input_tensor_shape'] = [1, 3, 640, 640]
     print(input_shape)
     nn_info['input_tensor_shape'] = [1, 3, input_shape[0], input_shape[1]]
-    # print(nn_info)  
+    # print(nn_info)
 
     with open(final_info_path, 'w') as file:
-        yaml.dump(nn_info, file, default_flow_style=False)   
+        yaml.dump(nn_info, file, default_flow_style=False)
 
 def exp_num_check(proj_path):
     current_filelist = os.listdir(proj_path)
@@ -288,7 +293,7 @@ def get_ready_for_test(request):
         params = request.query_params
         userid = params['user_id']
         project_id = params['project_id']
-    
+
         # check user id & project id
         try:
             nasinfo = models.Info.objects.get(userid=userid,
@@ -297,13 +302,13 @@ def get_ready_for_test(request):
             print("new user or project")
             nasinfo = models.Info(userid=userid,
                                   project_id=project_id)
-    
+
         common_root = Path('/shared/common/')
         proj_path = common_root / userid / project_id
-    
+
         Path(proj_path).mkdir(parents=True, exist_ok=True)
         Path('/shared/datasets/').mkdir(parents=True, exist_ok=True)
-    
+
         shutil.copy('sample_yaml/project_info.yaml', proj_path)
         shutil.copytree('sample_data/coco128',  Path('/shared/') / 'datasets' / 'coco')
         with open('sample_yaml/dataset.yaml') as f:
@@ -328,12 +333,9 @@ def make_directory(path_list):
 
 def get_process_id():     # Assign Blank Process Number
     while True:
-        pr_num = str(random.randint(10000, 99999))
+        pr_num = str(random.randint(100000, 999999))
         try:
             temp = PROCESSES[pr_num]
         except KeyError:
             break
     return pr_num
-
-
-
