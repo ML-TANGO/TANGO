@@ -105,7 +105,7 @@ def stop(request):
         return Response('failed', status=200, content_type='text/plain')
 
     PROCESSES[str(nasinfo.process_id)].terminate()
-    PROCESSES.pop(str(nasinfo.process_id))
+    # PROCESSES.pop(str(nasinfo.process_id))
     nasinfo.status = "stopped"
     nasinfo.save()
 
@@ -118,9 +118,19 @@ def status_request(request):
     params = request.query_params
     userid = params['user_id']
     project_id = params['project_id']
+
     try:
         nasinfo = models.Info.objects.get(userid=userid,
                                           project_id=project_id)
+    except models.Info.DoesNotExist:
+        print("new user or project")
+        nasinfo = models.Info(userid=userid,
+                      project_id=project_id)
+        nasinfo.status = "ready"
+        nasinfo.save()
+        return Response("ready", status=200, content_type='text/plain')
+
+    try:
         if PROCESSES[str(nasinfo.process_id)].is_alive():
             print("found thread running yoloe")
             nasinfo.status = "running"
@@ -128,15 +138,8 @@ def status_request(request):
             return Response("running", status=200, content_type='text/plain')
         else:
             print("tracked nas you want, but not running anymore")
-            nasinfo.status = "stopped"
-            nasinfo.save()
-            return Response("stopped", status=200, content_type='text/plain')
-    except models.Info.DoesNotExist:
-        print("new user or project")
-        nasinfo = models.Info(userid=userid,
-                      project_id=project_id)
-        nasinfo.status = "ready"
-        nasinfo.save()
+            return Response(nasinfo.status, status=200, content_type='text/plain')
+    except KeyError:
         return Response("ready", status=200, content_type='text/plain')
 
 
@@ -178,9 +181,9 @@ def status_report(userid, project_id, status="success"):
 
         nasinfo = models.Info.objects.get(userid=userid,
                                       project_id=project_id)
-        nasinfo.status = "ready"
+        nasinfo.status = "completed"
         nasinfo.save()
-        PROCESSES.pop(str(nasinfo.process_id))
+        # PROCESSES.pop(str(nasinfo.process_id))
         print(f'report func: {threading.current_thread()}')
     except BaseException as e:
         print(e)
@@ -330,12 +333,9 @@ def make_directory(path_list):
 
 def get_process_id():     # Assign Blank Process Number
     while True:
-        pr_num = str(random.randint(10000, 99999))
+        pr_num = str(random.randint(100000, 999999))
         try:
             temp = PROCESSES[pr_num]
         except KeyError:
             break
     return pr_num
-
-
-
