@@ -69,7 +69,7 @@ def start(request):
     PROCESSES[pr_id].start()
 
     bmsinfo.proj_info_yaml=str(proj_info_yaml)
-    bmsinfo.data_yaml=str(data_yaml)
+    # bmsinfo.data_yaml=str(data_yaml)
     bmsinfo.status="started"
 
     bmsinfo.process_id = pr_id
@@ -148,6 +148,7 @@ def create_data_yaml(userid, project_id):
     with open(Path('/shared/datasets/coco/') / 'dataset.yaml', 'w') as f:
         yaml.dump(data_yaml, f, default_flow_style=False)
 
+
 @api_view(['GET'])
 def start_api(request):
     print("_________GET /start_____________")
@@ -176,8 +177,7 @@ def start_api(request):
 
     if request.method == 'GET':
 
-        data_yaml, target_yaml = get_user_requirements(userid, project_id)
-        print(data_yaml, target_yaml)
+        target_yaml = get_user_requirements(userid, project_id)
 
         pr = mp.Process(target = queue_bms, args=(userid, project_id))
         pr_id = get_process_id()
@@ -188,7 +188,6 @@ def start_api(request):
 
         print("does it come here\n")
         bmsinfo.proj_info_yaml=str(target_yaml)
-        bmsinfo.data_yaml=str(data_yaml)
         bmsinfo.status="started"
 
         bmsinfo.process_id = pr_id
@@ -209,11 +208,12 @@ def stop_api(request):
         return Response('failed', status=200, content_type='text/plain')
 
     PROCESSES[str(bmsinfo.process_id)].terminate()
-    PROCESSES.pop(str(bmsinfo.process_id))
+    # PROCESSES.pop(str(bmsinfo.process_id))
     # bmsinfo.delete()
     bmsinfo.status = "stopped"
     bmsinfo.save()
     return Response("stopped", status=200, content_type="text/plain")
+
 
 @api_view(['GET'])
 def status_request(request):
@@ -222,21 +222,10 @@ def status_request(request):
     userid = params['user_id']
     project_id = params['project_id']
     print(userid, project_id)
+
     try:
         bmsinfo = models.Info.objects.get(userid=userid, project_id=project_id)
-        # if THREADS[bmsinfo.thread_id].is_alive():
         print("process iD is", bmsinfo.process_id)
-        if PROCESSES[str(bmsinfo.process_id)].is_alive():
-            print("found thread running nas")
-            bmsinfo.status = "running"
-            bmsinfo.save()
-            return Response("running", status=200, content_type='text/plain')
-        else:
-            print("tracked bms you want, but not running anymore")
-            bmsinfo.status = "stopped"
-            bmsinfo.save()
-            return Response("stopped", status=200, content_type='text/plain')
-
     except models.Info.DoesNotExist:
         # print("no such user or project...")
         # return Response('failed', status=200, content_type='text/plain')
@@ -244,6 +233,18 @@ def status_request(request):
         bmsinfo = models.Info(userid=userid, project_id=project_id)
         bmsinfo.status = "ready"
         bmsinfo.save()
+        return Response("ready", status=200, content_type='text/plain')
+
+    try:
+        if PROCESSES[str(bmsinfo.process_id)].is_alive():
+            print("found thread running nas")
+            bmsinfo.status = "running"
+            bmsinfo.save()
+            return Response("running", status=200, content_type='text/plain')
+        else:
+            print("tracked bms you want, but not running anymore")
+            return Response(bmsinfo.status, status=200, content_type='text/plain')
+    except KeyError:
         return Response("ready", status=200, content_type='text/plain')
 
 
@@ -272,9 +273,9 @@ def status_report(userid, project_id, status="success"):
 
         bmsinfo = models.Info.objects.get(userid=userid,
                                       project_id=project_id)
-        bmsinfo.status = "ready"
+        bmsinfo.status = "completed"
         bmsinfo.save()
-        PROCESSES.pop(str(bmsinfo.process_id))
+        # PROCESSES.pop(str(bmsinfo.process_id))
 
     except ValueError as e:
         print(e)
