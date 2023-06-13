@@ -43,37 +43,37 @@ services:
       - POSTGRES_USER=postgres
       - POSTGRES_PASSWORD=postgres
 
-  #---------------------------------
-  # DB for labelling tool
-  #---------------------------------
-  mariadb:
-      container_name: "mariadb"
-      image: mariadb:10
-      ports:
-        - 3306:3306
-      volumes:
-        - "./labelling/Deployment/db/my.cnf:/etc/mysql/my.cnf"
-        - "./labelling/data:/var/lib/mysql"
-        - "./labelling/Deployment/test/:/docker-entrypoint-initdb.d/"
-      environment:
-        MARIADB_DATABASE: labelling
-        MARIADB_USER: username
-        MARIADB_PASSWORD: password
-        MARIADB_ROOT_PASSWORD: password
-      restart: always
+  # #---------------------------------
+  # # DB for labelling tool
+  # #---------------------------------
+  # mariadb:
+  #     container_name: "mariadb"
+  #     image: mariadb:10
+  #     ports:
+  #       - 3306:3306
+  #     volumes:
+  #       - "./labelling/Deployment/db/my.cnf:/etc/mysql/my.cnf"
+  #       - "./labelling/data:/var/lib/mysql"
+  #       - "./labelling/Deployment/test/:/docker-entrypoint-initdb.d/"
+  #     environment:
+  #       MARIADB_DATABASE: labelling
+  #       MARIADB_USER: username
+  #       MARIADB_PASSWORD: password
+  #       MARIADB_ROOT_PASSWORD: password
+  #     restart: always
 
-  #---------------------------------
-  # Labelling tool 
-  #---------------------------------
-  labelling:
-    build:
-      context: ./labelling
-    volumes:
-      - ./labelling/dataset:/var/appdata
-      - ./labelling/datadb:/var/lib/mysql
-    ports:
-      - "8086:80"    # for Web UI
-      - "8095:10236" # for Rest API 
+  # #---------------------------------
+  # # Labelling tool 
+  # #---------------------------------
+  # labelling:
+  #   build:
+  #     context: ./labelling
+  #   volumes:
+  #     - ./labelling/dataset:/var/appdata
+  #     - ./labelling/datadb:/var/lib/mysql
+  #   ports:
+  #     - "8086:80"    # for Web UI
+  #     - "8095:10236" # for Rest API 
 
   #---------------------------------
   # Base Model Selector
@@ -100,68 +100,68 @@ services:
     ports:
       - "8081:8081"
 
-  #---------------------------------
-  # AutoNN: Bakcbone-NAS
-  #---------------------------------
-  autonn_bb:
-    build:
-      context: ./autonn/backbone_nas
-    shm_size: '256M'
-    ipc: host
-    command: >
-      sh -c "python manage.py makemigrations &&
-             python manage.py migrate &&
-             python manage.py runserver 0.0.0.0:8087"
-    # use the below lines commented out if you want to use gpu
-    # deploy:
-    #   resources:
-    #     reservations:
-    #       devices:
-    #         - driver: nvidia
-    #           capabilities:
-    #             - gpu
-    #             - utility
-    #             - compute
-    #             - video
-    # environment:
-    #   - NVIDIA_VISIBLE_DEVICES=all
-    volumes:
-      - ./autonn/backbone_nas:/source
-      - shared:/shared
-    ports:
-      - "8087:8087"
+  # #---------------------------------
+  # # AutoNN: Bakcbone-NAS
+  # #---------------------------------
+  # autonn_bb:
+  #   build:
+  #     context: ./autonn/backbone_nas
+  #   shm_size: '256M'
+  #   ipc: host
+  #   command: >
+  #     sh -c "python manage.py makemigrations &&
+  #            python manage.py migrate &&
+  #            python manage.py runserver 0.0.0.0:8087"
+  #   # use the below lines commented out if you want to use gpu
+  #   # deploy:
+  #   #   resources:
+  #   #     reservations:
+  #   #       devices:
+  #   #         - driver: nvidia
+  #   #           capabilities:
+  #   #             - gpu
+  #   #             - utility
+  #   #             - compute
+  #   #             - video
+  #   # environment:
+  #   #   - NVIDIA_VISIBLE_DEVICES=all
+  #   volumes:
+  #     - ./autonn/backbone_nas:/source
+  #     - shared:/shared
+  #   ports:
+  #     - "8087:8087"
 
-  #---------------------------------
-  # AutoNN: Neck-NAS
-  #---------------------------------
-  autonn_nk:
-    build:
-      context: ./autonn/neck_nas
-    shm_size: '256M'
-    ipc: host
-    command: >
-      sh -c "python manage.py makemigrations &&
-             python manage.py migrate &&
-             python manage.py runserver 0.0.0.0:8089"
-    # use the below lines commented out if you want to use gpu
-    # deploy:
-    #   resources:
-    #     reservations:
-    #       devices:
-    #         - driver: nvidia
-    #           capabilities:
-    #             - gpu
-    #             - utility
-    #             - compute
-    #             - video
-    # environment:
-    #   - NVIDIA_VISIBLE_DEVICES=all
-    volumes:
-      - ./autonn/neck_nas:/source
-      - shared:/shared
-      # - /Data:/shared/datasets # for local tests
-    ports:
-      - "8089:8089"
+  # #---------------------------------
+  # # AutoNN: Neck-NAS
+  # #---------------------------------
+  # autonn_nk:
+  #   build:
+  #     context: ./autonn/neck_nas
+  #   shm_size: '256M'
+  #   ipc: host
+  #   command: >
+  #     sh -c "python manage.py makemigrations &&
+  #            python manage.py migrate &&
+  #            python manage.py runserver 0.0.0.0:8089"
+  #   # use the below lines commented out if you want to use gpu
+  #   # deploy:
+  #   #   resources:
+  #   #     reservations:
+  #   #       devices:
+  #   #         - driver: nvidia
+  #   #           capabilities:
+  #   #             - gpu
+  #   #             - utility
+  #   #             - compute
+  #   #             - video
+  #   # environment:
+  #   #   - NVIDIA_VISIBLE_DEVICES=all
+  #   volumes:
+  #     - ./autonn/neck_nas:/source
+  #     - shared:/shared
+  #     # - /Data:/shared/datasets # for local tests
+  #   ports:
+  #     - "8089:8089"
 
   #---------------------------------
   # AutoNN: YoloE
@@ -251,25 +251,25 @@ services:
     ports:
       - 8891:8891  
 
-  #---------------------------------
-  # Visualizer 
-  #---------------------------------
-  viz2code:
-    build:
-      context: ./visualization
-    command: >
-      sh -c "cd ./visualization/frontend &&
-             npm run build &&
-             cd ..
-             python manage.py makemigrations &&
-             python manage.py migrate &&
-             python manage.py runserver react 0.0.0.0:8091"
-    volumes:
-      - ./viz2code:/source
-    ports:
-      - "8091:8091"
-  #   depends_on:
-  #     - postgresql
+  # #---------------------------------
+  # # Visualizer 
+  # #---------------------------------
+  # viz2code:
+  #   build:
+  #     context: ./visualization
+  #   command: >
+  #     sh -c "cd ./visualization/frontend &&
+  #            npm run build &&
+  #            cd ..
+  #            python manage.py makemigrations &&
+  #            python manage.py migrate &&
+  #            python manage.py runserver react 0.0.0.0:8091"
+  #   volumes:
+  #     - ./viz2code:/source
+  #   ports:
+  #     - "8091:8091"
+  # #   depends_on:
+  # #     - postgresql
 
 #---------------------------------
 # Volumes 
