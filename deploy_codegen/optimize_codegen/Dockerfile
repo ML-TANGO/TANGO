@@ -1,6 +1,5 @@
 FROM python:3.6
 WORKDIR /app
-# RUN ls -al /lib
 COPY . /app
 RUN apt-get update
 RUN apt-get install -y git
@@ -14,6 +13,7 @@ COPY db/yolo_v3_tiny_darknet_fp32.tflite /app/db
 COPY db/odroid-m1-manual.txt /app/db
 COPY db/odroid-n2-manual.txt /app/db
 COPY db/yolov3/. /app/db/yolov3
+ADD  https://github.com/giantlkh/git-test/releases/download/yolov7.onnx/yolov7.onnx  /app/db
 ADD  https://s3.ap-northeast-2.amazonaws.com/backend.ai/offline-installers/yolov3.pt /app/db/yolov3
 # RUN apt-get install -y python3 python3-dev  gcc libtinfo-dev zlib1g-dev build-essential cmake libedit-dev libxml2-dev
 RUN apt-get install -y gcc libtinfo-dev zlib1g-dev build-essential cmake libedit-dev libxml2-dev
@@ -24,6 +24,9 @@ RUN pip3 install pyyaml requests
 RUN pip3 install tvm
 RUN pip3 install rknn_toolkit2-1.2.0_f7bb160f-2-cp36-cp36m-linux_x86_64.whl
 RUN pip3 install torch
+# RUN pip3 install onnx<=1.12.0
+RUN pip3 install onnx
+RUN pip3 install seaborn pandas torchvision
 RUN pip3 install --upgrade attrs psutil
 RUN apt-get install -y libgl1-mesa-glx 
 RUN apt-get install -y vim sed 
