@@ -913,6 +913,8 @@ class CodeGen:
             0 : success
             -1 : error
         """
+        if not os.path.exists(self.m_current_code_folder):
+            os.makedirs(self.m_current_code_folder)
         # move autonn's pytorch to target folder(like prefix folder)
         if self.m_nninfo_yolo_base_file_path != ".":  
             if isinstance(self.m_nninfo_class_file, list):
@@ -1455,6 +1457,8 @@ class CodeGen:
             0 : success
             -1 : error
         """
+        if not os.path.exists(self.m_current_code_folder):
+            os.makedirs(self.m_current_code_folder)
         if self.m_nninfo_weight_pt_file == "":
             self.m_converted_file = "%s%s%s" % (self.m_current_file_path, "/", "yolo.pt")
         else:
@@ -1637,6 +1641,9 @@ class CodeGen:
         # self.m_converted_file = "%s%s%s" % (self.m_current_file_path, "/", "yolo_v3_tiny_darknet_fp32.tflite")
         self.m_converted_file = "./db/yolo_v3_tiny_darknet_fp32.tflite"
         # convert nn model and copy it to nn_model folder 
+        # khlee
+        if not os.path.exists(self.m_current_code_folder):
+            os.makedirs(self.m_current_code_folder)
         if os.path.isfile(self.m_converted_file):
             shutil.copy(self.m_converted_file, self.m_current_code_folder)
         # after converting and copying, remove temporary converted file 
@@ -1696,6 +1703,8 @@ class CodeGen:
 
 
     def gen_tensorrt_code(self, width, height, data_type):
+        if not os.path.exists(self.m_current_code_folder):
+            os.makedirs(self.m_current_code_folder)
         # write tensorrt_converter code from DB
         tmpstr = ""
         tmpstr = "%s%s%s" % (tmpstr, "import os", def_newline)
@@ -1794,6 +1803,8 @@ class CodeGen:
 
 
     def gen_tvm_code(self, dev_type, width, height, data_type):
+        if not os.path.exists(self.m_current_code_folder):
+            os.makedirs(self.m_current_code_folder)
         tmpstr = ""
         tmpstr = "%s%s%s%s%s%s" % (tmpstr, "def_lib_path = ", '"', 
             def_TVM_lib_path, '"', def_newline)
