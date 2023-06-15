@@ -1,6 +1,7 @@
 import os
 import requests
 import asyncio
+import docker
 
 #region API REQUEST ...................................................................................................
 
@@ -74,14 +75,15 @@ async def continer_request_api(host, user_id, project_id):
 #region Get Docker Logs ...............................................................................................
 
 def get_docker_log_handler(container, last_logs_timestamp):
-    # !... docker sdk?
-    containerName = get_docker_container_name(container)
-    print("containerName  => " + str(containerName))
-    if last_logs_timestamp == 0:
-        logs = os.popen('docker logs --tail=' + 'all' + ' -t tango-' + str(containerName) + '-1')
-    else :
-        logs = os.popen('docker logs --since '+ str(last_logs_timestamp) + ' -t tango-' + str(containerName) + '-1')
-    return logs.read()
+    client = docker.from_env()
+    containerList = client.containers.list()
+    container = next(item for item in containerList if container in str(item.name))
+    logs = ''
+    if int(last_logs_timestamp) == 0:
+        logs = container.logs(timestamps = True)
+    else:
+        logs = container.logs(timestamps = True, since = int(last_logs_timestamp))
+    return logs.decode('utf-8')
 #endregion
 
 #region Get Container Info ............................................................................................
