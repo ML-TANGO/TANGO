@@ -53,6 +53,10 @@ export default {
   props: {
     running: {
       default: null
+    },
+
+    status: {
+      default: ""
     }
   },
 
@@ -94,6 +98,12 @@ export default {
 
     running(val) {
       console.log("running watcher => ", val);
+    },
+
+    status() {
+      if (this.status === "completed") {
+        this.runContainer = null;
+      }
     }
   },
 
@@ -154,13 +164,18 @@ export default {
 
     setStatus(posotion, runningContainer) {
       const number = this.runningOrder.findIndex(q => q.includes(posotion));
-
       const currentIndex = this.runningOrder.findIndex(q => q.includes(runningContainer));
-
       console.log("currentIndex", currentIndex, "runningContainer", runningContainer);
 
       return {
-        status: number < currentIndex ? "end" : number === currentIndex ? "running" : "preparing",
+        status:
+          number < currentIndex
+            ? "end"
+            : number === currentIndex && (this.status === "completed" || this.status === "success")
+            ? "end"
+            : number === currentIndex
+            ? "running"
+            : "preparing",
         posotion: posotion
       };
     },

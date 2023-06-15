@@ -12,10 +12,12 @@
           </v-btn>
         </div>
       </div>
-      <h4 class="ml-3 mb-3">Progress - Auto NN</h4>
+      <h4 class="ml-3 mb-3">
+        Progress - {{ showContainerName(projectInfo?.container) }} {{ projectInfo?.container_status }}
+      </h4>
       <v-card color="#DFDFDF" class="" style="border-radius: 4px" height="180">
         <div>
-          <ProgressCanvas :running="projectInfo?.container" @start="start" />
+          <ProgressCanvas :running="projectInfo?.container" :status="projectInfo?.container_status" @start="start" />
         </div>
       </v-card>
     </div>
@@ -80,7 +82,6 @@ export default {
     }),
 
     updateLog(log) {
-      console.log("updateLog", log);
       if (log.message !== "\n") {
         this.vale += log.message;
       }
@@ -106,8 +107,7 @@ export default {
         })
         .then(async result => {
           if (result.isConfirmed) {
-            this.$emit("restart");
-
+            this.$emit("restart", container);
             await updateProjectType(this.projectInfo.id, ProjectType.MANUAL);
             const res = await containerStart(container, this.projectInfo.create_user, this.projectInfo.id);
             this.vale += res.message;
@@ -139,15 +139,12 @@ export default {
           })
           .then(async result => {
             if (result.isConfirmed) {
-              // await getStatusResult(this.projectInfo.id);
-              // await stopContainer(this.projectInfo.container, this.projectInfo.create_user, this.projectInfo.id);
               await updateProjectType(this.projectInfo.id, ProjectType.AUTO);
               const res = await containerStart("bms", this.projectInfo.create_user, this.projectInfo.id);
               this.vale += res.message;
             }
           });
       } else {
-        // await getStatusResult(this.projectInfo.id);
         await updateProjectType(this.projectInfo.id, ProjectType.AUTO);
         const res = await containerStart("bms", this.projectInfo.create_user, this.projectInfo.id);
         this.vale += res.message;
@@ -156,6 +153,8 @@ export default {
       this.SET_PROJECT({
         project_type: ProjectType.AUTO
       });
+
+      this.$emit("start");
     },
 
     async menualCreate() {
@@ -174,23 +173,34 @@ export default {
           })
           .then(async result => {
             if (result.isConfirmed) {
-              // await getStatusResult(this.projectInfo.id);
-              // await stopContainer(this.projectInfo.container, this.projectInfo.create_user, this.projectInfo.id);
               await updateProjectType(this.projectInfo.id, ProjectType.MANUAL);
-              // updateProjectType(this.projectInfo.id, ProjectType.MANUAL);
-              // startContainer("bms", this.projectInfo.create_user, this.projectInfo.id);
             }
           });
       } else {
-        // await getStatusResult(this.projectInfo.id);
         await updateProjectType(this.projectInfo.id, ProjectType.MANUAL);
-        // updateProjectType(this.projectInfo.id, ProjectType.MANUAL);
-        // startContainer("bms", this.projectInfo.create_user, this.projectInfo.id);
       }
 
       this.SET_PROJECT({
         project_type: ProjectType.MANUAL
       });
+    },
+
+    showContainerName(container) {
+      if (container) {
+        if (container.toLowerCase() === "bms") {
+          return "BMS";
+        } else if (container.toLowerCase() === "yoloe") {
+          return "Auto NN";
+        } else if (container.toLowerCase() === "codegen") {
+          return "Code Gen";
+        } else if (container.toLowerCase() === "imagedepoly") {
+          return "Image Depoly";
+        } else {
+          return "";
+        }
+      } else {
+        return "";
+      }
     }
   }
 };

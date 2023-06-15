@@ -12,13 +12,13 @@
     </TabBase>
     <div>
       <TabBase :count="-1" title="Progress">
-        <template #content> <ProgressTab :projectInfo="projectInfo" @restart="restart" /> </template>
+        <template #content> <ProgressTab :projectInfo="projectInfo" @restart="restart" @start="start" /> </template>
       </TabBase>
     </div>
   </v-card>
 </template>
 <script>
-import { mapMutations } from "vuex";
+import { mapState, mapMutations } from "vuex";
 import { ProjectNamespace, ProjectMutations } from "@/store/modules/project";
 
 import ProjectCreateDialog from "@/modules/project/ProjectCreateDialog.vue";
@@ -45,6 +45,10 @@ export default {
       projectInfo: null,
       interval: null
     };
+  },
+
+  computed: {
+    ...mapState(ProjectNamespace, ["project"])
   },
 
   async beforeCreate() {
@@ -83,31 +87,15 @@ export default {
     }
   },
 
-  mounted() {
-    this.interval = setInterval(() => {
-      if (this.projectInfo.id) {
-        // getStatusResult(this.projectInfo.id).then(res => {
-        //   this.projectInfo.container = res.container;
-        //   this.projectInfo.container_status = res.container_status;
-        //   console.log("setInterval ===> ", res);
-        //   this.$EventBus.$emit("logUpdate", res);
-        // });
-
-        postStatusRequest({
-          user_id: this.projectInfo.create_user,
-          project_id: this.projectInfo.id
-        }).then(res => {
-          this.projectInfo.container = res.container;
-          this.projectInfo.container_status = res.container_status;
-          console.log("setInterval ===> ", res);
-          this.$EventBus.$emit("logUpdate", res);
-        });
-      }
-    }, 5000);
+  async mounted() {
+    const info = await getProjectInfo(this.$route.params.id);
+    if (info.container_status === "running") {
+      this.startInterval();
+    }
   },
 
   destroyed() {
-    clearInterval(this.interval);
+    this.stopInterval();
   },
 
   methods: {
@@ -117,9 +105,43 @@ export default {
       SET_SELECTED_IMAGE: ProjectMutations.SET_SELECTED_IMAGE
     }),
 
-    restart() {
-      this.projectInfo.container = "init";
-      this.projectInfo.container_status = "init";
+    startInterval() {
+      if (this.interval === null) {
+        this.interval = setInterval(() => {
+          if (this.projectInfo.id) {
+            postStatusRequest({ user_id: this.projectInfo.create_user, project_id: this.projectInfo.id }).then(res => {
+              this.SET_PROJECT({ container: res.container, container_status: res.container_status });
+              this.projectInfo = this.project;
+              this.$EventBus.$emit("logUpdate", res);
+
+              if (res.container_status === "completed") {
+                this.stopInterval();
+              }
+            });
+          }
+        }, 5000); // 5s
+      }
+    },
+
+    stopInterval() {
+      if (this.interval) {
+        clearInterval(this.interval);
+        this.interval = null;
+      }
+    },
+
+    start() {
+      this.SET_PROJECT({ container: "", container_status: "" });
+      this.projectInfo = this.project;
+
+      this.startInterval();
+    },
+
+    restart(container) {
+      this.SET_PROJECT({ container: container, container_status: "" });
+      this.projectInfo = this.project;
+
+      this.startInterval();
     },
 
     onStepChange(step) {
@@ -140,7 +162,6 @@ export default {
         })
         .then(async result => {
           if (result.isConfirmed) {
-            console.log("this.projectInfo", this.projectInfo);
             //선택한 target정보
             if (this.projectInfo?.target_id && this.projectInfo.target_id !== "") {
               const targetInfo = await getTargetInfo(this.projectInfo.target_id);
@@ -151,8 +172,6 @@ export default {
             if (this.projectInfo?.dataset && this.projectInfo.dataset !== "") {
               const datasetList = await getDatasetListTango();
               const datasetInfo = datasetList.find(q => q.name === this.projectInfo.dataset);
-              console.log("datasetLista", datasetList);
-              console.log("datasetInfo", datasetInfo);
               if (datasetInfo) this.SET_SELECTED_IMAGE(datasetInfo);
             }
 
