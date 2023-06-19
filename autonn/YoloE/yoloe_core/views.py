@@ -231,6 +231,9 @@ def process_yolo(userid, project_id, data_yaml, proj_yaml):
         copy_tree(str(from_py_utilfolder_path), str(to_py_utilfolder_path))
         # print(str(to_py_modelfolder_path))
         # print(str(to_py_utilfolder_path))
+        src_reqire_file = src_yaml_root / 'yoloe_requirements.txt'
+        final_reqire_file = prjct_path / 'yoloe_requirements.txt'
+        shutil.copy(src_reqire_file, final_reqire_file)
         create_nn_info(src_info_path, final_info_path, best_pt_path, input_shape)
         # create_nn_info(src_info_path, final_info_path, "", input_shape)
         # print(str(final_info_path))

@@ -1,0 +1,2 @@
+sudo docker run -it --rm -v ~/tango:/tango -v ~/workspace/TANGO:/source  --net=host  --workdir=/source tango-target_image_build  /bin/bash
+ 

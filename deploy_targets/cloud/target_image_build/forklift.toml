@@ -1,0 +1,23 @@
+[server]
+addr = { host = "0.0.0.0", port = 7007 }
+bind_addr = { bind_host = "0.0.0.0", bind_port = 7007 }
+
+[webui]
+addr = { host = "0.0.0.0", port = 8080 }
+
+[allow-ip]
+addr = ["*"]
+
+[docker.auth]
+username = "" 
+password = "" 
+
+[auth]
+FORKLIFT_SECRET_KEY = ""
+
+[maxImageRequest]
+max_num = 1
+
+[general]
+signupSupport = true
+maskUserInfo = true

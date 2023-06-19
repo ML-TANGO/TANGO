@@ -108,7 +108,7 @@ TANGO
   │      └─── yolov7e
   │
   ├─── deploy_codegen 
-  │      └─── opt_codegen
+  │      └─── optimize_codegen
   │
   └─── deploy_targets
          ├─── cloud

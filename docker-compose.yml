@@ -197,54 +197,61 @@ services:
     ports:
       - "8090:8090"
 
-  #---------------------------------
-  # Target Image Build 
-  #---------------------------------
-  target_image_build:
-    build:
-      context: ./target_image_build
-    command: >
-      sh -c "python main.py"
-    volumes:
-      - ./target_image_build:/source
-      - /var/run/docker.sock:/var/run/docker.sock
-    ports:
-      - "8088:8088"
-
-  #---------------------------------
-  # Image Deployment 
-  #---------------------------------
-  # target_deploy:
-  #   build:
-  #     context: ./target_deploy
-  #   command: >
-  #     sh -c "python manage.py runserver 0.0.0.0:8890"
-  #   volumes:
-  #     - ./target_deploy:/source
-  #     - /var/run/docker.sock:/var/run/docker.sock
-  #   ports:
-  #     - "8890:8890"
       
   #---------------------------------
   # code_gen Build 
   #---------------------------------
   code_gen:
     build:
-      context: ./deployment/code_gen
+      context: ./deploy_codegen/optimize_codegen
     volumes:
+      - ./deploy_codegen/optimize_codegen:/source
       - shared:/tango
     command: >
       sh -c "cd /app && python3 code_gen.py"
     ports:
       - 8888:8888  
+      
+  #---------------------------------
+  # Target Image Build 
+  #---------------------------------
+  target_image_build:
+    build:
+      context: ./deploy_targets/cloud/target_image_build
+    command: >
+      sh -c "python main.py"
+    volumes:
+      - ./deploy_targets/cloud/target_image_build:/source
+      - /var/run/docker.sock:/var/run/docker.sock
+    ports:
+      - "8088:8088"
+
+  #---------------------------------
+  # K8S deploy
+  #---------------------------------
+  kube_deploy:
+    build:
+      context: ./deploy_targets/k8s
+    container_name: "tango_k8s"
+    command:
+      bash -c "cd /app && python3 k8s_deploy.py"
+    volumes:
+      - $HOME/.kube:/home/root/.kube
+      - shared:/tango
+      - ./deploy_targets/k8s:/app
+    environment:
+      - "HOME=/home/root"
+    ports:
+      - "8902:8902"
 
   #---------------------------------
   # ondevice_deploy Build 
   #---------------------------------    
   ondevice_deploy:
     build:
-      context: ./deployment/target_deploy/ondevice_deploy
+      context: ./deploy_targets/ondevice
     volumes:
+      - ./deploy_targets/ondevice:/source
       - shared:/tango
     command: >
       sh -c "cd /app && python3 ondevice_deploy.py"
