@@ -261,7 +261,7 @@ def create_nn_info(
             nn_info[str(k)] = str(nn_yaml[k])
         else:
             nn_info[str(k)] = nn_yaml[k]
-    nn_info['class_file'] = final_py_list
+    # nn_info['class_file'] = final_py_list
     nn_info['class_name'] = str("Model(cfg='basemodel.yaml')")
     nn_info['weight_file']= str("yoloe.pt")
     # nn_info['input_tensor_shape'] = [1, 3, 640, 640]
