@@ -78,7 +78,7 @@ def get_dataset_list(request):
     """
 
     try:
-        path = os.path.join(root_path, "shared/datasets/*")
+        path = os.path.join(root_path, "shared/datasets")
         try:
             if not os.path.exists(path):
                 os.makedirs(path)
