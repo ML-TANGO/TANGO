@@ -78,12 +78,13 @@ def get_dataset_list(request):
     """
 
     try:
-        path = os.path.join(root_path, "shared/datasets")
-        try:
-            if not os.path.exists(path):
-                os.makedirs(path)
-        except OSError:
-            print("Error: Failed to create the directory.")
+        path = os.path.join(root_path, "shared/datasets/*")
+        # try:
+        #     if not os.path.exists(path):
+        #         datasetPath = path = os.path.join(root_path, "shared/datasets/")
+        #         os.makedirs(datasetPath)
+        # except OSError:
+        #     print("Error: Failed to create the directory.")
 
         dir_list = glob.glob(path)
         
