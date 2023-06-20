@@ -1,0 +1,31 @@
+build:
+  accelerator: gpu
+  architecture: kuberentes 
+  os: ubuntu  
+  target_name: ultralytics/yolov5:v6.1     # k8s deploy image name
+  components:
+    custom_packages:
+      apt:
+      - vim
+      - python3.9
+      pypi: []
+    engine: pytorch   
+deploy:
+  entrypoint: ['/bin/bash', '-c'] # [run.sh, inference, {port_number}], [run.sh, validate], [run.sh, train]
+  k8s:
+    nfsip: 192.168.0.189             #NFS-server IP
+    nfspath: /var/lib/docker/volumes/tango_shared/_data  #NFS-server path
+  network:
+    service_host_ip: 192.168.0.189          
+    service_host_port: 30012                #30000-32767
+    service_container_port: 8901
+
+optional:
+  annotation_file: coco128.yaml
+  nn_file: detect.py
+  #weight_file: yolov3.weights
+  model_file: yolov5s.pt
+
+
+
+

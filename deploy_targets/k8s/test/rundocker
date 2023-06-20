@@ -1,0 +1,2 @@
+sudo docker run -it --rm -v ~/tango:/tango -v ~/workspace/TANGO:/source  --net=host  --workdir=/app tango-k8s_deploy /bin/bash
+ 
