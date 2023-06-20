@@ -138,6 +138,7 @@ def status_request(request):
             return Response("running", status=200, content_type='text/plain')
         else:
             print("tracked nas you want, but not running anymore")
+            print(f"nasinfo.status: {nasinfo.status}")
             return Response(nasinfo.status, status=200, content_type='text/plain')
     except KeyError:
         return Response("ready", status=200, content_type='text/plain')
@@ -183,8 +184,9 @@ def status_report(userid, project_id, status="success"):
                                       project_id=project_id)
         nasinfo.status = "completed"
         nasinfo.save()
+        print(f"status_report function:{nasinfo.status}")
         # PROCESSES.pop(str(nasinfo.process_id))
-        print(f'report func: {threading.current_thread()}')
+        # print(f'report func: {threading.current_thread()}')
     except BaseException as e:
         print(e)
 
