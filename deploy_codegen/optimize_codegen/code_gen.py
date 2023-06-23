@@ -15,8 +15,9 @@ import onnx
 import tvm
 import tvm.relay as relay
 import sys
-# import sys
-#  from distutils.dir_util import copy_tree
+import logging
+import threading
+import time
 import time
 import yaml
 # for web service
@@ -30,6 +31,8 @@ import      torch.onnx
 # from        torchvision import  models
 # from        onnxruntime.quantization import  quantize_dynamic
 # from        onnxruntime.quantization import  QuantType
+
+logging.basicConfig(level=logging.DEBUG, format="(%(threadName)s) %(message)s")
 
 
 # for docker and project manager
@@ -107,6 +110,7 @@ def_tvm_manual = './db/odroid-m1-manual.txt'
 
 def_yolo_base_file_path = "."
 def_yolo_requirements = "yoloe_requirements.txt"
+
 
 ####################################################################
 # class for code generation
@@ -192,8 +196,48 @@ class CodeGen:
     m_deploy_network_serviceport = 0
 
     m_last_run_state = 0
+    
+    
+    ev = threading.Event()
+    lock = threading.Lock()
+    the_cnt = 0
+    thread_run_flag = 1
+    thread_done = 0
 
 
+    ####################################################################
+    def thread_for_run(self):
+        while self.thread_run_flag > 0:
+            if self.the_cnt > 0:
+                logging.debug("Call Run()")
+                if self.thread_run_flag > 0:
+                    self.run()
+                    with self.lock:
+                        self.the_cnt = self.the_cnt - 1
+            else:
+                event = self.ev.wait(20)
+                if event:
+                    self.ev.clear()
+                    logging.debug("Recv Event")
+        self.thread_done = 1
+        logging.debug("Thread Done")
+        return
+
+    ####################################################################
+    def wait_for_done(self):
+        self.thread_run_flag = 0
+        with self.lock:
+            self.the_cnt = 0
+        self.ev.set()
+        for j in range(3):
+            if self.thread_done != 0:
+                break
+            else:
+                time.sleep(1)
+        logging.debug("code_gen Module End")
+        return
+
+    ####################################################################
     def add_user_libs(self, libs):
         """
         add lib that user added for the code that user edited
@@ -967,29 +1011,39 @@ class CodeGen:
         torch.onnx.export(pt_model, dummy,
                 self.get_real_filepath(self.m_nninfo_weight_onnx_file),
                 opset_version = 11,
-                export_params=True, 
+                export_params = True, # default True  
+                # khlee
+                # the following  line makes RKNN builder make 'unsupported" Expand --> build time error
+                # if the following line is deleted, ONNXruntimeError ShapeInferenceError Incompatible dimensions  -> rknn load time  error
+                do_constant_folding = False, # default=True 
+                # training=False, aten=False, export_raw_ir=False, operator_export_type=None, enable_onnx_checker=True,
+                # verbose=True,
                 input_names=['input'],
                 output_names=['output'])
         # khlee only for test copy yolov.onnx to tango.onnx
         # must be deleted 
         o_file = "./db/yolov7.onnx"
         shutil.copy(o_file, self.get_real_filepath(self.m_nninfo_weight_onnx_file))
+        # tmp_om = onnx.load(self.get_real_filepath(self.m_nninfo_weight_onnx_file))
+        # onnx_out = tmp_om.graph.output
+        # o_outputs = [] 
+        # for i in range(len(onnx_out)):
+        #     tmp = onnx_out[i].name
+        #     print(tmp)
+        #     o_outputs.append(tmp) 
 
         self.m_converted_file = "%s%s" % (self.m_current_file_path, def_rknn_file)
         # comment out for test only -> uncomment needed
         # Create RKNN object
         rknn = RKNN(verbose=True)
-
+        
         # pre-process config
         print('--> Config model')
         rknn.config(mean_values=[[0, 0, 0]], std_values=[[255, 255, 255]],
                     output_tensor_type='int8')
 
         # Load ONNX model
-        ret = rknn.load_onnx(self.get_real_filepath(self.m_nninfo_weight_onnx_file),
-                             outputs=['output', '286', '298'])
-                             # khlee outputs=['output', '516', '528'])
-                             # khlee outputs=['397', '458', '519'])
+        ret = rknn.load_onnx(self.get_real_filepath(self.m_nninfo_weight_onnx_file), outputs=['output'])
         if ret != 0:
             print('Load model failed!')
             return -1
@@ -2125,7 +2179,6 @@ class CodeGen:
             'referrer-policy': 'same-origin'
             # 'Content-type': 'applocation/json'
             }
-
         try:
             ret = requests.get(url=prj_url, headers=headers)
             # ret = requests.get(url=prj_url, headers=headers, params=prj_data)
@@ -2145,10 +2198,16 @@ class CodeGen:
 ####################################################################
 class MyHandler(SimpleHTTPRequestHandler):
     """Webserver Definition """
-    m_obj = CodeGen()
+    
     m_flag = 1
     m_stop = 0
+    m_obj = 0
     # allowed_list = ('0,0,0,0', '127.0.0.1')
+
+    @staticmethod
+    def set_obj(cobj):
+        MyHandler.m_obj = cobj
+        return
 
     def send_cors_headers(self):
         """
@@ -2208,7 +2267,7 @@ class MyHandler(SimpleHTTPRequestHandler):
         print("code_gen: cmd =", cmd)
 
         if cmd == "start":
-            buf = 'started'
+            buf = '"started"'
             self.send_response(200, 'OK')
             self.send_cors_headers()
             self.send_header("Content-Type", "text/plain")
@@ -2218,62 +2277,72 @@ class MyHandler(SimpleHTTPRequestHandler):
             print("code_gen: send_ack")
 
             if self.m_flag == 1:
-                self.m_obj.run()
+                # self.m_obj.run()
+                with self.m_obj.lock:
+                    self.m_obj.the_cnt = self.m_obj.the_cnt + 1
+                self.m_obj.ev.set()
+                logging.debug("event Set")
             # send notice to project manager
             self.m_obj.response()
             print("code_gen: send_status_report to manager")
         elif cmd == 'stop':
-            buf = 'finished'
+            buf = '"finished"'
             self.send_response(200, 'ok')
             self.send_cors_headers()
             self.send_header('Content-Type', 'text/plain')
+            self.send_header("Content-Length", "%d" % len(buf))
             self.end_headers()
             self.wfile.write(buf.encode())
             self.m_obj.clear()
             self.m_stop = 1
         elif cmd == "clear":
             self.m_obj.clear()
-            buf = "OK"
+            buf = '"OK"'
             self.send_response(200, 'ok')
             self.send_cors_headers()
             self.send_header('Content-Type', 'text/plain')
+            self.send_header("Content-Length", "%d" % len(buf))
             self.end_headers()
             self.wfile.write(buf.encode())
         elif cmd == "pause":
             self.m_flag = 0
-            buf = "OK"
+            buf = '"OK"'
             self.send_response(200, 'ok')
             self.send_cors_headers()
             self.send_header('Content-Type', 'text/plain')
+            self.send_header("Content-Length", "%d" % len(buf))
             self.end_headers()
             self.wfile.write(buf.encode())
-        elif cmd == 'resume':
+        elif cmd == '"resume"':
             self.m_flag = 1
             buf = "OK"
             self.send_response(200, 'ok')
             self.send_cors_headers()
             self.send_header('Content-Type', 'text/plain')
+            self.send_header("Content-Length", "%d" % len(buf))
             self.end_headers()
             self.wfile.write(buf.encode())
         elif cmd == 'status_request':
-            buf = "error"
+            buf = '"error"'
             if self.m_obj.m_current_userid == "":
-                buf = "ready"
+                buf = '"ready"'
             else:
                 if self.m_flag == 0:
-                    buf = "stopped"
+                    buf = '"stopped"'
                 elif self.m_flag == 1:
-                    buf = "completed"
+                    buf = '"completed"'
             self.send_response(200, 'ok')
             self.send_cors_headers()
             self.send_header('Content-Type', 'text/plain')
+            self.send_header("Content-Length", "%d" % len(buf))
             self.end_headers()
             self.wfile.write(buf.encode())
         else:
-            buf = ""
+            buf = '""'
             self.send_response(200, 'ok')
             self.send_cors_headers()
             self.send_header('Content-Type', 'text/plain')
+            self.send_header("Content-Length", "%d" % len(buf))
             self.end_headers()
             self.wfile.write(buf.encode())
 
@@ -2319,16 +2388,22 @@ if __name__ == '__main__':
     # tmp.run()
     # exit()
 
+    m_obj = CodeGen()
+    mythr = threading.Thread(target=m_obj.thread_for_run, daemon=True, name="MyThread")
+    mythr.start()
+
+    MyHandler.set_obj(m_obj)
     server = HTTPServer(('', def_codegen_port), MyHandler)
-    print("Started WebServer on Port", def_codegen_port)
-    print("Press ^C to quit WebServer")
+    logging.debug("Started WebServer on Port %d" % def_codegen_port)
+    logging.debug("Press ^C to quit WebServer")
 
     try:
         server.serve_forever()
     except KeyboardInterrupt as e:
         time.sleep(1)
         server.socket.close()
-        print("code_gen Module End", e)
+        logging.debug("wait for thread done")
+        m_obj.wait_for_done()
 
 '''
 #스트링으로 함수 호출하기 #1
