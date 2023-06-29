@@ -27,8 +27,13 @@ async def continer_start_api(host, user_id, project_id):
         'project_id' : project_id,
     }
     response = requests.get(url, headers=headers, params=payload)
+    print("response")
+    print(response.content.decode('utf-8'))
 
-    return response.json()
+    # return response.json()
+    # return str(response.content.decode('utf-8'))
+    return str(response.content, 'utf-8').replace('"','')
+
 
 
 #################################################################################################################
@@ -66,8 +71,12 @@ async def continer_request_api(host, user_id, project_id):
         'project_id' : project_id,
     }
     response = requests.get(url, headers=headers, params=payload)
+    print("response")
+    print(response)
 
-    return response.json()
+    # return response.json()
+    # return str(response.content.decode('utf-8'))
+    return str(response.content, 'utf-8').replace('"','')
 
 
 #endregion
@@ -76,8 +85,9 @@ async def continer_request_api(host, user_id, project_id):
 
 def get_docker_log_handler(container, last_logs_timestamp):
     client = docker.from_env()
+    dockerContainerName = get_docker_container_name(container)
     containerList = client.containers.list()
-    container = next(item for item in containerList if container in str(item.name))
+    container = next(item for item in containerList if dockerContainerName in str(item.name))
     logs = ''
     if int(last_logs_timestamp) == 0:
         logs = container.logs(timestamps = True)
@@ -91,6 +101,8 @@ def get_container_info(host_name):
     ports_by_container = {
         'bms' : "8081",
         'yoloe' : "8090",
+        'codeGen' : "8888",
+        'imageDepoly' : "8890",
     }
     return host_name, ports_by_container[host_name]
 
@@ -109,6 +121,10 @@ def get_docker_container_name(container):
         containerName = 'autonn_bb'
     elif container == 'autonn_nk' :
         containerName = 'autonn_nk'
+    elif container == 'codeGen' :
+        containerName = 'code_gen'
+    elif container == 'imageDepoly' :
+        containerName = 'cloud_deploy'
     else :
         containerName = 'bms'
 

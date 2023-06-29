@@ -204,6 +204,7 @@ services:
   code_gen:
     build:
       context: ./deploy_codegen/optimize_codegen
+    hostname: codeGen
     volumes:
       - ./deploy_codegen/optimize_codegen:/source
       - shared:/tango

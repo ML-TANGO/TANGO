@@ -2,7 +2,7 @@
   <div class="gird--view">
     <div class="left-view">
       <div style="grid-row: 1/2; position: relative; left: 25px" class="d-flex">
-        <v-img :src="logo_3" :width="36" :max-width="36" contain></v-img>
+        <v-img :src="logo_3" :width="55" :max-width="55" contain></v-img>
         <div
           style="color: rgb(68, 143, 255); font-size: 3rem; font-weight: bold; margin-left: 8px"
           class="d-flex align-center"
@@ -87,7 +87,7 @@
 </template>
 <script>
 import Tango_login from "@/assets/Tango_login.png";
-import logo_3 from "@/assets/logo_3.png";
+import logo_3 from "@/assets/icon_3x/Tango_logo.png";
 
 import { userIDRule, passwordConfirmRule, passwordRule, emailRule } from "@/utils";
 

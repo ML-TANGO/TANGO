@@ -23,17 +23,17 @@
     </div>
     <div>
       <h4 class="ml-3 mb-3">Log</h4>
-      <v-card color="#000" class="ml-3" style="border-radius: 4px" height="200">
+      <v-card color="#000" class="ml-3" style="border-radius: 4px">
         <v-textarea
           ref="logs"
           id="log"
+          class="mb-5"
           dark
           filled
-          no-resize
           :value="vale"
-          height="200"
           style="font-size: 12px"
           readonly
+          hide-details
           autofocus
         ></v-textarea>
       </v-card>

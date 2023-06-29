@@ -74,10 +74,13 @@ def container_start(request):
         queryset.container_status = 'started'
         queryset.save()
 
-        return HttpResponse(json.dumps({'status': 200, 'message': str(container_id) + ' 시작 요청\n'}))
+        print(container_id)
+
+        return HttpResponse(json.dumps({'status': 200, 'message': str(container_id) + ' 시작 요청\n', 'response' : str(response)}))
 
     except Exception as error:
         print('container start error - ' + str(error))
+        print(error)
         return HttpResponse(error)
 
 
@@ -96,6 +99,8 @@ def status_request(request):
 
         queryset = Project.objects.get(id=project_id, create_user=str(user_id))
         container_id = queryset.container
+
+        print(container_id)
 
         if user_id not in response_data:
             response_data[user_id] = {}
@@ -129,11 +134,9 @@ def status_request(request):
 
         m = response_data[user_id][project_id]['response_message'] + '\n' + str(logs)
         response_data[user_id][project_id]['response_message'] = ''
-
-
         # return HttpResponse(json.dumps({'response': response}))
-        return HttpResponse(json.dumps({'container': queryset.container,
-                                'container_status': queryset.container_status,
+        return HttpResponse(json.dumps({'container': container_id,
+                                'container_status': response,
                                 'message': m,}))
 
     except Exception as error:
@@ -154,6 +157,9 @@ def status_report(request):
         container_id = request.GET['container_id']
         result = request.GET['status']
 
+        print("result")
+        print(result)
+
         queryset = Project.objects.get(id=project_id, create_user=str(user_id))
         queryset.container = container_id
         queryset.container_status = result
@@ -172,12 +178,10 @@ def status_report(request):
         if queryset.project_type == 'auto':
             if container_id == 'bms' and result == 'success':
                 print("bms end .. ---- success")
+                queryset.container_status = 'completed'
+                queryset.save()
                 response_data[user_id][project_id]['response_message'] += 'base model select 완료\n'
-
                 response_data[user_id][project_id]['response_message'] += 'auto_nn_yolo_e 시작 요청\n'
-                print('autonn - yoloe - start request')
-                # response = asyncio.get_event_loop().run_until_complete(start_handler(container_id, user_id, project_id))
-                # response = start_handler(container_id, user_id, project_id)
                 response = asyncio.run(start_handler('yoloe', user_id, project_id))
                 print(response)
 
@@ -187,7 +191,20 @@ def status_report(request):
                 queryset.save()
             elif container_id == 'yoloe' and result == 'success':
                 print("yoloe end .. ---- success")
+                queryset.container_status = 'completed'
+                queryset.save()
                 response_data[user_id][project_id]['response_message'] += 'yoloe 완료\n'
+                response_data[user_id][project_id]['response_message'] += 'code gen 시작 요청\n'
+                response = asyncio.run(start_handler('codeGen', user_id, project_id))
+                print(response)
+                queryset = Project.objects.get(id=project_id, create_user=str(user_id))
+                queryset.container = 'codeGene'
+                queryset.container_status = 'running'
+                queryset.save()
+            elif container_id == 'codeGen' and result == 'success':
+                print("yoloe end .. ---- success")
+                response_data[user_id][project_id]['response_message'] += 'codeGen 완료\n'
+
         else:
             if container_id == 'bms' and result == 'success':
                 print("bms end .. ---- success")

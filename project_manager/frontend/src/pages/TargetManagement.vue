@@ -52,7 +52,7 @@
               <small class="mb-2" style="letter-spacing: 1px; color: #aaa; font-size: 10px">Engine</small>
               <p class="ma-0" style="font-size: 13px">{{ item.engine }}</p>
             </div>
-            <div v-if="item.host_ip !== ''" class="d-flex flex-column text-center" style="width: 80px">
+            <div v-if="item.host_ip !== ''" class="d-flex flex-column text-center" style="width: 100px">
               <small class="mb-2" style="letter-spacing: 1px; color: #aaa; font-size: 10px">IP Address</small>
               <p class="ma-0" style="font-size: 13px">{{ item.host_ip }}</p>
             </div>

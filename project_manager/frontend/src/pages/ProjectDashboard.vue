@@ -92,8 +92,8 @@ export default {
         { key: "Preparing", allowed: ["", "init"] },
         { key: "BMS", allowed: ["bms"] },
         { key: "Auto NN", allowed: ["autonk", "yoloe", "autobb"] },
-        { key: "Code Gen", allowed: ["code_gen"] },
-        { key: "Image Deploy", allowed: ["image_depoly"] },
+        { key: "Code Gen", allowed: ["codeGen"] },
+        { key: "Image Deploy", allowed: ["imageDepoly"] },
         { key: "Run Image", allowed: ["run_image"] }
       ]
     };

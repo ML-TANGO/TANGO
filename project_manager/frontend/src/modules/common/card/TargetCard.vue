@@ -70,7 +70,7 @@
             style="gap: 23px; height: 100%; transition-duration: 0.5s !important"
             v-if="item?.info === 'ondevice' ? false : hover"
           >
-            <div class="d-flex flex-column text-center" style="width: 105px">
+            <div class="d-flex flex-column text-center" style="width: 125px">
               <small class="mb-2" style="letter-spacing: 1px; color: #aaa; font-size: 10px">IP Address</small>
               <p class="ma-0" style="font-size: 13px">{{ item?.host_ip }}</p>
             </div>

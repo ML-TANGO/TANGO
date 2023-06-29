@@ -4,8 +4,11 @@ import { ContainerPort } from "@/shared/enums";
 
 export async function startContainer(container, uid, pid) {
   let response = null;
+  // const host = window.location.hostname;
+  // const port = ContainerPort[container];
+
   const host = window.location.hostname;
-  const port = ContainerPort[container];
+  const port = 8888;
 
   try {
     response = await axios.get(
