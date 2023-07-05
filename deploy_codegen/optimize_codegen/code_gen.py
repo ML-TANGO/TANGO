@@ -573,8 +573,7 @@ class CodeGen:
                     line = f.readline()
                     if not line:
                         break
-                    imsi = line.replace("\n", "")
-                    self.m_nninfo_yolo_require_packages.append(imsi.replace(" ", ""))
+                    self.m_nninfo_yolo_require_packages.append(line.replace("\n", ""))
         return 0
 
     ####################################################################
@@ -638,7 +637,8 @@ class CodeGen:
             self.gen_python_code()
             if self.m_deploy_type == 'cloud':
                 self.make_requirements_file_for_docker()
-            #  elf.m_deploy_type == 'ondevice': # PCServer
+            elif self.m_deploy_type == 'PCServer':
+                self.make_requirements_file_for_PCServer()
             else:
                 self.make_requirements_file_for_others()
 
@@ -2085,13 +2085,75 @@ class CodeGen:
             t_total = {"build": t_build, "deploy": t_deploy, "optional": t_opt}
 
         try:
-            f = open(self.get_real_filepath(self.m_requirement_file), 'w')
+            r_file = "%s/%s" % (self.m_current_code_folder, self.m_requirement_file)
+            f = open(r_file, 'w')
         except IOError as err:
             print("Yaml File for deployment write error", err)
             return -1
         yaml.dump(t_total, f)
         f.close()
         return 0
+        
+        
+    ####################################################################
+    def make_requirements_file_for_PCServer(self):
+        """
+        make yaml file for deployment  - for PC webserver
+
+        Args: None
+        Returns: int
+            0 : success
+            -1 : error
+        """ 
+        if self.m_sysinfo_engine_type == 'pytorch':
+            dev_req = "%s/%s" % (self.m_current_code_folder, def_ondevice_python_requirements)
+            if len(self.m_nninfo_yolo_require_packages) > 0 or len(self.m_nninfo_user_libs) > 0:
+                with open(dev_req, "w")  as f:
+                    for item in self.m_nninfo_yolo_require_packages:
+                        f.write(item)
+                        f.write("\n")
+                    for item in self.m_nninfo_user_libs:
+                        f.write(item)
+                        f.write("\n")
+
+        t_pkg = {"atp": self.m_sysinfo_apt, "pypi": self.m_sysinfo_papi}
+        if self.m_sysinfo_engine_type == 'tensorrt':
+            w_filw = self.m_nninfo_weight_onnx_file
+            t_com = {"engine": 'tensorrt', "libs": self.m_sysinfo_libs,
+                 "custom_packages": t_pkg}
+        elif self.m_sysinfo_engine_type == 'tvm':
+            w_filw = [def_TVM_lib_path, def_TVM_code_path]
+            t_com = {"engine": 'tvm', "libs": self.m_sysinfo_libs,
+                 "custom_packages": t_pkg}
+        else:  # .pt file
+            w_filw = self.m_nninfo_weight_pt_file
+            t_com = {"engine": "pytorch", "libs": self.m_sysinfo_libs,
+                 "custom_packages": t_pkg}
+
+        t_build = {'architecture': self.m_sysinfo_cpu_type,
+                   "accelerator": self.m_sysinfo_acc_type,
+                   "os": self.m_sysinfo_os_type, "components": t_com}
+        t_deploy = {"type": self.m_deploy_type, "work_dir": self.m_deploy_work_dir,
+                    "entrypoint": self.m_deploy_python_file}
+        if self.m_sysinfo_engine_type == 'tensorrt':
+            t_deploy['pre_exec'] = ['tensorrt-converter.py']
+        t_opt = {"nn_file": self.m_deploy_python_file,
+                 "weight_file": w_filw,
+                 "annotation_file": self.m_nninfo_annotation_file}
+        t_total = {"build": t_build, "deploy": t_deploy, "optional": t_opt}
+
+        try:
+            r_file = "%s/%s" % (self.m_current_code_folder, self.m_requirement_file)
+            f = open(r_file, 'w')
+        except IOError as err:
+            print("Yaml File for deployment write error", err)
+            return -1
+        yaml.dump(t_total, f)
+        f.close()
+        return
+        
+
+
 
     ####################################################################
     def make_requirements_file_for_others(self):
@@ -2103,16 +2165,17 @@ class CodeGen:
             0 : success
             -1 : error
         """ 
-        dev_req = "%s/%s" % (self.m_current_code_folder, def_ondevice_python_requirements)
-        if len(self.m_nninfo_yolo_require_packages) != 0 and len(self.m_nninfo_user_libs) != 0:
-            with open(dev_req, "w")  as f:
-                if self.m_sysinfo_engine_type == 'pytorch':
+        print(self.m_sysinfo_engine_type) 
+        if self.m_sysinfo_engine_type == 'pytorch':
+            dev_req = "%s/%s" % (self.m_current_code_folder, def_ondevice_python_requirements)
+            if len(self.m_nninfo_yolo_require_packages) > 0 or len(self.m_nninfo_user_libs) > 0:
+                with open(dev_req, "w")  as f:
                     for item in self.m_nninfo_yolo_require_packages:
                         f.write(item)
                         f.write("\n")
-                for item in self.m_nninfo_user_libs:
-                    f.write(item)
-                    f.write("\n")
+                    for item in self.m_nninfo_user_libs:
+                        f.write(item)
+                        f.write("\n")
 
         t_pkg = {"atp": self.m_sysinfo_apt, "pypi": self.m_sysinfo_papi}
         if self.m_sysinfo_engine_type == 'rknn':
@@ -2149,7 +2212,8 @@ class CodeGen:
         t_total = {"build": t_build, "deploy": t_deploy, "optional": t_opt}
 
         try:
-            f = open(self.get_real_filepath(self.m_requirement_file), 'w')
+            r_file = "%s/%s" % (self.m_current_code_folder, self.m_requirement_file)
+            f = open(r_file, 'w')
         except IOError as err:
             print("Yaml File for deployment write error", err)
             return -1
