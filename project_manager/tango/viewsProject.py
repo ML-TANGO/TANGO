@@ -60,6 +60,7 @@ def container_start(request):
         container_id = request.data['container_id']
        
         response = asyncio.run(start_handler(container_id, user_id, project_id))
+        to_json = json.loads(response)
         # response = asyncio.get_event_loop().run_until_complete(start_handler(container_id, user_id, project_id))
         # response = start_handler(container_id, user_id, project_id)
         # host, port = get_container_info(container_id)
@@ -67,7 +68,9 @@ def container_start(request):
 
         # asyncio.run(aiohttp_request_handler())
 
-        print(str(container_id) + ' start - ' + str(response))
+        print(response)
+
+        print(str(container_id) + ' start - ' + str(to_json['response']))
 
         queryset = Project.objects.get(id=project_id, create_user=str(user_id))
         queryset.container = container_id
@@ -76,7 +79,7 @@ def container_start(request):
 
         print(container_id)
 
-        return HttpResponse(json.dumps({'status': 200, 'message': str(container_id) + ' 시작 요청\n', 'response' : str(response)}))
+        return HttpResponse(json.dumps({'status': 200, 'message': str(container_id) + ' 시작 요청\n', 'response' : to_json['request_info']}))
 
     except Exception as error:
         print('container start error - ' + str(error))
@@ -156,7 +159,6 @@ def status_report(request):
         project_id = request.GET['project_id']
         container_id = request.GET['container_id']
         result = request.GET['status']
-
         print("result")
         print(result)
 
@@ -174,6 +176,14 @@ def status_report(request):
                 'last_logs_timestamp' : 0,
                 'response_message' : ''
             }
+
+
+        print(request.GET)
+        print(request)
+
+        response_data[user_id][project_id]['response_message'] += "\n status_report - request : "
+        response_data[user_id][project_id]['response_message'] += json.dumps(request.GET)
+        response_data[user_id][project_id]['response_message'] += "\n"
 
         if queryset.project_type == 'auto':
             if container_id == 'bms' and result == 'success':
@@ -193,7 +203,7 @@ def status_report(request):
                 print("yoloe end .. ---- success")
                 queryset.container_status = 'completed'
                 queryset.save()
-                response_data[user_id][project_id]['response_message'] += 'yoloe 완료\n'
+                response_data[user_id][project_id]['response_message'] += 'AutoNN 완료\n'
                 response_data[user_id][project_id]['response_message'] += 'code gen 시작 요청\n'
                 response = asyncio.run(start_handler('codeGen', user_id, project_id))
                 print(response)
@@ -201,7 +211,7 @@ def status_report(request):
                 queryset.container = 'codeGene'
                 queryset.container_status = 'running'
                 queryset.save()
-            elif container_id == 'codeGen' and result == 'success':
+            elif container_id == 'codeGen' and result == 'completed':
                 print("yoloe end .. ---- success")
                 response_data[user_id][project_id]['response_message'] += 'codeGen 완료\n'
 
@@ -211,7 +221,7 @@ def status_report(request):
                 response_data[user_id][project_id]['response_message'] += 'base model select 완료\n'
             elif container_id == 'yoloe' and result == 'success':
                 print("yoloe end .. ---- success")
-                response_data[user_id][project_id]['response_message'] += 'yoloe 완료\n'
+                response_data[user_id][project_id]['response_message'] += 'AutoNN 완료\n'
 
         return HttpResponse(json.dumps({'status': 200}))
 

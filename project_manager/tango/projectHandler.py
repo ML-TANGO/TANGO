@@ -2,6 +2,8 @@ import os
 import requests
 import asyncio
 import docker
+import json
+import textwrap
 
 #region API REQUEST ...................................................................................................
 
@@ -27,12 +29,13 @@ async def continer_start_api(host, user_id, project_id):
         'project_id' : project_id,
     }
     response = requests.get(url, headers=headers, params=payload)
-    print("response")
+    print_roundtrip_text = print_roundtrip(response)
+    print(print_roundtrip_text)
     print(response.content.decode('utf-8'))
 
     # return response.json()
     # return str(response.content.decode('utf-8'))
-    return str(response.content, 'utf-8').replace('"','')
+    return json.dumps({'response': str(response.content, 'utf-8').replace('"',''), 'request_info': str(print_roundtrip_text)})
 
 
 
@@ -130,3 +133,23 @@ def get_docker_container_name(container):
 
     return str(containerName)
 #endregion
+
+
+def print_roundtrip(response, *args, **kwargs):
+    format_headers = lambda d: '\n'.join(f'{k}: {v}' for k, v in d.items())
+    print('')
+    return str(textwrap.dedent('''
+        ---------------- request ----------------
+        {req.method} {req.url}
+        {reqhdrs}
+        ---------------- response ----------------
+        {res.status_code} {res.reason} {res.url}
+        {reshdrs}
+
+        response : {res.text}
+    ''').format(
+        req=response.request, 
+        res=response, 
+        reqhdrs=format_headers(response.request.headers), 
+        reshdrs=format_headers(response.headers), 
+    ))

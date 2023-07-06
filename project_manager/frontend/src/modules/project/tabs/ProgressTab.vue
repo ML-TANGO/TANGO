@@ -111,7 +111,7 @@ export default {
             await updateProjectType(this.projectInfo.id, ProjectType.MANUAL);
             const res = await containerStart(container, this.projectInfo.create_user, this.projectInfo.id);
             this.vale += res.message;
-
+            this.vale += res.response;
             this.SET_PROJECT({
               project_type: ProjectType.MANUAL
             });
@@ -142,12 +142,21 @@ export default {
               await updateProjectType(this.projectInfo.id, ProjectType.AUTO);
               const res = await containerStart("bms", this.projectInfo.create_user, this.projectInfo.id);
               this.vale += res.message;
+              this.vale += res.response;
+              console.log("@@@@@@@@@@@@@@@@@@@@@@@@@2");
+
+              console.log(res.response);
+              console.log("@@@@@@@@@@@@@@@@@@@@@@@@@2");
             }
           });
       } else {
         await updateProjectType(this.projectInfo.id, ProjectType.AUTO);
         const res = await containerStart("bms", this.projectInfo.create_user, this.projectInfo.id);
         this.vale += res.message;
+        this.vale += res.response;
+        console.log("@@@@@@@@@@@@@@@@@@@@@@@@@2");
+        console.log(res.response);
+        console.log("@@@@@@@@@@@@@@@@@@@@@@@@@2");
       }
 
       this.SET_PROJECT({
