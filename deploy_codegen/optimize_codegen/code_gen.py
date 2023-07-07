@@ -212,6 +212,10 @@ class CodeGen:
                 logging.debug("Call Run()")
                 if self.thread_run_flag > 0:
                     self.run()
+                    # khlee 
+                    # send status_report
+                    self.response()
+                    print("code_gen: send_status_report to manager")
                     with self.lock:
                         self.the_cnt = self.the_cnt - 1
             else:
@@ -324,7 +328,7 @@ class CodeGen:
         for i in range(items):
             if i == (items - 1):
                 if os.path.exists(self.get_real_filepath(src)):
-                    shutil.copy(self.get_real_filepath(src), tmp_path)
+                    res = shutil.copy(self.get_real_filepath(src), tmp_path)
                 break
             else:
                 # get real path and add path_folders[i]
@@ -443,7 +447,8 @@ class CodeGen:
             elif key == 'iou_thresh':
                 self.m_sysinfo_iou_thresh = value  
             elif key == 'dataset':
-                self.m_nninfo_annotation_file = value
+                myset = "%s/%s.yaml" % (value, value)
+                self.m_nninfo_annotation_file = myset
         f.close()
         return 0
 
@@ -568,8 +573,7 @@ class CodeGen:
                     line = f.readline()
                     if not line:
                         break
-                    imsi = line.replace("\n", "")
-                    self.m_nninfo_yolo_require_packages.append(imsi.replace(" ", ""))
+                    self.m_nninfo_yolo_require_packages.append(line.replace("\n", ""))
         return 0
 
     ####################################################################
@@ -633,7 +637,8 @@ class CodeGen:
             self.gen_python_code()
             if self.m_deploy_type == 'cloud':
                 self.make_requirements_file_for_docker()
-            #  elf.m_deploy_type == 'pc':
+            elif self.m_deploy_type == 'PCServer':
+                self.make_requirements_file_for_PCServer()
             else:
                 self.make_requirements_file_for_others()
 
@@ -655,7 +660,7 @@ class CodeGen:
                 else:
                     m_filelist = [self.m_nninfo_class_file]
                 for mfile in m_filelist:
-                    self.move_subfolderfile(mfile, self.m_nninfo_yolo_base_file_path)
+                    self.copy_subfolderfile(mfile, self.m_nninfo_yolo_base_file_path)
 
             # convert .py to onnx and copy
             if isinstance(self.m_nninfo_class_file, list):
@@ -725,7 +730,7 @@ class CodeGen:
                 else:
                     m_filelist = [self.m_nninfo_class_file]
                 for mfile in m_filelist:
-                    self.move_subfolderfile(mfile, self.m_nninfo_yolo_base_file_path)
+                    self.copy_subfolderfile(mfile, self.m_nninfo_yolo_base_file_path)
 
             # convert .py to onnx and copy
             if isinstance(self.m_nninfo_class_file, list):
@@ -959,14 +964,14 @@ class CodeGen:
         """
         if not os.path.exists(self.m_current_code_folder):
             os.makedirs(self.m_current_code_folder)
-        # move autonn's pytorch to target folder(like prefix folder)
+        # copy autonn's pytorch to target folder(like prefix folder)
         if self.m_nninfo_yolo_base_file_path != ".":  
             if isinstance(self.m_nninfo_class_file, list):
                 m_filelist = self.m_nninfo_class_file
             else:
                 m_filelist = [self.m_nninfo_class_file]
             for mfile in m_filelist:
-                self.move_subfolderfile(mfile, self.m_nninfo_yolo_base_file_path)
+                self.copy_subfolderfile(mfile, self.m_nninfo_yolo_base_file_path)
         # onnx conversion
         # convert .py to onnx and copy
         if isinstance(self.m_nninfo_class_file, list):
@@ -1002,6 +1007,9 @@ class CodeGen:
         pt_model.load_state_dict(torch.load(pt_path, map_location=torch.device('cpu')), strict=False)
         pt_model.eval()
         # convert and save onnx file 
+        # the followings must be uncomment, commented out just for testing 
+        # khlee
+        '''
         dummy = torch.randn(
                 self.m_nninfo_input_tensor_shape[0], 
                 self.m_nninfo_input_tensor_shape[1], 
@@ -1020,10 +1028,12 @@ class CodeGen:
                 # verbose=True,
                 input_names=['input'],
                 output_names=['output'])
+        '''
         # khlee only for test copy yolov.onnx to tango.onnx
         # must be deleted 
         o_file = "./db/yolov7.onnx"
         shutil.copy(o_file, self.get_real_filepath(self.m_nninfo_weight_onnx_file))
+
         # tmp_om = onnx.load(self.get_real_filepath(self.m_nninfo_weight_onnx_file))
         # onnx_out = tmp_om.graph.output
         # o_outputs = [] 
@@ -1966,7 +1976,9 @@ class CodeGen:
             -1 : error
         """
 
-        if self.m_deploy_type == 'cloud' or self.m_deploy_type == 'k8s'  or self.m_deploy_type == 'pc':
+        if self.m_deploy_type == 'cloud' or self.m_deploy_type == 'k8s': 
+            # khlee 
+            # self.m_deploy_type == 'PCServer': just for webserver not docker
             dep_type = 'docker'
         else:
             dep_type = 'native'
@@ -2073,13 +2085,75 @@ class CodeGen:
             t_total = {"build": t_build, "deploy": t_deploy, "optional": t_opt}
 
         try:
-            f = open(self.get_real_filepath(self.m_requirement_file), 'w')
+            r_file = "%s/%s" % (self.m_current_code_folder, self.m_requirement_file)
+            f = open(r_file, 'w')
         except IOError as err:
             print("Yaml File for deployment write error", err)
             return -1
         yaml.dump(t_total, f)
         f.close()
         return 0
+        
+        
+    ####################################################################
+    def make_requirements_file_for_PCServer(self):
+        """
+        make yaml file for deployment  - for PC webserver
+
+        Args: None
+        Returns: int
+            0 : success
+            -1 : error
+        """ 
+        if self.m_sysinfo_engine_type == 'pytorch':
+            dev_req = "%s/%s" % (self.m_current_code_folder, def_ondevice_python_requirements)
+            if len(self.m_nninfo_yolo_require_packages) > 0 or len(self.m_nninfo_user_libs) > 0:
+                with open(dev_req, "w")  as f:
+                    for item in self.m_nninfo_yolo_require_packages:
+                        f.write(item)
+                        f.write("\n")
+                    for item in self.m_nninfo_user_libs:
+                        f.write(item)
+                        f.write("\n")
+
+        t_pkg = {"atp": self.m_sysinfo_apt, "pypi": self.m_sysinfo_papi}
+        if self.m_sysinfo_engine_type == 'tensorrt':
+            w_filw = self.m_nninfo_weight_onnx_file
+            t_com = {"engine": 'tensorrt', "libs": self.m_sysinfo_libs,
+                 "custom_packages": t_pkg}
+        elif self.m_sysinfo_engine_type == 'tvm':
+            w_filw = [def_TVM_lib_path, def_TVM_code_path]
+            t_com = {"engine": 'tvm', "libs": self.m_sysinfo_libs,
+                 "custom_packages": t_pkg}
+        else:  # .pt file
+            w_filw = self.m_nninfo_weight_pt_file
+            t_com = {"engine": "pytorch", "libs": self.m_sysinfo_libs,
+                 "custom_packages": t_pkg}
+
+        t_build = {'architecture': self.m_sysinfo_cpu_type,
+                   "accelerator": self.m_sysinfo_acc_type,
+                   "os": self.m_sysinfo_os_type, "components": t_com}
+        t_deploy = {"type": self.m_deploy_type, "work_dir": self.m_deploy_work_dir,
+                    "entrypoint": self.m_deploy_python_file}
+        if self.m_sysinfo_engine_type == 'tensorrt':
+            t_deploy['pre_exec'] = ['tensorrt-converter.py']
+        t_opt = {"nn_file": self.m_deploy_python_file,
+                 "weight_file": w_filw,
+                 "annotation_file": self.m_nninfo_annotation_file}
+        t_total = {"build": t_build, "deploy": t_deploy, "optional": t_opt}
+
+        try:
+            r_file = "%s/%s" % (self.m_current_code_folder, self.m_requirement_file)
+            f = open(r_file, 'w')
+        except IOError as err:
+            print("Yaml File for deployment write error", err)
+            return -1
+        yaml.dump(t_total, f)
+        f.close()
+        return
+        
+
+
 
     ####################################################################
     def make_requirements_file_for_others(self):
@@ -2091,16 +2165,17 @@ class CodeGen:
             0 : success
             -1 : error
         """ 
-        dev_req = "%s/%s" % (self.m_current_code_folder, def_ondevice_python_requirements)
-        if len(self.m_nninfo_yolo_require_packages) != 0 and len(self.m_nninfo_user_libs) != 0:
-            with open(dev_req, "w")  as f:
-                if self.m_sysinfo_engine_type == 'pytorch':
+        print(self.m_sysinfo_engine_type) 
+        if self.m_sysinfo_engine_type == 'pytorch':
+            dev_req = "%s/%s" % (self.m_current_code_folder, def_ondevice_python_requirements)
+            if len(self.m_nninfo_yolo_require_packages) > 0 or len(self.m_nninfo_user_libs) > 0:
+                with open(dev_req, "w")  as f:
                     for item in self.m_nninfo_yolo_require_packages:
                         f.write(item)
                         f.write("\n")
-                for item in self.m_nninfo_user_libs:
-                    f.write(item)
-                    f.write("\n")
+                    for item in self.m_nninfo_user_libs:
+                        f.write(item)
+                        f.write("\n")
 
         t_pkg = {"atp": self.m_sysinfo_apt, "pypi": self.m_sysinfo_papi}
         if self.m_sysinfo_engine_type == 'rknn':
@@ -2137,7 +2212,8 @@ class CodeGen:
         t_total = {"build": t_build, "deploy": t_deploy, "optional": t_opt}
 
         try:
-            f = open(self.get_real_filepath(self.m_requirement_file), 'w')
+            r_file = "%s/%s" % (self.m_current_code_folder, self.m_requirement_file)
+            f = open(r_file, 'w')
         except IOError as err:
             print("Yaml File for deployment write error", err)
             return -1
@@ -2190,6 +2266,7 @@ class CodeGen:
             print("Timeout Error:", err)
         except requests.exceptions.RequestException as err:
             print("OOps: Something Else", err)
+        print(prj_url)
         print("response for report")
         return
 
@@ -2283,8 +2360,8 @@ class MyHandler(SimpleHTTPRequestHandler):
                 self.m_obj.ev.set()
                 logging.debug("event Set")
             # send notice to project manager
-            self.m_obj.response()
-            print("code_gen: send_status_report to manager")
+            # self.m_obj.response()
+            # print("code_gen: send_status_report to manager")
         elif cmd == 'stop':
             buf = '"finished"'
             self.send_response(200, 'ok')
