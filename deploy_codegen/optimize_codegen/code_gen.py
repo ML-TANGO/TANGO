@@ -2229,13 +2229,17 @@ class CodeGen:
         Args: None
         Returns: None 
         """
-        host = ''
         try:
-            s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-            s.connect(("8.8.8.8", 80))
-            host = s.getsockname()[0]
-        except socket.error as err:
-            print(err)
+            host = socket.gethostbyname('projectmanager')
+        except socket.gaierror:
+            host = ''
+        if host == '':
+            try:
+                s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+                s.connect(("8.8.8.8", 80))
+                host = s.getsockname()[0]
+            except socket.error as err:
+                print(err)
         prj_url = "%s%s%s" % ('http://', host, ':8085/status_report')
 
         # add result code
