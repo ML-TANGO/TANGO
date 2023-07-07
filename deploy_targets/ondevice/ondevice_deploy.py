@@ -21,6 +21,10 @@ import socket
 import requests
 from http.server import HTTPServer, SimpleHTTPRequestHandler
 
+import logging
+
+logging.basicConfig(level=logging.DEBUG, format="(%(threadName)s) %(message)s")
+
 
 # for docker and project manager
 # "." for test /tango for docker container
@@ -254,13 +258,17 @@ class OnDeviceDeploy:
         Args: None
         Returns: None 
         """
-        host = ''
         try:
-            s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-            s.connect(("8.8.8.8", 80))
-            host = s.getsockname()[0]
-        except socket.error as err:
-            print(err)
+            host = socket.gethostbyname('projectmanager')
+        except socket.gaierror:
+            host = ''
+        if host == '':
+            try:
+                s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+                s.connect(("8.8.8.8", 80))
+                host = s.getsockname()[0]
+            except socket.error as err:
+                print(err)
         prj_url = "%s%s%s" % ('http://', host, ':8085/status_report')
 
         prj_url = "%s?container_id=ondevice_deploy&user_id=%s&project_id=%s" % (prj_url, self.m_current_userid, self.m_current_projectid)
@@ -290,6 +298,8 @@ class OnDeviceDeploy:
             print("Timeout:", err)
         except requests.exceptions.RequestException as err:
             print("RequestException:", err)
+        print(prj_url)
+        print("response for report")
         return
 
 
@@ -315,6 +325,7 @@ class MyHandler(SimpleHTTPRequestHandler):
         self.send_header("Access-Control-Allow-Methods", "GET, OPTION")
         self.send_header("Access-Control-Allow-Credentials", "true")
         self.send_header("Access-Control-Allow-Headers", "Content-Type, Origin, Accept, token")
+        self.send_header("vary", "origin")
 
     def do_GET(self):
         """
@@ -355,10 +366,11 @@ class MyHandler(SimpleHTTPRequestHandler):
         print("cmd =", cmd)
 
         if cmd == "start":
-            buf = 'started'
+            buf = '"started"'
             self.send_response(200, 'OK')
             self.send_cors_headers()
             self.send_header("Content-Type", "text/plain")
+            self.send_header("Content-Length", "%d" % len(buf))
             self.end_headers()
             self.wfile.write(buf.encode())
             if self.m_flag == 1:
@@ -366,40 +378,44 @@ class MyHandler(SimpleHTTPRequestHandler):
             # send notice to project manager
             self.m_deploy_obj.response()
         elif cmd == 'stop':
-            buf = "finished"
+            buf = '"finished"'
             self.send_response(200, 'ok')
             self.send_cors_headers()
             self.send_header("Content-Type", "text/plain")
+            self.send_header("Content-Length", "%d" % len(buf))
             self.end_headers()
             self.wfile.write(buf.encode())
             self.m_deploy_obj.clear()
             self.m_stop = 1
         elif cmd == "clear":
             self.m_deploy_obj.clear()
-            buf = "OK"
+            buf = '"OK"'
             self.send_response(200, 'ok')
             self.send_cors_headers()
             self.send_header("Content-Type", "text/plain")
+            self.send_header("Content-Length", "%d" % len(buf))
             self.end_headers()
             self.wfile.write(buf.encode())
         elif cmd == "pause":
             self.m_flag = 0
-            buf = "OK"
+            buf = '"OK"'
             self.send_response(200, 'ok')
             self.send_cors_headers()
             self.send_header("Content-Type", "text/plain")
+            self.send_header("Content-Length", "%d" % len(buf))
             self.end_headers()
             self.wfile.write(buf.encode())
         elif cmd == 'resume':
             self.m_flag = 1
-            buf = "OK"
+            buf = '"OK"'
             self.send_response_only(200, 'OK')
             self.send_header('Content-Type', 'text/plain')
+            self.send_header("Content-Length", "%d" % len(buf))
             self.end_headers()
             self.wfile.write(buf.encode())
 
         elif cmd == 'status_request':
-            buf = "error"
+            buf = '"error"'
             if self.m_deploy_obj.m_current_userid == "":
                 buf = "ready"
             else:
@@ -410,13 +426,15 @@ class MyHandler(SimpleHTTPRequestHandler):
             self.send_response(200, 'ok')
             self.send_cors_headers()
             self.send_header("Content-Type", "text/plain")
+            self.send_header("Content-Length", "%d" % len(buf))
             self.end_headers()
             self.wfile.write(buf.encode())
         else:
-            buf = ""
+            buf = '""'
             self.send_response(200, 'ok')
             self.send_cors_headers()
             self.send_header("Content-Type", "text/plain")
+            self.send_header("Content-Length", "%d" % len(buf))
             self.end_headers()
             self.wfile.write(buf.encode())
 
