@@ -114,7 +114,7 @@ export default {
               this.projectInfo = this.project;
               this.$EventBus.$emit("logUpdate", res);
 
-              if (res.container_status === "completed") {
+              if (res.container_status !== "running") {
                 this.stopInterval();
               }
             });

@@ -153,3 +153,23 @@ def print_roundtrip(response, *args, **kwargs):
         reqhdrs=format_headers(response.request.headers), 
         reshdrs=format_headers(response.headers), 
     ))
+
+
+
+# 로그에 보여질 Container 명으로 변경
+def get_log_container_name(container):
+    if container == 'bms':
+        return 'BMS'
+    elif container == 'yoloe':
+        return 'Auto NN'
+    elif container == 'codeGen' or container == 'code_gen' or container == 'codegen':
+        return 'Code Gen'
+    
+
+def db_container_name(container):
+    if container == 'bms' or container == 'BMS':
+        return 'bms'
+    elif container == 'yoloe':
+        return 'yoloe'
+    elif container == 'codeGen' or container == 'code_gen' or container == 'codegen':
+        return 'codeGen'
