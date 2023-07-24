@@ -9,7 +9,7 @@ services:
     build:
       context: ./project_manager
     command: >
-      sh -c "chmod 777 ./wait_for_postgres.sh &&
+      sh -c "echo 'chmod 777 ./wait_for_postgres.sh' &&
              ./wait_for_postgres.sh &&
              python manage.py makemigrations tango &&
              python manage.py migrate &&
@@ -191,8 +191,8 @@ services:
     volumes:
       - ./autonn/YoloE:/source
       - shared:/shared
-      - ./autonn/YoloE/sample_yaml/dataset.yaml:/shared/datasets/coco/dataset.yaml 	# TEMP FILE UNTIL LABELLING MODULE WORKING
-      - ${COCODIR:-./autonn/YoloE/sample_data/coco128}:/shared/datasets/coco		# TEMP FILE UNTIL LABELLING MODULE WORKING
+      - ./autonn/YoloE/sample_yaml/dataset.yaml:/shared/datasets/coco/dataset.yaml # TEMP FILE UNTIL LABELLING MODULE WORKING
+      - ${COCODIR:-./autonn/YoloE/sample_data/coco128}:/shared/datasets/coco # TEMP FILE UNTIL LABELLING MODULE WORKING
     hostname: yoloe
     ports:
       - "8090:8090"
