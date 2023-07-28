@@ -6,6 +6,17 @@ copyright notice
 code_gen.py
 This module generates template code for RKNN, PyTorch, and ArmNN based on AutoNN's output.
 """
+# khlee To Do List
+'''
+web app template gen.
+nms code gen.
+deployment.yaml location change : under nn_model
+deployment.yaml user editing -> user can be add papy app libs 
+tflite code gen.
+remove rknn
+input source mp4 + jpg in same folder
+'''
+
 import os
 import socket
 import shutil
@@ -17,7 +28,6 @@ import tvm.relay as relay
 import sys
 import logging
 import threading
-import time
 import time
 import yaml
 # for web service
@@ -603,7 +613,8 @@ class CodeGen:
         self.clear()
 
         # code gen
-        if self.m_sysinfo_engine_type == 'rknn':
+        # khlee rknn must be deleted !!!!!!
+        if self.m_sysinfo_engine_type == 'rknn':   
             self.m_sysinfo_libs = ['libprotobuf.so.10', 'x86_64-linux-gnu']
             self.m_sysinfo_apt = ['python3==3.6', 'python3-dev', 'python3-pip',
                                   'libxslt1-dev', 'zlib1g-dev', 'libglib2.0',
@@ -656,6 +667,9 @@ class CodeGen:
             self.m_sysinfo_papi = []
             self.gen_acl_code()
             self.make_requirements_file_for_others()
+        elif self.m_sysinfo_engine_type == 'tflite':
+            # khlee to be added
+            pass
         elif self.m_sysinfo_engine_type == "tensorrt":
             self.m_deploy_entrypoint = [self.m_deploy_python_file]
             # move autonn's pytorch to target folder(like prefix folder)
