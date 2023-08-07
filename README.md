@@ -3,12 +3,13 @@
 > **Announcement**  
 > * [2022  Fall TANGO Community Conference](https://github.com/ML-TANGO/TANGO/discussions/31)
 > * [2022  Fall TANGO Pre-Release](https://github.com/ML-TANGO/TANGO/releases/tag/tango-22.11-pre1)
-> * [2022  Fall TANGO Release](https://github.com/ML-TANGO/TANGO/releases/tag/tango-22.11) 
+> * [2022  Fall TANGO Release](https://github.com/ML-TANGO/TANGO/releases/tag/tango-22.11)
+> * [2023  June TANGO Release](https://github.com/ML-TANGO/TANGO/releases/tag/tango-23.06) 
 ----
 
 ## Introduction to TANGO <a name="intro"></a>
 
-TANGO (**T**arget **A**daptive  **N**o-code neural network **G**eneration and **O**peration framework) is code name of project for Integrated Machine Learning Framework.
+TANGO (**T**arget **A**ware  **N**o-code neural network **G**eneration and **O**peration framework) is code name of project for Integrated Machine Learning Framework.
 
 It aims to develop automatic neural network generation and deployment framework that helps novice users to easily develop neural network applications with less or ideally no code efforts and deploy the neural network application onto the target device.
 

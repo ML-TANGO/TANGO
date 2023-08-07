@@ -51,7 +51,7 @@ RUN cp -R /var/model/* /var/release/Model
 # -------------------------------------------------------------------
 # base
 # FROM node:14.14.0-alpine3.12 AS weda_bluai
-FROM nvidia/cuda:10.1-cudnn7-devel-ubuntu18.04 AS weda_bluai
+FROM nvidia/cuda:11.2.2-cudnn8-runtime-ubuntu20.04 AS weda_bluai
 
 # environment
 ENV DEBIAN_FRONTEND=noninteractive

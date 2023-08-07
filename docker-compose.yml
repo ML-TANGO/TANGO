@@ -1,6 +1,5 @@
 version: "3"
 
-
 services:
   #---------------------------------
   # Project Manager
@@ -43,37 +42,37 @@ services:
       - POSTGRES_USER=postgres
       - POSTGRES_PASSWORD=postgres
 
-  # #---------------------------------
-  # # DB for labelling tool
-  # #---------------------------------
-  # mariadb:
-  #     container_name: "mariadb"
-  #     image: mariadb:10
-  #     ports:
-  #       - 3306:3306
-  #     volumes:
-  #       - "./labelling/Deployment/db/my.cnf:/etc/mysql/my.cnf"
-  #       - "./labelling/data:/var/lib/mysql"
-  #       - "./labelling/Deployment/test/:/docker-entrypoint-initdb.d/"
-  #     environment:
-  #       MARIADB_DATABASE: labelling
-  #       MARIADB_USER: username
-  #       MARIADB_PASSWORD: password
-  #       MARIADB_ROOT_PASSWORD: password
-  #     restart: always
+  #---------------------------------
+  # DB for labelling tool
+  #---------------------------------
+  mariadb:
+    container_name: "mariadb"
+    image: mariadb:10
+    ports:
+      - 3306:3306
+    volumes:
+      - "./labelling/Deployment/db/my.cnf:/etc/mysql/my.cnf"
+      - "./labelling/data:/var/lib/mysql"
+      - "./labelling/Deployment/test/:/docker-entrypoint-initdb.d/"
+    environment:
+      MARIADB_DATABASE: labelling
+      MARIADB_USER: username
+      MARIADB_PASSWORD: password
+      MARIADB_ROOT_PASSWORD: password
+    restart: always
 
-  # #---------------------------------
-  # # Labelling tool 
-  # #---------------------------------
-  # labelling:
-  #   build:
-  #     context: ./labelling
-  #   volumes:
-  #     - ./labelling/dataset:/var/appdata
-  #     - ./labelling/datadb:/var/lib/mysql
-  #   ports:
-  #     - "8086:80"    # for Web UI
-  #     - "8095:10236" # for Rest API 
+  #---------------------------------
+  # Labelling tool 
+  #---------------------------------
+  labelling:
+    build:
+      context: ./labelling
+    volumes:
+      - ./labelling/dataset:/var/appdata
+      - ./labelling/datadb:/var/lib/mysql
+    ports:
+      - "8086:80" # for Web UI
+      - "8095:10236" # for Rest API 
 
   #---------------------------------
   # Base Model Selector
@@ -191,13 +190,12 @@ services:
     volumes:
       - ./autonn/YoloE:/source
       - shared:/shared
-      - ./autonn/YoloE/sample_yaml/dataset.yaml:/shared/datasets/coco/dataset.yaml 	# TEMP FILE UNTIL LABELLING MODULE WORKING
-      - ${COCODIR:-./autonn/YoloE/sample_data/coco128}:/shared/datasets/coco		# TEMP FILE UNTIL LABELLING MODULE WORKING
+      - ./autonn/YoloE/sample_yaml/dataset.yaml:/shared/datasets/coco/dataset.yaml # TEMP FILE UNTIL LABELLING MODULE WORKING
+      - ${COCODIR:-./autonn/YoloE/sample_data/coco128}:/shared/datasets/coco # TEMP FILE UNTIL LABELLING MODULE WORKING
     hostname: yoloe
     ports:
       - "8090:8090"
 
-      
   #---------------------------------
   # code_gen Build 
   #---------------------------------
@@ -211,8 +209,8 @@ services:
     command: >
       sh -c "cd /app && python3 code_gen.py"
     ports:
-      - 8888:8888  
-      
+      - 8888:8888
+
   #---------------------------------
   # Target Image Build 
   #---------------------------------
@@ -234,8 +232,7 @@ services:
     build:
       context: ./deploy_targets/k8s
     container_name: "tango_k8s"
-    command:
-      bash -c "cd /app && python3 k8s_deploy.py"
+    command: bash -c "cd /app && python3 k8s_deploy.py"
     volumes:
       - $HOME/.kube:/home/root/.kube
       - shared:/tango
@@ -257,8 +254,7 @@ services:
     command: >
       sh -c "cd /app && python3 ondevice_deploy.py"
     ports:
-      - 8891:8891  
-
+      - 8891:8891
   # #---------------------------------
   # # Visualizer 
   # #---------------------------------
@@ -279,9 +275,9 @@ services:
   # #   depends_on:
   # #     - postgresql
 
-#---------------------------------
-# Volumes 
-#---------------------------------
+  #---------------------------------
+  # Volumes 
+  #---------------------------------
 volumes:
-  postgreSQL:  # for Proejct Manager
-  shared:      # shared Directory
+  postgreSQL: # for Proejct Manager
+  shared: # shared Directory
