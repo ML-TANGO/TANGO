@@ -103,8 +103,7 @@ router.post(
 
           if (!isRun) {
             logger.debug(
-              `AUTO LABEL Fail ${JSON.stringify(result, null, 1)}  [${
-                ele.DATASET_CD
+              `AUTO LABEL Fail ${JSON.stringify(result, null, 1)}  [${ele.DATASET_CD
               }]`
             )
             failList.push(ele.DATASET_CD)
@@ -173,16 +172,16 @@ router.post("/setUpdateDataset", async (req, res, next) => {
 
   //신규로직 
   let changed = []
-  if(req.body.OBJECT_TYPE === "C") {
+  if (req.body.OBJECT_TYPE === "C") {
     const promises = req.body.files.map((ele) => {
       return new Promise((resolve, reject) => {
-        if(ele.isNew) {
+        if (ele.isNew) {
           try {
             let classDir = path.join(tempDir, ele.base)
             !fs.existsSync(classDir) && fs.mkdirSync(classDir)
-    
+
             let imgPath = path.join(classDir, ele.path)
-    
+
             fs.renameSync(path.join(tempDir, ele.path), imgPath)
             ele.path = path.join(ele.base, ele.path)
           } catch (error) {
@@ -191,12 +190,12 @@ router.post("/setUpdateDataset", async (req, res, next) => {
           }
         } else {
 
-          if(!ele.path.includes(ele.base)) {
+          if (!ele.path.includes(ele.base)) {
             try {
 
               let classDir = path.join(datasetDir, ele.base)
               !fs.existsSync(classDir) && fs.mkdirSync(classDir)
-      
+
               let imgPath = path.join(classDir, ele.name)
 
               console.log("----Change")
@@ -204,7 +203,7 @@ router.post("/setUpdateDataset", async (req, res, next) => {
 
               console.log("----Change to")
               console.log(imgPath)
-      
+
               fs.renameSync(ele.path, imgPath)
               ele.path = path.join(classDir, ele.name)
 
@@ -219,7 +218,7 @@ router.post("/setUpdateDataset", async (req, res, next) => {
       })
     })
 
-    await Promise.all(promises)    
+    await Promise.all(promises)
   }
 
   console.log("---------------------")
@@ -321,10 +320,10 @@ router.post("/testtest", async (req, res, next) => {
       "0.0.0.0",
       "10236",
       "/test",
-        {
-          project_id: "testtest",
-          user_id: "dkdkdkfekjfj"
-        }
+      {
+        project_id: "testtest",
+        user_id: "dkdkdkfekjfj"
+      }
     )
     console.log("====")
     console.log(resResult)
@@ -451,30 +450,30 @@ router.post("/setNewDataSets", async (req, res, next) => {
   const datasetDir = path.join(config.datasetPath, datasetNo)
   req.body.DATASET_DIR = datasetDir
 
-  if(req.body.OBJECT_TYPE === "C") {
-      //신규로직 
-      const promises = req.body.files.map((ele) => {
-        return new Promise((resolve, reject) => {
+  if (req.body.OBJECT_TYPE === "C") {
+    //신규로직 
+    const promises = req.body.files.map((ele) => {
+      return new Promise((resolve, reject) => {
 
-          if(!ele.path.includes(ele.base)) {
-            try {
-              let classDir = path.join(tempDir, ele.base)
-              !fs.existsSync(classDir) && fs.mkdirSync(classDir)
-  
-              let imgPath = path.join(classDir, ele.path)
-  
-              fs.renameSync(path.join(tempDir, ele.path), imgPath)
-              ele.path = path.join(ele.base, ele.path)
-            } catch (error) {
-              console.log("!!!")
-              console.log(error)
-            }
+        if (!ele.path.includes(ele.base)) {
+          try {
+            let classDir = path.join(tempDir, ele.base)
+            !fs.existsSync(classDir) && fs.mkdirSync(classDir)
+
+            let imgPath = path.join(classDir, ele.path)
+
+            fs.renameSync(path.join(tempDir, ele.path), imgPath)
+            ele.path = path.join(ele.base, ele.path)
+          } catch (error) {
+            console.log("!!!")
+            console.log(error)
           }
-          resolve("")
-        })
+        }
+        resolve("")
       })
+    })
 
-      await Promise.all(promises)
+    await Promise.all(promises)
   }
 
   try {
@@ -568,13 +567,13 @@ router.post("/setNewDataSets", async (req, res, next) => {
 
   res.json({ status: 1 })
 
-  
+
   option.source = CC.MAPPER.TANGO
   option.queryId = "getProjectInfo"
   let list = await DH.executeQuery(option)
-  
-  
-  if(list[0] !== undefined) {
+
+
+  if (list[0] !== undefined) {
     logger.info("send status request to Project Manager")
     console.log(list[0])
     try {
@@ -583,19 +582,19 @@ router.post("/setNewDataSets", async (req, res, next) => {
         "project_manager",
         "8085",
         "/status_request",
-          {
-            project_id: list[0].PROJECT_ID,
-            user_id: list[0].USER_ID
-          }
+        {
+          project_id: list[0].PROJECT_ID,
+          user_id: list[0].USER_ID
+        }
       )
     } catch (error) {
       console.log("error")
       console.log(error)
     }
-    
+
   } else
-  logger.info("Fail to send status request to Project Manager : not started")
-  
+    logger.info("Fail to send status request to Project Manager : not started")
+
   // var os = require('os');
 
 
@@ -606,9 +605,9 @@ router.post("/setNewDataSets", async (req, res, next) => {
   // console.log(networkInterfaces);
   // logger.info("IP INFO")
   // logger.info(networkInterfaces)
-  
 
-  
+
+
 })
 
 const _createDataSets = async (data, dataCd) => {
@@ -724,7 +723,7 @@ const _createDataSets = async (data, dataCd) => {
         console.log(path.parse(ele).ext)
 
         if (existTag < 0 && ele !== "result" && path.parse(ele).ext === "") {
-        // if (existTag < 0 && ele !== "result" && ele.substring(0,4) !== "THUM") {
+          // if (existTag < 0 && ele !== "result" && ele.substring(0,4) !== "THUM") {
           option.param.TAG.push({
             DATASET_CD: DATASET_CD,
             NAME: ele,
@@ -741,7 +740,7 @@ const _createDataSets = async (data, dataCd) => {
       TAG_CD_LIST = await DH.executeQuery(option)
 
 
-      if(data.changed !== undefined && data.changed.length > 0) {
+      if (data.changed !== undefined && data.changed.length > 0) {
         let DATAS = []
 
         data.changed.map(ele => {
@@ -756,7 +755,7 @@ const _createDataSets = async (data, dataCd) => {
         let optionTemp = {}
         optionTemp.source = CC.MAPPER.DATASET
         optionTemp.param = {
-          DATASET_CD : DATASET_CD,
+          DATASET_CD: DATASET_CD,
           DATAS
         }
         console.log(DATAS)
@@ -794,6 +793,7 @@ const _createDataSets = async (data, dataCd) => {
     let insertData = []
     let backupData = []
     const spliceSize = 1000
+    let splitOrgData = option.param.DATA.map(el => el)
     while (option.param.DATA.length > 0) {
       insertData.push(option.param.DATA.splice(0, spliceSize))
     }
@@ -813,126 +813,142 @@ const _createDataSets = async (data, dataCd) => {
       option.queryId = "setDataElement"
       await DH.executeQuery(option)
     }
+    // option.param.DATA = splitOrgData
 
     //데이터 임폴트인 경우
     if (data.IMPORT_TYPE === "COCO") {
-    let argData = {
-      "DATASET_CD": DATASET_CD,
-      "PURPOSE_TYPE": data.OBJECT_TYPE,
-      "FILE_INFO":[]
-    }
+      let argData = {
+        "DATASET_CD": DATASET_CD,
+        "PURPOSE_TYPE": data.OBJECT_TYPE,
+        "FILE_INFO": []
+      }
+      // console.log("===========================================================11")
+      // console.log(data.DATA)
 
-    data.DATA.map(ele => {
-      argData.FILE_INFO.push({"FILE_PATH": ele.FILE_PATH, "DATA_CD":ele.DATA_CD})
-    })
+      option.param.DATA = splitOrgData
 
-    logger.info("Import Data Processing...")
-    let importResult = await CF.runProcess("python", [
-      CC.BIN.importData,
-      JSON.stringify(argData)
-    ])
-
-    if(importResult.stderr === "") {
-      importResult = JSON.parse(importResult.stdout)
-      
-      const classList = importResult.CLASS_INFO
+      // console.log("===========================================================22")
+      // console.log(data.DATA)
 
 
-      let importOption = {}
-      importOption.param = {}
-      importOption.source = CC.MAPPER.BIN
-      importOption.param.DATASET_CD = DATASET_CD
-      importOption.param.DATA = []
-      classList.map((ele) => {
-        importOption.param.DATA.push({
+      data.DATA.map(ele => {
+        argData.FILE_INFO.push({ "FILE_PATH": ele.FILE_PATH, "DATA_CD": ele.DATA_CD })
+      })
+
+
+
+      let argPath = path.join(datasetDir, "arg.dat")
+
+      fs.writeFileSync(argPath, JSON.stringify(argData), {
+        encoding: "utf8",
+        flag: "w"
+      })
+      logger.info("Import Data Processing...")
+      let importResult = await CF.runProcess("python", [
+        CC.BIN.importData,
+        argPath
+      ])
+
+      if (importResult.stderr === "") {
+        importResult = JSON.parse(importResult.stdout)
+
+        const classList = importResult.CLASS_INFO
+
+        let importOption = {}
+        importOption.param = {}
+        importOption.source = CC.MAPPER.BIN
+        importOption.param.DATASET_CD = DATASET_CD
+        importOption.param.DATA = []
+        classList.map((ele) => {
+          importOption.param.DATA.push({
             DATASET_CD: data.DATASET_CD,
             NAME: ele.TAG_NAME,
             COLOR: ele.COLOR
           })
-      })
-      importOption.queryId = "setDataTags"
-      if (importOption.param.DATA.length > 0) {
-        await DH.executeQuery(importOption)
-
-        // param.map((ele) => {
-        //   tagDatas = tagDatas.concat(ele.TAGS)
-        //   option.param.DATA.push({
-        //     DATA_CD: ele.DATA_CD,
-        //     ANNO_DATA: ele.FILE_PATH
-        //   })
-        // })
-        importOption.source = CC.MAPPER.BIN
-        importOption.param.DATA = []
-        data.DATA.map(ele => {
-          let fn = ele.FILE_PATH
-          let ext = ele.FILE_EXT
-
-
-          let an = fn.substr(0, fn.length-ext.length)
-          an = an+".dat"
-
-          if(ext !== ".json") {
-            importOption.param.DATA.push({
-              DATA_CD: ele.DATA_CD,
-              ANNO_DATA: an
-            })
-          }
         })
+        importOption.queryId = "setDataTags"
+        if (importOption.param.DATA.length > 0) {
+          await DH.executeQuery(importOption)
 
-        //모든 태그 변경
+          // param.map((ele) => {
+          //   tagDatas = tagDatas.concat(ele.TAGS)
+          //   option.param.DATA.push({
+          //     DATA_CD: ele.DATA_CD,
+          //     ANNO_DATA: ele.FILE_PATH
+          //   })
+          // })
+          importOption.source = CC.MAPPER.BIN
+          importOption.param.DATA = []
 
-        importOption.source = CC.MAPPER.DATASET
-        importOption.queryId = "getExistTag"
-        let existTagList = await DH.executeQuery(importOption)
+          data.DATA.map(ele => {
+            let fn = ele.FILE_PATH
+            let ext = ele.FILE_EXT
 
-        
 
-        existTagList.map(ele => {
-          let findTag = classList.find((item) => item.TAG_NAME === ele.NAME)
-          ele.orgTagCd = findTag.TAG_CD
-        })
+            let an = fn.substr(0, fn.length - ext.length)
+            an = an + ".dat"
 
-        logger.info("Imported CLass Data Mapping...")
-        const chFile = importOption.param.DATA.map((ele) => {
-          return new Promise((resolve, reject) => {
-            let filePath = ele.ANNO_DATA
-            if (fs.existsSync(filePath)) {
-              var rsFile = JSON.parse(String(fs.readFileSync(filePath)))
-              rsFile.POLYGON_DATA.map((frame) => {
-
-                if (frame.TAG_CD != undefined && frame.TAG_CD != null) {
-
-                  let findTag = existTagList.find((item) => item.orgTagCd === frame.TAG_CD)
-                  console.log(`findeTag = ${frame.TAG_CD}  to ${findTag}`)
-                  frame.TAG_CD = findTag.TAG_CD
-                }
-              })
-              fs.writeFileSync(filePath, JSON.stringify(rsFile), {
-                encoding: "utf8",
-                flag: "w"
+            if (ext !== ".json") {
+              importOption.param.DATA.push({
+                DATA_CD: ele.DATA_CD,
+                ANNO_DATA: an
               })
             }
-            resolve(1)
           })
-        })
-    
-        await Promise.all(chFile)
-        logger.info("Imported CLass Data Mapping Done!")
+
+          //모든 태그 변경
+
+          importOption.source = CC.MAPPER.DATASET
+          importOption.queryId = "getExistTag"
+          let existTagList = await DH.executeQuery(importOption)
 
 
 
+          existTagList.map(ele => {
+            let findTag = classList.find((item) => item.TAG_NAME === ele.NAME)
+            ele.orgTagCd = findTag.TAG_CD
+          })
 
-        //데이터 엘리먼트 수정
-        importOption.source = CC.MAPPER.BIN
-        importOption.param.IS_ANNO = true
-        importOption.queryId = "setUpdateDataElement"
-        await DH.executeQuery(importOption)
+          logger.info("Imported CLass Data Mapping...")
+          const chFile = importOption.param.DATA.map((ele) => {
+            return new Promise((resolve, reject) => {
+              let filePath = ele.ANNO_DATA
+              if (fs.existsSync(filePath)) {
+                var rsFile = JSON.parse(String(fs.readFileSync(filePath)))
+                rsFile.POLYGON_DATA.map((frame) => {
 
-        importOption.queryId = "removeJson"
-        await DH.executeQuery(importOption)
+                  if (frame.TAG_CD != undefined && frame.TAG_CD != null) {
+
+                    let findTag = existTagList.find((item) => item.orgTagCd === frame.TAG_CD)
+                    // console.log(`findeTag = ${frame.TAG_CD}  to ${findTag}`)
+                    frame.TAG_CD = findTag.TAG_CD
+                  }
+                })
+                fs.writeFileSync(filePath, JSON.stringify(rsFile), {
+                  encoding: "utf8",
+                  flag: "w"
+                })
+              }
+              resolve(1)
+            })
+          })
+
+          await Promise.all(chFile)
+          logger.info("Imported CLass Data Mapping Done!")
+
+
+          //데이터 엘리먼트 수정
+          importOption.source = CC.MAPPER.BIN
+          importOption.param.IS_ANNO = true
+          console.log(importOption.param.DATA.length)
+          importOption.queryId = "setUpdateDataElement"
+          await DH.executeQuery(importOption)
+
+          importOption.queryId = "removeJson"
+          await DH.executeQuery(importOption)
+        }
       }
-    }
-    
+
 
     }
 
@@ -959,7 +975,7 @@ const _createDataSets = async (data, dataCd) => {
     }
 
 
-    
+
   } catch (error) {
     logger.error(`[${DATASET_CD}] Create Fail \n${error.stack}`)
     option.source = CC.MAPPER.DATASET
