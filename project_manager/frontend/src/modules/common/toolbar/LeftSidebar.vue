@@ -115,7 +115,6 @@ export default {
 
   watch: {
     mini() {
-      console.log("mini", this.mini);
       this.$emit("mini", this.mini);
     }
   },

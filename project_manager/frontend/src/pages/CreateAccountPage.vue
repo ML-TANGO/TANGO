@@ -124,9 +124,6 @@ export default {
     },
     pwConfirm() {
       this.isValid = this.$refs.form.validate();
-    },
-    isValid() {
-      console.log(this.isValid);
     }
   },
 

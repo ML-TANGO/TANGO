@@ -33,7 +33,10 @@
     </div>
 
     <div v-else class="d-flex justify-center file-upload-container" :style="{ height: height }">
-      <FileListItem @remove="removeFile">
+      <FileListItem v-if="!isImage" @remove="removeFile" :isImage="false">
+        <p class="ma-0">{{ fileList.name }}</p>
+      </FileListItem>
+      <FileListItem v-else @remove="removeFile">
         <img
           :src="fileSrc"
           alt="이미지"
@@ -48,13 +51,7 @@
     </div>
 
     <!-- 파일 업로드 -->
-    <input
-      type="file"
-      ref="fileInput"
-      class="file-upload-input"
-      @change="onFileChange"
-      accept="image/jpeg, image/png"
-    />
+    <input :key="`input-${inputkey}`" type="file" ref="fileInput" class="file-upload-input" @change="onFileChange" />
   </div>
 </template>
 <script>
@@ -67,6 +64,15 @@ export default {
     },
     previewImage: {
       default: null
+    },
+    errorMsg: {
+      default: "이미지 파일을 업로드해 주세요."
+    },
+    fileType: {
+      default: () => ["jpg", "jpeg", "png"]
+    },
+    isImage: {
+      default: true
     }
   },
   data() {
@@ -74,12 +80,13 @@ export default {
       isDragged: false,
       fileList: null,
       fileSrc: "",
-      mountedItemCount: 0
+      mountedItemCount: 0,
+      inputkey: 0
     };
   },
   watch: {
     fileList(val) {
-      if (val !== null) {
+      if (val !== null && this.isImage) {
         if (this.fileSrc !== "") URL.revokeObjectURL(this.fileSrc);
         this.fileSrc = URL.createObjectURL(val);
       }
@@ -125,7 +132,9 @@ export default {
 
         this.isDragged = false;
         const files = event.target.files;
-        this.createFile(files[0]);
+        if (this.fileValidation(files[0])) {
+          this.createFile(files[0]);
+        }
       }
     },
 
@@ -140,11 +149,11 @@ export default {
 
     fileValidation(file) {
       const fileExt = file.type.split("/")[1];
-      const type = ["jpg", "jpeg", "png"];
+      const type = this.fileType;
       this.isDragged = false;
 
       if (type.length > 0 && !type.includes(fileExt)) {
-        this.$swal("업로드 실패", "이미지 파일을 업로드해 주세요.", "error");
+        this.$swal("업로드 실패", this.errorMsg, "error");
         return false;
       }
 
@@ -156,10 +165,13 @@ export default {
       this.isDragged = false;
       URL.revokeObjectURL(this.fileSrc);
       this.fileSrc = "";
+
+      this.inputkey++;
     },
 
     previewRemoveFile() {
       this.$EventBus.$emit("previewRemove");
+      this.removeFile();
     }
   }
 };
@@ -167,7 +179,7 @@ export default {
 <style lang="scss" scoped>
 .wrapper {
   width: 100%;
-  height: 100%;
+  height: 98%;
   margin: 0 auto;
 }
 .file-upload {

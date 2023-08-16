@@ -59,23 +59,6 @@ export async function checkContainerStatus(container, uid, pid) {
   return response.data;
 }
 
-export async function checkContainerStatus_TEST(container, uid, pid) {
-  let response = null;
-
-  console.log(uid, pid);
-  try {
-    response = await axios.get(
-      "http://bms:8081/status_request",
-      { params: { user_id: uid, project_id: pid } },
-      { withCredentials: true }
-    );
-  } catch (error) {
-    throw new Error(error);
-  }
-
-  return response.data;
-}
-
 export async function updateContainerStatus(param) {
   let response = null;
 

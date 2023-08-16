@@ -95,3 +95,35 @@ export async function updateProjectType(id, type) {
 
   return response.data;
 }
+
+export async function downloadNNModel(user_id, project_id) {
+  let response = null;
+
+  try {
+    response = await axios.get("/api/download_nn_model", {
+      params: { user_id: user_id, project_id: project_id },
+      responseType: "blob"
+    });
+  } catch (error) {
+    throw new Error(error);
+  }
+
+  return response.data;
+}
+
+export async function uploadNNModel(user_id, project_id, file) {
+  let response = null;
+
+  const formData = new FormData();
+  formData.append("user_id", user_id);
+  formData.append("project_id", project_id);
+  formData.append("nn_model", file);
+
+  try {
+    response = await axios.post("/api/upload_nn_model", formData);
+  } catch (error) {
+    throw new Error(error);
+  }
+
+  return response.data;
+}

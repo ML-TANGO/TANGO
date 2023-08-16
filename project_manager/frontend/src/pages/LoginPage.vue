@@ -80,7 +80,6 @@ export default {
     /** 로그인 버튼 클릭 이벤트 */
     async onLogin() {
       const userInfo = await userLoginAPI(this.id, this.pw);
-      console.log("userInfo", userInfo);
 
       if (userInfo.result) {
         const content = JSON.parse(userInfo.content);

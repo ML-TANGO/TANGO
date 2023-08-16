@@ -45,34 +45,34 @@ services:
   #---------------------------------
   # DB for labelling tool
   #---------------------------------
-  mariadb:
-    container_name: "mariadb"
-    image: mariadb:10
-    ports:
-      - 3306:3306
-    volumes:
-      - "./labelling/Deployment/db/my.cnf:/etc/mysql/my.cnf"
-      - "./labelling/data:/var/lib/mysql"
-      - "./labelling/Deployment/test/:/docker-entrypoint-initdb.d/"
-    environment:
-      MARIADB_DATABASE: labelling
-      MARIADB_USER: username
-      MARIADB_PASSWORD: password
-      MARIADB_ROOT_PASSWORD: password
-    restart: always
+  # mariadb:
+  #   container_name: "mariadb"
+  #   image: mariadb:10
+  #   ports:
+  #     - 3306:3306
+  #   volumes:
+  #     - "./labelling/Deployment/db/my.cnf:/etc/mysql/my.cnf"
+  #     - "./labelling/data:/var/lib/mysql"
+  #     - "./labelling/Deployment/test/:/docker-entrypoint-initdb.d/"
+  #   environment:
+  #     MARIADB_DATABASE: labelling
+  #     MARIADB_USER: username
+  #     MARIADB_PASSWORD: password
+  #     MARIADB_ROOT_PASSWORD: password
+  #   restart: always
 
-  #---------------------------------
-  # Labelling tool 
-  #---------------------------------
-  labelling:
-    build:
-      context: ./labelling
-    volumes:
-      - ./labelling/dataset:/var/appdata
-      - ./labelling/datadb:/var/lib/mysql
-    ports:
-      - "8086:80" # for Web UI
-      - "8095:10236" # for Rest API 
+  # #---------------------------------
+  # # Labelling tool 
+  # #---------------------------------
+  # labelling:
+  #   build:
+  #     context: ./labelling
+  #   volumes:
+  #     - ./labelling/dataset:/var/appdata
+  #     - ./labelling/datadb:/var/lib/mysql
+  #   ports:
+  #     - "8086:80" # for Web UI
+  #     - "8095:10236" # for Rest API 
 
   #---------------------------------
   # Base Model Selector
@@ -93,6 +93,7 @@ services:
     #           capabilities: [gpu]
     # environment:
     #   - NVIDIA_VISIBLE_DEVICES=all
+    hostname: bms
     volumes:
       - ./base_model_select:/source
       - shared:/shared
@@ -229,6 +230,7 @@ services:
   # K8S deploy
   #---------------------------------
   kube_deploy:
+    hostname: k8s
     build:
       context: ./deploy_targets/k8s
     container_name: "tango_k8s"
@@ -246,6 +248,7 @@ services:
   # ondevice_deploy Build 
   #---------------------------------    
   ondevice_deploy:
+    hostname: ondevice
     build:
       context: ./deploy_targets/ondevice
     volumes:

@@ -16,13 +16,34 @@
         Progress - {{ showContainerName(projectInfo?.container) }} {{ projectInfo?.container_status }}
       </h4>
       <v-card color="#DFDFDF" class="" style="border-radius: 4px" height="180">
-        <div>
-          <ProgressCanvas :running="projectInfo?.container" :status="projectInfo?.container_status" @start="start" />
+        <div style="height: 100%">
+          <ProgressCanvas
+            :running="projectInfo?.container"
+            :status="projectInfo?.container_status"
+            :userEdit="project.deploy_user_edit === 'yes'"
+            @start="start"
+            @immediateLaunch="immediateLaunch"
+          />
         </div>
       </v-card>
     </div>
     <div>
-      <h4 class="ml-3 mb-3">Log</h4>
+      <div class="d-flex justify-space-between align-center" style="width: 100%">
+        <h4 class="ml-3 mb-3">Log</h4>
+
+        <v-tooltip left>
+          <template v-slot:activator="{ on, attrs }">
+            <v-btn icon v-bind="attrs" v-on="on">
+              <v-icon v-if="copySuccess">mdi-clipboard-check-multiple</v-icon>
+              <v-icon v-else-if="copyFailed">mdi-clipboard-off</v-icon>
+              <v-icon v-else @click="clipboardCopy">mdi-clipboard-text</v-icon>
+            </v-btn>
+          </template>
+          <span v-if="copySuccess" style="font-size: 10px">Copied</span>
+          <span v-else-if="copyFailed" style="font-size: 10px">Can not copy</span>
+          <span v-else style="font-size: 10px">Copy Log</span>
+        </v-tooltip>
+      </div>
       <v-card color="#000" class="ml-3" style="border-radius: 4px">
         <v-textarea
           ref="logs"
@@ -48,7 +69,7 @@ import ProgressCanvas from "@/modules/project/components/ProgressCanvas.vue";
 
 import { ProjectType } from "@/shared/consts";
 
-import { containerStart /* startContainer , stopContainer, getStatusResult*/, updateProjectType } from "@/api";
+import { containerStart, updateProjectType } from "@/api";
 export default {
   components: { ProgressCanvas },
   props: {
@@ -59,7 +80,9 @@ export default {
   data() {
     return {
       vale: ``,
-      running: ""
+      running: "",
+      copyFailed: false,
+      copySuccess: false
     };
   },
 
@@ -82,23 +105,30 @@ export default {
     }),
 
     updateLog(log) {
-      if (log?.message) {
-        if (log.message !== "\n") {
+      if (log.message !== "\n") {
+        if (log.message.trim()) {
           this.vale += log.message;
         }
-        this.$nextTick(() => {
-          const element = document.getElementById("log");
-          element.scrollTop = element.scrollHeight;
-        });
       }
+      this.$nextTick(() => {
+        const element = document.getElementById("log");
+        element.scrollTop = element.scrollHeight;
+      });
     },
 
     start(container) {
-      console.log("projectInfo", this.projectInfo);
+      const containerName =
+        container === "bms"
+          ? "BMS"
+          : container === "yoloe"
+          ? "Auto NN"
+          : container === "codeGen"
+          ? "Code Gen"
+          : "Image Deploy";
 
       this.$swal
         .fire({
-          title: `${container}를 실행하시겠습니까?`,
+          title: `${containerName}를 실행하시겠습니까?`,
           text: "",
           icon: "warning",
           showCancelButton: true,
@@ -111,18 +141,22 @@ export default {
           if (result.isConfirmed) {
             this.$emit("restart", container);
             await updateProjectType(this.projectInfo.id, ProjectType.MANUAL);
-            const res = await containerStart(container, this.projectInfo.create_user, this.projectInfo.id);
-            this.vale += res.message;
-            this.vale += res.response;
-            this.SET_PROJECT({
-              project_type: ProjectType.MANUAL
-            });
+            await this.containerStartRequest(container);
+            this.SET_PROJECT({ project_type: ProjectType.MANUAL });
           }
         });
 
       this.SET_PROJECT({
         container: container
       });
+    },
+
+    async immediateLaunch(container) {
+      console.log("immediateLaunch", container);
+      this.$emit("restart", container);
+      await updateProjectType(this.projectInfo.id, ProjectType.MANUAL);
+      await this.containerStartRequest(container);
+      this.SET_PROJECT({ project_type: ProjectType.MANUAL, container: container });
     },
 
     async autoCreate() {
@@ -142,23 +176,12 @@ export default {
           .then(async result => {
             if (result.isConfirmed) {
               await updateProjectType(this.projectInfo.id, ProjectType.AUTO);
-              const res = await containerStart("bms", this.projectInfo.create_user, this.projectInfo.id);
-              this.vale += res.message;
-              this.vale += res.response;
-              console.log("@@@@@@@@@@@@@@@@@@@@@@@@@2");
-
-              console.log(res.response);
-              console.log("@@@@@@@@@@@@@@@@@@@@@@@@@2");
+              await this.containerStartRequest("bms");
             }
           });
       } else {
         await updateProjectType(this.projectInfo.id, ProjectType.AUTO);
-        const res = await containerStart("bms", this.projectInfo.create_user, this.projectInfo.id);
-        this.vale += res.message;
-        this.vale += res.response;
-        console.log("@@@@@@@@@@@@@@@@@@@@@@@@@2");
-        console.log(res.response);
-        console.log("@@@@@@@@@@@@@@@@@@@@@@@@@2");
+        await this.containerStartRequest("bms");
       }
 
       this.SET_PROJECT({
@@ -204,14 +227,37 @@ export default {
           return "Auto NN";
         } else if (container.toLowerCase() === "codegen") {
           return "Code Gen";
-        } else if (container.toLowerCase() === "imagedepoly") {
-          return "Image Depoly";
+        } else if (container.toLowerCase() === "imagedeploy") {
+          return "Image Deploy";
         } else {
           return "";
         }
       } else {
         return "";
       }
+    },
+
+    clipboardCopy() {
+      this.$copyText(this.vale).then(
+        () => {
+          this.copySuccess = true;
+          setTimeout(() => {
+            this.copySuccess = false;
+          }, 1000);
+        },
+        () => {
+          this.copyFailed = true;
+          setTimeout(() => {
+            this.copyFailed = false;
+          }, 1000);
+        }
+      );
+    },
+
+    async containerStartRequest(container) {
+      const res = await containerStart(container, this.projectInfo.create_user, this.projectInfo.id);
+      this.vale += res.message;
+      this.vale += res.response;
     }
   }
 };
