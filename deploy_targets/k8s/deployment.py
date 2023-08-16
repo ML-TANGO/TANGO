@@ -35,7 +35,7 @@ except Exception as err:
    #job_name=self.m_acc_type, input_data=self.m_current_file_path, output_data=self.m_current_code_folder, weight_file=self.m_weight_file, anotation_file=self.m_annotation_file
 class KubeJob:
     def __init__(self, job_name, input_data, output_data, weight_file, annotation_file, prj_path, 
-                model_file, nfs_path, nfs_ip, nn_file, image_name, svc_port):
+                model_file, nfs_path, nfs_ip, nn_file, image_name, svc_port, service_host_ip):
         self.job_name = job_name
         self.input_data = input_data
         self.output_data = output_data
@@ -48,6 +48,7 @@ class KubeJob:
         self.nfs_ip = nfs_ip
         self.image_name = image_name
         self.svc_port = svc_port
+        self.service_host_ip=service_host_ip
     
 
     def create_job_object(self):
@@ -59,7 +60,8 @@ class KubeJob:
         container = client.V1Container(
             name= self.job_name,
             image= self.image_name,   # for test
-            image_pull_policy= 'IfNotPresent',
+            # image_pull_policy= 'IfNotPresent',
+            image_pull_policy= 'Always',
             command=["bash", "-c"],
             volume_mounts=[client.V1VolumeMount(name=self.job_name, mount_path='/mnt')],
             env=[
@@ -82,7 +84,7 @@ class KubeJob:
             args=["cd /mnt$(PRJ_PATH) && python3 output.py"])
         volume = client.V1Volume(name=self.job_name, persistent_volume_claim=client.V1PersistentVolumeClaimVolumeSource(claim_name=self.job_name))
 
-        template = client.V1PodTemplateSpec(spec=client.V1PodSpec(node_selector={"kubernetes.io/hostname" : "etri-3"}, restart_policy="Never", containers=[container], volumes=[volume]))  #,node_selector={"kubernetes.io/hostname" : "etri-3"}
+        template = client.V1PodTemplateSpec(spec=client.V1PodSpec(node_selector={"kubernetes.io/hostip" : self.service_host_ip}, restart_policy="Never", containers=[container], volumes=[volume]))  #,node_selector={"kubernetes.io/hostname" : "etri-3"}
 
         spec = client.V1JobSpec(
             template=template,

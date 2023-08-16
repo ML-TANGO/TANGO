@@ -206,7 +206,7 @@ class K8SDeploy:
             
             run_kubernetes=deployment.KubeJob(job_name=self.m_current_userid, input_data=self.m_dep_work_dir, output_data=self.m_current_code_folder, nn_file=self.m_nn_file,
                                             weight_file=self.m_weight_file, annotation_file=self.m_annotation_file, prj_path=self.m_current_code_folder, model_file=self.m_model_file,
-                                            nfs_ip=self.m_nfs_ip, nfs_path=self.m_nfs_path, image_name=self.m_nfs_ip+":8903/build/"+self.m_image_name, svc_port=self.m_dep_hostport)
+                                            nfs_ip=self.m_nfs_ip, nfs_path=self.m_nfs_path, image_name=self.m_nfs_ip+":8903/build/"+self.m_image_name, svc_port=self.m_dep_hostport,service_host_ip=self.m_dep_hostip)
 
             state=run_kubernetes.run_deploy()
             # logging.debug(state)

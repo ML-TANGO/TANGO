@@ -29,9 +29,17 @@ RUN apt-get update && \
         libgeos-dev libgeos++-dev libglib2.0-0 \
         mime-support ncurses-term \
         
+
+        
         vim\
+            
+
+        
+
         
         python3.9\
+            
+
              
         gcc g++ &&\
 
