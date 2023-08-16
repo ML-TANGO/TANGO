@@ -82,13 +82,15 @@ export default {
     }),
 
     updateLog(log) {
-      if (log.message !== "\n") {
-        this.vale += log.message;
+      if (log?.message) {
+        if (log.message !== "\n") {
+          this.vale += log.message;
+        }
+        this.$nextTick(() => {
+          const element = document.getElementById("log");
+          element.scrollTop = element.scrollHeight;
+        });
       }
-      this.$nextTick(() => {
-        const element = document.getElementById("log");
-        element.scrollTop = element.scrollHeight;
-      });
     },
 
     start(container) {

@@ -112,7 +112,8 @@ def status_request(request):
             response_data[user_id][project_id] = {
                 'last_container' : container_id,
                 'last_logs_timestamp' : 0,
-                'response_message' : ''
+                'response_message' : '',
+                'is_complete_container' : False 
             }
         
         # response = asyncio.get_event_loop().run_until_complete(request_handler(container_id, user_id, project_id))
@@ -122,7 +123,10 @@ def status_request(request):
         response = asyncio.run(request_handler(container_id, user_id, project_id))
         # print(response)
         queryset.container = container_id
-        queryset.container_status = response
+        if response_data[user_id][project_id]['is_complete_container'] == True:
+            queryset.container_status = 'complete'
+        else :
+            queryset.container_status = response
         queryset.save()
 
         print("status-request " + str(container_id) + ' result.....')
@@ -132,11 +136,23 @@ def status_request(request):
             response_data[user_id][project_id]['last_logs_timestamp'] = 0
 
         logs = get_docker_log_handler(queryset.container, response_data[user_id][project_id]['last_logs_timestamp'])
-        response_data[user_id][project_id]['last_logs_timestamp'] = time.mktime(datetime.now().timetuple())
+        response_data[user_id][project_id]['last_logs_timestamp'] = time.mktime(datetime.now().timetuple()) + 1.0
         response_data[user_id][project_id]['last_container'] = queryset.container
+
+        print("response_data[user_id][project_id]['last_logs_timestamp']")
+        print(response_data[user_id][project_id]['last_logs_timestamp'])
+        print(type(response_data[user_id][project_id]['last_logs_timestamp']))
+
 
         m = response_data[user_id][project_id]['response_message'] + '\n' + str(logs)
         response_data[user_id][project_id]['response_message'] = ''
+
+        if response_data[user_id][project_id]['is_complete_container'] == True:
+            m += get_log_container_name(container_id) + " 완료\n"
+        elif response_data[user_id][project_id]['is_complete_container'] == False and response == 'complete':
+            m += get_log_container_name(container_id) + " 완료\n"
+
+        response_data[user_id][project_id]['is_complete_container'] = False
         # return HttpResponse(json.dumps({'response': response}))
         return HttpResponse(json.dumps({'container': container_id,
                                 'container_status': response,
@@ -145,6 +161,7 @@ def status_request(request):
     except Exception as error:
         print(error)
         return HttpResponse(error)
+
 
 # 컨테이너 상태 결과 응답
 @api_view(['GET'])
@@ -157,10 +174,12 @@ def status_report(request):
 
         user_id = request.GET['user_id']
         project_id = request.GET['project_id']
-        container_id = request.GET['container_id']
+        container_id = db_container_name(request.GET['container_id'])
         result = request.GET['status']
         print("result")
         print(result)
+        print('container_id')
+        print(container_id)
 
         queryset = Project.objects.get(id=project_id, create_user=str(user_id))
         queryset.container = container_id
@@ -174,7 +193,8 @@ def status_report(request):
             response_data[user_id][project_id] = {
                 'last_container' : container_id,
                 'last_logs_timestamp' : 0,
-                'response_message' : ''
+                'response_message' : '',
+                'is_complete_container' : False
             }
 
 
@@ -208,20 +228,24 @@ def status_report(request):
                 response = asyncio.run(start_handler('codeGen', user_id, project_id))
                 print(response)
                 queryset = Project.objects.get(id=project_id, create_user=str(user_id))
-                queryset.container = 'codeGene'
+                queryset.container = 'codeGen'
                 queryset.container_status = 'running'
                 queryset.save()
-            elif container_id == 'codeGen' and result == 'completed':
-                print("yoloe end .. ---- success")
+            elif container_id == 'codeGen' and result == 'success':
                 response_data[user_id][project_id]['response_message'] += 'codeGen 완료\n'
 
         else:
             if container_id == 'bms' and result == 'success':
                 print("bms end .. ---- success")
-                response_data[user_id][project_id]['response_message'] += 'base model select 완료\n'
+                # response_data[user_id][project_id]['response_message'] += 'base model select 완료\n'
+                response_data[user_id][project_id]['is_complete_container'] = True
             elif container_id == 'yoloe' and result == 'success':
                 print("yoloe end .. ---- success")
-                response_data[user_id][project_id]['response_message'] += 'AutoNN 완료\n'
+                # response_data[user_id][project_id]['response_message'] += 'AutoNN 완료\n'
+                response_data[user_id][project_id]['is_complete_container'] = True
+            elif container_id == 'codeGen' and result == 'success':
+                # response_data[user_id][project_id]['response_message'] += 'codeGen 완료\n'
+                response_data[user_id][project_id]['is_complete_container'] = True
 
         return HttpResponse(json.dumps({'status': 200}))
 
