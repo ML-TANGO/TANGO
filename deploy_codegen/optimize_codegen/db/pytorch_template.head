@@ -1,0 +1,70 @@
+
+#############################################
+#############################################
+import torch
+import cv2
+import numpy as np
+import time
+import yaml
+import os
+import sys
+import myutil
+
+#############################################
+# Class definition for PyTorch run module
+#############################################
+class PTRun():
+    def __init__(self, pt_file=def_pt_file, lyaml=def_label_yaml,
+            input_location=def_input_location, confthr=def_conf_thres,
+            iouthr=def_iou_thres, output_location=def_output_location):
+        """
+        PyTorch Runtime class definition
+        Args:
+            lyaml : yaml file for label info.
+            input_location : [0-9]: camera, URL, file name, or folder name
+            confthr : confidence threshhold
+            iouthr : IOU threshhole
+            output_location : 0=screen, 1=text output, or folder name
+        """
+        self.device = 'cpu'
+        self.pt_file = pt_file
+        self.bindings = None
+        self.inputs = []
+        self.outputs = []
+        self.classes = None
+        self.label_yaml =  lyaml
+        self.img_folder = input_location
+        self.conf_thres = confthr
+        self.iou_thres = iouthr
+        self.output_location = output_location
+        self.video = 0
+        self.vid_writer = 0
+        self.vid_path = ""
+        self.text_out = False
+        self.view_img = False
+        self.save_img = False
+        self.stream_out = False
+        self.width = def_width 
+        self.height = def_height 
+        if self.output_location == 0:
+            self.view_img = True
+        elif self.output_location == 1:
+            self.text_out = True
+        elif "://" in self.output_location:
+            self.stream_out = True
+        else:
+            self.save_img = True
+        with open(self.label_yaml) as f:
+            classes = yaml.safe_load(f)
+            self.classes = classes['names']
+        return
+
+    def load_model(self):
+        """
+        To load pytorch model
+
+        Args:
+            none
+        Returns:
+            none
+        """

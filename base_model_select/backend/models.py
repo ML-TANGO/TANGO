@@ -13,7 +13,7 @@ class Info(models.Model):
     project_id = models.CharField(blank=True, null=True, max_length=50, default='')
 
     # target device ??
-    target_yaml = models.FileField(upload_to="temp_files/", default='')
+    proj_info_yaml = models.FileField(upload_to="temp_files/", default='')
 
     # datasets ??
     data_yaml = models.FileField(upload_to="temp_files/", default='')
@@ -28,4 +28,4 @@ class Info(models.Model):
     # thread_id = models.IntegerField(blank=True, null=True)
 
     # process index ( 0, 1, ..., N )
-    process_id = models.IntegerField(blank=True, null=True)
+    process_id = models.CharField(blank=True, null=True, max_length=50)

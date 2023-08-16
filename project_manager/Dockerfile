@@ -10,4 +10,3 @@ COPY base_model_data.json ./
 RUN pip install -r requirements.txt
 
 COPY . .
-

@@ -34,3 +34,5 @@ urllib3==1.26.8
 Werkzeug==2.0.3
 wrapt==1.14.0
 yarl==1.7.2
+docker==6.1.3
+

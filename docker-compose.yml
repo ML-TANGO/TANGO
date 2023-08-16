@@ -11,13 +11,16 @@ services:
     command: >
       sh -c "chmod 777 ./wait_for_postgres.sh &&
              ./wait_for_postgres.sh &&
-             python manage.py makemigrations &&
+             python manage.py makemigrations tango &&
              python manage.py migrate &&
+             python manage.py collectstatic --no-input &&
              python manage.py loaddata base_model_data.json &&
              python manage.py runserver 0.0.0.0:8085"
     volumes:
       - ./project_manager:/code
       - shared:/shared
+      - /var/run/docker.sock:/var/run/docker.sock
+    hostname: projectmanager
     ports:
       - "8085:8085"
     environment:
@@ -40,38 +43,37 @@ services:
       - POSTGRES_USER=postgres
       - POSTGRES_PASSWORD=postgres
 
-  #---------------------------------
-  # DB for labelling tool
-  #---------------------------------
-  mariadb:
-      container_name: "mariadb"
-      image: mariadb:10
-      restart: always
-      ports:
-        - 3306:3306
-      volumes:
-        - "./labelling/Deployment/db/my.cnf:/etc/mysql/my.cnf"
-        - "./labelling/data:/var/lib/mysql"
-        - "./labelling/Deployment/test/:/docker-entrypoint-initdb.d/"
-      environment:
-        MARIADB_DATABASE: labelling
-        MARIADB_USER: username
-        MARIADB_PASSWORD: password
-        MARIADB_ROOT_PASSWORD: password
-      restart: always
+  # #---------------------------------
+  # # DB for labelling tool
+  # #---------------------------------
+  # mariadb:
+  #     container_name: "mariadb"
+  #     image: mariadb:10
+  #     ports:
+  #       - 3306:3306
+  #     volumes:
+  #       - "./labelling/Deployment/db/my.cnf:/etc/mysql/my.cnf"
+  #       - "./labelling/data:/var/lib/mysql"
+  #       - "./labelling/Deployment/test/:/docker-entrypoint-initdb.d/"
+  #     environment:
+  #       MARIADB_DATABASE: labelling
+  #       MARIADB_USER: username
+  #       MARIADB_PASSWORD: password
+  #       MARIADB_ROOT_PASSWORD: password
+  #     restart: always
 
-  #---------------------------------
-  # Labelling tool 
-  #---------------------------------
-  labelling:
-    build:
-      context: ./labelling
-    volumes:
-      - ./labelling/dataset:/var/appdata
-      - ./labelling/datadb:/var/lib/mysql
-    ports:
-      - "8086:80"    # for Web UI
-      - "8095:10236" # for Rest API 
+  # #---------------------------------
+  # # Labelling tool 
+  # #---------------------------------
+  # labelling:
+  #   build:
+  #     context: ./labelling
+  #   volumes:
+  #     - ./labelling/dataset:/var/appdata
+  #     - ./labelling/datadb:/var/lib/mysql
+  #   ports:
+  #     - "8086:80"    # for Web UI
+  #     - "8095:10236" # for Rest API 
 
   #---------------------------------
   # Base Model Selector
@@ -81,9 +83,8 @@ services:
       context: ./base_model_select
     shm_size: '256M'
     command: >
-      sh -c "python generate_txt_file.py &&
-             python manage.py makemigrations &&
-             python manage.py migrate &&
+      sh -c "python manage.py makemigrations &&
+             python manage.py migrate --run-syncdb &&
              python manage.py runserver 0.0.0.0:8081"
     # deploy:
     #   resources:
@@ -99,147 +100,202 @@ services:
     ports:
       - "8081:8081"
 
-  #---------------------------------
-  # AutoNN: Bakcbone-NAS
-  #---------------------------------
-  autonn_bb:
-    build:
-      context: ./autonn/backbone_nas
-    shm_size: '256M'
-    command: >
-      sh -c "python manage.py makemigrations &&
-             python manage.py migrate &&
-             python manage.py runserver 0.0.0.0:8087"
-    # deploy:
-    #   resources:
-    #     reservations:
-    #       devices:
-    #         - driver: nvidia
-    #           capabilities: [gpu]
-    # environment:
-    #   - NVIDIA_VISIBLE_DEVICES=all
-    volumes:
-      - ./autonn/backbone_nas:/source
-      - shared:/shared
-    ports:
-      - "8087:8087"
-
-  #---------------------------------
-  # AutoNN: Neck-NAS
-  #---------------------------------
-  autonn_nk:
-    build:
-      context: ./autonn/neck_nas
-    shm_size: '256M'
-    command: >
-      sh -c "python manage.py makemigrations &&
-             python manage.py migrate &&
-             python manage.py runserver 0.0.0.0:8089"
-    # deploy:
-    #   resources:
-    #     reservations:
-    #       devices:
-    #         - driver: nvidia
-    #           capabilities: [gpu]
-    # environment:
-    #   - NVIDIA_VISIBLE_DEVICES=all
-    volumes:
-      - ./autonn/neck_nas:/source
-      - shared:/shared
-      # - /Data:/shared/datasets # for local tests
-    ports:
-      - "8089:8089"
-
-  #---------------------------------
-  # Target Image Build 
-  #---------------------------------
-  target_image_build:
-    build:
-      context: ./target_image_build
-    command: >
-      sh -c "python main.py"
-    volumes:
-      - ./target_image_build:/source
-      - /var/run/docker.sock:/var/run/docker.sock
-    ports:
-      - "8088:8088"
-
-  #---------------------------------
-  # Image Deployment 
-  #---------------------------------
-  # target_deploy:
+  # #---------------------------------
+  # # AutoNN: Bakcbone-NAS
+  # #---------------------------------
+  # autonn_bb:
   #   build:
-  #     context: ./target_deploy
+  #     context: ./autonn/backbone_nas
+  #   shm_size: '256M'
+  #   ipc: host
   #   command: >
-  #     sh -c "python manage.py runserver 0.0.0.0:8890"
+  #     sh -c "python manage.py makemigrations &&
+  #            python manage.py migrate &&
+  #            python manage.py runserver 0.0.0.0:8087"
+  #   # use the below lines commented out if you want to use gpu
+  #   # deploy:
+  #   #   resources:
+  #   #     reservations:
+  #   #       devices:
+  #   #         - driver: nvidia
+  #   #           capabilities:
+  #   #             - gpu
+  #   #             - utility
+  #   #             - compute
+  #   #             - video
+  #   # environment:
+  #   #   - NVIDIA_VISIBLE_DEVICES=all
   #   volumes:
-  #     - ./target_deploy:/source
-  #     - /var/run/docker.sock:/var/run/docker.sock
+  #     - ./autonn/backbone_nas:/source
+  #     - shared:/shared
   #   ports:
-  #     - "8890:8890"
+  #     - "8087:8087"
+
+  # #---------------------------------
+  # # AutoNN: Neck-NAS
+  # #---------------------------------
+  # autonn_nk:
+  #   build:
+  #     context: ./autonn/neck_nas
+  #   shm_size: '256M'
+  #   ipc: host
+  #   command: >
+  #     sh -c "python manage.py makemigrations &&
+  #            python manage.py migrate &&
+  #            python manage.py runserver 0.0.0.0:8089"
+  #   # use the below lines commented out if you want to use gpu
+  #   # deploy:
+  #   #   resources:
+  #   #     reservations:
+  #   #       devices:
+  #   #         - driver: nvidia
+  #   #           capabilities:
+  #   #             - gpu
+  #   #             - utility
+  #   #             - compute
+  #   #             - video
+  #   # environment:
+  #   #   - NVIDIA_VISIBLE_DEVICES=all
+  #   volumes:
+  #     - ./autonn/neck_nas:/source
+  #     - shared:/shared
+  #     # - /Data:/shared/datasets # for local tests
+  #   ports:
+  #     - "8089:8089"
+
+  #---------------------------------
+  # AutoNN: YoloE
+  #---------------------------------
+  autonn_yoloe:
+    build:
+      context: ./autonn/YoloE
+    shm_size: '256M'
+    ipc: host
+    command: >
+      sh -c "python manage.py makemigrations &&
+             python manage.py migrate &&
+             python manage.py runserver 0.0.0.0:8090"
+    # use the below lines commented out if you want to use gpu
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              capabilities:
+                - gpu
+                - utility
+                - compute
+                - video
+    environment:
+      - NVIDIA_VISIBLE_DEVICES=all
+    volumes:
+      - ./autonn/YoloE:/source
+      - shared:/shared
+      - ./autonn/YoloE/sample_yaml/dataset.yaml:/shared/datasets/coco/dataset.yaml # TEMP FILE UNTIL LABELLING MODULE WORKING
+      - ${COCODIR:-./autonn/YoloE/sample_data/coco128}:/shared/datasets/coco # TEMP FILE UNTIL LABELLING MODULE WORKING
+    hostname: yoloe
+    ports:
+      - "8090:8090"
+
       
   #---------------------------------
   # code_gen Build 
   #---------------------------------
   code_gen:
     build:
-      context: ./deployment/code_gen
+      context: ./deploy_codegen/optimize_codegen
     volumes:
+      - ./deploy_codegen/optimize_codegen:/source
       - shared:/tango
     command: >
       sh -c "cd /app && python3 code_gen.py"
     ports:
       - 8888:8888  
+      
+  #---------------------------------
+  # Target Image Build 
+  #---------------------------------
+  target_image_build:
+    build:
+      context: ./deploy_targets/cloud/target_image_build
+    command: >
+      sh -c "python main.py"
+    volumes:
+      - ./deploy_targets/cloud/target_image_build:/source
+      - /var/run/docker.sock:/var/run/docker.sock
+    ports:
+      - "8088:8088"
+
+  #---------------------------------
+  # K8S deploy
+  #---------------------------------
+  kube_deploy:
+    build:
+      context: ./deploy_targets/k8s
+    container_name: "tango_k8s"
+    privileged: true
+    command:
+      bash -c "cd /app && python3 k8s_deploy.py"
+    volumes:
+      - $HOME/.kube:/home/root/.kube
+      - shared:/tango
+      - ./deploy_targets/k8s:/app
+      - /var/run/docker.sock:/var/run/docker.sock
+    environment:
+      - "HOME=/home/root"
+    ports:
+      - "8901:8901"
+  
+  #---------------------------------
+  # K8S docker registry(image manager)
+  #---------------------------------
+
+  registry:
+      image: registry
+      container_name: registry
+      volumes:
+        - registry_data:/var/lib/registry/docker/registry/v2 # image 저장
+      ports:
+        - "8903:5000"
 
   #---------------------------------
   # ondevice_deploy Build 
   #---------------------------------    
   ondevice_deploy:
     build:
-      context: ./deployment/target_deploy/ondevice_deploy
+      context: ./deploy_targets/ondevice
     volumes:
+      - ./deploy_targets/ondevice:/source
       - shared:/tango
     command: >
       sh -c "cd /app && python3 ondevice_deploy.py"
     ports:
       - 8891:8891  
 
-  #---------------------------------
-  # Visualizer 
-  #---------------------------------
-  viz2code:
-    build:
-      context: ./visualization
-    command: >
-      sh -c "cd ./visualization/frontend &&
-             npm run build &&
-             cd ..
-             python manage.py makemigrations &&
-             python manage.py migrate &&
-             python manage.py runserver react 0.0.0.0:8091"
-    volumes:
-      - ./viz2code:/source
-    ports:
-      - "8091:8091"
-  #   depends_on:
-  #     - postgresql
-  kube_deploy:
-    build:
-      context: ./deployment/target_deploy/k8s_deploy
-    container_name: "tango_k8s"
-    command:
-      bash -c "cd /app && python3 k8s_deploy.py"
-    volumes:
-      - $HOME/.kube:/home/root/.kube
-      - shared:/tango
-      - ./deployment/target_deploy/k8s_deploy:/app
-    environment:
-      - "HOME=/home/root"
-    ports:
-      - "8902:8902"
+  # #---------------------------------
+  # # Visualizer 
+  # #---------------------------------
+  # viz2code:
+  #   build:
+  #     context: ./visualization
+  #   command: >
+  #     sh -c "cd ./visualization/frontend &&
+  #            npm run build &&
+  #            cd ..
+  #            python manage.py makemigrations &&
+  #            python manage.py migrate &&
+  #            python manage.py runserver react 0.0.0.0:8091"
+  #   volumes:
+  #     - ./viz2code:/source
+  #   ports:
+  #     - "8091:8091"
+  # #   depends_on:
+  # #     - postgresql
+
 #---------------------------------
 # Volumes 
 #---------------------------------
 volumes:
+  registry_data: { }
   postgreSQL:  # for Proejct Manager
   shared:      # shared Directory

@@ -165,3 +165,38 @@ def target_delete(request):
 
     except Exception as e:
         print(e)
+
+# Target 정보 조회
+@api_view(['GET', 'POST'])
+@authentication_classes([OAuth2Authentication])   # 토큰 확인
+def target_info(request):
+    """
+    target_info _summary_
+
+    Args:
+        request (_type_): _description_
+
+    Returns:
+        _type_: _description_
+    """
+
+    queryset = Target.objects.filter(id=request.data['id'],
+                                      create_user=request.user)  # Target id로 검색
+    data = list(queryset.values())
+
+    target_data = {'id': data[0]['id'],
+                           'name': data[0]['target_name'],
+                           'create_user': data[0]['create_user'],
+                           'create_date': data[0]['create_date'],
+                           'info': data[0]['target_info'],
+                           'engine': data[0]['target_engine'],
+                           'os': data[0]['target_os'],
+                           'cpu':data[0]['target_cpu'],
+                           'acc': data[0]['target_acc'],
+                           'memory': data[0]['target_memory'],
+                           'host_ip': data[0]['target_host_ip'],
+                           'host_port': data[0]['target_host_port'],
+                           'host_service_port': data[0]['target_host_service_port'],
+                           'image': str(data[0]['target_image'])}
+    
+    return HttpResponse(json.dumps(target_data))

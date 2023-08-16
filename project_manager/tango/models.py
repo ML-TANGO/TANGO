@@ -14,6 +14,8 @@ from django.conf import settings
 from django.db import models, migrations
 from django.contrib.auth.models import User
 
+from django.db import models
+
 
 class AuthUser(models.Model):
     """AuthUser class
@@ -56,8 +58,10 @@ class Project(models.Model):
     project_description = models.CharField(blank=True, null=True, max_length=200)              # 프로젝트 설명
     create_user = models.CharField(blank=True, null=True, max_length=50)                       # 생성자
     create_date = models.CharField(blank=True, null=True, max_length=50)                       # 생성 날짜
+    project_type = models.CharField(blank=True, null=True, max_length=50)          # 프로젝트 워크플로우 진행 방식 - auto, manual
 
-    target = models.CharField(blank=True, null=True, max_length=50, default='')
+    # target = models.CharField(blank=True, null=True, max_length=50, default='')
+    target = models.ForeignKey("Target", related_name="target", on_delete=models.PROTECT, db_column="target", blank=True, null=True)
     dataset = models.CharField(blank=True, null=True, max_length=50, default='')
 
     task_type = models.CharField(blank=True, null=True, max_length=50, default='')

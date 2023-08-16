@@ -19,9 +19,10 @@ from backend import views
 
 urlpatterns = [
     path('admin/', admin.site.urls),
-    path('start', views.start_api, name="StartBMS"),
+    path('start', views.start, name="StartBMS"),
     path("stop", views.stop_api, name="StopBMS"),
     path("status_request", views.status_request, name="StatusRequestBMS"),
+    path("get_ready_for_test", views.get_ready_for_test, name="get_ready_for_test"),
     #path('start?user_id=<user_id>&project_id=<project_id>', views.start_api)
     #path('start/', views.start_api),
     #path(include('start'), views.start_api),

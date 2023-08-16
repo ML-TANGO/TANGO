@@ -783,7 +783,7 @@ class ConcatEntirePathTrainer(BaseOneShotTrainer):
             # 'ema': deepcopy(self.ema.ema).half(),
             # 'updates': self.ema.updates,
             'optimizer': self.optimizer.state_dict(),
-            'ctrl_optim': self.ctrl_optim.state_dict(),
+            # 'ctrl_optim': self.ctrl_optim.state_dict(),
             'date': datetime.now().isoformat()}
 
         final_epoch = (epoch + 1 == self.num_epochs)
