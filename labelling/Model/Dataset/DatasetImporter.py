@@ -58,6 +58,9 @@ class datasetImporter():
                 for fileIdx, fileInfo in enumerate(self.fileInfo):
                     try:
                         filePath = fileInfo["FILE_PATH"]
+                        
+                        if ".json" in filePath:
+                            continue
                         dataCd = fileInfo["DATA_CD"]
 
                         polygonData = []
@@ -65,7 +68,7 @@ class datasetImporter():
 
                         tmpId = (item for item in images if item["file_name"] == baseName)
                         imageInfo = next(tmpId, False)
-
+                        
                         if imageInfo is not False:
                             imageId = imageInfo["id"]
                         else:
@@ -160,13 +163,15 @@ class datasetImporter():
             "MSG": msg
         }
 
-        print(json.dumps(output))
+        print(json.dumps(output, ensure_ascii=False))
 
 
 if __name__ == "__main__":
-    param = sys.argv[1]
-    # param = '{"DATASET_CD":"D122131","PURPOSE_TYPE":"S","FILE_INFO":[{"FILE_PATH":"/Users/dmshin/onion/testdata/coco/COCO_val2014_000000025394.jpg","DATA_CD":"000001"}]}'
-    param = json.loads(param)
+    datPath = sys.argv[1]
+    
+    # param = '{"DATASET_CD":"D122131","PURPOSE_TYPE":"S","FILE_INFO":[{"FILE_PATH":"/Volumes/DATA/weda/2023/src/etc/etri/test/000000000285.jpg","DATA_CD":"000001"}]}'
+    with open(datPath, "r") as f:
+        param = json.load(f)
 
     DI = datasetImporter(param)
     DI.coco2weda()
