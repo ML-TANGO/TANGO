@@ -27,16 +27,21 @@ PROCESSES = {}
 task_to_model_table = {'detection': 'yolov7',
                        'classification': 'resnet'}
 model_to_size_table = {'yolov7':
-                          {'cloud': '-tiny',
+                          {
+                            'cloud': '-tiny',
                             'k8s': '-tiny',
-                            'T4': '-w6',
-                            'Xavier': 'x',
-                            'RKNN': '-tiny',
-                            'pc': 'x',
-                            'ondevice': '-tiny'
+                            'k8sjetsonnano': '-tiny',
+                            'pcserver': '-tiny',
+                            'pc': '-tiny',
+                            'jetsonagxorin': '-tiny',
+                            'jetsonagxxavier': '-tiny',
+                            'jetsonnano': '-tiny',
+                            'galaxys22': '-tiny',
+                            'odroidn2': '-tiny',
                            },
                        'resnet':
-                          {'cloud': '101',
+                          {
+                           'cloud': '101',
                            'T4': '50',
                            'Xavier': '24',
                            'RKNN': '18',
@@ -84,7 +89,7 @@ def task_to_model_mapping(yaml_path, userid, project_id):
     with open(yaml_path, 'r') as f:
         proj_info = yaml.load(f, Loader=yaml.FullLoader)
     task = proj_info['task_type']
-    target = proj_info['target_info']
+    target = proj_info['target_info'].replace('-', '').replace('_', '').lower()
     model = task_to_model_table[task]
     '''
     proj_info['model_size'] = model_to_size_table[model][target]
