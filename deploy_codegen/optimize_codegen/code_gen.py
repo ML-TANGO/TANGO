@@ -427,7 +427,8 @@ class CodeGen:
             elif key == 'memory':
                 self.m_sysinfo_memory = int(value)
             elif key == 'target_info':
-                self.m_deploy_type = value
+                lower = value.lower()
+                self.m_deploy_type = lower
             elif key == 'cpu':
                 self.m_sysinfo_cpu_type = value
             elif key == 'acc':
@@ -653,7 +654,7 @@ class CodeGen:
             self.gen_python_code()
             if self.m_deploy_type == 'cloud':
                 self.make_requirements_file_for_docker()
-            elif self.m_deploy_type == 'PCServer':
+            elif self.m_deploy_type == 'pc_server':
                 self.make_requirements_file_for_PCServer()
             else:
                 self.make_requirements_file_for_others()
@@ -1561,7 +1562,10 @@ class CodeGen:
             # zip db/yolov3.db into nn_model foler
             zipfile.ZipFile('./db/yolov3.db').extractall(self.m_current_code_folder)
             # copy db/yolov3/yolov3.pt into nn_model folder
-            shutil.copy('./db/yolov3.pt', self.m_current_code_folder)
+            shutil.copy('./db/yolov3/yolov3.pt', self.m_current_code_folder)
+        elif self.m_deploy_type == 'k8s':
+            # khlee copy k8s app codes
+            zipfile.ZipFile('./db/k8syolov5.db').extractall(self.m_current_code_folder)
         else:
             '''
             # convert  and copy .pt file to nn_model folder
@@ -2026,7 +2030,7 @@ class CodeGen:
                 req_pkg = self.m_nninfo_yolo_require_packages
             else:
                 req_pkg = []
-            for item in self.m_nnino_user_libs:
+            for item in self.m_nninfo_user_libs:
                 if not item in req_pkg:
                     req_pkg.append(item)
             req_pkg.append('vim')
@@ -2055,32 +2059,31 @@ class CodeGen:
                 req_pkg = self.m_nninfo_yolo_require_packages
             else:
                 req_pkg = []
-            for item in self.m_nnino_user_libs:
+            for item in self.m_nninfo_user_libs:
                 if not item in req_pkg:
                     req_pkg.append(item)
             req_pkg.append('vim')
             req_pkg.append('python3.9')
             t_pkg = {"atp": req_pkg, "pypi": []}
             t_com = {"custom_packages": t_pkg,
-                     "libs": ['python==3.9', 'torch>=1.1.0'], 
-                     "engine": self.m_sysinfo_engine_type }
+                     "engine": 'pytorch' }
             t_build = {'architecture': 'linux/amd64',
-                       "accelerator": 'cpu',
+                       "accelerator": 'gpu',
                        "os": 'ubuntu',
-                       # "target_name": 'yolov3:latest',
+                       "target_name": 'ultralytics/yolo5:v6.1',
                        "components": t_com
                        }
             t_deploy = {"type": dep_type,
                      "workdir": "/test/test",
-                     'entrypoint': my_entry,
+                     'entrypoint': [ '/bin/bash', '-c'], # my_entry,
                      "network": {
                          'service_host_ip': self.m_deploy_network_hostip,
                          "service_host_port": self.m_deploy_network_hostport,
                          "service_container_port": self.m_deploy_network_serviceport 
                          },
                      "k8s": { 
-                         "nfs_ip": self.m_deploy_nfs_ip,
-                         "nfs_path": self.m_deploy_nfs_path 
+                         "nfs_ip": '192.168.0.189', # self.m_deploy_nfs_ip,
+                         "nfs_path": '/var/lib/docker/volumes/tango_shared/_data' # self.m_deploy_nfs_path 
                          }
                      }
             if self.m_sysinfo_engine_type == 'tensorrt':
@@ -2119,6 +2122,9 @@ class CodeGen:
             return -1
         yaml.dump(t_total, f)
         f.close()
+        # khlee 
+        # copy deployment.yaml to m_current_filepath
+        shutil.copy(r_file, self.m_current_file_path)
         return 0
         
         
@@ -2177,6 +2183,9 @@ class CodeGen:
             return -1
         yaml.dump(t_total, f)
         f.close()
+        # khlee 
+        # copy deployment.yaml to m_current_filepath
+        shutil.copy(r_file, self.m_current_file_path)
         return
         
 
@@ -2246,6 +2255,9 @@ class CodeGen:
             return -1
         yaml.dump(t_total, f)
         f.close()
+        # khlee 
+        # copy deployment.yaml to m_current_filepath
+        shutil.copy(r_file, self.m_current_file_path)
         return
 
     ####################################################################
@@ -2524,9 +2536,10 @@ if __name__ == '__main__':
         logging.debug("wait for thread done")
         m_obj.wait_for_done()
 
-'''
+
 #스트링으로 함수 호출하기 #1
 #file name이 user.py class가 User라 가정
+'''
 user.py의 내용
 class User():
     name = 'abc'
