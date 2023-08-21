@@ -26,15 +26,7 @@ import ConfigurationTab from "@/modules/project/tabs/ConfigurationTab.vue";
 import ProgressTab from "@/modules/project/tabs/ProgressTab.vue";
 import TabBase from "@/modules/project/TabBase.vue";
 
-import {
-  getProjectInfo,
-  // getStatusResult,
-  getTargetInfo,
-  getDatasetListTango,
-  stopContainer,
-  postStatusRequest
-  // checkContainerStatus_TEST
-} from "@/api";
+import { getProjectInfo, getTargetInfo, getDatasetListTango, stopContainer, postStatusRequest } from "@/api";
 
 import Cookies from "universal-cookie";
 export default {
@@ -63,20 +55,16 @@ export default {
       }
       let status = true;
       const info = this.projectInfo;
-      console.log("info", info);
+
       if (!info?.dataset || info?.dataset === "") status = false;
+      else if (!info?.target_id || !info?.target_info) status = false;
       else if (!info?.target_id || info?.target_id === "") status = false;
       else if (!info?.task_type || info?.task_type === "") status = false;
       else if (!info?.nas_type || info?.nas_type === "") status = false;
-      else if (info?.target_info.target_info !== "ondevice") {
-        if (!info?.deploy_weight_level || info?.deploy_weight_level === "") status = false;
-        else if (!info?.deploy_precision_level || info?.deploy_precision_level === "") status = false;
-        else if (!info?.deploy_processing_lib || info?.deploy_processing_lib === "") status = false;
-        else if (!info?.deploy_user_edit || info?.deploy_user_edit === "") status = false;
-        else if (!info?.deploy_input_method || info?.deploy_input_method === "") status = false;
-        else if (!info?.deploy_input_data_path || info?.deploy_input_data_path === "") status = false;
-        else if (!info?.deploy_output_method || info?.deploy_output_method === "") status = false;
-      }
+      else if (!info?.deploy_weight_level || info?.deploy_weight_level === "") status = false;
+      else if (!info?.deploy_precision_level || info?.deploy_precision_level === "") status = false;
+      else if (!info?.deploy_user_edit || info?.deploy_user_edit === "") status = false;
+      else if (!info?.deploy_output_method || info?.deploy_output_method === "") status = false;
       if (status === false) {
         this.$swal("project를 완성해 주세요.");
         this.$router.push("/");
@@ -114,8 +102,11 @@ export default {
               this.projectInfo = this.project;
               this.$EventBus.$emit("logUpdate", res);
 
-              if (res.container_status === "completed") {
+              if (res.container_status !== "running") {
                 this.stopInterval();
+                if (res.container === "imagedeploy") {
+                  this.$EventBus.$emit("nnModelDownload");
+                }
               }
             });
           }

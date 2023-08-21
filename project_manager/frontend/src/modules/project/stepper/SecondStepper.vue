@@ -61,7 +61,6 @@ export default {
         this.selelctedItem = this.selectedImage;
       }
     } catch {
-      console.log("dataset error");
       this.items = [];
     }
   },
@@ -76,7 +75,6 @@ export default {
     },
 
     next() {
-      console.log("this.selelctedItem", this.selelctedItem);
       this.$emit("next", { dataset: this.selelctedItem.name });
       this.SET_SELECTED_IMAGE(this.selelctedItem);
     },

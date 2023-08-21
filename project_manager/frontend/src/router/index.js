@@ -73,8 +73,6 @@ const isUser = () => new Cookies().get("userinfo");
 router.beforeEach(async (to, from, next) => {
   const { permision } = to.meta;
 
-  console.log("isToken", isToken());
-
   if (permision === undefined)
     if (!!isToken() === false || !!isUser() === false) {
       next("/login");

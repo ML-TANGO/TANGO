@@ -23,20 +23,24 @@
             Target Specification <small>Select Specification</small>
           </v-stepper-step>
           <v-stepper-content step="2" class="my-3"></v-stepper-content>
-          <v-stepper-step v-if="isThridStep" :complete="e6 > 3" step="3">
+          <!-- <v-stepper-step v-if="isThridStep" :complete="e6 > 3" step="3">
             Target Host <small>Select Host</small>
           </v-stepper-step>
-          <v-stepper-content v-if="isThridStep" step="3" class="my-3"></v-stepper-content>
+          <v-stepper-content v-if="isThridStep" step="3" class="my-3"></v-stepper-content> -->
+
+          <v-stepper-step :complete="e6 > 3" step="3"> Target Host <small>Select Host</small> </v-stepper-step>
+          <v-stepper-content step="3" class="my-3"></v-stepper-content>
         </v-stepper>
         <div style="width: 75%; height: 500px" class="px-10">
           <FirstStepper v-if="e6 === 1" @next="next" />
-          <SecondStepper
+          <!-- <SecondStepper
             v-else-if="e6 === 2"
             @next="next"
             @prev="prev"
             @isThridStep="setIsThridStep"
             @create="onCreate"
-          />
+          /> -->
+          <SecondStepper v-else-if="e6 === 2" @next="next" @prev="prev" @create="onCreate" />
           <ThirdStepper v-else-if="e6 === 3" @next="next" @prev="prev" @create="onCreate" />
         </div>
       </div>
@@ -87,7 +91,7 @@ export default {
     }),
 
     next(data) {
-      if (this.isThridStep && this.e6 !== 3) {
+      if (this.e6 !== 3) {
         this.e6 += 1;
       } else if (this.e6 !== 2) {
         this.e6 += 1;
@@ -108,6 +112,7 @@ export default {
 
     async onCreate(data) {
       this.SET_TARGET(data);
+
       if (this.target?.id) {
         const params = {
           id: this.target.id,
@@ -118,6 +123,8 @@ export default {
           cpu: this.target.cpu,
           acc: this.target.acc,
           memory: this.target.memory,
+          nfs_ip: this.target.nfs_ip || "",
+          nfs_path: this.target.nfs_path || "",
           host_ip: this.target.host_ip,
           host_port: this.target.host_port,
           host_service_port: this.target.host_service_port,
