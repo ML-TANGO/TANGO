@@ -2,15 +2,29 @@ import os
 import requests
 import asyncio
 import docker
+# import zipfile
+import shutil
+import json
+import textwrap
+
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+root_path = os.path.dirname(os.path.dirname(BASE_DIR))
 
 #region API REQUEST ...................................................................................................
 
-async def start_handler(continer, user_id, project_id):
+async def start_handler(continer, user_id, project_id, target_info):
     print(continer)
     print(user_id)
     print(project_id)
+    print(target_info)
 
-    host, port = get_container_info(continer)
+    if continer != 'imagedeploy':
+        host, port = get_container_info(continer)
+    else :
+        host, port = get_deploy_host_port(target_info)
+
+    print("continer_start_api : " + host + ':' + port)
+
     start_task = asyncio.create_task(continer_start_api(host + ':' + port, user_id, project_id))
     result = await start_task
     # host, port = get_container_info(continer)
@@ -27,13 +41,19 @@ async def continer_start_api(host, user_id, project_id):
         'project_id' : project_id,
     }
     response = requests.get(url, headers=headers, params=payload)
+    print_roundtrip_text = print_roundtrip(response)
+    print(print_roundtrip_text)
+    print(response.content.decode('utf-8'))
 
-    return response.json()
+    # return response.json()
+    # return str(response.content.decode('utf-8'))
+    return json.dumps({'response': str(response.content, 'utf-8').replace('"',''), 'request_info': str(print_roundtrip_text)})
+
 
 
 #################################################################################################################
 
-async def request_handler(continer, user_id, project_id):
+async def request_handler(continer, user_id, project_id, target_info):
     print(continer)
     print(user_id)
     print(project_id)
@@ -47,7 +67,14 @@ async def request_handler(continer, user_id, project_id):
         # return result
 
 
-        host, port = get_container_info(continer)
+        # host, port = get_container_info(continer)
+        if continer != 'imagedeploy':
+            host, port = get_container_info(continer)
+        else :
+            host, port = get_deploy_host_port(target_info)
+
+        print("continer_start_api : " + host + ':' + port)
+
         start_task = asyncio.create_task(continer_request_api(host + ':' + port, user_id, project_id))
         result = await start_task
         return result
@@ -66,8 +93,12 @@ async def continer_request_api(host, user_id, project_id):
         'project_id' : project_id,
     }
     response = requests.get(url, headers=headers, params=payload)
+    print("response")
+    print(response)
 
-    return response.json()
+    # return response.json()
+    # return str(response.content.decode('utf-8'))
+    return str(response.content, 'utf-8').replace('"','')
 
 
 #endregion
@@ -75,14 +106,19 @@ async def continer_request_api(host, user_id, project_id):
 #region Get Docker Logs ...............................................................................................
 
 def get_docker_log_handler(container, last_logs_timestamp):
+    print("get_docker_log_handler - container")
+    print(container)
     client = docker.from_env()
+    dockerContainerName = get_docker_container_name(container)
     containerList = client.containers.list()
-    container = next(item for item in containerList if container in str(item.name))
+    container = next(item for item in containerList if dockerContainerName in str(item.name))
     logs = ''
     if int(last_logs_timestamp) == 0:
         logs = container.logs(timestamps = True)
     else:
         logs = container.logs(timestamps = True, since = int(last_logs_timestamp))
+    if logs == None:
+        return ''
     return logs.decode('utf-8')
 #endregion
 
@@ -91,6 +127,7 @@ def get_container_info(host_name):
     ports_by_container = {
         'bms' : "8081",
         'yoloe' : "8090",
+        'codeGen' : "8888",
     }
     return host_name, ports_by_container[host_name]
 
@@ -109,8 +146,107 @@ def get_docker_container_name(container):
         containerName = 'autonn_bb'
     elif container == 'autonn_nk' :
         containerName = 'autonn_nk'
+    elif container == 'codeGen' :
+        containerName = 'code_gen'
+    elif container == 'k8s' :
+        containerName = 'tango_k8s'
+    elif container == 'ondevice' :
+        containerName = 'ondevice_deploy'
     else :
         containerName = 'bms'
 
     return str(containerName)
+
+def get_deploy_host_port(deploy_type):
+    port = ''
+    if deploy_type == 'cloud' :
+        port = "8890"
+    elif deploy_type == 'k8s' :
+        port = "8901"
+    else:
+        # ondevice 등등.... 
+        port = '8891'
+    return deploy_type, port
 #endregion
+
+
+def print_roundtrip(response, *args, **kwargs):
+    format_headers = lambda d: '\n'.join(f'{k}: {v}' for k, v in d.items())
+
+    return str(textwrap.dedent('''
+        ---------------- request ----------------
+        {req.method} {req.url}
+        {reqhdrs}
+        ---------------- response ----------------
+        {res.status_code} {res.reason} {res.url}
+        {reshdrs}
+
+        response : {res.text}
+    ''').format(
+        req=response.request, 
+        res=response, 
+        reqhdrs=format_headers(response.request.headers), 
+        reshdrs=format_headers(response.headers), 
+    ))
+
+# 로그에 보여질 Container 명으로 변경
+def get_log_container_name(container):
+    if container == 'bms':
+        return 'BMS'
+    elif container == 'yoloe':
+        return 'Auto NN'
+    elif container == 'codeGen' or container == 'code_gen' or container == 'codegen':
+        return 'Code Gen'
+    elif container == 'imagedeploy':
+        return 'Image Deploy'
+    
+
+def db_container_name(container):
+    if container == 'bms':
+        return 'BMS'
+    elif container == 'yoloe':
+        return 'yoloe'
+    elif container == 'codeGen' or container == 'code_gen' or container == 'codegen':
+        return 'codeGen'
+
+def nn_model_zip(user_id, project_id):
+    file_path = os.path.join(root_path, "shared/common/{0}/{1}".format(str(user_id), str(project_id)))
+    os.chdir(file_path)
+
+    print("start folder_zip shutil")
+    print("file_path  : " + str(file_path))
+    print(os.walk(os.path.join(file_path, 'nn_model')))
+
+    a = shutil.make_archive("nn_model", 'zip', os.path.join(file_path, "nn_model"))
+    print(a)
+
+    print("end folder_zip")
+
+
+    return os.path.join(file_path, "nn_model.zip")
+
+def nn_model_unzip(user_id, project_id, file):
+    file_path = os.path.join(root_path, "shared/common/{0}/{1}".format(str(user_id), str(project_id)))
+    save_path = os.path.join(file_path, 'nn_model.zip')
+
+    with open(save_path, 'wb') as destination_file:
+        for chunk in file.chunks():
+            destination_file.write(chunk)
+
+    filename = save_path
+    extrack_dir = os.path.join(file_path, 'nn_model')
+    archive_format = "zip"
+
+    shutil.unpack_archive(filename, extrack_dir, archive_format)
+
+    return os.path.join(file_path, "nn_model.zip")
+
+    
+
+def db_container_name(container):
+    if container == 'bms' or container == 'BMS':
+        return 'bms'
+    elif container == 'yoloe':
+        return 'yoloe'
+    elif container == 'codeGen' or container == 'code_gen' or container == 'codegen':
+        return 'codeGen'

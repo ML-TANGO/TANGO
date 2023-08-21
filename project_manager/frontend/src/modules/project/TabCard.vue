@@ -138,15 +138,6 @@ export default {
     }
   },
 
-  watch: {
-    status: {
-      immediate: true,
-      handler() {
-        console.log("this.status", this.status);
-      }
-    }
-  },
-
   methods: {
     ...mapMutations(ProjectNamespace, {
       SET_PROJECT: ProjectMutations.SET_PROJECT,
@@ -156,7 +147,6 @@ export default {
 
     async setupBtn() {
       this.SET_PROJECT(this.projectInfo);
-      console.log("this.projectInfo", this.projectInfo);
       if (this.projectInfo.container === "" || this.projectInfo.container === "init") {
         await this.setDialog();
       } else {
@@ -184,22 +174,16 @@ export default {
     navigation() {
       let status = true;
       const info = this.projectInfo;
-
       console.log("info", info);
-
       if (!info?.dataset || info?.dataset === "") status = false;
+      else if (!info?.target_id || !info?.target_info) status = false;
       else if (!info?.target_id || info?.target_id === "") status = false;
       else if (!info?.task_type || info?.task_type === "") status = false;
       else if (!info?.nas_type || info?.nas_type === "") status = false;
-      else if (info?.target_info.target_info !== "ondevice") {
-        if (!info?.deploy_weight_level || info?.deploy_weight_level === "") status = false;
-        else if (!info?.deploy_precision_level || info?.deploy_precision_level === "") status = false;
-        else if (!info?.deploy_processing_lib || info?.deploy_processing_lib === "") status = false;
-        else if (!info?.deploy_user_edit || info?.deploy_user_edit === "") status = false;
-        else if (!info?.deploy_input_method || info?.deploy_input_method === "") status = false;
-        else if (!info?.deploy_input_data_path || info?.deploy_input_data_path === "") status = false;
-        else if (!info?.deploy_output_method || info?.deploy_output_method === "") status = false;
-      }
+      else if (!info?.deploy_weight_level || info?.deploy_weight_level === "") status = false;
+      else if (!info?.deploy_precision_level || info?.deploy_precision_level === "") status = false;
+      else if (!info?.deploy_user_edit || info?.deploy_user_edit === "") status = false;
+      else if (!info?.deploy_output_method || info?.deploy_output_method === "") status = false;
 
       if (status) {
         this.$router.push(`/project/${this.projectInfo.id}`);

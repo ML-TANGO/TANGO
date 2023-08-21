@@ -39,48 +39,113 @@
 
       <v-divider class="mt-3 mb-3" v-if="selectedTarget.info !== 'ondevice'"></v-divider> -->
 
+      <!-- Input Source -->
+      <div class="d-flex" style="gap: 25px">
+        <div style="min-width: 150px">Input Source</div>
+        <div class="d-flex flex-column" style="gap: 25px">
+          <div class="d-flex align-center" style="gap: 15px">
+            <div style="width: 40%">
+              <v-combobox dense hide-details outlined :items="inputSourceItems" v-model="inputSourceType"></v-combobox>
+            </div>
+            <div style="width: 60%">
+              <v-text-field
+                :key="`inputsource-${inputSourceKey}`"
+                v-if="inputSourceType === 'Camera ID'"
+                :value="inputSource"
+                type="number"
+                outlined
+                dense
+                label="Camera ID (0~9)"
+                hide-details
+                @change="inputSourceChange"
+              />
+              <v-text-field
+                v-else
+                v-model="inputSource"
+                outlined
+                dense
+                :label="inputSourceLabel(inputSourceType)"
+                hide-details
+              />
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <v-divider class="mt-3 mb-3"></v-divider>
+
+      <!-- outPut Method -->
+      <div class="d-flex" style="gap: 25px">
+        <div style="min-width: 150px">Output Method</div>
+        <div class="d-flex flex-column" style="gap: 25px">
+          <div class="d-flex align-center" style="gap: 15px">
+            <div style="width: 40%">
+              <v-autocomplete
+                dense
+                hide-details
+                outlined
+                :items="outputMethodItems"
+                v-model="outputMethodType"
+              ></v-autocomplete>
+            </div>
+            <div style="width: 60%">
+              <v-text-field
+                :disabled="outputMethodType !== 'URL or Directory Path'"
+                v-model="outputMethod"
+                outlined
+                dense
+                :label="outputSourceLabel(outputMethodType)"
+                hide-details
+              />
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <v-divider class="mt-3 mb-3"></v-divider>
+
       <!-- Deploy Config -->
-      <div class="d-flex" style="gap: 25px" v-if="selectedTarget.info !== 'ondevice'">
+      <div class="d-flex" style="gap: 25px">
         <div style="min-width: 150px">Deploy Config</div>
         <div class="d-flex flex-column" style="gap: 25px">
           <div class="d-flex" style="gap: 10px">
-            <v-text-field
-              v-model="lightWeightLv"
-              type="number"
-              outlined
-              dense
-              label="Light Weight Level"
-              hide-details
-            />
-            <v-text-field v-model="precisionLv" type="number" outlined dense label="Precision Level" hide-details />
-            <v-text-field v-model="processingLib" outlined dense label="Processing Lib" hide-details readonly />
-          </div>
+            <v-tooltip top :key="`lightWeightLv-${lightWeightLvKey}`">
+              <template v-slot:activator="{ on, attrs }">
+                <v-text-field
+                  v-bind="attrs"
+                  v-on="on"
+                  :value="lightWeightLv"
+                  type="number"
+                  outlined
+                  dense
+                  label="Light Weight Level"
+                  hide-details
+                  @change="lightWeightLvChange"
+                />
+              </template>
+              <span style="font-size: 13px">
+                0 .. 10, that specifies the level of model optimization, 10 means "maximal"
+              </span>
+            </v-tooltip>
 
-          <div class="d-flex" style="gap: 10px">
-            <v-autocomplete
-              :value="inputMethod"
-              :items="inputMethodItem"
-              label="Input Method"
-              outlined
-              dense
-              hide-details
-              item-text="label"
-              @change="inputMethodChange"
-              style="width: 50%"
-            />
-            <v-text-field v-model="inputPath" outlined dense label="Input Data Path" hide-details style="width: 50%" />
-          </div>
-          <div class="d-flex" style="gap: 10px">
-            <v-autocomplete
-              :value="outputMethod"
-              :items="outputMethodItem"
-              label="Output Method"
-              outlined
-              dense
-              hide-details
-              item-text="label"
-              @change="outputMethodChange"
-            />
+            <v-tooltip top :key="`precisionLv-${precisionLvKey}`">
+              <template v-slot:activator="{ on, attrs }">
+                <v-text-field
+                  v-bind="attrs"
+                  v-on="on"
+                  :value="precisionLv"
+                  type="number"
+                  outlined
+                  dense
+                  label="Precision Level"
+                  hide-details
+                  @change="precisionLvChange"
+                />
+              </template>
+              <span style="font-size: 13px">
+                0 .. 10, that specifies the level of precision, 10 means "do not modify neural"
+              </span>
+            </v-tooltip>
 
             <v-autocomplete
               :value="userEditing"
@@ -92,7 +157,37 @@
               item-text="label"
               @change="userEditingChange"
             />
+
+            <!-- <v-text-field v-model="processingLib" outlined dense la
+            bel="Processing Lib" hide-details readonly /> -->
           </div>
+
+          <!-- <div class="d-flex" style="gap: 10px">
+            <v-autocomplete
+              :value="inputMethod"
+              :items="inputMethodItem"
+              label="Input Method"
+              outlined
+              dense
+              hide-details
+              item-text="label"
+              @change="inputMethodChange"
+              style="width: 50%"
+            />
+            <v-autocomplete
+              :value="userEditing"
+              :items="userEditingItem"
+              label="User Editing"
+              outlined
+              dense
+              hide-details
+              item-text="label"
+              @change="userEditingChange"
+            />
+          </div> -->
+          <!-- <div class="d-flex" style="gap: 10px">
+            <v-text-field v-model="inputPath" outlined dense label="Input Data Path" hide-details style="width: 50%" />
+          </div> -->
         </div>
       </div>
     </div>
@@ -112,10 +207,10 @@ export default {
       nasType: "",
       basemodel: "basemode.yaml",
       dataset: "dataset.yaml",
-      lightWeightLv: 0,
-      precisionLv: 0,
+      lightWeightLv: 5,
+      precisionLv: 5,
       processingLib: "cv2",
-      userEditing: "",
+      userEditing: "no",
       userEditingItem: [
         { value: "yes", label: "Yes" },
         { value: "no", label: "No" }
@@ -128,12 +223,25 @@ export default {
         { value: "folder", label: "Folder" }
       ],
       inputPath: "",
-      outputMethod: "",
-      outputMethodItem: [
-        { value: "console", label: "Console" },
-        { value: "graphic", label: "Graphic" },
-        { value: "mp4", label: "MP4" }
-      ]
+      // outputMethod: "",
+      // outputMethodItem: [
+      //   { value: "console", label: "Console" },
+      //   { value: "graphic", label: "Graphic" },
+      //   { value: "mp4", label: "MP4" }
+      // ],
+
+      // =================================
+      inputSourceItems: ["Camera ID", "URL or File/Directory Path"],
+      inputSourceType: "Camera ID",
+      inputSource: null,
+
+      outputMethodItems: ["Screen Display", "Text Output", "URL or Directory Path"],
+      outputMethodType: "Screen Display",
+      outputMethod: null,
+
+      lightWeightLvKey: 0,
+      precisionLvKey: 0,
+      inputSourceKey: 0
     };
   },
 
@@ -141,18 +249,47 @@ export default {
     ...mapState(ProjectNamespace, ["selectedImage", "selectedTarget", "project"])
   },
 
+  watch: {
+    outputMethodType() {
+      if (this.outputMethodType === "Screen Display") {
+        this.outputMethod = "0";
+      } else if (this.outputMethodType === "Text Output") {
+        this.outputMethod = "1";
+      } else {
+        this.outputMethod = this.project.deploy_output_method || "0";
+      }
+    }
+  },
+
   created() {
     this.taskType = this.selectedImage.OBJECT_TYPE === "C" ? "classification" : "detection";
     this.nasType = this.project.nas_type || "neck_nas";
     this.basemodel = this.project.autonn_basemodel || "basemode.yaml";
     this.dataset = this.project.autonn_dataset_file || "dataset.yaml";
-    this.lightWeightLv = this.project.deploy_weight_level;
-    this.precisionLv = this.project.deploy_precision_level;
+    this.lightWeightLv = this.project.deploy_weight_level || 5;
+    this.precisionLv = this.project.deploy_precision_level || 5;
     this.processingLib = this.project.deploy_processing_lib || "cv2";
-    this.userEditing = this.project.deploy_user_edit;
+    this.userEditing = this.project.deploy_user_edit || "no";
     this.inputMethod = this.project.deploy_input_method;
     this.inputPath = this.project.deploy_input_data_path;
-    this.outputMethod = this.project.deploy_output_method;
+    this.outputMethod = this.project.deploy_output_method || "0";
+
+    // new
+    this.inputSource = this.project.deploy_input_source || "0";
+
+    if (this.outputMethod.toString() === "0") {
+      this.outputMethodType = "Screen Display";
+    } else if (this.outputMethod.toString() === "1") {
+      this.outputMethodType = "Text Output";
+    } else {
+      this.outputMethodType = "URL or Directory Path";
+    }
+
+    if (!isNaN(this.inputSource) && Number(this.inputSource) >= 0 && Number(this.inputSource) <= 9) {
+      this.inputSourceType = "Camera ID";
+    } else {
+      this.inputSourceType = "URL or File/Directory Path";
+    }
   },
 
   methods: {
@@ -169,9 +306,11 @@ export default {
         deploy_output_method: this.outputMethod || "",
         deploy_precision_level: this.precisionLv || "",
         deploy_processing_lib: this.processingLib || "",
-        deploy_user_edit: this.userEditing || "",
+        deploy_user_edit: this.userEditing || "no",
         deploy_weight_level: this.lightWeightLv || "",
-        deploy_input_method: this.inputMethod || ""
+        deploy_input_method: this.inputMethod || "0",
+
+        deploy_input_source: this.inputSource || "0"
       });
     },
 
@@ -183,6 +322,34 @@ export default {
     },
     userEditingChange(value) {
       this.userEditing = value;
+    },
+    lightWeightLvChange(value) {
+      this.lightWeightLv = Number(value) > 10 ? 10 : Number(value) < 0 ? 0 : Number(value);
+      this.lightWeightLvKey++;
+    },
+    precisionLvChange(value) {
+      this.precisionLv = Number(value) > 10 ? 10 : Number(value) < 0 ? 0 : Number(value);
+      this.precisionLvKey++;
+    },
+    inputSourceChange(value) {
+      if (this.inputSourceType === "Camera ID")
+        this.inputSource = Number(value) > 9 ? 9 : Number(value) < 0 ? 0 : Number(value);
+      else this.inputSource = value;
+      this.inputSourceKey++;
+    },
+    inputSourceLabel(inputSource) {
+      if (inputSource.toLowerCase() === "url") {
+        return "URL to receive input image stream";
+      } else {
+        return inputSource;
+      }
+    },
+    outputSourceLabel(inputSource) {
+      if (inputSource.toLowerCase() === "url") {
+        return "URL to send output image stream";
+      } else {
+        return inputSource;
+      }
     }
   }
 };

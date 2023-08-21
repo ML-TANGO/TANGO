@@ -1,9 +1,13 @@
 <template>
-  <div style="width: 100%" class="d-flex align-center justify-center">
+  <div
+    style="width: 100%; height: 100%"
+    class="d-flex"
+    :class="isImage ? 'align-center justify-center' : 'mt-3 align-start justify-space-between pl-6'"
+  >
     <slot></slot>
     <v-tooltip bottom>
       <template v-slot:activator="{ on, attrs }">
-        <v-btn class="delete-btn" icon v-bind="attrs" v-on="on" @click="removeFile">
+        <v-btn :class="isImage ? 'delete-btn' : ''" icon v-bind="attrs" v-on="on" @click="removeFile">
           <v-icon>mdi-file-document-remove</v-icon>
         </v-btn>
       </template>
@@ -14,6 +18,11 @@
 
 <script>
 export default {
+  props: {
+    isImage: {
+      default: true
+    }
+  },
   mounted() {
     this.$emit("mounted");
   },

@@ -76,6 +76,8 @@ class Project(models.Model):
     deploy_input_data_path = models.CharField(blank=True, null=True, max_length=50, default='')
     deploy_output_method = models.CharField(blank=True, null=True, max_length=50, default='')
 
+    deploy_input_source = models.CharField(blank=True, null=True, max_length=50, default='') # 20230710
+
     container = models.CharField(blank=True, null=True, max_length=50, default='')               # 신경망 생성 단계
     container_status = models.CharField(blank=True, null=True, max_length=50, default='')        # 신경망 생성 상태
 
@@ -110,6 +112,8 @@ class Target(models.Model):
     target_cpu = models.CharField(blank=True, null=True, max_length=50)                 # 타겟 정보 - cpu
     target_acc = models.CharField(blank=True, null=True, max_length=50)                 # 타겟 정보 - acc
     target_memory = models.CharField(blank=True, null=True, max_length=50)              # 타겟 정보 - memory
+    nfs_ip = models.CharField(blank=True, null=True, max_length=50)                     # 타겟 정보 - nfs_ip (for k8s)
+    nfs_path = models.CharField(blank=True, null=True, max_length=50)                   # 타겟 정보 - nfs_path (for k8s)
     target_host_ip = models.CharField(blank=True, null=True, max_length=50)             # 타겟 정보 - host_ip
     target_host_port = models.CharField(blank=True, null=True, max_length=50)           # 타겟 정보 - host_port
     target_host_service_port = models.CharField(blank=True, null=True, max_length=30)   # 타겟 정보 - host_service_port
