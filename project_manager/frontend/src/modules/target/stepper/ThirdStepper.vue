@@ -64,16 +64,16 @@ export default {
     },
 
     create() {
-      if (this.ipAddress === "" || !this.ipAddress) {
-        this.$swal("Target", "Ip Address를 입력해 주세요.", "error");
-        return;
-      } else if (this.port === "" || !this.port) {
-        this.$swal("Target", "Port를 입력해 주세요.", "error");
-        return;
-      } else if (this.servicePort === "" || !this.servicePort) {
-        this.$swal("Target", "Service Port를 입력해 주세요.", "error");
-        return;
-      }
+      // if (this.ipAddress === "" || !this.ipAddress) {
+      //   this.$swal("Target", "Ip Address를 입력해 주세요.", "error");
+      //   return;
+      // } else if (this.port === "" || !this.port) {
+      //   this.$swal("Target", "Port를 입력해 주세요.", "error");
+      //   return;
+      // } else if (this.servicePort === "" || !this.servicePort) {
+      //   this.$swal("Target", "Service Port를 입력해 주세요.", "error");
+      //   return;
+      // }
 
       this.$emit("create", { host_ip: this.ipAddress, host_port: this.port, host_service_port: this.servicePort });
     },

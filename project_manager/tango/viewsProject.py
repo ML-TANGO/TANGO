@@ -58,26 +58,23 @@ def container_start(request):
         user_id = request.data['user_id']
         project_id = request.data['project_id']
         container_id = request.data['container_id']
-       
-        response = asyncio.run(start_handler(container_id, user_id, project_id))
-        # response = asyncio.get_event_loop().run_until_complete(start_handler(container_id, user_id, project_id))
-        # response = start_handler(container_id, user_id, project_id)
-        # host, port = get_container_info(container_id)
-        # response = continer_start_api(host + ':' + port, user_id, project_id)
 
-        # asyncio.run(aiohttp_request_handler())
+        project_info = Project.objects.get(id=project_id, create_user=str(user_id))
 
-        print(str(container_id) + ' start - ' + str(response))
+        response = asyncio.run(start_handler(container_id, user_id, project_id, project_info.target.target_info))
+        to_json = json.loads(response)
 
-        queryset = Project.objects.get(id=project_id, create_user=str(user_id))
-        queryset.container = container_id
-        queryset.container_status = 'started'
-        queryset.save()
+        project_info.container = container_id
+        project_info.container_status = 'started'
+        project_info.save()
 
-        return HttpResponse(json.dumps({'status': 200, 'message': str(container_id) + ' 시작 요청\n'}))
+        # print(container_id)
+
+        return HttpResponse(json.dumps({'status': 200, 'message': str(container_id) + ' 시작 요청\n', 'response' : to_json['request_info']}))
 
     except Exception as error:
         print('container start error - ' + str(error))
+        print(error)
         return HttpResponse(error)
 
 
@@ -92,7 +89,6 @@ def status_request(request):
 
         user_id = request.data['user_id']
         project_id = request.data['project_id']
-        #container_id = request.data['container_id']
 
         queryset = Project.objects.get(id=project_id, create_user=str(user_id))
         container_id = queryset.container
@@ -104,41 +100,56 @@ def status_request(request):
             response_data[user_id][project_id] = {
                 'last_container' : container_id,
                 'last_logs_timestamp' : 0,
-                'response_message' : ''
+                'response_message' : '',
+                'is_complete_container' : False 
             }
         
-        # response = asyncio.get_event_loop().run_until_complete(request_handler(container_id, user_id, project_id))
-        # response = request_handler(container_id, user_id, project_id)
-        # host, port = get_container_info(container_id)
-        # response = continer_request_api(host + ':' + port, user_id, project_id)
-        response = asyncio.run(request_handler(container_id, user_id, project_id))
-        # print(response)
-        queryset.container = container_id
-        queryset.container_status = response
-        queryset.save()
+        response = asyncio.run(request_handler(container_id, user_id, project_id, queryset.target.target_info))
+        response_data[user_id][project_id]['response_message'] += str(container_id) + '- status_request response : ' + str(response)
 
-        print("status-request " + str(container_id) + ' result.....')
-        print(response)
+        queryset.container = container_id
+        if response_data[user_id][project_id]['is_complete_container'] == True:
+            queryset.container_status = 'completed'
+        else :
+            queryset.container_status = response
+        queryset.save()
+        
+
+        # print("status-request " + str(container_id) + ' result.....')
+        # print(response)
 
         if response_data[user_id][project_id]['last_container'] != queryset.container:
             response_data[user_id][project_id]['last_logs_timestamp'] = 0
+        
+        if container_id != "imagedeploy":
+            logs = get_docker_log_handler(queryset.container, response_data[user_id][project_id]['last_logs_timestamp'])
+        else:
+            logs = get_docker_log_handler(queryset.target.target_info, response_data[user_id][project_id]['last_logs_timestamp'])
 
         logs = get_docker_log_handler(queryset.container, response_data[user_id][project_id]['last_logs_timestamp'])
-        response_data[user_id][project_id]['last_logs_timestamp'] = time.mktime(datetime.now().timetuple())
+        response_data[user_id][project_id]['last_logs_timestamp'] = time.mktime(datetime.now().timetuple()) + 1.0
         response_data[user_id][project_id]['last_container'] = queryset.container
 
         m = response_data[user_id][project_id]['response_message'] + '\n' + str(logs)
         response_data[user_id][project_id]['response_message'] = ''
 
+        if response_data[user_id][project_id]['is_complete_container'] == True:
+            m += get_log_container_name(container_id) + " 완료\n"
+            response = "completed"
+        elif response_data[user_id][project_id]['is_complete_container'] == False and response == 'completed':
+            m += get_log_container_name(container_id) + " 완료\n"
+            response = "completed"
 
-        # return HttpResponse(json.dumps({'response': response}))
-        return HttpResponse(json.dumps({'container': queryset.container,
-                                'container_status': queryset.container_status,
+        response_data[user_id][project_id]['is_complete_container'] = False
+        return HttpResponse(json.dumps({'container': container_id,
+                                'container_status': response,
                                 'message': m,}))
 
     except Exception as error:
+        print("status_request --- error")
         print(error)
         return HttpResponse(error)
+
 
 # 컨테이너 상태 결과 응답
 @api_view(['GET'])
@@ -151,7 +162,7 @@ def status_report(request):
 
         user_id = request.GET['user_id']
         project_id = request.GET['project_id']
-        container_id = request.GET['container_id']
+        container_id = db_container_name(request.GET['container_id'])
         result = request.GET['status']
 
         queryset = Project.objects.get(id=project_id, create_user=str(user_id))
@@ -166,18 +177,22 @@ def status_report(request):
             response_data[user_id][project_id] = {
                 'last_container' : container_id,
                 'last_logs_timestamp' : 0,
-                'response_message' : ''
+                'response_message' : '',
+                'is_complete_container' : False
             }
+
+
+        response_data[user_id][project_id]['response_message'] += "\n status_report - request : "
+        response_data[user_id][project_id]['response_message'] += json.dumps(request.GET)
+        response_data[user_id][project_id]['response_message'] += "\n"
 
         if queryset.project_type == 'auto':
             if container_id == 'bms' and result == 'success':
                 print("bms end .. ---- success")
+                queryset.container_status = 'completed'
+                queryset.save()
                 response_data[user_id][project_id]['response_message'] += 'base model select 완료\n'
-
                 response_data[user_id][project_id]['response_message'] += 'auto_nn_yolo_e 시작 요청\n'
-                print('autonn - yoloe - start request')
-                # response = asyncio.get_event_loop().run_until_complete(start_handler(container_id, user_id, project_id))
-                # response = start_handler(container_id, user_id, project_id)
                 response = asyncio.run(start_handler('yoloe', user_id, project_id))
                 print(response)
 
@@ -187,14 +202,32 @@ def status_report(request):
                 queryset.save()
             elif container_id == 'yoloe' and result == 'success':
                 print("yoloe end .. ---- success")
-                response_data[user_id][project_id]['response_message'] += 'yoloe 완료\n'
+                queryset.container_status = 'completed'
+                queryset.save()
+                response_data[user_id][project_id]['response_message'] += 'AutoNN 완료\n'
+                response_data[user_id][project_id]['response_message'] += 'code gen 시작 요청\n'
+                response = asyncio.run(start_handler('codeGen', user_id, project_id))
+                print(response)
+                queryset = Project.objects.get(id=project_id, create_user=str(user_id))
+                queryset.container = 'codeGen'
+                queryset.container_status = 'running'
+                queryset.save()
+            elif container_id == 'codeGen' and result == 'success':
+                response_data[user_id][project_id]['response_message'] += 'codeGen 완료\n'
+
         else:
             if container_id == 'bms' and result == 'success':
                 print("bms end .. ---- success")
-                response_data[user_id][project_id]['response_message'] += 'base model select 완료\n'
+                response_data[user_id][project_id]['is_complete_container'] = True
             elif container_id == 'yoloe' and result == 'success':
                 print("yoloe end .. ---- success")
-                response_data[user_id][project_id]['response_message'] += 'yoloe 완료\n'
+                response_data[user_id][project_id]['is_complete_container'] = True
+            elif container_id == 'codeGen' and result == 'success':
+                print("codeGen end .. ---- success")
+                response_data[user_id][project_id]['is_complete_container'] = True
+            elif container_id == 'imageDeploy' and result == 'success':
+                print("imageDeploy end .. ---- success")
+                response_data[user_id][project_id]['is_complete_container'] = True
 
         return HttpResponse(json.dumps({'status': 200}))
 
@@ -237,6 +270,45 @@ def status_result(request):
 
     except Exception as e:
         print(e)
+
+
+# nn_model 다운로드(외부IDE연동)
+@api_view(['GET'])
+@permission_classes([AllowAny])   # 토큰 확인
+def download_nn_model(request):
+
+    try:
+        user_id = request.GET['user_id']
+        project_id = request.GET['project_id']
+        zip_file_path = nn_model_zip(user_id, project_id)
+        return HttpResponse(open(zip_file_path, 'rb').read())
+
+    except Exception as error:
+        print("download_nn_model - error")
+        print(error)
+        return HttpResponse(error)
+
+# nn_model 업로드(외부IDE연동)
+@api_view(['POST'])
+@permission_classes([AllowAny])   # 토큰 확인
+def upload_nn_model(request):
+
+    try:
+        user_id = request.data['user_id']
+        project_id = request.data['project_id']
+        nn_model = request.data['nn_model']
+        print("upload_nn_model")
+        print(user_id)
+        print(project_id)
+        print(nn_model)
+        print(type(nn_model))
+        nn_model_unzip(user_id, project_id, nn_model)
+
+        return Response(status=200)
+    except Exception as error:
+        print("upload_nn_model - error")
+        print(error)
+        return HttpResponse(error)
 
 
 # Project 리스트 요청
@@ -446,63 +518,22 @@ def project_info(request):
                                         create_user=request.user)  # Project id로 검색
         data = list(queryset.values())
 
-        print("project_info ===> ")
+        print("***** project_info *****")
         print(data[0])
+
 
         # TODO : 타겟이 0이 아닌 경우 SW 정보 전달
         if data[0]['target_id'] is not None:
-            print('타겟 정보 있음')
-            print(data[0]['target_id'])
-
-            # select_target = {
-            #     1: 'rk3399pro',
-            #     2: 'jetsonnano',
-            #     3: 'x86-cuda',
-            #     4: 'gcp',
-            # }
-
-            # 타겟 정보
-            base_dir = os.path.dirname(os.path.abspath(os.path.dirname(__file__)))
-            # target_sw_path = os.path.join(base_dir, 'data/targets/' + data[0]['target'] + '/SW/sw_info.json')
-            #
-            # f = open(target_sw_path, 'r')
-            # target_sw_info = json.load(f)
-
-            # 데이터 셋 리스트 정보
-            dataset_path = os.path.join(base_dir, 'data/datasets/')
-            dataset_list = os.listdir(dataset_path)
-            dataset_list_dic = {"dataset_list": dataset_list}
-
-            # 타겟 리스트 정보
-            target_path = os.path.join(base_dir, 'data/targets/')
-            target_list = os.listdir(target_path)
-            target_list_dic = {"target_list": target_list}
-
             target_info = model_to_dict(Target.objects.get(id=int(data[0]['target_id'])))
             target_info_dic = {"target_info": target_info}
 
-            # Dictionary 정보 합치기
-            # result = dict(data[0], **target_sw_info, **dataset_list_dic, **target_list_dic)
-            result = dict(data[0], **dataset_list_dic, **target_list_dic, **target_info_dic)
+            result = dict(data[0],  **target_info_dic)
 
             return Response(result)
 
         else:
-
-            # 데이터 셋 리스트 정보
-            base_dir = os.path.dirname(os.path.abspath(os.path.dirname(__file__)))
-            dataset_path = os.path.join(base_dir, 'data/datasets/')
-            dataset_list = os.listdir(dataset_path)
-            dataset_list_dic = {"dataset_list": dataset_list}
-
-            # 타겟 리스트 정보
-            target_path = os.path.join(base_dir, 'data/targets/')
-            target_list = os.listdir(target_path)
-            target_list_dic = {"target_list": target_list}
-
-
             # 딕셔너리 정보 합치기
-            result = dict(data[0], **dataset_list_dic, **target_list_dic)
+            result = dict(data[0])
 
             return Response(result)
     except Exception as e:
@@ -538,8 +569,8 @@ def project_update(request):
         
         dataset = str(request.data['project_dataset'])
 
-        # task_type = str(request.data['task_type'])
-        task_type = 'detection'
+        task_type = str(request.data['task_type'])
+        # task_type = 'detection'
         autonn_dataset_file = str(request.data['autonn_dataset_file'])
         autonn_basemodel = str(request.data['autonn_base_model'])
         nas_type = str(request.data['nas_type'])
@@ -550,6 +581,8 @@ def project_update(request):
         deploy_input_method = str(request.data['deploy_input_method'])
         deploy_input_data_path = str(request.data['deploy_input_data_path'])
         deploy_output_method = str(request.data['deploy_output_method'])
+
+        deploy_input_source = str(request.data['deploy_input_source'])
 
         queryset = Project.objects.get(id=request.data['project_id'],
                                        create_user=request.user)
@@ -571,6 +604,7 @@ def project_update(request):
             queryset.deploy_input_method = deploy_input_method
             queryset.deploy_input_data_path = deploy_input_data_path
             queryset.deploy_output_method = deploy_output_method
+            queryset.deploy_input_source = deploy_input_source
             queryset.container = ''
             queryset.container_status = ''
 
@@ -581,43 +615,66 @@ def project_update(request):
         data = Target.objects.get(id=int(target))
         print("target - data")
         print(data.target_info)
-        if data.target_info != 'ondevice':
+        # if data.target_info != 'ondevice':
 
-            queryset.target = Target.objects.get(id=int(target))
-            queryset.dataset = dataset
-            queryset.task_type = task_type
-            queryset.autonn_dataset_file = autonn_dataset_file
-            queryset.autonn_basemodel = autonn_basemodel
-            queryset.nas_type = nas_type
-            queryset.deploy_weight_level = deploy_weight_level
-            queryset.deploy_precision_level = deploy_precision_level
-            queryset.deploy_processing_lib = deploy_processing_lib
-            queryset.deploy_user_edit = deploy_user_edit
-            queryset.deploy_input_method = deploy_input_method
-            queryset.deploy_input_data_path = deploy_input_data_path
-            queryset.deploy_output_method = deploy_output_method
-            queryset.container = 'init'
-            queryset.container_status = ''
+        #     queryset.target = Target.objects.get(id=int(target))
+        #     queryset.dataset = dataset
+        #     queryset.task_type = task_type
+        #     queryset.autonn_dataset_file = autonn_dataset_file
+        #     queryset.autonn_basemodel = autonn_basemodel
+        #     queryset.nas_type = nas_type
+        #     queryset.deploy_weight_level = deploy_weight_level
+        #     queryset.deploy_precision_level = deploy_precision_level
+        #     queryset.deploy_processing_lib = deploy_processing_lib
+        #     queryset.deploy_user_edit = deploy_user_edit
+        #     queryset.deploy_input_method = deploy_input_method
+        #     queryset.deploy_input_data_path = deploy_input_data_path
+        #     queryset.deploy_output_method = deploy_output_method
+        #     queryset.deploy_input_source = deploy_input_source
+        #     queryset.container = 'init'
+        #     queryset.container_status = ''
 
-            queryset.save()
-        else:
-            queryset.target = Target.objects.get(id=int(target))
-            queryset.dataset = dataset
-            queryset.task_type = task_type
-            queryset.autonn_dataset_file = autonn_dataset_file
-            queryset.autonn_basemodel = autonn_basemodel
-            queryset.nas_type = nas_type
-            queryset.deploy_weight_level = ''
-            queryset.deploy_precision_level = ''
-            queryset.deploy_processing_lib = ''
-            queryset.deploy_user_edit = ''
-            queryset.deploy_input_method = ''
-            queryset.deploy_input_data_path = ''
-            queryset.deploy_output_method = ''
-            queryset.container = 'init'
-            queryset.container_status = ''
+        #     queryset.save()
+        # else:
+        #     queryset.target = Target.objects.get(id=int(target))
+        #     queryset.dataset = dataset
+        #     queryset.task_type = task_type
+        #     queryset.autonn_dataset_file = autonn_dataset_file
+        #     queryset.autonn_basemodel = autonn_basemodel
+        #     queryset.nas_type = nas_type
+        #     queryset.deploy_weight_level = ''
+        #     queryset.deploy_precision_level = ''
+        #     queryset.deploy_processing_lib = ''
+        #     queryset.deploy_user_edit = ''
+        #     queryset.deploy_input_method = ''
+        #     queryset.deploy_input_data_path = ''
+        #     queryset.deploy_output_method = ''
+        #     queryset.deploy_input_source = ''
+        #     queryset.container = 'init'
+        #     queryset.container_status = ''
 
-            queryset.save()
+        #     queryset.save()
+
+        queryset.target = Target.objects.get(id=int(target))
+        queryset.dataset = dataset
+        queryset.task_type = task_type
+        queryset.autonn_dataset_file = autonn_dataset_file
+        queryset.autonn_basemodel = autonn_basemodel
+        queryset.nas_type = nas_type
+        queryset.deploy_weight_level = deploy_weight_level
+        queryset.deploy_precision_level = deploy_precision_level
+        queryset.deploy_processing_lib = deploy_processing_lib
+        queryset.deploy_user_edit = deploy_user_edit
+        queryset.deploy_input_method = deploy_input_method
+        queryset.deploy_input_data_path = deploy_input_data_path
+        queryset.deploy_output_method = deploy_output_method
+        queryset.deploy_input_source = deploy_input_source
+        queryset.container = 'init'
+        queryset.container_status = ''
+
+        queryset.save()
+
+        print(queryset.deploy_user_edit)
 
         project_info_content = ""
         if data.target_info != 'ondevice':
@@ -630,40 +687,46 @@ def project_update(request):
                                    "memory : {4}\n" \
                                    "os : {5}\n" \
                                    "engine : {6}\n" \
-                                   "target_hostip : {7}\n" \
-                                   "target_hostport : {8}\n" \
-                                   "target_serviceport : {9}\n\n" \
+                                   "nfs_ip : {7}\n" \
+                                   "nfs_path : {8}\n" \
+                                   "target_hostip : {9}\n" \
+                                   "target_hostport : {10}\n" \
+                                   "target_serviceport : {11}\n\n" \
                                    "#for autonn\n" \
-                                   "dataset : {10}\n" \
-                                   "#basemodel : {11}\n" \
-                                   "#nas_type : {12}\n\n" \
+                                   "dataset : {12}\n" \
+                                   "#basemodel : {13}\n" \
+                                   "#nas_type : {14}\n\n" \
                                    "#for deploy\n" \
-                                   "# lightweight_level : {13}\n" \
-                                   "# precision_level : {14}\n" \
-                                   "# preprocessing_lib : {15}\n" \
-                                   "# input_method : {16}\n" \
-                                   "# input_data_location : {17}\n" \
-                                   "# output_method : {18}\n" \
-                                   "# user_editing : {19}\n".format(task_type,
-                                                                  data.target_info,
-                                                                  data.target_cpu,
-                                                                  data.target_acc,
-                                                                  int(int(data.target_memory) / 1024),
-                                                                  data.target_os,
-                                                                  data.target_engine,
-                                                                  data.target_host_ip,
-                                                                  data.target_host_port,
-                                                                  data.target_host_service_port,
-                                                                  dataset,
-                                                                  autonn_basemodel,
-                                                                  nas_type,
-                                                                  deploy_weight_level,
-                                                                  deploy_precision_level,
-                                                                  deploy_processing_lib,
-                                                                  deploy_input_method,
-                                                                  deploy_input_data_path,
-                                                                  deploy_output_method,
-                                                                  deploy_user_edit)
+                                   "lightweight_level : {15}\n" \
+                                   "precision_level : {16}\n" \
+                                   "#preprocessing_lib : {17}\n" \
+                                   "#input_method : {18}\n" \
+                                   "#input_data_location : {19}\n" \
+                                   "output_method : {20}\n" \
+                                    "input_source : {21}\n" \
+                                   "user_editing : {22}\n".format(str(task_type),
+                                                                  str(data.target_info),
+                                                                  str(data.target_cpu),
+                                                                  str(data.target_acc),
+                                                                  str(int(int(data.target_memory) / 1024)),
+                                                                  str(data.target_os),
+                                                                  str(data.target_engine),
+                                                                  str(data.nfs_ip),
+                                                                  str(data.nfs_path),
+                                                                  str(data.target_host_ip),
+                                                                  str(data.target_host_port),
+                                                                  str(data.target_host_service_port),
+                                                                  str(dataset),
+                                                                  str(autonn_basemodel),
+                                                                  str(nas_type),
+                                                                  str(deploy_weight_level),
+                                                                  str(deploy_precision_level),
+                                                                  str(deploy_processing_lib),
+                                                                  str(deploy_input_method),
+                                                                  str(deploy_input_data_path),
+                                                                  str(deploy_output_method),
+                                                                  str(deploy_input_source),
+                                                                  str(deploy_user_edit))
         else:
             # project_info.yaml
             project_info_content += "# common\n" \
@@ -674,40 +737,46 @@ def project_update(request):
                                     "memory : {4}\n" \
                                     "os : {5}\n" \
                                     "engine : {6}\n" \
-                                    "# target_hostip : {7}\n" \
-                                    "# target_hostport : {8}\n" \
-                                    "# target_serviceport : {9}\n\n" \
+                                    "nfs_ip : {7}\n" \
+                                    "nfs_path : {8}\n" \
+                                    "target_hostip : {9}\n" \
+                                    "target_hostport : {10}\n" \
+                                    "target_serviceport : {11}\n\n" \
                                     "#for autonn\n" \
-                                    "dataset : {10}\n" \
-                                    "#basemodel : {11}\n" \
-                                    "#nas_type : {12}\n\n" \
+                                    "dataset : {12}\n" \
+                                    "#basemodel : {13}\n" \
+                                    "#nas_type : {14}\n\n" \
                                     "#for deploy\n" \
-                                    "# lightweight_level : {13}\n" \
-                                    "# precision_level : {14}\n" \
-                                    "# preprocessing_lib : {15}\n" \
-                                    "# input_method : {16}\n" \
-                                    "# input_data_location : {17}\n" \
-                                    "# output_method : {18}\n" \
-                                    "# user_editing : {19}\n".format(task_type,
+                                    "lightweight_level : {15}\n" \
+                                    "precision_level : {16}\n" \
+                                    "#preprocessing_lib : {17}\n" \
+                                    "#input_method : {18}\n" \
+                                    "#input_data_location : {19}\n" \
+                                    "output_method : {20}\n" \
+                                    "input_source : {21}\n" \
+                                    "user_editing : {22}\n".format(str(task_type),
                                                                      'ondevice',
-                                                                     data.target_cpu,
-                                                                     data.target_acc,
-                                                                     int(int(data.target_memory) / 1024),
-                                                                     data.target_os,
-                                                                     data.target_engine,
-                                                                     data.target_host_ip,
-                                                                     data.target_host_port,
-                                                                     data.target_host_service_port,
-                                                                     dataset,
-                                                                     autonn_basemodel,
-                                                                     nas_type,
-                                                                     deploy_weight_level,
-                                                                     deploy_precision_level,
-                                                                     deploy_processing_lib,
-                                                                     deploy_input_method,
-                                                                     deploy_input_data_path,
-                                                                     deploy_output_method,
-                                                                     deploy_user_edit)
+                                                                     str(data.target_cpu),
+                                                                     str(data.target_acc),
+                                                                     str(int(int(data.target_memory) / 1024)),
+                                                                     str(data.target_os),
+                                                                     str(data.target_engine),
+                                                                     str(data.nfs_ip),
+                                                                     str(data.nfs_path),
+                                                                     str(data.target_host_ip),
+                                                                     str(data.target_host_port),
+                                                                     str(data.target_host_service_port),
+                                                                     str(dataset),
+                                                                     str(autonn_basemodel),
+                                                                     str(nas_type),
+                                                                     str(deploy_weight_level),
+                                                                     str(deploy_precision_level),
+                                                                     str(deploy_processing_lib),
+                                                                     str(deploy_input_method),
+                                                                     str(deploy_input_data_path),
+                                                                     str(deploy_output_method),
+                                                                     str(deploy_input_source),
+                                                                     str(deploy_user_edit))
 
         print('project_info_content')
         print(project_info_content)

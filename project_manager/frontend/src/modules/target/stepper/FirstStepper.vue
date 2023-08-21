@@ -31,6 +31,8 @@ export default {
   mounted() {
     this.targetName = this.target?.name;
     this.image = this.target?.image;
+
+    this.$EventBus.$on("previewRemove", this.previewRemoveFile);
   },
 
   methods: {
@@ -46,6 +48,17 @@ export default {
     },
 
     async onUpload(file) {
+      this.$swal.fire({
+        title: "Please Wait....",
+        allowOutsideClick: false,
+        allowEscapekey: false,
+        allowEnterkey: false,
+        showConfimButton: false,
+        didOpen: () => {
+          this.$swal.showLoading();
+        }
+      });
+
       const options = {
         maxSizeMB: 0.2,
         maxWidthOrHeight: 720,
@@ -56,12 +69,17 @@ export default {
       const reader = new FileReader();
       reader.onload = () => {
         this.image = reader.result;
+        this.$swal.close();
       };
       reader.readAsDataURL(compressFile);
     },
 
     onChange(name) {
       this.targetName = name;
+    },
+
+    previewRemoveFile() {
+      this.image = null;
     }
   }
 };

@@ -1,19 +1,19 @@
 <template>
-  <v-card style="height: 100%" class="py-5 px-10">
-    <div style="height: calc(100vh - 90px); overflow: auto">
+  <v-card style="height: 100%; padding-right: 22px" class="py-5 pl-10">
+    <div style="height: calc(100vh - 90px); overflow: auto" class="mt-8">
       <div
         v-for="(item, index) in items"
         :key="index"
         class="mb-3 mr-2 d-flex pa-3 align-center"
-        style="border-radius: 4px"
+        style="border-radius: 4px; min-height: 100px"
         :style="{ background: hoverIndex === index ? '#DFDFDF' : '#f1f1f1' }"
         @mouseover="onMouseover(index)"
         @mouseleave="onMouseleave"
       >
         <div class="d-flex justify-center align-center pa-3">
-          <v-img :src="item.image" width="50" max-width="50" contain></v-img>
+          <v-img :src="item.image" max-height="50" height="50" width="50" max-width="50" contain></v-img>
         </div>
-        <div class="ml-3 d-flex flex-column justify-center" style="width: 340px">
+        <div class="ml-3 d-flex flex-column justify-center" style="min-width: 190px">
           <div class="d-flex align-center" style="gap: 10px">
             <p style="color: #000000ff; letter-spacing: 1px; font-size: 14px" class="pa-0 ma-0">{{ item.name }}</p>
           </div>
@@ -27,7 +27,7 @@
         </div>
         <v-divider vertical class="ml-5 mr-5" />
         <div style="width: 100%; height: 100%" class="ml-2">
-          <div class="d-flex align-center" style="gap: 35px; height: 100%">
+          <div class="d-flex align-center" style="gap: 15px; height: 100%; flex-flow: wrap">
             <div class="d-flex flex-column text-center" style="width: 80px">
               <small class="mb-2" style="letter-spacing: 1px; color: #aaa; font-size: 10px">Info</small>
               <p class="ma-0" style="font-size: 13px">{{ item.info }}</p>
@@ -52,17 +52,25 @@
               <small class="mb-2" style="letter-spacing: 1px; color: #aaa; font-size: 10px">Engine</small>
               <p class="ma-0" style="font-size: 13px">{{ item.engine }}</p>
             </div>
-            <div v-if="item.host_ip !== ''" class="d-flex flex-column text-center" style="width: 80px">
+            <div v-if="item.host_ip !== ''" class="d-flex flex-column text-center" style="width: 130px">
               <small class="mb-2" style="letter-spacing: 1px; color: #aaa; font-size: 10px">IP Address</small>
               <p class="ma-0" style="font-size: 13px">{{ item.host_ip }}</p>
             </div>
-            <div v-if="item.host_port !== ''" class="d-flex flex-column text-center" style="width: 80px">
+            <div v-if="item.host_port !== ''" class="d-flex flex-column text-center" style="width: 60px">
               <small class="mb-2" style="letter-spacing: 1px; color: #aaa; font-size: 10px">Port</small>
               <p class="ma-0" style="font-size: 13px">{{ item.host_port }}</p>
             </div>
             <div v-if="item.host_service_port !== ''" class="d-flex flex-column text-center" style="width: 80px">
               <small class="mb-2" style="letter-spacing: 1px; color: #aaa; font-size: 10px">Service Port</small>
               <p class="ma-0" style="font-size: 13px">{{ item.host_service_port }}</p>
+            </div>
+            <div v-if="item.nfs_ip" class="d-flex flex-column text-center" style="width: 130px">
+              <small class="mb-2" style="letter-spacing: 1px; color: #aaa; font-size: 10px">NFS IP</small>
+              <p class="ma-0" style="font-size: 13px">{{ item.nfs_ip }}</p>
+            </div>
+            <div v-if="item.nfs_path" class="d-flex flex-column text-center" style="">
+              <small class="mb-2" style="letter-spacing: 1px; color: #aaa; font-size: 10px">NFS Path</small>
+              <p class="ma-0" style="font-size: 13px">{{ item.nfs_path }}</p>
             </div>
           </div>
         </div>
@@ -82,18 +90,7 @@
     </div>
     <TargetSettingDialog @close="onClose">
       <template v-slot:btn>
-        <v-btn
-          class="elevation-23"
-          color="tango"
-          dark
-          absolute
-          bottom
-          right
-          style="bottom: 67px; right: 60px"
-          height="50"
-          width="180"
-          rounded
-        >
+        <v-btn color="tango" dark absolute style="top: 4px; right: 30px" height="40" width="180">
           NEW TARGET&nbsp;<v-icon :size="20">mdi-plus</v-icon>
         </v-btn>
       </template>

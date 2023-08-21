@@ -55,5 +55,9 @@ urlpatterns = [
     url(r'^status_request', viewsProject.status_request, name='status_request'),       # 컨테이너 실행 상태 확인 요청
 
     url(r'^get_dataset_list', viewsDataset.get_dataset_list, name='get_dataset_list'),       # 컨테이너 실행 상태 확인 요청
+
+
+    url(r'^download_nn_model', viewsProject.download_nn_model, name='download_nn_model'), # nn_model 다운로드(외부IDE연동)
+    url(r'^upload_nn_model', viewsProject.upload_nn_model, name='upload_nn_model'),       # nn_model 업로드(외부IDE연동)
 ]
 

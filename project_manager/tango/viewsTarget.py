@@ -44,6 +44,8 @@ def target_create(request):
                         target_cpu=request.data['cpu'],
                         target_acc=request.data['acc'],
                         target_memory=request.data['memory'],
+                        nfs_ip=request.data['nfs_ip'],
+                        nfs_path=request.data['nfs_path'],
                         target_host_ip=request.data['host_ip'],
                         target_host_port=request.data['host_port'],
                         target_host_service_port=request.data['host_service_port'],
@@ -90,6 +92,8 @@ def target_read(request):
                            'cpu': i['target_cpu'],
                            'acc': i['target_acc'],
                            'memory': i['target_memory'],
+                           'nfs_ip': i['nfs_ip'],
+                           'nfs_path': i['nfs_path'],
                            'host_ip': i['target_host_ip'],
                            'host_port': i['target_host_port'],
                            'host_service_port': i['target_host_service_port'],
@@ -128,6 +132,8 @@ def target_update(request):
         queryset.target_cpu = request.data['cpu']
         queryset.target_acc = request.data['acc']
         queryset.target_memory = request.data['memory']
+        queryset.nfs_ip = request.data['nfs_ip']
+        queryset.nfs_path = request.data['nfs_path']
         queryset.target_host_ip = request.data['host_ip']
         queryset.target_host_port = request.data['host_port']
         queryset.target_host_service_port = request.data['host_service_port']
@@ -194,6 +200,8 @@ def target_info(request):
                            'cpu':data[0]['target_cpu'],
                            'acc': data[0]['target_acc'],
                            'memory': data[0]['target_memory'],
+                           'nfs_ip': data[0]['nfs_ip'],
+                           'nfs_path': data[0]['nfs_path'],
                            'host_ip': data[0]['target_host_ip'],
                            'host_port': data[0]['target_host_port'],
                            'host_service_port': data[0]['target_host_service_port'],

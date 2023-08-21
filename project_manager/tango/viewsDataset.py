@@ -17,6 +17,11 @@ from rest_framework.response import Response
 from rest_framework.decorators import api_view, permission_classes, authentication_classes
 from oauth2_provider.contrib.rest_framework import OAuth2Authentication
 
+from PIL import Image
+
+import cv2
+import base64
+
 from .models import Target
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -33,6 +38,7 @@ def get_folder_info(folder_path):
         folder_info['creation_time'] = get_folder_creation_date(folder_path)
         folder_info['last_modified_time'] = get_folder_last_modified_date(folder_path)
         folder_info['file_count'] = get_file_count(folder_path)
+        folder_info['thumbnail'] = get_folder_thumbnail(folder_path)
     else:
         print("유효한 폴더 경로가 아닙니다.")
 
@@ -62,6 +68,40 @@ def get_file_count(folder_path):
         file_count += len(files)
     return file_count
 
+def get_folder_thumbnail(folder_path):
+    """
+    Create thumbnails after randomly extracting 4 images from a folder
+    """
+
+    file_list = []
+
+    # get image path in folder
+    for path, dirs, files in os.walk(folder_path):
+        images = [ fi for fi in files if fi.endswith(('.jpg','.jpeg', '.png')) ]
+        for image in images:
+            file_list.append(os.path.join(path, image))
+
+    # random choice
+    if len(file_list) > 0:
+        random_images = random.sample(file_list,4) if len(file_list) >= 4  else random.sample(file_list, len(file_list))
+        thumbnail_list = []
+        for image in random_images:
+            thumbnail_list.append(make_image_thumbnail(image))
+        thumb = cv2.hconcat(thumbnail_list)
+        jpg_img = cv2.imencode('.jpg', thumb)
+        return "data:image/jpg;base64," + str(base64.b64encode(jpg_img[1]).decode('utf-8'))
+            
+    else :
+        return None
+
+def make_image_thumbnail(path):
+    # img = Image.open(path)
+    # img.thumbnail((128, 128))
+    # thumbnail = img.copy()
+    maxsize = (128, 128) 
+    img = cv2.imread(path, 1);
+    thumbnail = cv2.resize(img, maxsize, interpolation=cv2.INTER_AREA)
+    return thumbnail
 
 # dataset list get -> /shared/datasets 경로의 폴더 list
 @api_view(['GET'])

@@ -28,6 +28,8 @@ export async function createTarget(param) {
   formData.append("cpu", param.cpu);
   formData.append("acc", param.acc);
   formData.append("memory", param.memory);
+  formData.append("nfs_ip", param.nfs_ip || "");
+  formData.append("nfs_path", param.nfs_path || "");
   formData.append("host_ip", param.host_ip);
   formData.append("host_port", param.host_port);
   formData.append("host_service_port", param.host_service_port);
@@ -58,6 +60,8 @@ export async function updateTarget(param) {
   formData.append("cpu", param.cpu);
   formData.append("acc", param.acc);
   formData.append("memory", param.memory);
+  formData.append("nfs_ip", param.nfs_ip || "");
+  formData.append("nfs_path", param.nfs_path || "");
   formData.append("host_ip", param.host_ip);
   formData.append("host_port", param.host_port);
   formData.append("host_service_port", param.host_service_port);
