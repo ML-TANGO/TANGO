@@ -41,12 +41,16 @@ model_to_size_table = {'yolov7':
                            },
                        'resnet':
                           {
-                           'cloud': '101',
-                           'T4': '50',
-                           'Xavier': '24',
-                           'RKNN': '18',
-                           'pc':'50',
-                           'ondevice': '18'
+                            'cloud': '18',
+                            'k8s': '18',
+                            'k8sjetsonnano': '18',
+                            'pcserver': '18',
+                            'pc': '18',
+                            'jetsonagxorin': '18',
+                            'jetsonagxxavier': '18',
+                            'jetsonnano': '18',
+                            'galaxys22': '18',
+                            'odroidn2': '18',
                           }
                         }
 
@@ -249,6 +253,10 @@ def status_request(request):
             return Response("running", status=200, content_type='text/plain')
         else:
             print("tracked bms you want, but not running anymore")
+            if bmsinfo.status == "running":
+                bmsinfo.status = "failed"
+                bmsinfo.save()
+            print(f"bmsinfo.status: {bmsinfo.status}")
             return Response(bmsinfo.status, status=200, content_type='text/plain')
     except KeyError:
         return Response("ready", status=200, content_type='text/plain')
