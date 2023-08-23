@@ -213,9 +213,9 @@ services:
       - 8888:8888
 
   #---------------------------------
-  # Target Image Build 
+  # Cloud deploy (with target image build)
   #---------------------------------
-  target_image_build:
+  cloud_deploy:
     build:
       context: ./deploy_targets/cloud/target_image_build
     command: >
