@@ -654,6 +654,8 @@ class CodeGen:
             self.gen_python_code()
             if self.m_deploy_type == 'cloud':
                 self.make_requirements_file_for_docker()
+            elif self.m_deploy_type == 'k8s':
+                self.make_requirements_file_for_docker()
             elif self.m_deploy_type == 'pc_server':
                 self.make_requirements_file_for_PCServer()
             else:
@@ -1566,6 +1568,11 @@ class CodeGen:
         elif self.m_deploy_type == 'k8s':
             # khlee copy k8s app codes
             zipfile.ZipFile('./db/k8syolov5.db').extractall(self.m_current_code_folder)
+            # copy requirement file to code_folder just for testing
+            # khlee
+            if os.path.isfile(self.get_real_filepath(self.m_requirement_file)):
+                shutil.copy(self.get_real_filepath(self.m_requirement_file), self.m_current_code_folder)
+
         else:
             '''
             # convert  and copy .pt file to nn_model folder
