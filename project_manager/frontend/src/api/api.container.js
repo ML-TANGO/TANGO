@@ -4,8 +4,11 @@ import { ContainerPort } from "@/shared/enums";
 
 export async function startContainer(container, uid, pid) {
   let response = null;
+  // const host = window.location.hostname;
+  // const port = ContainerPort[container];
+
   const host = window.location.hostname;
-  const port = ContainerPort[container];
+  const port = 8888;
 
   try {
     response = await axios.get(
@@ -46,23 +49,6 @@ export async function checkContainerStatus(container, uid, pid) {
   try {
     response = await axios.get(
       "http://" + host + ":" + port + "/status_request",
-      { params: { user_id: uid, project_id: pid } },
-      { withCredentials: true }
-    );
-  } catch (error) {
-    throw new Error(error);
-  }
-
-  return response.data;
-}
-
-export async function checkContainerStatus_TEST(container, uid, pid) {
-  let response = null;
-
-  console.log(uid, pid);
-  try {
-    response = await axios.get(
-      "http://bms:8081/status_request",
       { params: { user_id: uid, project_id: pid } },
       { withCredentials: true }
     );

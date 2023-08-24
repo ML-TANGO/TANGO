@@ -4,6 +4,17 @@
       <h4 class="ml-3 mb-3">Description</h4>
       <v-text-field v-model="description" class="mx-3" dense outlined hide-details />
     </div>
+
+    <div class="d-flex align-center">
+      <div style="width: 25%">
+        <h4 class="ml-3 mt-3">Task Type</h4>
+        <v-radio-group v-model="taskType" row hide-details class="ma-0 mt-2 ml-3" readonly>
+          <v-radio label="Classification" value="classification"></v-radio>
+          <v-radio label="Detection" value="detection"></v-radio>
+        </v-radio-group>
+      </div>
+    </div>
+
     <div class="d-flex">
       <div style="width: 50%">
         <h4 class="ml-3 mt-3">Dataset</h4>
@@ -16,100 +27,60 @@
         <SkeletonLoaderCard v-else />
       </div>
     </div>
-    <div class="d-flex align-center">
-      <div style="width: 25%">
-        <h4 class="ml-3 mt-3">Task Type</h4>
-        <v-radio-group v-model="taskType" row hide-details class="ma-0 mt-2 ml-3" readonly>
-          <v-radio label="Classification" value="classification"></v-radio>
-          <v-radio label="Detection" value="detection"></v-radio>
-        </v-radio-group>
-      </div>
-      <!-- <div style="width: 25%">
-        <h4 class="ml-3 mt-3">Nas Type</h4>
-        <v-radio-group v-model="nasType" row hide-details class="ma-0 mt-2 ml-3" readonly>
-          <v-radio label="Backbone Nas" value="bb_nas"></v-radio>
-          <v-radio label="Neck Nas" value="neck_nas"></v-radio>
-        </v-radio-group>
-      </div> -->
-      <!-- <div style="width: 25%">
-        <h4 class="ml-3 mt-3">Dataset File</h4>
-        <v-text-field v-model="datasetFile" outlined dense hide-details class="ml-3" readonly />
-      </div>
-      <div style="width: 25%">
-        <h4 class="ml-3 mt-3">BaseModel</h4>
-        <v-text-field v-model="baseModel" outlined dense hide-details class="ml-3" readonly />
-      </div> -->
-    </div>
 
-    <div v-if="selectedTarget?.info && selectedTarget?.info !== 'ondevice'">
-      <h4 class="ml-3 mt-3" style="min-width: 150px">Deploy Config</h4>
-      <div class="d-flex flex-column ml-3 mt-3" style="gap: 25px">
-        <div class="d-flex" style="gap: 10px">
-          <v-text-field
-            v-model="lightWeightLv"
-            type="number"
-            outlined
-            dense
-            label="Light Weight Level"
-            hide-details
-            readonly
-          />
-          <v-text-field
-            v-model="precisionLv"
-            type="number"
-            outlined
-            dense
-            label="Precision Level"
-            hide-details
-            readonly
-          />
-          <v-text-field v-model="processingLib" outlined dense label="Processing Lib" hide-details readonly />
-        </div>
+    <h4 class="ml-3 mt-3" style="min-width: 150px">Deploy Config</h4>
+    <div class="d-flex flex-column ml-3 mt-3" style="gap: 25px">
+      <div class="d-flex" style="gap: 10px">
+        <v-text-field
+          v-model="lightWeightLv"
+          type="number"
+          outlined
+          dense
+          label="Light Weight Level"
+          hide-details
+          readonly
+        />
+        <v-text-field
+          v-model="precisionLv"
+          type="number"
+          outlined
+          dense
+          label="Precision Level"
+          hide-details
+          readonly
+        />
+        <v-autocomplete
+          v-model="userEditing"
+          :items="userEditingItem"
+          label="User Editing"
+          outlined
+          dense
+          hide-details
+          item-text="label"
+          readonly
+        />
+      </div>
 
-        <div class="d-flex" style="gap: 10px">
-          <v-autocomplete
-            v-model="inputMethod"
-            :items="inputMethodItem"
-            label="Input Method"
-            outlined
-            dense
-            hide-details
-            style="width: 50%"
-            item-text="label"
-            readonly
-          />
-          <v-text-field
-            v-model="inputPath"
-            outlined
-            dense
-            label="Input Data Path"
-            hide-details
-            style="width: 50%"
-            readonly
-          />
-        </div>
-        <div class="d-flex" style="gap: 10px">
-          <v-autocomplete
-            v-model="outputMethod"
-            :items="outputMethodItem"
-            label="Output Method"
-            outlined
-            dense
-            hide-details
-            item-text="label"
-            readonly
-          />
-          <v-autocomplete
-            v-model="userEditing"
-            :items="userEditingItem"
-            label="User Editing"
-            outlined
-            dense
-            hide-details
-            item-text="label"
-            readonly
-          />
-        </div>
+      <div class="d-flex" style="gap: 10px">
+        <v-text-field
+          v-model="inputSource"
+          label="Input Source"
+          outlined
+          dense
+          hide-details
+          item-text="label"
+          readonly
+        />
+
+        <v-text-field
+          v-model="outputMethod"
+          label="Output Method"
+          outlined
+          dense
+          hide-details
+          item-text="label"
+          readonly
+        />
       </div>
     </div>
   </div>
@@ -140,6 +111,7 @@ export default {
       precisionLv: 0,
       processingLib: "cv2",
       userEditing: "",
+      inputSource: "",
       userEditingItem: [
         { value: "yes", label: "Yes" },
         { value: "no", label: "No" }
@@ -169,7 +141,6 @@ export default {
 
   watch: {
     async projectInfo() {
-      console.log(this.projectInfo);
       if (this.projectInfo) {
         this.taskType = this.projectInfo.task_type;
         this.nasType = this.projectInfo.nas_type;
@@ -183,11 +154,11 @@ export default {
         this.inputMethod = this.projectInfo.deploy_input_method;
         this.inputPath = this.projectInfo.deploy_input_data_path;
         this.outputMethod = this.projectInfo.deploy_output_method;
+        this.inputSource = this.projectInfo.deploy_input_source;
 
         await getTargetInfo(this.projectInfo.target_id).then(res => {
           this.selectedTarget = res;
           this.isTargetLoading = true;
-          console.log("config tab ===> ", this.selectedTarget);
         });
 
         await getDatasetListTango().then(res => {
@@ -195,7 +166,6 @@ export default {
           if (datasetInfo) {
             this.selectedImage = datasetInfo;
             this.isDatasetLoading = true;
-            console.log("config tab ===> ", this.selectedImage);
           }
         });
       }

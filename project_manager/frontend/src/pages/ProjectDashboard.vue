@@ -31,7 +31,7 @@
         <TabView v-if="isData(this.projectsByTab['Code Gen'])" :items="this.projectsByTab['Code Gen']" />
         <NoResultTab v-else />
       </v-tab-item>
-      <!-- IMAGE DEPOLY -->
+      <!-- IMAGE deploy -->
       <v-tab-item>
         <TabView v-if="isData(this.projectsByTab['Image Deploy'])" :items="this.projectsByTab['Image Deploy']" />
         <NoResultTab v-else />
@@ -45,18 +45,7 @@
 
     <ProjectCreateDialog :step="step" @stepChange="onStepChange" @close="close">
       <template v-slot:btn>
-        <v-btn
-          class="elevation-23"
-          color="tango"
-          dark
-          absolute
-          bottom
-          right
-          style="bottom: 60px; right: 60px"
-          height="50"
-          width="180"
-          rounded
-        >
+        <v-btn color="tango" dark absolute style="top: 4px; right: 30px" height="40" width="180">
           NEW PROJECT&nbsp;<v-icon :size="20">mdi-plus</v-icon>
         </v-btn>
       </template>
@@ -92,8 +81,8 @@ export default {
         { key: "Preparing", allowed: ["", "init"] },
         { key: "BMS", allowed: ["bms"] },
         { key: "Auto NN", allowed: ["autonk", "yoloe", "autobb"] },
-        { key: "Code Gen", allowed: ["code_gen"] },
-        { key: "Image Deploy", allowed: ["image_depoly"] },
+        { key: "Code Gen", allowed: ["codeGen"] },
+        { key: "Image Deploy", allowed: ["imagedeploy"] },
         { key: "Run Image", allowed: ["run_image"] }
       ]
     };

@@ -65,7 +65,6 @@ export default {
             this.$swal("Project 이름 중복", "이름 변경 후 다시 시도해 주세요.", "error");
             return;
           }
-          console.log("project create ..... result : ", res);
           this.$emit("next", {
             id: res.id,
             project_name: this.projectName,

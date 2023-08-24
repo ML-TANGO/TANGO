@@ -104,10 +104,12 @@ export default {
           deploy_weight_level: this.project.deploy_weight_level || "",
           deploy_precision_level: this.project.deploy_precision_level || "",
           deploy_processing_lib: this.project.deploy_processing_lib || "",
-          deploy_user_edit: this.project.deploy_user_edit || "",
+          deploy_user_edit: this.project.deploy_user_edit || "no",
           deploy_input_method: this.project.deploy_input_method || "",
           deploy_input_data_path: this.project.deploy_input_data_path || "",
-          deploy_output_method: this.project.deploy_output_method || ""
+          deploy_output_method: this.project.deploy_output_method || "0",
+
+          deploy_input_source: this.project.deploy_input_source || "0"
         };
 
         await updateProjectInfo(param);
@@ -134,14 +136,15 @@ export default {
         deploy_weight_level: this.project.deploy_weight_level,
         deploy_precision_level: this.project.deploy_precision_level,
         deploy_processing_lib: this.project.deploy_processing_lib,
-        deploy_user_edit: this.project.deploy_user_edit,
+        deploy_user_edit: this.project.deploy_user_edit || "no",
         deploy_input_method: this.project.deploy_input_method,
         deploy_input_data_path: this.project.deploy_input_data_path,
-        deploy_output_method: this.project.deploy_output_method
+        deploy_output_method: this.project.deploy_output_method || "0",
+
+        deploy_input_source: this.project.deploy_input_source || "0"
       };
 
       await updateProjectInfo(param);
-      console.log("this.$route.params", this.$route.params);
 
       if (this.$route.params?.id) {
         this.$router.go();

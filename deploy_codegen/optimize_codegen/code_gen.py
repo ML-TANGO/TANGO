@@ -6,6 +6,17 @@ copyright notice
 code_gen.py
 This module generates template code for RKNN, PyTorch, and ArmNN based on AutoNN's output.
 """
+# khlee To Do List
+'''
+web app template gen.
+nms code gen.
+deployment.yaml location change : under nn_model
+deployment.yaml user editing -> user can be add papy app libs 
+tflite code gen.
+remove rknn
+input source mp4 + jpg in same folder
+'''
+
 import os
 import socket
 import shutil
@@ -17,7 +28,6 @@ import tvm.relay as relay
 import sys
 import logging
 import threading
-import time
 import time
 import yaml
 # for web service
@@ -204,6 +214,8 @@ class CodeGen:
     thread_run_flag = 1
     thread_done = 0
 
+    m_atwork = 0   # set 1 when run() fuction is called, reset when run() function is finished
+
 
     ####################################################################
     def thread_for_run(self):
@@ -211,11 +223,13 @@ class CodeGen:
             if self.the_cnt > 0:
                 logging.debug("Call Run()")
                 if self.thread_run_flag > 0:
+                    self.m_atwork = 1
                     self.run()
+                    self.m_atwork = 0
                     # khlee 
                     # send status_report
                     self.response()
-                    print("code_gen: send_status_report to manager")
+                    logging.debug("code_gen: send_status_report to manager")
                     with self.lock:
                         self.the_cnt = self.the_cnt - 1
             else:
@@ -384,6 +398,7 @@ class CodeGen:
             if not os.path.exists(self.m_current_code_folder):
                 os.makedirs(self.m_current_code_folder)
         except OSError:
+            logging.debug('Error: Creating directory ' + self.m_current_code_folder)
             print('Error: Creating directory ' + self.m_current_code_folder)
 
         ret = "%s%s%s" % (self.m_current_code_folder, "/", filename)
@@ -402,7 +417,7 @@ class CodeGen:
         try:
             f = open(self.get_real_filepath(self.m_sysinfo_file), encoding='UTF-8')
         except IOError as err:
-            print("Sysinfo file open error!!", err)
+            logging.debug("Sysinfo file open error!!")
             return -1
 
         m_sysinfo = yaml.load(f, Loader=yaml.FullLoader)
@@ -412,7 +427,8 @@ class CodeGen:
             elif key == 'memory':
                 self.m_sysinfo_memory = int(value)
             elif key == 'target_info':
-                self.m_deploy_type = value
+                lower = value.lower()
+                self.m_deploy_type = lower
             elif key == 'cpu':
                 self.m_sysinfo_cpu_type = value
             elif key == 'acc':
@@ -465,7 +481,7 @@ class CodeGen:
         try:
             f = open(self.get_real_filepath(self.m_nninfo_file), encoding='UTF-8')
         except IOError as err:
-            print("Sysinfo file open error!!", err)
+            logging.debug("Sysinfo file open error!!")
             return -1
         m_nninfo = yaml.load(f, Loader=yaml.FullLoader)
 
@@ -508,7 +524,7 @@ class CodeGen:
                     annotation_file = "%s/%s" % (def_dataset_path, self.m_nninfo_annotation_file)
                     f1 = open(annotation_file, encoding='UTF-8')
                 except IOError as err:
-                    print("LabelMap file open error!!", err)
+                    logging.debug("LabelMap file open error!!")
                     return -1
                 labelinfo = yaml.load(f1, Loader=yaml.FullLoader)
                 for key1, value1 in sorted(labelinfo.items()):
@@ -598,7 +614,8 @@ class CodeGen:
         self.clear()
 
         # code gen
-        if self.m_sysinfo_engine_type == 'rknn':
+        # khlee rknn must be deleted !!!!!!
+        if self.m_sysinfo_engine_type == 'rknn':   
             self.m_sysinfo_libs = ['libprotobuf.so.10', 'x86_64-linux-gnu']
             self.m_sysinfo_apt = ['python3==3.6', 'python3-dev', 'python3-pip',
                                   'libxslt1-dev', 'zlib1g-dev', 'libglib2.0',
@@ -637,7 +654,9 @@ class CodeGen:
             self.gen_python_code()
             if self.m_deploy_type == 'cloud':
                 self.make_requirements_file_for_docker()
-            elif self.m_deploy_type == 'PCServer':
+            elif self.m_deploy_type == 'k8s':
+                self.make_requirements_file_for_docker()
+            elif self.m_deploy_type == 'pc_server':
                 self.make_requirements_file_for_PCServer()
             else:
                 self.make_requirements_file_for_others()
@@ -651,6 +670,9 @@ class CodeGen:
             self.m_sysinfo_papi = []
             self.gen_acl_code()
             self.make_requirements_file_for_others()
+        elif self.m_sysinfo_engine_type == 'tflite':
+            # khlee to be added
+            pass
         elif self.m_sysinfo_engine_type == "tensorrt":
             self.m_deploy_entrypoint = [self.m_deploy_python_file]
             # move autonn's pytorch to target folder(like prefix folder)
@@ -792,7 +814,7 @@ class CodeGen:
                     if (d.HasField("dim_value")):
                         tmp_list.append(d.dim_value)
                 i_shape = tuple(tmp_list)
-                print(i_shape)
+                logging.debug(i_shape)
                 (x_, y_, self.width, self.height) = i_shape
             else:
                 i_shape = (1, 1, 224, 224)
@@ -833,7 +855,7 @@ class CodeGen:
                     dtype = 'complex128'
                 elif tp == 16: # BFLOAT16
                     dtype = 'bfloat16'
-            print(dtype)
+            logging.debug(dtype)
     
             if tvm_dev_type == 0:
                 target = "llvm"
@@ -843,9 +865,9 @@ class CodeGen:
                 target = "llvm -mtriple=aarch64-linux-gnu"
             else:
                 target = "opencl"
-            print(target)
+            logging.debug(target)
             shape_dict = {input_name: i_shape}
-            print(shape_dict)
+            logging.debug(shape_dict)
             mod, params = relay.frontend.from_onnx(onnx_model, shape_dict)
             executable = relay.vm.compile(mod, target=target, params=params)
             code, lib = executable.save()
@@ -1048,29 +1070,29 @@ class CodeGen:
         rknn = RKNN(verbose=True)
         
         # pre-process config
-        print('--> Config model')
+        logging.debug('--> Config model')
         rknn.config(mean_values=[[0, 0, 0]], std_values=[[255, 255, 255]],
                     output_tensor_type='int8')
 
         # Load ONNX model
         ret = rknn.load_onnx(self.get_real_filepath(self.m_nninfo_weight_onnx_file), outputs=['output'])
         if ret != 0:
-            print('Load model failed!')
+            logging.debug('Load model failed!')
             return -1
-        print('--> Loading model')
+        logging.debug('--> Loading model')
 
         # Build model
         ret = rknn.build(do_quantization=True)
         if ret != 0:
-            print('Build model failed!')
+            logging.debug('Build model failed!')
             return -1
-        print('--> Building model')
+        logging.debug('--> Building model')
 
         # Export RKNN model
         ret = rknn.export_rknn(self.m_converted_file)
         if ret != 0:
             return -1
-        print('--> Export rknn model')
+        logging.debug('--> Export rknn model')
 
         # convert  and copy .pt file to nn_model folder  
         if os.path.isfile(self.m_converted_file):
@@ -1497,7 +1519,7 @@ class CodeGen:
         try:
             outf = open(self.get_code_filepath(self.m_deploy_python_file), "w")
         except IOError as err:
-            print("RKNN Deploy File Write Error #1", err)
+            logging.debug("RKNN Deploy File Write Error #1")
             return -1
         outf.write(tmp_str)
         outf.close()
@@ -1542,7 +1564,15 @@ class CodeGen:
             # zip db/yolov3.db into nn_model foler
             zipfile.ZipFile('./db/yolov3.db').extractall(self.m_current_code_folder)
             # copy db/yolov3/yolov3.pt into nn_model folder
-            shutil.copy('./db/yolov3.pt', self.m_current_code_folder)
+            shutil.copy('./db/yolov3/yolov3.pt', self.m_current_code_folder)
+        elif self.m_deploy_type == 'k8s':
+            # khlee copy k8s app codes
+            zipfile.ZipFile('./db/k8syolov5.db').extractall(self.m_current_code_folder)
+            # copy requirement file to code_folder just for testing
+            # khlee
+            if os.path.isfile(self.get_real_filepath(self.m_requirement_file)):
+                shutil.copy(self.get_real_filepath(self.m_requirement_file), self.m_current_code_folder)
+
         else:
             '''
             # convert  and copy .pt file to nn_model folder
@@ -1621,7 +1651,7 @@ class CodeGen:
             try:
                 f = open(self.get_code_filepath(self.m_deploy_python_file), 'w')
             except IOError as err:
-                print("Python File Write Error", err)
+                logging.debug("Python File Write Error")
                 return -1
             
             # copy initial values
@@ -1641,7 +1671,9 @@ class CodeGen:
                 t_file = "%s.%s" % (self.m_nninfo_yolo_base_file_path, t_file)
             f.write('import %s as ye\n' % t_file)
             f.write('def_pt_file = "%s"\n' % self.m_nninfo_weight_pt_file)
-            f.write('def_label_yaml = "%s"\n' % self.m_nninfo_annotation_file)
+            # remove prefix coco/coco.yaml -> coco.yaml
+            a_file = self.m_nninfo_annotation_file.split("/")
+            f.write('def_label_yaml = "%s"\n' % a_file[-1])
             if type(self.m_sysinfo_input_method) is str:
                 f.write('def_input_location = "%s"\n' % self.m_sysinfo_input_method)
             else:
@@ -1664,7 +1696,7 @@ class CodeGen:
             try:
                 f1 = open("./db/pytorch_template.head", 'r')
             except IOError as err:
-                print("pytorch temp. head open error", err)
+                logging.debug("pytorch temp. head open error")
                 return -1
             for line1 in f1:
                 f.write(line1)
@@ -1677,7 +1709,7 @@ class CodeGen:
             try:
                 f2 = open("./db/pytorch_template.body", 'r')
             except IOError as err:
-                print("pytorch temp. body open error", err)
+                logging.debug("pytorch temp. body open error")
                 return -1
             for line2 in f2:
                 f.write(line2)
@@ -1715,14 +1747,14 @@ class CodeGen:
         try:
             f = open(self.get_code_filepath(self.m_deploy_python_file), 'w')
         except IOError as err:
-            print("Python File Write Error", err)
+            logging.debug("Python File Write Error")
             return -1
 
         # yolov3.head
         try:
             f1 = open("./db/yolov3.head", 'r')
         except IOError as err:
-            print("yolov3 head open error", err)
+            logging.debug("yolov3 head open error")
             return -1
         for line1 in f1:
             f.write(line1)
@@ -1751,7 +1783,7 @@ class CodeGen:
         try:
             f2 = open("./db/yolov3.body", 'r')
         except IOError as err:
-            print("yolov3 body open error", err)
+            logging.debug("yolov3 body open error")
             return -1
         for line2 in f2:
             f.write(line2)
@@ -1793,13 +1825,13 @@ class CodeGen:
         try:
             conv_outf = open(self.get_code_filepath(def_trt_converter_file_name), "w")
         except IOError as err:
-            print("TensorRT Converter File Write Error #1", err)
+            logging.debug("TensorRT Converter File Write Error #1")
             return -1
         conv_outf.write(tmpstr)
         try:
             ft = open("./db/tensorrt-converter.py", 'r')
         except IOError as err:
-            print("TensorRT converter  body open error", err)
+            logging.debug("TensorRT converter  body open error")
             return -1
         # body copy
         for line2 in ft:
@@ -1811,8 +1843,12 @@ class CodeGen:
         tmpstr = ""
         tmpstr = "%s%s%s%s%s%s" % (tmpstr, "def_model = ", '"', 
                 def_trt_engine, '"', def_newline)
+        # tmpstr = "%s%s%s%s%s%s" % (tmpstr, "def_label_yaml = ", '"',  
+        #         self.m_nninfo_annotation_file, '"', def_newline)
+        a_file = self.m_nninfo_annotation_file.split("/")
+        b_file = a_file[-1]
         tmpstr = "%s%s%s%s%s%s" % (tmpstr, "def_label_yaml = ", '"',  
-                self.m_nninfo_annotation_file, '"', def_newline)
+                b_file, '"', def_newline)
         if type(self.m_sysinfo_input_method) is str:
             tmpstr = "%s%s%s%s%s%s" % (tmpstr, "def_input_location = ", '"', 
                     self.m_sysinfo_input_method, '"', def_newline)
@@ -1832,13 +1868,13 @@ class CodeGen:
         try:
             infer_outf = open(self.get_code_filepath(def_deploy_python_file), "w")
         except IOError as err:
-            print("TensorRT inference File Write Error #1", err)
+            logging.debug("TensorRT inference File Write Error #1")
             return -1
         infer_outf.write(tmpstr)
         try:
             fi = open("./db/tensorrt-infer-template.py", 'r')
         except IOError as err:
-            print("TensorRT converter  body open error", err)
+            logging.debug("TensorRT converter  body open error")
             return -1
         # body copy
         for line2 in fi:
@@ -1874,8 +1910,10 @@ class CodeGen:
             def_TVM_lib_path, '"', def_newline)
         tmpstr = "%s%s%s%s%s%s" % (tmpstr, "def_code_path = ", '"', 
             def_TVM_code_path, '"', def_newline)
+        a_file = self.m_nninfo_annotation_file.split("/")
+        b_file = a_file[-1]
         tmpstr = "%s%s%s%s%s%s" % (tmpstr, "def_label_yaml = ",'"',  
-            self.m_nninfo_annotation_file, '"', def_newline)
+            b_file, '"', def_newline)
         if type(self.m_sysinfo_input_method) is str:
             tmpstr = "%s%s%s%s%s%s" % (tmpstr, "def_input_location = ", '"',   
                     self.m_sysinfo_input_method, '"', def_newline)
@@ -1906,13 +1944,13 @@ class CodeGen:
         try:
             infer_outf = open(self.get_code_filepath(def_deploy_python_file), "w")
         except IOError as err:
-            print("TVM inference File Write Error #1", err)
+            logging.debug("TVM inference File Write Error #1")
             return -1
         infer_outf.write(tmpstr)
         try:
             fi = open("./db/tvm-infer-template.py", 'r')
         except IOError as err:
-            print("TVM infer  body open error", err)
+            logging.debug("TVM infer  body open error")
             return -1
         # body copy
         for line2 in fi:
@@ -1999,7 +2037,7 @@ class CodeGen:
                 req_pkg = self.m_nninfo_yolo_require_packages
             else:
                 req_pkg = []
-            for item in self.m_nnino_user_libs:
+            for item in self.m_nninfo_user_libs:
                 if not item in req_pkg:
                     req_pkg.append(item)
             req_pkg.append('vim')
@@ -2028,32 +2066,31 @@ class CodeGen:
                 req_pkg = self.m_nninfo_yolo_require_packages
             else:
                 req_pkg = []
-            for item in self.m_nnino_user_libs:
+            for item in self.m_nninfo_user_libs:
                 if not item in req_pkg:
                     req_pkg.append(item)
             req_pkg.append('vim')
             req_pkg.append('python3.9')
             t_pkg = {"atp": req_pkg, "pypi": []}
             t_com = {"custom_packages": t_pkg,
-                     "libs": ['python==3.9', 'torch>=1.1.0'], 
-                     "engine": self.m_sysinfo_engine_type }
+                     "engine": 'pytorch' }
             t_build = {'architecture': 'linux/amd64',
-                       "accelerator": 'cpu',
+                       "accelerator": 'gpu',
                        "os": 'ubuntu',
-                       # "target_name": 'yolov3:latest',
+                       "target_name": 'ultralytics/yolo5:v6.1',
                        "components": t_com
                        }
             t_deploy = {"type": dep_type,
                      "workdir": "/test/test",
-                     'entrypoint': my_entry,
+                     'entrypoint': [ '/bin/bash', '-c'], # my_entry,
                      "network": {
                          'service_host_ip': self.m_deploy_network_hostip,
                          "service_host_port": self.m_deploy_network_hostport,
                          "service_container_port": self.m_deploy_network_serviceport 
                          },
                      "k8s": { 
-                         "nfs_ip": self.m_deploy_nfs_ip,
-                         "nfs_path": self.m_deploy_nfs_path 
+                         "nfs_ip": '192.168.0.189', # self.m_deploy_nfs_ip,
+                         "nfs_path": '/var/lib/docker/volumes/tango_shared/_data' # self.m_deploy_nfs_path 
                          }
                      }
             if self.m_sysinfo_engine_type == 'tensorrt':
@@ -2088,10 +2125,13 @@ class CodeGen:
             r_file = "%s/%s" % (self.m_current_code_folder, self.m_requirement_file)
             f = open(r_file, 'w')
         except IOError as err:
-            print("Yaml File for deployment write error", err)
+            logging.debug("Yaml File for deployment write error")
             return -1
         yaml.dump(t_total, f)
         f.close()
+        # khlee 
+        # copy deployment.yaml to m_current_filepath
+        shutil.copy(r_file, self.m_current_file_path)
         return 0
         
         
@@ -2146,10 +2186,13 @@ class CodeGen:
             r_file = "%s/%s" % (self.m_current_code_folder, self.m_requirement_file)
             f = open(r_file, 'w')
         except IOError as err:
-            print("Yaml File for deployment write error", err)
+            logging.debug("Yaml File for deployment write error")
             return -1
         yaml.dump(t_total, f)
         f.close()
+        # khlee 
+        # copy deployment.yaml to m_current_filepath
+        shutil.copy(r_file, self.m_current_file_path)
         return
         
 
@@ -2165,7 +2208,7 @@ class CodeGen:
             0 : success
             -1 : error
         """ 
-        print(self.m_sysinfo_engine_type) 
+        logging.debug(self.m_sysinfo_engine_type) 
         if self.m_sysinfo_engine_type == 'pytorch':
             dev_req = "%s/%s" % (self.m_current_code_folder, def_ondevice_python_requirements)
             if len(self.m_nninfo_yolo_require_packages) > 0 or len(self.m_nninfo_user_libs) > 0:
@@ -2215,10 +2258,13 @@ class CodeGen:
             r_file = "%s/%s" % (self.m_current_code_folder, self.m_requirement_file)
             f = open(r_file, 'w')
         except IOError as err:
-            print("Yaml File for deployment write error", err)
+            logging.debug("Yaml File for deployment write error")
             return -1
         yaml.dump(t_total, f)
         f.close()
+        # khlee 
+        # copy deployment.yaml to m_current_filepath
+        shutil.copy(r_file, self.m_current_file_path)
         return
 
     ####################################################################
@@ -2239,7 +2285,8 @@ class CodeGen:
                 s.connect(("8.8.8.8", 80))
                 host = s.getsockname()[0]
             except socket.error as err:
-                print(err)
+                logging.debug("err")
+                print("err")
         prj_url = "%s%s%s" % ('http://', host, ':8085/status_report')
 
         # add result code
@@ -2263,15 +2310,19 @@ class CodeGen:
             ret = requests.get(url=prj_url, headers=headers)
             # ret = requests.get(url=prj_url, headers=headers, params=prj_data)
         except requests.exceptions.HTTPError as err:
-            print("Http Error:", err)
+            logging.debug("Http Error:")
+            print("Http Error:")
         except requests.exceptions.ConnectionError as err:
-            print("Error Connecting:", err)
+            logging.debug("Error Connecting:")
+            print("Error Connecting:")
         except requests.exceptions.Timeout as err:
-            print("Timeout Error:", err)
+            logging.debug("Timeout Error:")
+            print("Timeout Error:")
         except requests.exceptions.RequestException as err:
-            print("OOps: Something Else", err)
-        print(prj_url)
-        print("response for report")
+            logging.debug("OOps: Something Else")
+            print("OOps: Something Else")
+        logging.debug(prj_url)
+        logging.debug("response for report")
         return
 
 
@@ -2316,6 +2367,7 @@ class MyHandler(SimpleHTTPRequestHandler):
         #     self.send_response(401, 'request not allowed')
         #     return
 
+        logging.debug("code_gen: GET method called !!!")
         if self.path[1] == '?':
             t_path = "%s%s" % ('/', self.path[2:])
         else:
@@ -2345,7 +2397,7 @@ class MyHandler(SimpleHTTPRequestHandler):
                 if prjid == '""' or prjid == '%22%22':
                     prjid = ""
                 self.m_obj.set_folder(userid, prjid)
-        print("code_gen: cmd =", cmd)
+        logging.debug("code_gen: cmd = %s" %  cmd)
 
         if cmd == "start":
             buf = '"started"'
@@ -2355,7 +2407,7 @@ class MyHandler(SimpleHTTPRequestHandler):
             self.send_header("Content-Length", "%d" % len(buf))
             self.end_headers()
             self.wfile.write(buf.encode())
-            print("code_gen: send_ack")
+            logging.debug("code_gen: send_ack")
 
             if self.m_flag == 1:
                 # self.m_obj.run()
@@ -2404,20 +2456,25 @@ class MyHandler(SimpleHTTPRequestHandler):
             self.end_headers()
             self.wfile.write(buf.encode())
         elif cmd == 'status_request':
-            buf = '"error"'
+            logging.debug("status_request called")
+            buf = '"failed"'
             if self.m_obj.m_current_userid == "":
                 buf = '"ready"'
             else:
-                if self.m_flag == 0:
-                    buf = '"stopped"'
-                elif self.m_flag == 1:
-                    buf = '"completed"'
+                if self.m_obj.m_atwork == 1:
+                    buf = '"running"'
+                else:
+                    if self.m_flag == 0:
+                        buf = '"stopped"'
+                    elif self.m_flag == 1:
+                        buf = '"completed"'
             self.send_response(200, 'ok')
             self.send_cors_headers()
             self.send_header('Content-Type', 'text/plain')
             self.send_header("Content-Length", "%d" % len(buf))
             self.end_headers()
             self.wfile.write(buf.encode())
+            logging.debug("status_request response = %s" % buf)
         else:
             buf = '""'
             self.send_response(200, 'ok')
@@ -2486,9 +2543,10 @@ if __name__ == '__main__':
         logging.debug("wait for thread done")
         m_obj.wait_for_done()
 
-'''
+
 #스트링으로 함수 호출하기 #1
 #file name이 user.py class가 User라 가정
+'''
 user.py의 내용
 class User():
     name = 'abc'

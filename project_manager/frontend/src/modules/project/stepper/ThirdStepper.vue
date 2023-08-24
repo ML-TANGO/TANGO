@@ -59,7 +59,6 @@ export default {
         this.selelctedItem = this.selectedTarget;
       }
     } catch {
-      console.log("tartget error");
       this.items = [];
     }
   },
@@ -74,7 +73,6 @@ export default {
     },
 
     next() {
-      console.log("this.selelctedItem", this.selelctedItem);
       this.$emit("next", { target_id: this.selelctedItem.id });
       this.SET_SELECTED_TARGET(this.selelctedItem);
     },

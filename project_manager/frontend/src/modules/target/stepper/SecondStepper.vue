@@ -7,9 +7,10 @@
       <div class="d-flex align-center mt-11" style="gap: 25px">
         <div style="width: 150px">Target Info</div>
         <v-radio-group :value="targetInfo" row hide-details="" class="ma-0" @change="infoChange">
-          <v-radio label="PC" value="pc"></v-radio>
-          <v-radio label="OnDevice" value="ondevice"></v-radio>
-          <v-radio label="Cloud" value="cloud"></v-radio>
+          <v-radio label="cloud" value="cloud"></v-radio>
+          <v-radio label="kubernetes" value="k8s"></v-radio>
+          <v-radio label="PC-Server" value="PCServer"></v-radio>
+          <v-radio label="PC or ondevice" value="ondevice"></v-radio>
         </v-radio-group>
       </div>
 
@@ -22,6 +23,7 @@
           <v-radio label="ACL" value="acl"></v-radio>
           <v-radio label="RKNN" value="rknn"></v-radio>
           <v-radio label="Pytorch" value="pytorch"></v-radio>
+          <v-radio label="Tensorrt" value="tensorrt"></v-radio>
         </v-radio-group>
       </div>
 
@@ -79,10 +81,22 @@
           </div>
         </div>
       </div>
+
+      <v-divider class="mt-3 mb-3" v-if="targetInfo === 'k8s'"></v-divider>
+
+      <div class="d-flex mb-2 align-center" style="gap: 25px" v-if="targetInfo === 'k8s'">
+        <div style="min-width: 150px">nfs IP</div>
+        <v-text-field :value="nfsIP" outlined dense label="nfs ip" hide-details @change="nfsIPChange" />
+      </div>
+
+      <div class="d-flex align-center" style="gap: 25px" v-if="targetInfo === 'k8s'">
+        <div style="min-width: 150px">nfs Path</div>
+        <v-text-field :value="nfsPath" outlined dense label="nfs path" hide-details @change="nfsPathChange" />
+      </div>
     </div>
     <div class="d-flex justify-end">
       <v-btn class="ma-0 pa-0" text style="color: #4a80ff" @click="pre"> PREV </v-btn>
-      <v-btn
+      <!-- <v-btn
         v-if="this.targetInfo !== 'ondevice' && this.targetInfo !== ''"
         class="ma-0 pa-0"
         text
@@ -90,9 +104,11 @@
         @click="next"
       >
         NEXT
-      </v-btn>
-      <v-btn v-else-if="target?.id" class="ma-0 pa-0" text style="color: #4a80ff" @click="create"> UPDATE </v-btn>
-      <v-btn v-else class="ma-0 pa-0" text style="color: #4a80ff" @click="create"> CREATE </v-btn>
+      </v-btn> -->
+      <!-- <v-btn 
+      v-else-if="target?.id" class="ma-0 pa-0" text style="color: #4a80ff" @click="create"> UPDATE </v-btn> -->
+      <v-btn class="ma-0 pa-0" text style="color: #4a80ff" @click="next"> NEXT </v-btn>
+      <!-- <v-btn v-else class="ma-0 pa-0" text style="color: #4a80ff" @click="create"> CREATE </v-btn> -->
     </div>
   </div>
 </template>
@@ -121,7 +137,9 @@ export default {
         { value: "opencl", label: "opencl" },
         { value: "cpu", label: "cpu" }
       ],
-      memory: 0
+      memory: 0,
+      nfsIP: "",
+      nfsPath: ""
     };
   },
 
@@ -131,16 +149,16 @@ export default {
 
   watch: {
     targetInfo() {
-      if (this.targetInfo === "ondevice") {
-        this.$emit("isThridStep", false);
-      } else {
-        this.$emit("isThridStep", true);
-      }
+      //   if (this.targetInfo === "ondevice") {
+      //     this.$emit("isThridStep", false);
+      //   } else {
+      //     this.$emit("isThridStep", true);
+      //   }
     }
   },
 
   mounted() {
-    this.$emit("isThridStep", false);
+    // this.$emit("isThridStep", false);
 
     this.targetInfo = this.target?.info;
     this.engine = this.target?.engine;
@@ -148,6 +166,9 @@ export default {
     this.cpu = this.target?.cpu;
     this.acc = this.target?.acc;
     this.memory = this.target?.memory;
+
+    this.nfsIP = this.target?.nfs_ip;
+    this.nfsPath = this.target?.nfs_path;
   },
 
   methods: {
@@ -181,7 +202,9 @@ export default {
         os: this.os,
         acc: this.acc,
         cpu: this.cpu,
-        memory: this.memory
+        memory: this.memory,
+        nfs_ip: this.nfsIP || "",
+        nfs_path: this.nfsPath || ""
       });
     },
     create() {
@@ -191,7 +214,9 @@ export default {
         os: this.os,
         acc: this.acc,
         cpu: this.cpu,
-        memory: this.memory
+        memory: this.memory,
+        nfs_ip: this.nfsIP || "",
+        nfs_path: this.nfsPath || ""
       });
     },
     osChange(value) {
@@ -211,6 +236,12 @@ export default {
     },
     memoryChange(value) {
       this.memory = value;
+    },
+    nfsIPChange(value) {
+      this.nfsIP = value;
+    },
+    nfsPathChange(value) {
+      this.nfsPath = value;
     }
   }
 };
