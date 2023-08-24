@@ -62,17 +62,18 @@ services:
   #   restart: always
 
   # #---------------------------------
-  # # Labelling tool 
+  # # Labelling tool
   # #---------------------------------
-  # labelling:
-  #   build:
-  #     context: ./labelling
-  #   volumes:
-  #     - ./labelling/dataset:/var/appdata
-  #     - ./labelling/datadb:/var/lib/mysql
-  #   ports:
-  #     - "8086:80" # for Web UI
-  #     - "8095:10236" # for Rest API 
+  labelling:
+    build:
+      context: ./labelling
+    volumes:
+      - ./labelling/dataset:/var/appdata
+      - ./labelling/datadb:/var/lib/mysql
+      - shared:/shared/datasets
+    ports:
+      - "8086:80" # for Web UI
+      - "8095:10236" # for Rest API
 
   #---------------------------------
   # Base Model Selector
@@ -80,7 +81,7 @@ services:
   bms:
     build:
       context: ./base_model_select
-    shm_size: '256M'
+    shm_size: "256M"
     command: >
       sh -c "python manage.py makemigrations &&
              python manage.py migrate --run-syncdb &&
@@ -169,7 +170,7 @@ services:
   autonn_yoloe:
     build:
       context: ./autonn/YoloE
-    shm_size: '256M'
+    shm_size: "256M"
     ipc: host
     command: >
       sh -c "python manage.py makemigrations &&
@@ -198,7 +199,7 @@ services:
       - "8090:8090"
 
   #---------------------------------
-  # code_gen Build 
+  # code_gen Build
   #---------------------------------
   code_gen:
     build:
@@ -245,8 +246,8 @@ services:
       - "8902:8902"
 
   #---------------------------------
-  # ondevice_deploy Build 
-  #---------------------------------    
+  # ondevice_deploy Build
+  #---------------------------------
   ondevice_deploy:
     hostname: ondevice
     build:
@@ -259,7 +260,7 @@ services:
     ports:
       - 8891:8891
   # #---------------------------------
-  # # Visualizer 
+  # # Visualizer
   # #---------------------------------
   # viz2code:
   #   build:
@@ -279,7 +280,7 @@ services:
   # #     - postgresql
 
   #---------------------------------
-  # Volumes 
+  # Volumes
   #---------------------------------
 volumes:
   postgreSQL: # for Proejct Manager

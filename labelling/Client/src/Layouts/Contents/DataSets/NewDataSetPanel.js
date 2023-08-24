@@ -16,10 +16,9 @@ import { CircularProgressbar, buildStyles } from "react-circular-progressbar"
 import { MdPauseCircleOutline, MdCheckCircle, MdError, MdSave } from "react-icons/md"
 import { RiPriceTag3Fill, RiSendPlaneFill } from "react-icons/ri"
 import { FaTrashAlt, FaUpload, FaColumns, FaDatabase } from "react-icons/fa"
-import { FiFileText, FiImage, FiVideo } from "react-icons/fi"
+import { FiImage, FiVideo } from "react-icons/fi"
 import { VscSymbolClass } from "react-icons/vsc"
 import { BsBoundingBoxCircles } from "react-icons/bs"
-import { AiOutlineDotChart } from "react-icons/ai"
 
 // api
 import * as DataSetApi from "Config/Services/DataSetApi"
@@ -66,7 +65,6 @@ const dataTypeList = [
 const purposeList = [
   { title: "Classfication", type: "C", icon: <VscSymbolClass size="50" />, viewType: ["I", "T"] },
   { title: "Detection", type: "D", icon: <BsBoundingBoxCircles size="49" />, viewType: ["I", "V"] },
-  // { title: "Segmentation", type: "S", icon: <FaDrawPolygon size="50" />, viewType: ["I", "V"] },
   { title: "Segmentation", type: "S", icon: <IconDrawPloygon size="48" fill="#fff" />, viewType: ["I", "V"] }
 ]
 
@@ -130,32 +128,20 @@ function NewDataSetPanel(props) {
     checkAllColumns: false
   })
 
-  const [optionState, setOptionState] = useState({ tagOption: [], baseModelOption: [], filteredModelOption: [], modelEpochs: [] })
-  const [autoModelList, setAutoModelList] = useState([])
-  // const [dataInfo, setDataInfo] = useState(null)
-
   const autoUserModel = useEnterpriseDivision(process.env.BUILD, "dataSet", "autoUserModel")
   const dataSetUpload = useEnterpriseDivision(process.env.BUILD, "dataSet", "dataSetUpload")
-
-  const { register, handleSubmit, control, setValue, errors, watch } = useForm()
   const watchAutoType = watch("AUTO_TYPE", "N")
-
+  const { register, handleSubmit, control, setValue, errors, watch } = useForm()
+  const [optionState, setOptionState] = useState({ tagOption: [], baseModelOption: [], filteredModelOption: [], modelEpochs: [] })
+  const [autoModelList, setAutoModelList] = useState([])
   const [uploadType, setUploadType] = useState("FILE")
-
-  // modal toggle
+  const [panelPos, setPanelPos] = useState({ top: 0, bottom: 0 })
+  const resultRef = useRef(null)
   const toggle = () => setPageState(prevState => ({ ...prevState, modal: !prevState.modal }))
 
-  const [panelPos, setPanelPos] = useState({ top: 0, bottom: 0 })
-
-  const resultRef = useRef(null)
-
-  // ==========================================================================
-  // initial use effect
-  // ==========================================================================
   useLayoutEffect(() => {
     async function init() {
       try {
-        // let r = await DataSetApi._getBaseModel()
         const result = await AimodelApi._getSelectedModelList({ DATA_TYPE: "I" })
         const filter = result.filter(ele => {
           if (!autoUserModel) {
@@ -167,48 +153,29 @@ function NewDataSetPanel(props) {
         })
         setAutoModelList(filter)
         setOptionState(prevState => ({ ...prevState, baseModelOption: filter, filteredModelOption: filterModel(filter, "D") }))
-
-        // const state = { ...history.location.state }
         setPageState(prevState => ({ ...prevState, pageMode: editData.pageMode }))
-        //createColumns(state.dataInfo.OBJECT_TYPE)
         const dataInfo = editData.dataInfo
         switch (editData.pageMode) {
           case "EDIT":
             setPageState(prevState => ({ ...prevState, title: "Edit Dataset" }))
-            // set data
-            // ----------------------------------------------------------------------------
             Object.keys(dataInfo).map(ok => {
               setValue(ok, dataInfo[ok])
             })
 
-            // set status
-            // ----------------------------------------------------------------------------
             setTypeState(prevState => ({ ...prevState, objectType: dataInfo.OBJECT_TYPE, dataType: dataInfo.DATA_TYPE }))
             setOptionState(prevState => ({
               ...prevState,
               filteredModelOption: filterModel(filter, dataInfo.OBJECT_TYPE)
             }))
 
-            // auto labeling yes 일 경우
             if (dataInfo.AUTO_ACC !== null && dataInfo.AUTO_MODEL !== null) {
               setValue("AUTO_TYPE", "Y")
               setValue("AUTO_ACC", dataInfo.AUTO_ACC * 100)
               if (dataInfo.AUTO_MODEL !== null) {
                 setValue("AUTO_MODEL", dataInfo.AUTO_MODEL)
               }
-              // if (dataInfo.AUTO_EPOCH !== null) {
-              //   let epochList = await DataSetApi._getModelEpochs({ AI_CD: dataInfo.AUTO_MODEL })
-              //   const epochs = epochList?.map(el => ({
-              //     label: `${el.EPOCH} : ${moment(el.UPT_DTM).format("YYYY-MM-DD hh:mm:ss").toString()}`,
-              //     value: el.EPOCH
-              //   }))
-              //   setOptionState(prevState => ({ ...prevState, modelEpochs: epochs }))
-              //   setValue("AUTO_EPOCH", dataInfo.AUTO_EPOCH)
-              // }
             }
 
-            // set files
-            // ----------------------------------------------------------------------------
             let fileList, tableInfo, tableData
             if (dataInfo.DATA_TYPE === "T") {
               setUploadType(dataInfo.UPLOAD_TYPE)
@@ -276,19 +243,12 @@ function NewDataSetPanel(props) {
 
           case "DUPLICATION":
             setPageState(prevState => ({ ...prevState, title: "Duplication Dataset" }))
-            // set data
-            // ----------------------------------------------------------------------------
             Object.keys(dataInfo).map(ok => {
               if (ok === "TITLE") setValue("TITLE", dataInfo[ok] + "_" + moment().format("YYYYMMDDHHmmss"))
               else setValue(ok, dataInfo[ok])
             })
-
-            // set status
-            // ----------------------------------------------------------------------------
             setPageState(prevState => ({ ...prevState, title: "Duplication Dataset", subTitle: "Copy Your Dataset" }))
             setTypeState(prevState => ({ ...prevState, objectType: dataInfo.OBJECT_TYPE, dataType: dataInfo.DATA_TYPE }))
-
-            // get file list in edit mode
             let f
             if (dataInfo.DATA_TYPE === "T") {
               setUploadType(dataInfo.UPLOAD_TYPE)
@@ -314,8 +274,6 @@ function NewDataSetPanel(props) {
                 columns: file?.columns
               }))
 
-              // set files
-              // ----------------------------------------------------------------------------
               setFileState(prevState => ({ ...prevState, fileList: l, successCount: l.length }))
             } else {
               setTableState(prevState => ({ ...prevState, tableInfo: tableInfo.table, tableData: tableData.DATA ? tableData.DATA : [] }))
@@ -370,9 +328,6 @@ function NewDataSetPanel(props) {
     }
   }, [editData])
 
-  // ==========================================================================
-  // object type changed
-  // ==========================================================================
   useEffect(() => {
     if (typeState.objectType === "C") {
       const uniq = fileState.fileList.map(file => file.base).filter((v, i, s) => s.indexOf(v) === i)
@@ -387,9 +342,6 @@ function NewDataSetPanel(props) {
     setValue("AUTO_TYPE", "N")
   }, [typeState.objectType])
 
-  // ==========================================================================
-  // file list or object type changed position
-  // ==========================================================================
   useEffect(() => {
     if (fileState.fileList.length !== 0) {
       setValue("files", fileState.fileList)
@@ -412,9 +364,6 @@ function NewDataSetPanel(props) {
     }
   }, [fileState.colList])
 
-  // ==========================================================================
-  // data type changed
-  // ==========================================================================
   useEffect(() => {
     if (fileState.fileList.length !== 0) {
       const param = {
@@ -449,9 +398,6 @@ function NewDataSetPanel(props) {
     ReactTooltip.rebuild()
   }, [typeState.dataType])
 
-  // ==========================================================================
-  // submit
-  // ==========================================================================
   const onSubmit = data => {
     if (pageState.isSave) return
     data.uuid = uuid
@@ -465,10 +411,10 @@ function NewDataSetPanel(props) {
     setPageState(prevState => ({ ...prevState, isSave: true }))
     switch (editData.pageMode) {
       case "NEW":
-        console.log(data)
-        let files = data.files.map(ele => ({ name: ele.name, size: ele.size, path: ele.path, base : ele.base }))
+        let files = data.files.map(ele => ({ name: ele.name, size: ele.size, path: ele.path, base: ele.base }))
         data.files = files
         data.AUTO_ACC = data.AUTO_ACC ? data.AUTO_ACC / 100 : 0
+        data["tags"] = optionState.tagOption
         DataSetApi._setNewDataSets(data)
           .then(result => {
             if (result.status === 1) {
@@ -499,10 +445,10 @@ function NewDataSetPanel(props) {
         param.fileList = []
         param.FILE_TYPE = editData.dataInfo.DATA_TYPE
         data.AUTO_ACC = data.AUTO_ACC ? data.AUTO_ACC / 100 : null
+        data["tags"] = optionState.tagOption
         data.files.forEach((ele, i) => {
-          //let ext = ele.type.split("/").length === 1 ? ele.type.split("/")[0] : "." + ele.type.split("/")[1]
           if (ele.isNew !== undefined && ele.isNew) {
-            param.fileList.push({ name: ele.name, path: ele.path, FILE_NUMBER: i, size: ele.size, base : ele.base })
+            param.fileList.push({ name: ele.name, path: ele.path, FILE_NUMBER: i, size: ele.size, base: ele.base })
           }
         })
         if (data.AUTO_TYPE === "Y") {
@@ -572,9 +518,8 @@ function NewDataSetPanel(props) {
     setPageState(prevState => ({ ...prevState, isSave: true }))
     switch (pageState.pageMode) {
       case "NEW":
-        let files = data.files.map(ele => ({ name: ele.name, size: ele.size, path: ele.path}))
+        let files = data.files.map(ele => ({ name: ele.name, size: ele.size, path: ele.path }))
         data.files = files
-        // data.AUTO_ACC = data.AUTO_ACC ? data.AUTO_ACC / 100 : 0
         TabDataSetApi._createDataset(data)
           .then(result => {
             if (result.status === 1) {
@@ -648,9 +593,6 @@ function NewDataSetPanel(props) {
     }
   }
 
-  // ==========================================================================
-  // file handles
-  // ==========================================================================
   const _uploadSeperate = async files => {
     let formData = new FormData()
     let arr = []
@@ -779,7 +721,6 @@ function NewDataSetPanel(props) {
   }
 
   const _uploadSeperateText = async () => {
-    // if (files.length === 0) return false
     const files = fileState.fileList.filter(ele => ele.status !== 1)
     const uploadFiles = cloneDeep(files)
     let split = files.length < 50 ? 1 : 50
@@ -833,7 +774,6 @@ function NewDataSetPanel(props) {
                           const filter = fileState.fileList.filter(el => {
                             return !uploadFiles.some(f => f.path === el.path)
                           })
-                          // const filter = fileState.fileList.filter(el => el.path !== files[0].path)
                           setFileState(prevState => ({ ...prevState, fileList: filter }))
                         })
                         .catch(e => {
@@ -864,7 +804,8 @@ function NewDataSetPanel(props) {
   const upload = async () => {
     setPageState(prevState => ({ ...prevState, isUpload: true }))
     const files = fileState.fileList.filter(ele => ele.status !== 1)
-    let split = files.length < 100 ? 1 : 100
+    let split = files.length < 1000 ? 1 : 100
+
     if (typeState.dataType === "T") {
       await _uploadSeperateText()
     } else {
@@ -878,8 +819,6 @@ function NewDataSetPanel(props) {
       }
     }
     setPageState(prevState => ({ ...prevState, isUpload: false }))
-    // toast.info(<CommonToast Icon={MdFileUpload} text={"Upload Compelete"} />)
-    // else if (flag === false) toast.error(<CommonToast Icon={MdError} text={"Upload Fail"} />)
   }
 
   const changeLabel = newTagName => {
@@ -902,7 +841,7 @@ function NewDataSetPanel(props) {
       const newRemoveList = []
       fileState.selectedFiles.forEach((selected, i) => {
         if (selected) {
-          // 원래 있던 파일만 삭제리스트에 넣기
+          // add to remove list
           if (!fileState.fileList[i].isNew) {
             fileState.removeFiles.push(fileState.fileList[i].name)
           } else {
@@ -917,7 +856,7 @@ function NewDataSetPanel(props) {
         } else cFileList.push(fileState.fileList[i])
       })
 
-      // text 일 경우 삭제시 컬럼리스트 변경
+      // "text" case : change column list
       if (typeState.dataType === "T") {
         const set = new Set()
         cFileList.forEach(el => {
@@ -933,7 +872,7 @@ function NewDataSetPanel(props) {
         setFileState(prevState => ({ ...prevState, colList: colList }))
       }
 
-      // 신규 업로드 파일의 경우 temp 파일 삭제 API 호출
+      // "new upload" case : api call for temp file remove
       if (newRemoveList.length !== 0) {
         const param = {
           uuid: uuid,
@@ -964,9 +903,6 @@ function NewDataSetPanel(props) {
     }
   }
 
-  // ==========================================================================
-  // table handles
-  // ==========================================================================
   const _onRowMouseOver =
     col =>
     ({ index }) => {
@@ -1072,7 +1008,6 @@ function NewDataSetPanel(props) {
       className: "text-center",
       disableSort: true,
       width: 80,
-      // eslint-disable-next-line react/display-name, react/prop-types
       cellRenderer: ({ cellData }) => {
         switch (cellData) {
           case 0:
@@ -1219,20 +1154,9 @@ function NewDataSetPanel(props) {
                 options={optionState.filteredModelOption}
                 isDefault={true}
                 onChange={([selected]) => {
-                  // _getEpochList(selected)
                   return selected
                 }}
               />
-              {/* {optionState.modelEpochs.length !== 0 && (
-                <FormSelect
-                  title="Epoch"
-                  titleClassName={"mr-4 mt-2"}
-                  name="AUTO_EPOCH"
-                  control={control}
-                  options={optionState.modelEpochs}
-                  isDefault={true}
-                />
-              )} */}
               {typeState.objectType !== "S" && (
                 <>
                   <FormNumber
@@ -1272,7 +1196,6 @@ function NewDataSetPanel(props) {
                   setUploadType(selected)
                   return selected
                 }}
-                // placeholder="Please select an upload type."
                 isDefault={true}
               />
             </div>
@@ -1400,6 +1323,7 @@ function NewDataSetPanel(props) {
           toggle={uploadToggle}
           control={control}
           pageState={pageState}
+          setPageState={setPageState}
           typeState={typeState}
           fileState={fileState}
           optionState={optionState}

@@ -173,3 +173,42 @@ export function _getTagInfo(param) {
       })
   })
 }
+
+export function _checkDirExist(param) {
+  return new Promise((resolve, reject) => {
+    axios
+      .post("/api/dataset/checkDirExist", param)
+      .then(response => {
+        resolve(response.data)
+      })
+      .catch(error => {
+        reject(error.response)
+      })
+  })
+}
+
+export function _deployDataSet(param) {
+  return new Promise((resolve, reject) => {
+    axios
+      .post("/api/dataset/deployDataSet", param)
+      .then(response => {
+        resolve(response.data)
+      })
+      .catch(error => {
+        reject(error.response)
+      })
+  })
+}
+
+export function _removeDeployedDataSet(param) {
+  return new Promise((resolve, reject) => {
+    axios
+      .post("/api/dataset/removeDeployedDataSet", param)
+      .then(response => {
+        resolve(response.data)
+      })
+      .catch(error => {
+        reject(error.response)
+      })
+  })
+}

@@ -79,22 +79,22 @@
   </select>
 
   <update id="setBulkUpdateDataElement">
-      UPDATE DATA_ELEMENT 
+      UPDATE DATA_ELEMENT
       set FILE_PATH = CASE
       <foreach collection="DATAS" item="item">
           WHEN FILE_NAME = #{item.FILE_NAME} THEN #{item.FILE_PATH}
       </foreach>
       ELSE FILE_PATH
-      END, 
+      END,
       TAG_CD = CASE
       <foreach collection="DATAS" item="item">
           WHEN FILE_NAME = #{item.FILE_NAME} THEN #{item.TAG_CD}
       </foreach>
       ELSE TAG_CD
       END
-      WHERE DATASET_CD = #{DATASET_CD} AND FILE_NAME IN(
+      WHERE DATASET_CD = #{DATASET_CD} AND FILE_PATH IN(
       <foreach collection="DATAS" item="item" separator="," >
-          #{item.FILE_NAME}
+          #{item.FILE_PREV_PATH}
       </foreach>
       )
   </update>
@@ -200,6 +200,7 @@
     )
   </select>
 
+
   <update id="updaeFailDataSet">
     UPDATE DATASET
     set UPT_DTM = now()
@@ -251,6 +252,8 @@
     WHERE DATASET_CD = #{DATASET_CD}
   </update>
 
+
+
   <select id="getDataSetByPid">
     SELECT DATASET_CD FROM DATASET WHERE PID =  ${PID}
   </select>
@@ -259,27 +262,24 @@
     SELECT * FROM DATASET WHERE DATASET_CD =  #{DATASET_CD}
   </select>
 
-  <delete id = "removeDataSet">
+  <delete id="removeDataSet">
 		DELETE FROM DATASET WHERE DATASET_CD = #{DATASET_CD}
 	</delete>
 
-  <delete id = "removeAnalysis">
+
+  <delete id="removeAnalysis">
 		DELETE FROM TAB_ANALYSIS WHERE DATASET_CD = #{DATASET_CD}
 	</delete>
 
-  <delete id = "removeFeatures">
+  <delete id="removeFeatures">
 		DELETE FROM TAB_FEATUREINFO WHERE DATASET_CD = #{DATASET_CD}
 	</delete>
 
-  <delete id = "removeDataSet">
-		DELETE FROM DATASET WHERE DATASET_CD = #{DATASET_CD}
-	</delete>
-
-  <delete id = "removeDataElements">
+  <delete id="removeDataElements">
 		DELETE FROM DATA_ELEMENT WHERE DATASET_CD = #{DATASET_CD}
 	</delete>
 
-  <delete id = "removeDataElementsByName">
+  <delete id="removeDataElementsByName">
 		DELETE FROM DATA_ELEMENT WHERE DATASET_CD = #{DATASET_CD} AND FILE_NAME IN(${FILE_NAMES})
 	</delete>
 

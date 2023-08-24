@@ -1,6 +1,6 @@
 <?xml version:"1.0" encoding:"UTF-8"?>
 <!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
-<mapper namespace="Binary">  
+<mapper namespace="Binary">
 
 
   <insert id="setTrainLog">
@@ -62,13 +62,13 @@
   </delete>
 
   <select id='getPrePredictTag'>
-    SELECT * 
-    FROM PRE_TRAINED_CLASS ptc 
+    SELECT *
+    FROM PRE_TRAINED_CLASS ptc
     WHERE CLASS_DB_NAME IN (
       <foreach collection="DATA" item="item" separator="," >
       #{item}
       </foreach>
-      ) 
+      )
     and BASE_MDL = #{BASE_MDL}
   </select>
 
@@ -80,15 +80,15 @@
   </select>
 
   <select id="getDataTagsByAiModel">
-    SELECT 
-      a.TAG_CD, 
-      a.DATASET_CD, 
-      a.NAME as CLASS_DP_NAME, 
-      a.CLASS_CD, 
-      a.DESC_TXT, 
-      a.COLOR, 
-      a.PRE_MDL_CD, 
-      a.PRE_CLASS_CD, 
+    SELECT
+      a.TAG_CD,
+      a.DATASET_CD,
+      a.NAME as CLASS_DP_NAME,
+      a.CLASS_CD,
+      a.DESC_TXT,
+      a.COLOR,
+      a.PRE_MDL_CD,
+      a.PRE_CLASS_CD,
       a.CLASS_SUFFIX
     FROM DATASET_TAGINFO a, TRAIN_CLASSINFO b
     where a.DATASET_CD = #{DATASET_CD}
@@ -109,7 +109,7 @@
 		PRE_MDL_CD,
 		PRE_CLASS_CD,
 		CLASS_SUFFIX
-	) VALUES 
+	) VALUES
   <if test="DATA != null and DATA.size != 0">
     <foreach collection="DATA" item="item" separator="," >
         (
@@ -141,9 +141,36 @@
           ,IS_ANNO = ${IS_ANNO}
 			  </if>
         ,ANNO_DATA = CASE
-        
+
         <foreach collection="DATA" item="item">
           WHEN DATA_CD = #{item.DATA_CD} THEN #{item.ANNO_DATA}
+        </foreach>
+        END
+        ,
+      WHERE
+        DATASET_CD = #{DATASET_CD}
+  </update>
+
+  <update id="setUpdateDataElementCnt">
+      UPDATE DATA_ELEMENT
+      SET
+        UPT_DTM = now()
+        <if test="IS_ANNO != null and IS_ANNO != ''">
+          ,IS_ANNO = ${IS_ANNO}
+			  </if>
+        ,ANNO_DATA = CASE
+        <foreach collection="DATA" item="item">
+          WHEN DATA_CD = #{item.DATA_CD} THEN #{item.ANNO_DATA}
+        </foreach>
+        END
+        ,ANNO_CNT = CASE
+        <foreach collection="DATA" item="item">
+          WHEN DATA_CD = #{item.DATA_CD} THEN #{item.ANNO_CNT}
+        </foreach>
+        END
+        ,TAG_CNT = CASE
+        <foreach collection="DATA" item="item">
+          WHEN DATA_CD = #{item.DATA_CD} THEN #{item.TAG_CNT}
         </foreach>
         END
       WHERE
@@ -163,7 +190,7 @@
   </select>
 
   <update id="stopAiFirstCheck">
-    UPDATE AI_PROJECT 
+    UPDATE AI_PROJECT
 		SET UPT_DTM = now()
        ,AI_STS = 'FAIL'
        ,AI_PID = -1
@@ -175,7 +202,7 @@
   </update>
 
   <update id="stopAiArray">
-    UPDATE AI_PROJECT 
+    UPDATE AI_PROJECT
 		SET UPT_DTM = now()
       ,TRAIN_END_DTM = ${TRAIN_END_DTM}
       ,TRAIN_TIME = CASE
@@ -198,8 +225,8 @@
   </update>
 
   <select id="getPrdTrainModelList">
-    SELECT BASE_MDL 
-    FROM PRE_TRAINED_CLASS 
+    SELECT BASE_MDL
+    FROM PRE_TRAINED_CLASS
     GROUP BY BASE_MDL
   </select>
 
@@ -213,4 +240,3 @@
 
 
 
-     
