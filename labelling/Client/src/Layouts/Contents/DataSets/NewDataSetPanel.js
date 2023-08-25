@@ -130,12 +130,13 @@ function NewDataSetPanel(props) {
 
   const autoUserModel = useEnterpriseDivision(process.env.BUILD, "dataSet", "autoUserModel")
   const dataSetUpload = useEnterpriseDivision(process.env.BUILD, "dataSet", "dataSetUpload")
-  const watchAutoType = watch("AUTO_TYPE", "N")
   const { register, handleSubmit, control, setValue, errors, watch } = useForm()
+
   const [optionState, setOptionState] = useState({ tagOption: [], baseModelOption: [], filteredModelOption: [], modelEpochs: [] })
   const [autoModelList, setAutoModelList] = useState([])
   const [uploadType, setUploadType] = useState("FILE")
   const [panelPos, setPanelPos] = useState({ top: 0, bottom: 0 })
+  const watchAutoType = watch("AUTO_TYPE", "N")
   const resultRef = useRef(null)
   const toggle = () => setPageState(prevState => ({ ...prevState, modal: !prevState.modal }))
 

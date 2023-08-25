@@ -114,8 +114,7 @@ CommonDropZone.propTypes = {
 CommonDropZone.defaultProps = {
   disabled: false,
   multiple: true,
-  title: `Drag 'n' drop some files here.
-  When there are more than 1000 items, please select files in the dialog that appears after clicking `,
+  title: `Drag 'n' drop some files here.`,
   accept: "",
   maxFiles: Infinity
 }

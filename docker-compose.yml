@@ -45,21 +45,21 @@ services:
   #---------------------------------
   # DB for labelling tool
   #---------------------------------
-  # mariadb:
-  #   container_name: "mariadb"
-  #   image: mariadb:10
-  #   ports:
-  #     - 3306:3306
-  #   volumes:
-  #     - "./labelling/Deployment/db/my.cnf:/etc/mysql/my.cnf"
-  #     - "./labelling/data:/var/lib/mysql"
-  #     - "./labelling/Deployment/test/:/docker-entrypoint-initdb.d/"
-  #   environment:
-  #     MARIADB_DATABASE: labelling
-  #     MARIADB_USER: username
-  #     MARIADB_PASSWORD: password
-  #     MARIADB_ROOT_PASSWORD: password
-  #   restart: always
+  mariadb:
+    container_name: "mariadb"
+    image: mariadb:10
+    ports:
+      - 3306:3306
+    volumes:
+      - "./labelling/Deployment/db/my.cnf:/etc/mysql/my.cnf"
+      - "./labelling/data:/var/lib/mysql"
+      - "./labelling/Deployment/test/:/docker-entrypoint-initdb.d/"
+    environment:
+      MARIADB_DATABASE: labelling
+      MARIADB_USER: username
+      MARIADB_PASSWORD: password
+      MARIADB_ROOT_PASSWORD: password
+    restart: always
 
   # #---------------------------------
   # # Labelling tool
@@ -70,7 +70,7 @@ services:
     volumes:
       - ./labelling/dataset:/var/appdata
       - ./labelling/datadb:/var/lib/mysql
-      - shared:/shared/datasets
+      - shared:/shared
     ports:
       - "8086:80" # for Web UI
       - "8095:10236" # for Rest API
@@ -262,22 +262,22 @@ services:
   # #---------------------------------
   # # Visualizer
   # #---------------------------------
-  # viz2code:
-  #   build:
-  #     context: ./visualization
-  #   command: >
-  #     sh -c "cd ./visualization/frontend &&
-  #            npm run build &&
-  #            cd ..
-  #            python manage.py makemigrations &&
-  #            python manage.py migrate &&
-  #            python manage.py runserver react 0.0.0.0:8091"
-  #   volumes:
-  #     - ./viz2code:/source
-  #   ports:
-  #     - "8091:8091"
-  # #   depends_on:
-  # #     - postgresql
+  viz2code:
+    build:
+      context: ./visualization
+    command: >
+      sh -c "cd ./visualization/frontend &&
+             npm run build &&
+             cd ..
+             python manage.py makemigrations &&
+             python manage.py migrate &&
+             python manage.py runserver react 0.0.0.0:8091"
+    volumes:
+      - ./viz2code:/source
+    ports:
+      - "8091:8091"
+  #   depends_on:
+  #     - postgresql
 
   #---------------------------------
   # Volumes

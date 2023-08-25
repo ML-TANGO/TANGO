@@ -5,7 +5,7 @@ import { FormDropZone } from "../Form/FormComponent"
 import CommonButton from "../Common/CommonButton"
 
 function UploadModal(props) {
-  const { modal, toggle, control, pageState, typeState, setFileState, onChange, multiple, maxFiles } = props
+  const { modal, toggle, control, pageState, setPageState, typeState, setFileState, onChange, multiple, maxFiles } = props
   const [fileList, setFileList] = useState([])
 
   useEffect(() => {
@@ -15,7 +15,7 @@ function UploadModal(props) {
   }, [fileList])
 
   const handleUpload = () => {
-    setFileState(prevState => ({ ...prevState, fileList: [...prevState.fileList, ...cSelected] }))
+    setFileState(prevState => ({ ...prevState, fileList: [...prevState.fileList, ...fileList] }))
     setFileList([])
     toggle()
   }
@@ -43,6 +43,10 @@ function UploadModal(props) {
       className={"modal-dialog--primary modal-dialog--header"}
       style={{ marginTop: "10rem" }}
       size={"lg"}
+      backdrop={"static"}
+      onDrop={() => {
+        setPageState(prevState => ({ ...prevState, isUpload: true }))
+      }}
     >
       <ModalHeader toggle={toggle}>
         <FaUpload /> File Upload

@@ -17,13 +17,14 @@ var logger = require("../lib/Logger")(__filename)
 const router = express.Router()
 const config = CL.getConfig()
 const CRN_USR = "testUser@test.co.kr"
+let totalNum = 0
 
 let storage = multer.diskStorage({
 	destination: (req, file, cb) => {
 		let fileNames = file.originalname.replace(/_@_/g, "/")
-		// // file.originalname = fileNames[1]
-		!fs.existsSync(path.join(config.tempPath, path.dirname(fileNames))) &&
-			fs.mkdirSync(path.join(config.tempPath, path.dirname(fileNames)), {
+		const dirPath = path.join(config.tempPath, path.dirname(fileNames))
+		!fs.existsSync(dirPath) &&
+			fs.mkdirSync(dirPath, {
 				recursive: true,
 			})
 
@@ -43,9 +44,10 @@ router.post(
 	upload.array("file"),
 	asyncHandler(async (req, res, next) => {
 		const fileList = JSON.parse(req.body.dir)
-
 		let result = []
-		fileList.map((ele, eleIdx) => {
+		totalNum += fileList.length
+		logger.info(`[UPLOAD] Uploaded: ${totalNum}, current: ${fileList.length}`)
+		fileList.map((ele) => {
 			result.push({ path: ele, fileName: path.basename(ele), status: 1 })
 		})
 
@@ -236,10 +238,9 @@ router.post("/setUpdateDataset", async (req, res, next) => {
 	option.queryId = "updateDataSetStatus"
 	await DH.executeQuery(option)
 
+	res.json({ status: 1 })
 	req.body.changed = changed
 	_createDataSets(req.body, dataCd)
-
-	res.json({ status: 1 })
 })
 
 router.post(
@@ -268,9 +269,14 @@ router.post("/removeDataSet", async (req, res, next) => {
 
 const _removeDataSet = async (data) => {
 	try {
-		logger.info(`Removing Dataset.... [${data.DATASET_CD}]`)
+		logger.info(`[REMOVE] Removing Dataset.... [${data.DATASET_CD}]`)
 		const datasetDir = path.join(config.datasetPath, data.DATASET_CD)
 		fs.existsSync(datasetDir) && rimraf.sync(datasetDir)
+		const deploymentDir = path.join(
+			config.deploymentPath,
+			data.TITLE.replace(/[^\w\d\uAC00-\uD7AF]/g, "_")
+		)
+		fs.existsSync(deploymentDir) && rimraf.sync(deploymentDir)
 		let option = {}
 		option.source = CC.MAPPER.DATASET
 		option.queryId = "removeDataElements"
@@ -285,7 +291,7 @@ const _removeDataSet = async (data) => {
 
 		option.queryId = "removeDataSet"
 		await DH.executeQuery(option)
-		logger.info(`Remove DataSet Success [${data.DATASET_CD}]`)
+		logger.info(`[REMOVE] Remove DataSet Success [${data.DATASET_CD}]`)
 	} catch (error) {
 		logger.error(`Remove Fail [${data.DATASET_CD}] \n${error.stack}`)
 
@@ -396,10 +402,9 @@ router.post("/setDupDataset", async (req, res, next) => {
 		ele.path = ele.path.substr(datasetDir.length, ele.path.length)
 	})
 	logger.debug("File Path Substr Done")
+	res.json({ status: 1 })
 	req.body.DATASET_DIR = datasetDir
 	_createDataSets(req.body, 0)
-
-	res.json({ status: 1 })
 })
 
 router.post("/setNewDataSets", async (req, res, next) => {
@@ -409,7 +414,7 @@ router.post("/setNewDataSets", async (req, res, next) => {
 	rollback.newData = {}
 
 	// 데이터셋 코드 생성
-	logger.info("[1] Register new dataset code")
+	logger.info("[CREATE] Register new dataset code")
 	// 발급
 	option.source = CC.MAPPER.DATASET
 	option.queryId = "setNewDataSetNumber"
@@ -420,11 +425,11 @@ router.post("/setNewDataSets", async (req, res, next) => {
 	option.queryId = "getNewDataSetNumber"
 	let cd = await DH.executeQuery(option)
 	req.body.DATASET_CD = cd[0].DATASET_NUMBER
-	logger.info(`-- DATASET_CD: ${req.body.DATASET_CD}`)
+	logger.info(`[CREATE] DATASET_CD: ${req.body.DATASET_CD}`)
 
 	// 파일 이동
 	// ----------------------------------------------------------------------
-	logger.info("[2] Make file structure")
+	logger.info("[CREATE] Make file structure")
 	const datasetDir = path.join(config.datasetPath, req.body.DATASET_CD)
 	const tempDir = path.join(config.tempPath, req.body.uuid)
 	req.body.DATASET_DIR = datasetDir
@@ -447,7 +452,7 @@ router.post("/setNewDataSets", async (req, res, next) => {
 	}
 
 	logger.info(
-		`-- DATASET_ROOT_PATH: ${req.body.DATASET_DIR}, TEMP_ROOT_PATH: ${tempDir}`
+		`[CREATE] DATASET_ROOT_PATH: ${req.body.DATASET_DIR}, TEMP_ROOT_PATH: ${tempDir}`
 	)
 
 	// if(data.OBJECT_TYPE === "C" &&  req.body.files.find(ff=>ff.)){
@@ -456,7 +461,7 @@ router.post("/setNewDataSets", async (req, res, next) => {
 
 	//데이터셋 메인 썸네일 생성
 	// ----------------------------------------------------------------------
-	logger.info("[3] Make main thumbnail")
+	logger.info("[CREATE] Make main thumbnail")
 	const imageExtensions = [".jpg", ".jpeg", ".png", ".gif"]
 	let selected = req.body.files.find((ff) =>
 		imageExtensions.includes(path.extname(ff.name).toLowerCase())
@@ -477,7 +482,7 @@ router.post("/setNewDataSets", async (req, res, next) => {
 		datasetDir,
 		"THUM_" + path.parse(path.basename(selected.name)).name + ".jpg"
 	)
-	logger.info(`-- Thumbnail image path: ${thum}`)
+	logger.info(`[CREATE] Thumbnail image path: ${thum}`)
 	let resResult
 	try {
 		resResult = await CF.sendRequestResLong(
@@ -494,7 +499,7 @@ router.post("/setNewDataSets", async (req, res, next) => {
 		)
 		if (resResult.STATUS === 0) throw resResult.ERROR_FILE
 
-		logger.info(`-- Query main thumbnail`)
+		logger.info(`[CREATE] Query main thumbnail`)
 		option.param.DATA = []
 		option.param.DATA.push({
 			DATASET_CD: req.body.DATASET_CD,
@@ -520,8 +525,8 @@ router.post("/setNewDataSets", async (req, res, next) => {
 	}
 
 	// 데이터셋 생성
-	logger.info("[4] Create dataset")
-	logger.info(`-- Query new dataset`)
+	logger.info("[CREATE] Create dataset")
+	logger.info(`[CREATE] Query new dataset`)
 	option.param.DATASET_CD = req.body.DATASET_CD
 	option.param.CRN_USR = req.body.USER_ID || "user"
 	option.param.THUM_NAIL_CD = "T0000000"
@@ -529,7 +534,7 @@ router.post("/setNewDataSets", async (req, res, next) => {
 	option.queryId = "setNewDataSet"
 	await DH.executeQuery(option)
 
-	logger.info(`-- Query dataset status`)
+	logger.info(`[CREATE] Query dataset status`)
 	option.source = CC.MAPPER.IMG_ANNO
 	option.param = {}
 	option.param.DATASET_CD = req.body.DATASET_CD
@@ -537,12 +542,12 @@ router.post("/setNewDataSets", async (req, res, next) => {
 	option.queryId = "updateDataSetStatus"
 	await DH.executeQuery(option)
 
-	logger.info(`-- Create dataset`)
+	logger.info(`[CREATE] Create dataset`)
 	_createDataSets(req.body, 0)
 
 	res.json({ status: 1 })
 
-	logger.info("[5] Check Project manager")
+	logger.info("[CREATE] Check Project manager")
 	option.source = CC.MAPPER.TANGO
 	option.queryId = "getProjectInfo"
 	let list = await DH.executeQuery(option)
@@ -620,8 +625,8 @@ const _makeVideoThumbnails = async (data) => {
 
 const _makeImageThumbnails = async (data) => {
 	let thumFiles = []
-
-	data.files.map((ele) => {
+	const fileCount = data.files.length
+	data.files.map((ele, eleIdx) => {
 		let filePath = data.DATASET_DIR
 		filePath = path.join(filePath, ele.path)
 		let savePath = path.dirname(filePath)
@@ -633,6 +638,7 @@ const _makeImageThumbnails = async (data) => {
 			PATH: filePath,
 			SAVE_PATH: savePath,
 		})
+		logger.info(`[DATASET] (${eleIdx}/${fileCount}) ${savePath}`)
 	})
 
 	await CF.sendRequestResLong(
@@ -717,7 +723,9 @@ const _setFileInfo = async (data, dataCd, tagInfo) => {
 
 	for (let i = 0; i < fileInfo.length; i += chunkSize) {
 		const chunk = fileInfo.slice(i, i + chunkSize)
-		logger.info(`-- Insert Data Element ${i + chunk.length}/${fileInfo.length}`)
+		logger.info(
+			`[DATASET] Insert Data Element ${i + chunk.length}/${fileInfo.length}`
+		)
 		option.param.DATA = chunk
 		await DH.executeQuery(option)
 	}
@@ -759,7 +767,7 @@ const _createDataSets = async (data, dataCd) => {
 	try {
 		// 썸네일 생성
 		if (data.OBJECT_TYPE !== "C") {
-			logger.info(`-- Create thumbnail`)
+			logger.info(`[DATASET] Create thumbnail`)
 			if (data.DATA_TYPE === "V") {
 				await _makeVideoThumbnails(data)
 			} else if (data.DATA_TYPE === "I") {
@@ -768,11 +776,11 @@ const _createDataSets = async (data, dataCd) => {
 		}
 		// Classification인 경우 Tag등록
 		else {
-			logger.info(`-- Create tag (CLS)`)
+			logger.info(`[DATASET] Create tag (CLS)`)
 			tagInfo = await _setTagInfo(data)
 		}
 		// 파일 등록
-		logger.info(`-- Query file list`)
+		logger.info(`[DATASET] Query file list`)
 		await _setFileInfo(data, dataCd, tagInfo)
 
 		//데이터 임폴트인 경우
@@ -800,7 +808,7 @@ const _createDataSets = async (data, dataCd) => {
 				encoding: "utf8",
 				flag: "w",
 			})
-			logger.info("-- Import Data Processing...")
+			logger.info("[DATASET] Import Data Processing...")
 			let importResult = await CF.runProcess("python", [
 				CC.BIN.importData,
 				argPath,
@@ -855,10 +863,16 @@ const _createDataSets = async (data, dataCd) => {
 						ele.orgTagCd = findTag.TAG_CD
 					})
 
-					logger.info("-- Imported Class Data Mapping...")
-					const chFile = importOption.param.DATA.map((ele) => {
+					logger.info("[DATASET] Imported Class Data Mapping...")
+					const totalNum = importOption.param.DATA.length
+					const chFile = importOption.param.DATA.map((ele, eleIdx) => {
 						return new Promise((resolve, reject) => {
 							let filePath = ele.ANNO_DATA
+							logger.info(
+								`[DATASET] [${
+									eleIdx + 1
+								}/${totalNum}]Class mapping completed. Path=${filePath}`
+							)
 							if (fs.existsSync(filePath)) {
 								var rsFile = JSON.parse(String(fs.readFileSync(filePath)))
 								rsFile.POLYGON_DATA.map((frame) => {
@@ -884,7 +898,6 @@ const _createDataSets = async (data, dataCd) => {
 					})
 
 					await Promise.all(chFile)
-					logger.info("-- Imported Cass Data Mapping Done!")
 
 					//데이터 엘리먼트 수정
 					importOption.source = CC.MAPPER.BIN
@@ -894,6 +907,7 @@ const _createDataSets = async (data, dataCd) => {
 
 					importOption.queryId = "removeJson"
 					await DH.executeQuery(importOption)
+					logger.info("[DATASET] Imported Cass Data Mapping Done!")
 				}
 			}
 		}
@@ -1148,9 +1162,10 @@ router.post(
 			// create working directory
 			const deploymentPath = path.join(config.deploymentPath, datasetName)
 			const originalPath = path.join(config.datasetPath, datasetCd)
-			!fs.existsSync(deploymentPath) && fs.mkdirSync(deploymentPath)
+			!fs.existsSync(deploymentPath) &&
+				fs.mkdirSync(deploymentPath, { recursive: true })
 			// classification
-			if (objectType === "C") {
+			if (objectType === "C" || objectType === "S") {
 				fse.copySync(originalPath, deploymentPath)
 			}
 			// detection & segmentation YOLOV7 type

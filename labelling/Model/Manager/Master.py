@@ -261,8 +261,8 @@ def makeThumbnail():
 
     errorFiles = []
     out = {"STATUS": 1}
-    for data in req:
-        print(data)
+    total_num = len(req)
+    for current_num, data in enumerate(req, start=1):
         mdlType = data["MDL_TYPE"].lower()
         imgPath = data["PATH"]
         savePath = data["SAVE_PATH"]
@@ -271,8 +271,7 @@ def makeThumbnail():
             if err["MSG"] is not None:
                 raise Exception
             out = {"STATUS": 1, "FPS": fps}
-            # print(json.dumps(output))
-            log.info("Finish make Thumbnail")
+            log.info(f"[{current_num}/{total_num}] Thumbnail creation completed. Path={savePath}")
 
         except Exception as e:
             log.error(e)
@@ -646,7 +645,7 @@ def runRealTimePredictor():
         pid = None
         # req = '[{"HW_INFO":{"IS_CD":54,"FEED_URL":"http://192.168.0.33:20052/video_feed",},"MDL_INFO":[{"OBJECT_TYPE":"D","MDL_PATH":"/Users/upload/InputSources/54/model/0168","NETWORK_NAME":"EFFICIENTDET","TARGET_CLASS":[{"OUT_CD":62,"IS_CD":54,"CLASS_CD":1312,"CLASS_NAME":"scratch","DP_LABEL":"SCR","COLOR":"#000fff","ACC_SCOPE":"gteq,0.01,none,,","LOCATION":"S","HW_CD":null}]}]}]'
         processName = "Predict/RealTimePredictor2.py"
-        
+
         if req["STATE"] == "START":
             isStart = False
             for idx, realTimeProcData in enumerate(realTimeProc):

@@ -345,7 +345,7 @@ const DataSets = props => {
                       if (confirmTextRef.current.trim() === data.TITLE.trim()) {
                         document.getElementById("wrapper").scrollIntoView()
                         onClose()
-                        DataSetApi._removeDataSet({ DATASET_CD: data.DATASET_CD })
+                        DataSetApi._removeDataSet({ DATASET_CD: data.DATASET_CD, TITLE: data.TITLE })
                           .then(result => {
                             if (result.status === 1) {
                               const filter = dataSetList.filter(ele => ele.DATASET_CD !== data.DATASET_CD)
@@ -395,12 +395,10 @@ const DataSets = props => {
 
   const _checkDirExist = async datasetName => {
     let result = await DataSetApi._checkDirExist({ datasetName })
-    console.log(result)
     return result.result
   }
 
   const _deployDataSet = (type, split, datasetName, datasetCd) => {
-    console.log(`create ${type} ${split} ${datasetName} ${datasetCd}`)
     DataSetApi._deployDataSet({ type, split, datasetName, datasetCd })
       .then(result => {
         return result.result
@@ -436,7 +434,7 @@ const DataSets = props => {
               <div className="react-confirm-alert-custom">
                 <h1>
                   <FiExternalLink />
-                  {checkDirExist ? "Remove deployed DataSet" : data.OBJECT_TYPE === "C" ? "Deploy DataSet" : "Deploy DataSet (YoloV7)"}
+                  {checkDirExist ? "Remove deployed DataSet" : data.OBJECT_TYPE === "D" ? "Deploy DataSet (YoloV7)" : "Deploy DataSet"}
                 </h1>
 
                 <div className="custom-modal-body">
