@@ -658,6 +658,8 @@ class CodeGen:
                 self.make_requirements_file_for_docker()
             elif self.m_deploy_type == 'pc_server':
                 self.make_requirements_file_for_PCServer()
+            elif self.m_deploy_type == 'pc_web':
+                self.make_requirements_file_for_PCServer()
             else:
                 self.make_requirements_file_for_others()
 
