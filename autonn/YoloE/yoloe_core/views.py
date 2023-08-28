@@ -138,6 +138,9 @@ def status_request(request):
             return Response("running", status=200, content_type='text/plain')
         else:
             print("tracked yoloe process you want, but not running anymore")
+            if nasinfo.status == "running":
+                nasinfo.status = "failed"
+                nasinfo.save()
             print(f"nasinfo.status: {nasinfo.status}")
             return Response(nasinfo.status, status=200, content_type='text/plain')
     except KeyError:
