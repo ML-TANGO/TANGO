@@ -258,25 +258,25 @@ services:
       sh -c "cd /app && python3 ondevice_deploy.py"
     ports:
       - 8891:8891
-  # #---------------------------------
-  # # Visualizer 
-  # #---------------------------------
-  # viz2code:
-  #   build:
-  #     context: ./visualization
-  #   command: >
-  #     sh -c "cd ./visualization/frontend &&
-  #            npm run build &&
-  #            cd ..
-  #            python manage.py makemigrations &&
-  #            python manage.py migrate &&
-  #            python manage.py runserver react 0.0.0.0:8091"
-  #   volumes:
-  #     - ./viz2code:/source
-  #   ports:
-  #     - "8091:8091"
-  # #   depends_on:
-  # #     - postgresql
+  #---------------------------------
+  # Visualizer 
+  #---------------------------------
+  viz2code:
+    build:
+      context: ./visualization
+    command: >
+      sh -c "cd ./visualization/frontend &&
+             npm run build &&
+             cd ..
+             python manage.py makemigrations &&
+             python manage.py migrate &&
+             python manage.py runserver react 0.0.0.0:8091"
+    volumes:
+      - ./viz2code:/source
+    ports:
+      - "8091:8091"
+  #   depends_on:
+  #     - postgresql
 
   #---------------------------------
   # Volumes 
