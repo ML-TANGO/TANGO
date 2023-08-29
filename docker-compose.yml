@@ -218,13 +218,17 @@ services:
   cloud_deploy:
     build:
       context: ./deploy_targets/cloud/target_image_build
-    command: >
-      sh -c "python main.py"
+    # -- command is not requred in favor of s6-overlay supervisor
+    # command: >
+    #   sh -c "python main.py"
     volumes:
-      - ./deploy_targets/cloud/target_image_build:/source
+      - ./deploy_targets/cloud/cloud_manager:/source/cloud_manager
+      - ./deploy_targets/cloud/image_builder:/source/image_builder
       - /var/run/docker.sock:/var/run/docker.sock
     ports:
-      - "8088:8088"
+      - "7007:7007"  # image builder (API)
+      - "8080:8080"  # image builder (GUI)
+      - "8088:8088"  # cloud manager
 
   #---------------------------------
   # K8S deploy
