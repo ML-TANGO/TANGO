@@ -1,2 +1,5 @@
 # PyCharm
 .idea
+
+# Pyenv virtualenv
+.python-version
