@@ -1,10 +1,8 @@
 from aiodocker import Docker, docker
-from sqlalchemy.orm import Session
 import crud
 
 
 class ManipulateContainer:
-
     def __init__(self):
         self._docker = Docker()
 
@@ -19,8 +17,7 @@ class ManipulateContainer:
                 "Tty": False,
                 "OpenStdin": False,
                 "ExposedPorts": {
-                    f'{data["deploy"]["network"]["service_container_port"]}/tcp': {
-                    }
+                    f'{data["deploy"]["network"]["service_container_port"]}/tcp': {}
                 },
                 "HostConfig": {
                     "PortBindings": {
@@ -42,7 +39,7 @@ class ManipulateContainer:
             await self._docker.close()
             raise e
 
-    async def stop_container(self, container_id, user_data: dict, db: Session):
+    async def stop_container(self, container_id):
         try:
             await self._docker.containers.container(container_id=container_id).stop()
             crud.modify_tasks_status(db, user_data=user_data, status="stopped")
@@ -53,7 +50,9 @@ class ManipulateContainer:
 
     async def get_container(self, container_id):
         try:
-            status = await self._docker.containers.container(container_id=container_id).show()
+            status = await self._docker.containers.container(
+                container_id=container_id
+            ).show()
             await self._docker.close()
             return status["State"]["Status"]
         except Exception as e:
@@ -80,6 +79,8 @@ async def _save_container_id(db, container_name, user_input):
                 index_num = i
                 break
         container_id = list[index_num]["Id"]
-        crud.modify_container_id(db, project_id=user_input["project_id"], container_id=container_id)
+        crud.modify_container_id(
+            db, project_id=user_input["project_id"], container_id=container_id
+        )
     except Exception as e:
-        raise(e)
+        raise (e)
