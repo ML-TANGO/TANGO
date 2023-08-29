@@ -177,6 +177,19 @@
         DATASET_CD = #{DATASET_CD}
   </update>
 
+  <update id="setUpdateDataElementAnno">
+      UPDATE DATA_ELEMENT
+      SET
+        UPT_DTM = now()
+        ,IS_ANNO = ${IS_ANNO}
+		    ,ANNO_DATA = #{ANNO_DATA}
+        ,ANNO_CNT = #{ANNO_CNT}
+        ,TAG_CNT = #{TAG_CNT}
+      WHERE
+        DATASET_CD = #{DATASET_CD} AND
+        DATA_CD = #{DATA_CD}
+  </update>
+
   <delete id="removeJson">
     DELETE FROM DATA_ELEMENT  WHERE DATASET_CD = #{DATASET_CD} AND (FILE_EXT = '.json' OR FILE_EXT = '.JSON')
   </delete>

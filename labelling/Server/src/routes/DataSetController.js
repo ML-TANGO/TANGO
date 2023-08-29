@@ -17,7 +17,6 @@ var logger = require("../lib/Logger")(__filename)
 const router = express.Router()
 const config = CL.getConfig()
 const CRN_USR = "testUser@test.co.kr"
-let totalNum = 0
 
 let storage = multer.diskStorage({
 	destination: (req, file, cb) => {
@@ -45,8 +44,7 @@ router.post(
 	asyncHandler(async (req, res, next) => {
 		const fileList = JSON.parse(req.body.dir)
 		let result = []
-		totalNum += fileList.length
-		logger.info(`[UPLOAD] Uploaded: ${totalNum}, current: ${fileList.length}`)
+		logger.info(`[UPLOAD] Uploaded: ${fileList.length}`)
 		fileList.map((ele) => {
 			result.push({ path: ele, fileName: path.basename(ele), status: 1 })
 		})
@@ -271,21 +269,27 @@ const _removeDataSet = async (data) => {
 	try {
 		logger.info(`[REMOVE] Removing Dataset.... [${data.DATASET_CD}]`)
 		const datasetDir = path.join(config.datasetPath, data.DATASET_CD)
+		logger.info(`[REMOVE] Removing Dataset.... [${datasetDir}]`)
 		fs.existsSync(datasetDir) && rimraf.sync(datasetDir)
 		const deploymentDir = path.join(
 			config.deploymentPath,
 			data.TITLE.replace(/[^\w\d\uAC00-\uD7AF]/g, "_")
 		)
+		logger.info(`[REMOVE] Removing Dataset.... [${deploymentDir}]`)
 		fs.existsSync(deploymentDir) && rimraf.sync(deploymentDir)
+
+		logger.info(`[REMOVE] Removing Dataset elements`)
 		let option = {}
 		option.source = CC.MAPPER.DATASET
 		option.queryId = "removeDataElements"
 		option.param = data
 		await DH.executeQuery(option)
 
+		logger.info(`[REMOVE] Removing Dataset analaysis`)
 		option.queryId = "removeAnalysis"
 		await DH.executeQuery(option)
 
+		logger.info(`[REMOVE] Removing Dataset features`)
 		option.queryId = "removeFeatures"
 		await DH.executeQuery(option)
 
@@ -765,23 +769,15 @@ const _createDataSets = async (data, dataCd) => {
 	let tagInfo = null
 
 	try {
-		// 썸네일 생성
-		if (data.OBJECT_TYPE !== "C") {
-			logger.info(`[DATASET] Create thumbnail`)
-			if (data.DATA_TYPE === "V") {
-				await _makeVideoThumbnails(data)
-			} else if (data.DATA_TYPE === "I") {
-				await _makeImageThumbnails(data)
-			}
-		}
-		// Classification인 경우 Tag등록
-		else {
-			logger.info(`[DATASET] Create tag (CLS)`)
-			tagInfo = await _setTagInfo(data)
-		}
 		// 파일 등록
 		logger.info(`[DATASET] Query file list`)
 		await _setFileInfo(data, dataCd, tagInfo)
+
+		// Classification인 경우 Tag등록
+		if (data.OBJECT_TYPE === "C") {
+			logger.info(`[DATASET] Create tag (CLS)`)
+			tagInfo = await _setTagInfo(data)
+		}
 
 		//데이터 임폴트인 경우
 		let splitOrgData = option.param.DATA.map((el) => el)
@@ -899,16 +895,46 @@ const _createDataSets = async (data, dataCd) => {
 
 					await Promise.all(chFile)
 
-					//데이터 엘리먼트 수정
 					importOption.source = CC.MAPPER.BIN
 					importOption.param.IS_ANNO = true
-					importOption.queryId = "setUpdateDataElementCnt"
-					await DH.executeQuery(importOption)
-
 					importOption.queryId = "removeJson"
 					await DH.executeQuery(importOption)
-					logger.info("[DATASET] Imported Cass Data Mapping Done!")
+
+					//데이터 엘리먼트 수정
+					const chunkSize = 100
+					let splitOption = { param: {} }
+					splitOption.source = CC.MAPPER.BIN
+					splitOption.param.IS_ANNO = true
+					splitOption.param.DATASET_CD = importOption.param.DATASET_CD
+					splitOption.queryId = "setUpdateDataElementAnno"
+
+					// for (let i = 0; i < totalNum; i += chunkSize) {
+					for (let i = 0; i < totalNum; i++) {
+						// const chunk = importOption.param.DATA.slice(i, i + chunkSize)
+						// logger.info(
+						// 	`[DATASET] Update Data Element ${i + chunk.length}/${totalNum}`
+						// )
+						logger.info(`[DATASET] Update Data Element ${i}/${totalNum}`)
+						// splitOption.param.DATA = chunk
+						splitOption.param.ANNO_DATA = importOption.param.DATA[i].ANNO_DATA
+						splitOption.param.ANNO_CNT = importOption.param.DATA[i].ANNO_CNT
+						splitOption.param.TAG_CNT = importOption.param.DATA[i].TAG_CNT
+						splitOption.param.DATA_CD = importOption.param.DATA[i].DATA_CD
+						await DH.executeQuery(splitOption)
+					}
+
+					logger.info("[DATASET] Imported Class Data Mapping Done!")
 				}
+			}
+		}
+
+		// 썸네일 생성
+		if (data.OBJECT_TYPE !== "C") {
+			logger.info(`[DATASET] Create thumbnail`)
+			if (data.DATA_TYPE === "V") {
+				await _makeVideoThumbnails(data)
+			} else if (data.DATA_TYPE === "I") {
+				await _makeImageThumbnails(data)
 			}
 		}
 
