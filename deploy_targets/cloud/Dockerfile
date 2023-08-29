@@ -26,9 +26,13 @@ ENV PATH="/opt/python/bin:${PATH}"
 COPY cloud_manager /source/cloud_manager
 COPY image_builder /source/image_builder
 
-# Install dependencies
-RUN /opt/python/bin/pip3 install -U -r /source/cloud_manager/requirements.txt \
-    && /opt/python/bin/pip3 install -U -r /source/image_builder/requirements.txt
+# Create two independent Python virtual environments.
+RUN /opt/python/bin/python3 -m venv /venvs/cloud_manager \
+    && /opt/python/bin/python3 -m venv /venvs/image_builder
+
+# Install dependencies in the virtual environments.
+RUN /venvs/cloud_manager/bin/pip install -U -r /source/cloud_manager/requirements.txt
+RUN /venvs/image_builder/bin/pip install -U -r /source/image_builder/requirements.txt
 
 # Cleanup
 RUN rm -rf /tmp/*
