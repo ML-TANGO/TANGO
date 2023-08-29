@@ -3,7 +3,6 @@ import crud
 
 
 class ManipulateContainer:
-
     def __init__(self):
         self._docker = Docker()
 
@@ -18,8 +17,7 @@ class ManipulateContainer:
                 "Tty": False,
                 "OpenStdin": False,
                 "ExposedPorts": {
-                    f'{data["deploy"]["network"]["service_container_port"]}/tcp': {
-                    }
+                    f'{data["deploy"]["network"]["service_container_port"]}/tcp': {}
                 },
                 "HostConfig": {
                     "PortBindings": {
@@ -34,23 +32,31 @@ class ManipulateContainer:
             container_name = crud.get_container_name(db, data["user"])[0]
             await self._docker.containers.run(config=config, name=container_name)
             await _save_container_id(db, container_name, data["user"])
+            crud.modify_tasks_status(db, user_data=data["user"], status="completed")
             await self._docker.close()
         except Exception as e:
+            crud.modify_tasks_status(db, user_data=data["user"], status="failed")
+            await self._docker.close()
             raise e
 
     async def stop_container(self, container_id):
         try:
             await self._docker.containers.container(container_id=container_id).stop()
+            crud.modify_tasks_status(db, user_data=user_data, status="stopped")
             await self._docker.close()
         except Exception as e:
+            await self._docker.close()
             raise e
 
     async def get_container(self, container_id):
         try:
-            status = await self._docker.containers.container(container_id=container_id).show()
+            status = await self._docker.containers.container(
+                container_id=container_id
+            ).show()
             await self._docker.close()
             return status["State"]["Status"]
         except Exception as e:
+            await self._docker.close()
             raise e
 
 
@@ -73,6 +79,8 @@ async def _save_container_id(db, container_name, user_input):
                 index_num = i
                 break
         container_id = list[index_num]["Id"]
-        crud.modify_container_id(db, project_id=user_input["project_id"], container_id=container_id)
+        crud.modify_container_id(
+            db, project_id=user_input["project_id"], container_id=container_id
+        )
     except Exception as e:
-        raise(e)
+        raise (e)
