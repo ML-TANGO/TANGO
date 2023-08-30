@@ -133,6 +133,46 @@
       </foreach>
   </insert>
 
+  <insert id="setDataElementWithCnt">
+    INSERT INTO DATA_ELEMENT (
+      DATASET_CD,
+      DATA_CD,
+      DATA_STATUS,
+      FILE_NAME,
+      FILE_EXT,
+      FILE_TYPE,
+      FILE_PATH,
+      FILE_RELPATH,
+      FILE_SIZE,
+      ANNO_DATA,
+      IS_ANNO,
+      ANNO_CNT,
+      TAG_CNT,
+      CRN_DTM,
+      UPT_DTM,
+      FPS,
+      TAG_CD
+    )
+    VALUES
+      (#{DATASET_CD},
+      #{DATA_CD},
+      #{DATA_STATUS},
+      #{FILE_NAME},
+      #{FILE_EXT},
+      #{FILE_TYPE},
+      #{FILE_PATH},
+      #{FILE_RELPATH},
+      ${FILE_SIZE},
+      #{ANNO_DATA},
+      ${IS_ANNO},
+      ${ANNO_CNT},
+      ${TAG_CNT},
+      now(),
+      NULL,
+      ${FPS},
+      ${TAG_CD})
+  </insert>
+
   <insert id="setNewDataSet">
     	INSERT INTO DATASET(
         DATASET_CD,

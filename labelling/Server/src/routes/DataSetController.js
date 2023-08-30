@@ -12,6 +12,7 @@ import DH from "../lib/DatabaseHandler"
 import CC from "../lib/CommonConstants"
 import CL from "../lib/ConfigurationLoader"
 import CF from "../lib/CommonFunction"
+import e from "express"
 var logger = require("../lib/Logger")(__filename)
 
 const router = express.Router()
@@ -769,10 +770,6 @@ const _createDataSets = async (data, dataCd) => {
 	let tagInfo = null
 
 	try {
-		// 파일 등록
-		logger.info(`[DATASET] Query file list`)
-		await _setFileInfo(data, dataCd, tagInfo)
-
 		// Classification인 경우 Tag등록
 		if (data.OBJECT_TYPE === "C") {
 			logger.info(`[DATASET] Create tag (CLS)`)
@@ -780,161 +777,200 @@ const _createDataSets = async (data, dataCd) => {
 		}
 
 		//데이터 임폴트인 경우
-		let splitOrgData = option.param.DATA.map((el) => el)
+		// let splitOrgData = option.param.DATA.map((el) => el)
+
+		const fileList = data.fileList ? data.fileList : data.files
 		if (data.IMPORT_TYPE === "COCO") {
-			let argData = {
-				DATASET_CD: data.DATASET_CD,
-				PURPOSE_TYPE: data.OBJECT_TYPE,
-				FILE_INFO: [],
-				BASE_PATH: data.DATASET_DIR,
+			// JSON file read
+			const jsonFiles = fileList.filter((ff) => ff.name.includes(".json"))
+			let categories = {}
+			let annotations = []
+			let images = []
+			jsonFiles.forEach((jf) => {
+				const readFile = JSON.parse(
+					fs.readFileSync(path.join(data.DATASET_DIR, jf.path))
+				)
+				const colors = Array.from(
+					{ length: readFile.categories.length },
+					() =>
+						`#${Math.floor(Math.random() * 0xffffff)
+							.toString(16)
+							.padStart(6, "0")}`
+				)
+				readFile.categories.map((rfm, rfmIdx) => {
+					categories[rfm.id] = { name: rfm.name, color: colors[rfmIdx] }
+				})
+
+				annotations = [...annotations, ...readFile.annotations]
+				images = [...images, ...readFile.images]
+			})
+			// set class info
+			let classOption = { param: {} }
+			classOption.source = CC.MAPPER.BIN
+			classOption.param.DATASET_CD = data.DATASET_CD
+			classOption.param.DATA = []
+			Object.keys(categories).map((km) => {
+				classOption.param.DATA.push({
+					TAG_CD: km,
+					DATASET_CD: data.DATASET_CD,
+					NAME: categories[km].name,
+					COLOR: categories[km].color,
+				})
+			})
+			classOption.queryId = "setDataTagsWithCd"
+			if (classOption.param.DATA.length > 0) {
+				await DH.executeQuery(classOption)
 			}
-
-			option.param.DATA = splitOrgData
-
-			data.DATA.map((ele) => {
-				argData.FILE_INFO.push({
-					FILE_PATH: ele.FILE_PATH,
-					DATA_CD: ele.DATA_CD,
-				})
-			})
-
-			let argPath = path.join(data.DATASET_DIR, "arg.dat")
-
-			fs.writeFileSync(argPath, JSON.stringify(argData), {
-				encoding: "utf8",
-				flag: "w",
-			})
-			logger.info("[DATASET] Import Data Processing...")
-			let importResult = await CF.runProcess("python", [
-				CC.BIN.importData,
-				argPath,
-			])
-
-			if (importResult.stderr === "") {
-				importResult = JSON.parse(importResult.stdout)
-
-				const classList = importResult.CLASS_INFO
-
-				let importOption = {}
-				importOption.param = {}
-				importOption.source = CC.MAPPER.BIN
-				importOption.param.DATASET_CD = data.DATASET_CD
-				importOption.param.DATA = []
-				classList.map((ele) => {
-					importOption.param.DATA.push({
-						DATASET_CD: data.DATASET_CD,
-						NAME: ele.TAG_NAME,
-						COLOR: ele.COLOR,
-					})
-				})
-				importOption.queryId = "setDataTags"
-				if (importOption.param.DATA.length > 0) {
-					await DH.executeQuery(importOption)
-					importOption.source = CC.MAPPER.BIN
-					importOption.param.DATA = []
-					data.DATA.map((ele) => {
-						let fn = ele.FILE_PATH
-						let ext = ele.FILE_EXT
-
-						let an = fn.substr(0, fn.length - ext.length)
-						an = an + ".dat"
-
-						if (ext !== ".json") {
-							importOption.param.DATA.push({
-								DATA_CD: ele.DATA_CD,
-								ANNO_DATA: an,
-								ANNO_CNT: 1,
-								TAG_CNT: 1,
-							})
-						}
-					})
-
-					//모든 태그 변경
-					importOption.source = CC.MAPPER.DATASET
-					importOption.queryId = "getExistTag"
-					let existTagList = await DH.executeQuery(importOption)
-
-					existTagList.map((ele) => {
-						let findTag = classList.find((item) => item.TAG_NAME === ele.NAME)
-						ele.orgTagCd = findTag.TAG_CD
-					})
-
-					logger.info("[DATASET] Imported Class Data Mapping...")
-					const totalNum = importOption.param.DATA.length
-					const chFile = importOption.param.DATA.map((ele, eleIdx) => {
-						return new Promise((resolve, reject) => {
-							let filePath = ele.ANNO_DATA
-							logger.info(
-								`[DATASET] [${
-									eleIdx + 1
-								}/${totalNum}]Class mapping completed. Path=${filePath}`
-							)
-							if (fs.existsSync(filePath)) {
-								var rsFile = JSON.parse(String(fs.readFileSync(filePath)))
-								rsFile.POLYGON_DATA.map((frame) => {
-									if (frame.TAG_CD != undefined && frame.TAG_CD != null) {
-										let findTag = existTagList.find(
-											(item) => item.orgTagCd === frame.TAG_CD
-										)
-										frame.TAG_CD = findTag.TAG_CD
-									}
-								})
-
-								ele["ANNO_CNT"] = rsFile.POLYGON_DATA.length
-								ele["TAG_CNT"] = [
-									...new Set(rsFile.POLYGON_DATA.map((pm) => pm.TAG_CD)),
-								].length
-								fs.writeFileSync(filePath, JSON.stringify(rsFile), {
-									encoding: "utf8",
-									flag: "w",
-								})
+			let thumFiles = []
+			const startTime = Date.now()
+			for (let i = 0; i < fileList.length; i++) {
+				// fileList.forEach((fl, flIdx) => {
+				let flIdx = i
+				let fl = fileList[i]
+				let polygonData = []
+				if (!fl.name.includes(".json")) {
+					// convert anno
+					let imageInfo = images.find((imf) => imf.file_name === fl.name)
+					let annoInfo = annotations.filter(
+						(annof) => annof.image_id === imageInfo.id
+					)
+					if (data.OBJECT_TYPE === "D") {
+						annoInfo.map((annom) => {
+							let ploygon = {
+								DATASET_CD: data.DATASET_CD,
+								DATA_CD: fl.DATA_CD,
+								TAG_CD: annom.category_id,
+								TAG_NAME: categories[annom.category_id].name,
+								COLOR: categories[annom.category_id].name,
+								CLASS_CD: "",
+								CURSOR: "isRect",
+								NEEDCOUNT: 2,
+								POSITION: [
+									{
+										X: parseFloat(annom["bbox"][0].toFixed(2)),
+										Y: parseFloat(annom["bbox"][1].toFixed(2)),
+									},
+									{
+										X: parseFloat(
+											(annom["bbox"][0] + annom["bbox"][2]).toFixed(2)
+										),
+										Y: parseFloat(
+											(annom["bbox"][1] + annom["bbox"][3]).toFixed(2)
+										),
+									},
+								],
 							}
-							resolve(1)
+							polygonData.push(ploygon)
 						})
-					})
-
-					await Promise.all(chFile)
-
-					importOption.source = CC.MAPPER.BIN
-					importOption.param.IS_ANNO = true
-					importOption.queryId = "removeJson"
-					await DH.executeQuery(importOption)
-
-					//데이터 엘리먼트 수정
-					const chunkSize = 100
-					let splitOption = { param: {} }
-					splitOption.source = CC.MAPPER.BIN
-					splitOption.param.IS_ANNO = true
-					splitOption.param.DATASET_CD = importOption.param.DATASET_CD
-					splitOption.queryId = "setUpdateDataElementAnno"
-
-					// for (let i = 0; i < totalNum; i += chunkSize) {
-					for (let i = 0; i < totalNum; i++) {
-						// const chunk = importOption.param.DATA.slice(i, i + chunkSize)
-						// logger.info(
-						// 	`[DATASET] Update Data Element ${i + chunk.length}/${totalNum}`
-						// )
-						logger.info(`[DATASET] Update Data Element ${i}/${totalNum}`)
-						// splitOption.param.DATA = chunk
-						splitOption.param.ANNO_DATA = importOption.param.DATA[i].ANNO_DATA
-						splitOption.param.ANNO_CNT = importOption.param.DATA[i].ANNO_CNT
-						splitOption.param.TAG_CNT = importOption.param.DATA[i].TAG_CNT
-						splitOption.param.DATA_CD = importOption.param.DATA[i].DATA_CD
-						await DH.executeQuery(splitOption)
+					} else if (data.OBJECT_TYPE === "S") {
+						annoInfo.map((annom) => {
+							if (annom.iscrowd === 0) {
+								const segmentation = annom.segmentation.flat()
+								const position = segmentation.reduce(
+									(result, value, index, array) => {
+										if (index % 2 === 0) {
+											result.push({ X: value, Y: array[index + 1] })
+										}
+										return result
+									},
+									[]
+								)
+								let ploygon = {
+									DATASET_CD: data.DATASET_CD,
+									DATA_CD: fl.DATA_CD,
+									TAG_CD: annom.category_id,
+									TAG_NAME: categories[annom.category_id].name,
+									COLOR: categories[annom.category_id].name,
+									CLASS_CD: "",
+									CURSOR: "isPolygon",
+									NEEDCOUNT: -1,
+									POSITION: position,
+								}
+								polygonData.push(ploygon)
+							}
+						})
 					}
 
-					logger.info("[DATASET] Imported Class Data Mapping Done!")
+					// write dat files
+					const saveFilePath = fl.path.replace(/\.\w+$/, "") + ".dat"
+					fs.writeFileSync(
+						path.join(data.DATASET_DIR, saveFilePath),
+						JSON.stringify({ POLYGON_DATA: polygonData }),
+						{
+							encoding: "utf8",
+							flag: "w",
+						}
+					)
+					// update database (DATA_ELEMENTS)
+					const annoCnt = polygonData.length
+					const tagCnt = [...new Set(polygonData.map((pm) => pm.TAG_CD))].length
+					let elementOption = { param: {} }
+					elementOption.source = CC.MAPPER.DATASET
+					elementOption.queryId = "setDataElementWithCnt"
+					elementOption.param.DATASET_CD = data.DATASET_CD
+					elementOption.param.DATA_CD = String(dataCd + flIdx).padStart(8, 0)
+					elementOption.param.DATA_STATUS = "ORG"
+					elementOption.param.FILE_NAME = path.parse(fl.name).name
+					elementOption.param.FILE_EXT = path.parse(fl.name).ext
+					elementOption.param.FILE_TYPE = data.DATA_TYPE
+					elementOption.param.FILE_PATH =
+						data.OBJECT_TYPE !== "C" && fl.base === "untagged"
+							? path.join(data.DATASET_DIR, fl.name)
+							: path.join(data.DATASET_DIR, fl.base, fl.name)
+					elementOption.param.FILE_RELPATH =
+						data.OBJECT_TYPE !== "C" && fl.base === "untagged"
+							? fl.name
+							: path.join(fl.base, fl.name)
+					elementOption.param.FILE_SIZE = fl.size
+					elementOption.param.ANNO_DATA = path.join(
+						data.DATASET_DIR,
+						saveFilePath
+					)
+					elementOption.param.IS_ANNO = true
+					elementOption.param.ANNO_CNT = annoCnt
+					elementOption.param.TAG_CNT = tagCnt
+					elementOption.param.FPS = fl.FPS === undefined ? 0 : fl.FPS
+					elementOption.param.TAG_CD = 0
+					await DH.executeQuery(elementOption)
+
+					await CF.sendRequestResLong(
+						config.masterIp,
+						config.masterPort,
+						CC.URI.makeThumnail,
+						[
+							{
+								MDL_TYPE: data.DATA_TYPE,
+								PATH: path.join(data.DATASET_DIR, fl.path),
+								SAVE_PATH:
+									data.OBJECT_TYPE !== "C" && fl.base === "untagged"
+										? path.join(data.DATASET_DIR, fl.name)
+										: path.join(data.DATASET_DIR, fl.base, "THUM_" + fl.name),
+							},
+						]
+					).catch((err) => {
+						throw new Error(`Thumnail Network Fail ${err.stack}`)
+					})
+					const endTime = Date.now()
+					const timePerFile = (endTime - startTime) / (flIdx + 1)
+					const filesLeft = fileList.length - (flIdx + 1)
+					const estimateTime = timePerFile * filesLeft
+					logger.info(
+						`[UPDATE] (${flIdx}/${fileList.length}) ${saveFilePath} - ${estimateTime}ms left`
+					)
 				}
 			}
-		}
-
-		// 썸네일 생성
-		if (data.OBJECT_TYPE !== "C") {
-			logger.info(`[DATASET] Create thumbnail`)
-			if (data.DATA_TYPE === "V") {
-				await _makeVideoThumbnails(data)
-			} else if (data.DATA_TYPE === "I") {
-				await _makeImageThumbnails(data)
+		} else {
+			// 파일 등록
+			logger.info(`[DATASET] Query file list`)
+			await _setFileInfo(data, dataCd, tagInfo)
+			// 썸네일 생성
+			if (data.OBJECT_TYPE !== "C") {
+				logger.info(`[DATASET] Create thumbnail`)
+				if (data.DATA_TYPE === "V") {
+					await _makeVideoThumbnails(data)
+				} else if (data.DATA_TYPE === "I") {
+					await _makeImageThumbnails(data)
+				}
 			}
 		}
 
@@ -1251,7 +1287,7 @@ router.post(
 				!fs.existsSync(datasetTypePath) &&
 					fs.mkdirSync(datasetTypePath, { recursive: true })
 				// copy ( train/images, val/images, test/images)
-				const promises = fileList.map((fm) => {
+				const promises = fileList.map((fm, fmIdx) => {
 					return new Promise((resolve, reject) => {
 						try {
 							let destinationPath = path.join(
@@ -1289,7 +1325,9 @@ router.post(
 								)
 								annoData += `${categoryId} ${anno.x} ${anno.y} ${anno.width} ${anno.height}\n`
 							})
-							logger.info(`Create annotation file: ${destinationPath}`)
+							logger.info(
+								`[DEPLOYMENT] (${fmIdx}/${fileCount}) Create annotation file: ${destinationPath}`
+							)
 
 							fs.writeFileSync(destinationPath, annoData, {
 								encoding: "utf8",

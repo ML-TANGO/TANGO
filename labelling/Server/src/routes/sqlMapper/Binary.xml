@@ -133,6 +133,25 @@
   </if>
   </insert>
 
+  <insert id="setDataTagsWithCd">
+    INSERT INTO DATASET_TAGINFO (
+    TAG_CD,
+		DATASET_CD,
+		NAME,
+		COLOR
+	) VALUES
+  <if test="DATA != null and DATA.size != 0">
+    <foreach collection="DATA" item="item" separator="," >
+        (
+          #{item.TAG_CD},
+          #{DATASET_CD},
+          #{item.NAME},
+          #{item.COLOR}
+        )
+    </foreach>
+  </if>
+  </insert>
+
   <update id="setUpdateDataElement">
       UPDATE DATA_ELEMENT
       SET
