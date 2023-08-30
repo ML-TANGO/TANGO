@@ -217,7 +217,7 @@ services:
   #---------------------------------
   cloud_deploy:
     build:
-      context: ./deploy_targets/cloud/target_image_build
+      context: ./deploy_targets/cloud
     # -- command is not requred in favor of s6-overlay supervisor
     # command: >
     #   sh -c "python main.py"
