@@ -238,15 +238,30 @@ services:
     build:
       context: ./deploy_targets/k8s
     container_name: "tango_k8s"
-    command: bash -c "cd /app && python3 k8s_deploy.py"
+    privileged: true
+    command:
+      bash -c "cd /app && python3 k8s_deploy.py"
     volumes:
       - $HOME/.kube:/home/root/.kube
-      - shared:/tango
+      - shared:/app/tango
       - ./deploy_targets/k8s:/app
+      - /var/run/docker.sock:/var/run/docker.sock
     environment:
       - "HOME=/home/root"
     ports:
-      - "8902:8902"
+      - "8901:8901"
+  
+  #---------------------------------
+  # K8S docker registry(image manager)
+  #---------------------------------
+
+  registry:
+      image: registry
+      container_name: registry
+      volumes:
+        - registry_data:/var/lib/registry/docker/registry/v2 # image 저장
+      ports:
+        - "8903:5000"
 
   #---------------------------------
   # ondevice_deploy Build 
@@ -286,5 +301,6 @@ services:
   # Volumes 
   #---------------------------------
 volumes:
+  registry_data: { }
   postgreSQL: # for Proejct Manager
   shared: # shared Directory
