@@ -4,43 +4,43 @@ services:
   #---------------------------------
   # Project Manager
   #---------------------------------
-  # project_manager:
-  #   build:
-  #     context: ./project_manager
-  #   command: >
-  #     sh -c "chmod 777 ./wait_for_postgres.sh &&
-  #            ./wait_for_postgres.sh &&
-  #            python manage.py makemigrations tango &&
-  #            python manage.py migrate &&
-  #            python manage.py collectstatic --no-input &&
-  #            python manage.py loaddata base_model_data.json &&
-  #            python manage.py runserver 0.0.0.0:8085"
-  #   volumes:
-  #     - ./project_manager:/code
-  #     - shared:/shared
-  #     - /var/run/docker.sock:/var/run/docker.sock
-  #   hostname: projectmanager
-  #   ports:
-  #     - "8085:8085"
-  #   environment:
-  #     - POSTGRES_NAME=postgres
-  #     - POSTGRES_USER=postgres
-  #     - POSTGRES_PASSWORD=postgres
-  #   depends_on:
-  #     - postgresql
+  project_manager:
+    build:
+      context: ./project_manager
+    command: >
+      sh -c "chmod 777 ./wait_for_postgres.sh &&
+             ./wait_for_postgres.sh &&
+             python manage.py makemigrations tango &&
+             python manage.py migrate &&
+             python manage.py collectstatic --no-input &&
+             python manage.py loaddata base_model_data.json &&
+             python manage.py runserver 0.0.0.0:8085"
+    volumes:
+      - ./project_manager:/code
+      - shared:/shared
+      - /var/run/docker.sock:/var/run/docker.sock
+    hostname: projectmanager
+    ports:
+      - "8085:8085"
+    environment:
+      - POSTGRES_NAME=postgres
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=postgres
+    depends_on:
+      - postgresql
 
   #---------------------------------
   # DB for Project Manager
   #---------------------------------
-  # postgresql:
-  #   image: postgres:latest
-  #   restart: always
-  #   volumes:
-  #     - postgreSQL:/var/lib/postgresql/data
-  #   environment:
-  #     - POSTGRES_NAME=postgres
-  #     - POSTGRES_USER=postgres
-  #     - POSTGRES_PASSWORD=postgres
+  postgresql:
+    image: postgres:latest
+    restart: always
+    volumes:
+      - postgreSQL:/var/lib/postgresql/data
+    environment:
+      - POSTGRES_NAME=postgres
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=postgres
 
   #---------------------------------
   # DB for labelling tool
@@ -75,209 +75,209 @@ services:
       - "8086:80" # for Web UI
       - "8095:10236" # for Rest API
 
-  # #---------------------------------
-  # # Base Model Selector
-  # #---------------------------------
-  # bms:
-  #   build:
-  #     context: ./base_model_select
-  #   shm_size: "256M"
-  #   command: >
-  #     sh -c "python manage.py makemigrations &&
-  #            python manage.py migrate --run-syncdb &&
-  #            python manage.py runserver 0.0.0.0:8081"
-  #   # deploy:
-  #   #   resources:
-  #   #     reservations:
-  #   #       devices:
-  #   #         - driver: nvidia
-  #   #           capabilities: [gpu]
-  #   # environment:
-  #   #   - NVIDIA_VISIBLE_DEVICES=all
-  #   hostname: bms
-  #   volumes:
-  #     - ./base_model_select:/source
-  #     - shared:/shared
-  #   ports:
-  #     - "8081:8081"
-
-  # #---------------------------------
-  # # AutoNN: Bakcbone-NAS
-  # #---------------------------------
-  # autonn_bb:
-  #   build:
-  #     context: ./autonn/backbone_nas
-  #   shm_size: '256M'
-  #   ipc: host
-  #   command: >
-  #     sh -c "python manage.py makemigrations &&
-  #            python manage.py migrate &&
-  #            python manage.py runserver 0.0.0.0:8087"
-  #   # use the below lines commented out if you want to use gpu
-  #   # deploy:
-  #   #   resources:
-  #   #     reservations:
-  #   #       devices:
-  #   #         - driver: nvidia
-  #   #           capabilities:
-  #   #             - gpu
-  #   #             - utility
-  #   #             - compute
-  #   #             - video
-  #   # environment:
-  #   #   - NVIDIA_VISIBLE_DEVICES=all
-  #   volumes:
-  #     - ./autonn/backbone_nas:/source
-  #     - shared:/shared
-  #   ports:
-  #     - "8087:8087"
-
-  # #---------------------------------
-  # # AutoNN: Neck-NAS
-  # #---------------------------------
-  # autonn_nk:
-  #   build:
-  #     context: ./autonn/neck_nas
-  #   shm_size: '256M'
-  #   ipc: host
-  #   command: >
-  #     sh -c "python manage.py makemigrations &&
-  #            python manage.py migrate &&
-  #            python manage.py runserver 0.0.0.0:8089"
-  #   # use the below lines commented out if you want to use gpu
-  #   # deploy:
-  #   #   resources:
-  #   #     reservations:
-  #   #       devices:
-  #   #         - driver: nvidia
-  #   #           capabilities:
-  #   #             - gpu
-  #   #             - utility
-  #   #             - compute
-  #   #             - video
-  #   # environment:
-  #   #   - NVIDIA_VISIBLE_DEVICES=all
-  #   volumes:
-  #     - ./autonn/neck_nas:/source
-  #     - shared:/shared
-  #     # - /Data:/shared/datasets # for local tests
-  #   ports:
-  #     - "8089:8089"
+  #---------------------------------
+  # Base Model Selector
+  #---------------------------------
+  bms:
+    build:
+      context: ./base_model_select
+    shm_size: "256M"
+    command: >
+      sh -c "python manage.py makemigrations &&
+             python manage.py migrate --run-syncdb &&
+             python manage.py runserver 0.0.0.0:8081"
+    # deploy:
+    #   resources:
+    #     reservations:
+    #       devices:
+    #         - driver: nvidia
+    #           capabilities: [gpu]
+    # environment:
+    #   - NVIDIA_VISIBLE_DEVICES=all
+    hostname: bms
+    volumes:
+      - ./base_model_select:/source
+      - shared:/shared
+    ports:
+      - "8081:8081"
 
   #---------------------------------
-  # AutoNN: YoloE
+  # AutoNN: Bakcbone-NAS
   #---------------------------------
-#   autonn_yoloe:
-#     build:
-#       context: ./autonn/YoloE
-#     shm_size: "256M"
-#     ipc: host
-#     command: >
-#       sh -c "python manage.py makemigrations &&
-#              python manage.py migrate &&
-#              python manage.py runserver 0.0.0.0:8090"
-#     # use the below lines commented out if you want to use gpu
-#     deploy:
-#       resources:
-#         reservations:
-#           devices:
-#             - driver: nvidia
-#               capabilities:
-#                 - gpu
-#                 - utility
-#                 - compute
-#                 - video
-#     environment:
-#       - NVIDIA_VISIBLE_DEVICES=all
-#     volumes:
-#       - ./autonn/YoloE:/source
-#       - shared:/shared
-#       - ./autonn/YoloE/sample_yaml/dataset.yaml:/shared/datasets/coco/dataset.yaml # TEMP FILE UNTIL LABELLING MODULE WORKING
-#       - ${COCODIR:-./autonn/YoloE/sample_data/coco128}:/shared/datasets/coco # TEMP FILE UNTIL LABELLING MODULE WORKING
-#     hostname: yoloe
-#     ports:
-#       - "8090:8090"
+  autonn_bb:
+    build:
+      context: ./autonn/backbone_nas
+    shm_size: '256M'
+    ipc: host
+    command: >
+      sh -c "python manage.py makemigrations &&
+             python manage.py migrate &&
+             python manage.py runserver 0.0.0.0:8087"
+    # use the below lines commented out if you want to use gpu
+    # deploy:
+    #   resources:
+    #     reservations:
+    #       devices:
+    #         - driver: nvidia
+    #           capabilities:
+    #             - gpu
+    #             - utility
+    #             - compute
+    #             - video
+    # environment:
+    #   - NVIDIA_VISIBLE_DEVICES=all
+    volumes:
+      - ./autonn/backbone_nas:/source
+      - shared:/shared
+    ports:
+      - "8087:8087"
 
-#   #---------------------------------
-#   # code_gen Build
-#   #---------------------------------
-#   code_gen:
-#     build:
-#       context: ./deploy_codegen/optimize_codegen
-#     hostname: codeGen
-#     volumes:
-#       - ./deploy_codegen/optimize_codegen:/source
-#       - shared:/tango
-#     command: >
-#       sh -c "cd /app && python3 code_gen.py"
-#     ports:
-#       - 8888:8888
+  #---------------------------------
+  # AutoNN: Neck-NAS
+  #---------------------------------
+  autonn_nk:
+    build:
+      context: ./autonn/neck_nas
+    shm_size: '256M'
+    ipc: host
+    command: >
+      sh -c "python manage.py makemigrations &&
+             python manage.py migrate &&
+             python manage.py runserver 0.0.0.0:8089"
+    # use the below lines commented out if you want to use gpu
+    # deploy:
+    #   resources:
+    #     reservations:
+    #       devices:
+    #         - driver: nvidia
+    #           capabilities:
+    #             - gpu
+    #             - utility
+    #             - compute
+    #             - video
+    # environment:
+    #   - NVIDIA_VISIBLE_DEVICES=all
+    volumes:
+      - ./autonn/neck_nas:/source
+      - shared:/shared
+      # - /Data:/shared/datasets # for local tests
+    ports:
+      - "8089:8089"
 
-#   #---------------------------------
-#   # Cloud deploy (with target image build)
-#   #---------------------------------
-#   cloud_deploy:
-#     build:
-#       context: ./deploy_targets/cloud/target_image_build
-#     command: >
-#       sh -c "python main.py"
-#     volumes:
-#       - ./deploy_targets/cloud/target_image_build:/source
-#       - /var/run/docker.sock:/var/run/docker.sock
-#     ports:
-#       - "8088:8088"
+  ---------------------------------
+  AutoNN: YoloE
+  ---------------------------------
+  autonn_yoloe:
+    build:
+      context: ./autonn/YoloE
+    shm_size: "256M"
+    ipc: host
+    command: >
+      sh -c "python manage.py makemigrations &&
+             python manage.py migrate &&
+             python manage.py runserver 0.0.0.0:8090"
+    # use the below lines commented out if you want to use gpu
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              capabilities:
+                - gpu
+                - utility
+                - compute
+                - video
+    environment:
+      - NVIDIA_VISIBLE_DEVICES=all
+    volumes:
+      - ./autonn/YoloE:/source
+      - shared:/shared
+      - ./autonn/YoloE/sample_yaml/dataset.yaml:/shared/datasets/coco/dataset.yaml # TEMP FILE UNTIL LABELLING MODULE WORKING
+      - ${COCODIR:-./autonn/YoloE/sample_data/coco128}:/shared/datasets/coco # TEMP FILE UNTIL LABELLING MODULE WORKING
+    hostname: yoloe
+    ports:
+      - "8090:8090"
 
-#   #---------------------------------
-#   # K8S deploy
-#   #---------------------------------
-#   kube_deploy:
-#     hostname: k8s
-#     build:
-#       context: ./deploy_targets/k8s
-#     container_name: "tango_k8s"
-#     command: bash -c "cd /app && python3 k8s_deploy.py"
-#     volumes:
-#       - $HOME/.kube:/home/root/.kube
-#       - shared:/tango
-#       - ./deploy_targets/k8s:/app
-#     environment:
-#       - "HOME=/home/root"
-#     ports:
-#       - "8902:8902"
+  #---------------------------------
+  # code_gen Build
+  #---------------------------------
+  code_gen:
+    build:
+      context: ./deploy_codegen/optimize_codegen
+    hostname: codeGen
+    volumes:
+      - ./deploy_codegen/optimize_codegen:/source
+      - shared:/tango
+    command: >
+      sh -c "cd /app && python3 code_gen.py"
+    ports:
+      - 8888:8888
 
-#   #---------------------------------
-#   # ondevice_deploy Build
-#   #---------------------------------
-#   ondevice_deploy:
-#     hostname: ondevice
-#     build:
-#       context: ./deploy_targets/ondevice
-#     volumes:
-#       - ./deploy_targets/ondevice:/source
-#       - shared:/tango
-#     command: >
-#       sh -c "cd /app && python3 ondevice_deploy.py"
-#     ports:
-#       - 8891:8891
-#   # #---------------------------------
-#   # # Visualizer
-#   # #---------------------------------
-#   # viz2code:
-#   #   build:
-#   #     context: ./visualization
-#   #   command: >
-#   #     sh -c "cd ./visualization/frontend &&
-#   #            npm run build &&
-#   #            cd ..
-#   #            python manage.py makemigrations &&
-#   #            python manage.py migrate &&
-#   #            python manage.py runserver react 0.0.0.0:8091"
-#   #   volumes:
-#   #     - ./viz2code:/source
-#   #   ports:
-#   #     - "8091:8091"
-#   #   depends_on:
-#   #     - postgresql
+  #---------------------------------
+  # Cloud deploy (with target image build)
+  #---------------------------------
+  cloud_deploy:
+    build:
+      context: ./deploy_targets/cloud/target_image_build
+    command: >
+      sh -c "python main.py"
+    volumes:
+      - ./deploy_targets/cloud/target_image_build:/source
+      - /var/run/docker.sock:/var/run/docker.sock
+    ports:
+      - "8088:8088"
+
+  #---------------------------------
+  # K8S deploy
+  #---------------------------------
+  kube_deploy:
+    hostname: k8s
+    build:
+      context: ./deploy_targets/k8s
+    container_name: "tango_k8s"
+    command: bash -c "cd /app && python3 k8s_deploy.py"
+    volumes:
+      - $HOME/.kube:/home/root/.kube
+      - shared:/tango
+      - ./deploy_targets/k8s:/app
+    environment:
+      - "HOME=/home/root"
+    ports:
+      - "8902:8902"
+
+  #---------------------------------
+  # ondevice_deploy Build
+  #---------------------------------
+  ondevice_deploy:
+    hostname: ondevice
+    build:
+      context: ./deploy_targets/ondevice
+    volumes:
+      - ./deploy_targets/ondevice:/source
+      - shared:/tango
+    command: >
+      sh -c "cd /app && python3 ondevice_deploy.py"
+    ports:
+      - 8891:8891
+  # #---------------------------------
+  # # Visualizer
+  # #---------------------------------
+  # viz2code:
+  #   build:
+  #     context: ./visualization
+  #   command: >
+  #     sh -c "cd ./visualization/frontend &&
+  #            npm run build &&
+  #            cd ..
+  #            python manage.py makemigrations &&
+  #            python manage.py migrate &&
+  #            python manage.py runserver react 0.0.0.0:8091"
+  #   volumes:
+  #     - ./viz2code:/source
+  #   ports:
+  #     - "8091:8091"
+  #   depends_on:
+  #     - postgresql
 
 #---------------------------------
 # Volumes
