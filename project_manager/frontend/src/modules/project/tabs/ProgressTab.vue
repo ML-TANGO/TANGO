@@ -13,18 +13,24 @@
         </div>
       </div>
       <h4 class="ml-3 mb-3">
-        Progress - {{ showContainerName(projectInfo?.container) }} {{ projectInfo?.container_status }}
+        Progress - {{ DisplayName[projectInfo?.container] }} {{ projectInfo?.container_status }}
       </h4>
-      <v-card color="#DFDFDF" class="" style="border-radius: 4px" height="180">
+      <v-card color="#DFDFDF" class="ma-1" style="border-radius: 4px" height="180">
         <div style="height: 100%">
           <ProgressCanvas
             :running="projectInfo?.container"
             :status="projectInfo?.container_status"
             :userEdit="project.deploy_user_edit === 'yes'"
+            :workflow="project?.workflow"
             @start="start"
+            @showVis2code="showVis2code"
             @immediateLaunch="immediateLaunch"
           />
         </div>
+      </v-card>
+
+      <v-card v-if="isVis2Code" style="height: 1080px; overflow: none" class="mt-5">
+        <iframe :src="HongIKVis2Code" title="내용" width="100%" height="100%"></iframe>
       </v-card>
     </div>
     <div>
@@ -44,20 +50,18 @@
           <span v-else style="font-size: 10px">Copy Log</span>
         </v-tooltip>
       </div>
-      <v-card color="#000" class="ml-3" style="border-radius: 4px">
-        <v-textarea
-          ref="logs"
-          id="log"
-          class="mb-5"
-          dark
-          filled
-          :value="vale"
-          style="font-size: 12px"
-          readonly
-          hide-details
-          autofocus
-        ></v-textarea>
-      </v-card>
+      <v-textarea
+        ref="logs"
+        id="log"
+        class="mb-5 ma-1 log-area"
+        dark
+        filled
+        :value="vale"
+        background-color="#000"
+        style="font-size: 12px"
+        readonly
+        hide-details
+      ></v-textarea>
     </div>
   </div>
 </template>
@@ -68,6 +72,7 @@ import { ProjectNamespace, ProjectMutations } from "@/store/modules/project";
 import ProgressCanvas from "@/modules/project/components/ProgressCanvas.vue";
 
 import { ProjectType } from "@/shared/consts";
+import { DisplayName } from "@/shared/enums";
 
 import { containerStart, updateProjectType } from "@/api";
 export default {
@@ -82,12 +87,23 @@ export default {
       vale: ``,
       running: "",
       copyFailed: false,
-      copySuccess: false
+      copySuccess: false,
+      isVis2Code: false,
+      DisplayName
     };
   },
 
   computed: {
-    ...mapState(ProjectNamespace, ["project"])
+    ...mapState(ProjectNamespace, ["project"]),
+
+    HongIKVis2Code() {
+      if (process.env.NODE_ENV === "production") {
+        const host = window.location.hostname;
+        return `http://${host}:8091`;
+      } else {
+        return `${process.env.VUE_APP_ROOT_HOST}:8091`;
+      }
+    }
   },
 
   mounted() {
@@ -97,6 +113,9 @@ export default {
     });
 
     this.$EventBus.$on("logUpdate", this.updateLog);
+    this.$EventBus.$on("control_Vis2Code", status => {
+      this.isVis2Code = status;
+    });
   },
 
   methods: {
@@ -104,9 +123,13 @@ export default {
       SET_PROJECT: ProjectMutations.SET_PROJECT
     }),
 
+    showVis2code() {
+      this.isVis2Code = true;
+    },
+
     updateLog(log) {
-      if (log.message !== "\n") {
-        if (log.message.trim()) {
+      if (log?.message !== "\n") {
+        if (log?.message?.trim()) {
           this.vale += log.message;
         }
       }
@@ -117,14 +140,7 @@ export default {
     },
 
     start(container) {
-      const containerName =
-        container === "bms"
-          ? "BMS"
-          : container === "yoloe"
-          ? "Auto NN"
-          : container === "codeGen"
-          ? "Code Gen"
-          : "Image Deploy";
+      const containerName = DisplayName[container];
 
       this.$swal
         .fire({
@@ -177,18 +193,18 @@ export default {
             if (result.isConfirmed) {
               await updateProjectType(this.projectInfo.id, ProjectType.AUTO);
               await this.containerStartRequest("bms");
+              this.$emit("restart", "bms");
             }
           });
       } else {
         await updateProjectType(this.projectInfo.id, ProjectType.AUTO);
         await this.containerStartRequest("bms");
+        this.$emit("restart", "bms");
       }
 
       this.SET_PROJECT({
         project_type: ProjectType.AUTO
       });
-
-      this.$emit("start");
     },
 
     async menualCreate() {
@@ -219,23 +235,23 @@ export default {
       });
     },
 
-    showContainerName(container) {
-      if (container) {
-        if (container.toLowerCase() === "bms") {
-          return "BMS";
-        } else if (container.toLowerCase() === "yoloe") {
-          return "Auto NN";
-        } else if (container.toLowerCase() === "codegen") {
-          return "Code Gen";
-        } else if (container.toLowerCase() === "imagedeploy") {
-          return "Image Deploy";
-        } else {
-          return "";
-        }
-      } else {
-        return "";
-      }
-    },
+    // showContainerName(container) {
+    //   if (container) {
+    //     if (container.toLowerCase() === "bms") {
+    //       return "BMS";
+    //     } else if (container.toLowerCase() === "yoloe") {
+    //       return "Auto NN";
+    //     } else if (container.toLowerCase() === "codegen") {
+    //       return "Code Gen";
+    //     } else if (container.toLowerCase() === "imagedeploy") {
+    //       return "Image Deploy";
+    //     } else {
+    //       return "";
+    //     }
+    //   } else {
+    //     return "";
+    //   }
+    // },
 
     clipboardCopy() {
       this.$copyText(this.vale).then(
@@ -256,8 +272,8 @@ export default {
 
     async containerStartRequest(container) {
       const res = await containerStart(container, this.projectInfo.create_user, this.projectInfo.id);
-      this.vale += res.message;
-      this.vale += res.response;
+      this.updateLog(res.message);
+      this.updateLog(res.response);
     }
   }
 };
@@ -277,5 +293,11 @@ export default {
 
 .btn {
   z-index: 15;
+}
+</style>
+
+<style>
+.log-area textarea {
+  min-height: 400px;
 }
 </style>

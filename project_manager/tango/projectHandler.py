@@ -96,6 +96,8 @@ async def continer_request_api(host, user_id, project_id):
     print("response")
     print(response)
 
+    
+
     # return response.json()
     # return str(response.content.decode('utf-8'))
     return str(response.content, 'utf-8').replace('"','')
@@ -128,6 +130,8 @@ def get_container_info(host_name):
         'bms' : "8081",
         'yoloe' : "8090",
         'codeGen' : "8888",
+        'autonn_resnet': "8092",
+        'visualization': "8091"
     }
     return host_name, ports_by_container[host_name]
 
@@ -142,6 +146,8 @@ def get_docker_container_name(container):
         containerName = 'autonn_yoloe'
     elif container == 'labelling' :
         containerName = 'labelling'
+    elif container == 'autonn_resnet' :
+        containerName = 'autonn_resnet'
     elif container == 'autonn_bb' :
         containerName = 'autonn_bb'
     elif container == 'autonn_nk' :
@@ -152,6 +158,8 @@ def get_docker_container_name(container):
         containerName = 'tango_k8s'
     elif container == 'ondevice' :
         containerName = 'ondevice_deploy'
+    elif container == 'visualization':
+        containerName = 'viz2code'
     else :
         containerName = 'bms'
 
@@ -159,14 +167,13 @@ def get_docker_container_name(container):
 
 def get_deploy_host_port(deploy_type):
     port = ''
-    if deploy_type == 'cloud' :
-        port = "8890"
-    elif deploy_type == 'k8s' :
-        port = "8901"
+    if deploy_type == 'Cloud' :
+        return "cloud_deploy", "8088"
+    elif deploy_type == 'K8S' or deploy_type == 'K8S_Jetson_Nano':
+        return "kube_deploy", "8902"
     else:
         # ondevice 등등.... 
-        port = '8891'
-    return deploy_type, port
+        return "ondevice", "8891"
 #endregion
 
 
@@ -193,19 +200,25 @@ def print_roundtrip(response, *args, **kwargs):
 def get_log_container_name(container):
     if container == 'bms':
         return 'BMS'
-    elif container == 'yoloe':
+    elif container == 'yoloe' or container == 'autonn_resnet':
         return 'Auto NN'
     elif container == 'codeGen' or container == 'code_gen' or container == 'codegen':
         return 'Code Gen'
     elif container == 'imagedeploy':
         return 'Image Deploy'
+    elif container == 'visualization':
+        return 'Visualization'
     
 
 def db_container_name(container):
     if container == 'bms':
-        return 'BMS'
+        return 'bms'
     elif container == 'yoloe':
         return 'yoloe'
+    elif container == 'visualization':
+        return 'visualization'
+    elif container == 'autonn_resnet':
+        return 'autonn_resnet'
     elif container == 'codeGen' or container == 'code_gen' or container == 'codegen':
         return 'codeGen'
 
@@ -241,12 +254,39 @@ def nn_model_unzip(user_id, project_id, file):
 
     return os.path.join(file_path, "nn_model.zip")
 
-    
+def create_text_file_if_not_exists(file_path):
+    try:
+        # Try to open the file in read mode to check if it exists
+        with open(file_path, 'r'):
+            pass
+    except FileNotFoundError:
+        # If the file doesn't exist, create it
+        with open(file_path, 'w') as f:
+            f.write("This is a new text file.")
+        print(f"File '{file_path}' created.")
 
-def db_container_name(container):
-    if container == 'bms' or container == 'BMS':
-        return 'bms'
-    elif container == 'yoloe':
-        return 'yoloe'
-    elif container == 'codeGen' or container == 'code_gen' or container == 'codegen':
-        return 'codeGen'
+def update_project_log_file(user_id, project_id, log):
+    log_file_path = os.path.join(root_path, "shared/common/{0}/{1}".format(str(user_id), str(project_id)), 'log.txt')
+    # create_text_file_if_not_exists(log_file_path)
+
+    with open(log_file_path, 'a+') as f:
+        f.write(log)
+
+
+def findIndexByDicList(list, find_column, find_value):
+    index = None
+    for i, person in enumerate(list):
+        print(person[find_column])
+        print(find_value)
+        if person[find_column] == find_value:
+            index = i
+            break
+    
+    return index
+# def db_container_name(container):
+#     if container == 'bms' or container == 'BMS':
+#         return 'bms'
+#     elif container == 'yoloe':
+#         return 'yoloe'
+#     elif container == 'codeGen' or container == 'code_gen' or container == 'codegen':
+#         return 'codeGen'

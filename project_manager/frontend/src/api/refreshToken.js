@@ -3,7 +3,8 @@ import Cookies from "universal-cookie";
 const refresh = async config => {
   const token = getToken();
   if (token) config.headers["Authorization"] = `Bearer ${token}`;
-  config.headers["Content-Type"] = `multipart/form-data`;
+
+  // config.headers["Content-Type"] = `multipart/form-data`;
   return config;
 };
 

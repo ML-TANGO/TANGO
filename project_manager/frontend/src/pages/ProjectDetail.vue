@@ -26,7 +26,16 @@ import ConfigurationTab from "@/modules/project/tabs/ConfigurationTab.vue";
 import ProgressTab from "@/modules/project/tabs/ProgressTab.vue";
 import TabBase from "@/modules/project/TabBase.vue";
 
-import { getProjectInfo, getTargetInfo, getDatasetListTango, stopContainer, postStatusRequest } from "@/api";
+import { TaskType, ContainerName } from "@/shared/enums";
+
+import {
+  getProjectInfo,
+  getTargetInfo,
+  getDatasetListTango,
+  stopContainer,
+  postStatusRequest,
+  setWorkflow
+} from "@/api";
 
 import Cookies from "universal-cookie";
 export default {
@@ -43,7 +52,13 @@ export default {
     ...mapState(ProjectNamespace, ["project"])
   },
 
-  async beforeCreate() {
+  watch: {
+    interval() {
+      console.log("this.interval", this.interval);
+    }
+  },
+
+  async mounted() {
     const cookie_info = new Cookies();
     const user_info = cookie_info.get("userinfo");
     try {
@@ -69,18 +84,74 @@ export default {
         this.$swal("project를 완성해 주세요.");
         this.$router.push("/");
       }
+
+      if (info.container_status === "running" || info.container_status === "started") {
+        this.startInterval();
+        if (info.container === ContainerName.VISUALIZATION) {
+          this.$EventBus.$emit("control_Vis2Code", true);
+        }
+      }
+
+      if (!info?.workflow || info?.workflow.length <= 0) {
+        const workflow =
+          info.task_type === TaskType.DETECTION
+            ? [ContainerName.BMS, ContainerName.AUTO_NN, ContainerName.CODE_GEN, ContainerName.IMAGE_DEPLOY]
+            : [
+                ContainerName.BMS,
+                ContainerName.VISUALIZATION,
+                ContainerName.AUTO_NN_RESNET,
+                ContainerName.CODE_GEN,
+                ContainerName.IMAGE_DEPLOY
+              ];
+
+        if (info.deploy_user_edit === "yes") {
+          workflow.splice(workflow.length - 1, 0, ContainerName.USER_EDITING);
+        }
+
+        const res = await setWorkflow(info.id, workflow);
+        console.log("res", res);
+
+        this.projectInfo = {
+          ...this.projectInfo,
+          workflow: res.workflow
+        };
+        this.SET_PROJECT(this.projectInfo);
+
+        console.log("this.projectInfo", this.projectInfo);
+      }
     } catch {
       this.$swal("잘못된접근입니다.");
       this.$router.push("/");
     }
   },
 
-  async mounted() {
-    const info = await getProjectInfo(this.$route.params.id);
-    if (info.container_status === "running") {
-      this.startInterval();
-    }
-  },
+  // async mounted() {
+  // const info = await getProjectInfo(this.$route.params.id);
+  // if (info.container_status === "running") {
+  //   this.startInterval();
+  // }
+  // if (!info?.workflow || info?.workflow.length <= 0) {
+  //   const workflow =
+  //     info.task_type === TaskType.DETECTION
+  //       ? [ContainerName.BMS, ContainerName.AUTO_NN, ContainerName.CODE_GEN, ContainerName.IMAGE_DEPLOY]
+  //       : [
+  //           ContainerName.BMS,
+  //           ContainerName.VISUALIZATION,
+  //           ContainerName.AUTO_NN_RESNET,
+  //           ContainerName.CODE_GEN,
+  //           ContainerName.IMAGE_DEPLOY
+  //         ];
+  //   if (info.deploy_user_edit === "yes") {
+  //     workflow.splice(workflow.length - 1, 0, ContainerName.USER_EDITING);
+  //   }
+  //   await setWorkflow(info.id, workflow);
+  //   this.projectInfo = {
+  //     ...this.projectInfo,
+  //     workflow: workflow
+  //   };
+  //   this.SET_PROJECT(this.projectInfo);
+  // }
+  // },
 
   destroyed() {
     this.stopInterval();
@@ -98,14 +169,33 @@ export default {
         this.interval = setInterval(() => {
           if (this.projectInfo.id) {
             postStatusRequest({ user_id: this.projectInfo.create_user, project_id: this.projectInfo.id }).then(res => {
-              this.SET_PROJECT({ container: res.container, container_status: res.container_status });
-              this.projectInfo = this.project;
-              this.$EventBus.$emit("logUpdate", res);
+              if (typeof res !== "string") {
+                this.SET_PROJECT({ container: res.container, container_status: res.container_status });
+                this.projectInfo = this.project;
+                this.$EventBus.$emit("logUpdate", res);
 
-              if (res.container_status !== "running") {
-                this.stopInterval();
-                if (res.container === "imagedeploy") {
-                  this.$EventBus.$emit("nnModelDownload");
+                if (res.container === ContainerName.VISUALIZATION) {
+                  if (res.container_status !== "running" && res.container_status !== "started") {
+                    // VISUALIZATION 완료 경우
+                    this.$EventBus.$emit("control_Vis2Code", false);
+                  }
+                }
+
+                if (this.projectInfo.project_type !== "auto") {
+                  if (res.container_status !== "running" && res.container_status !== "started") {
+                    this.stopInterval();
+                    if (res.container === ContainerName.IMAGE_DEPLOY) {
+                      this.$EventBus.$emit("nnModelDownload");
+                    }
+                  }
+                } else {
+                  // todo auto일경우 구현
+                  if (res.container === ContainerName.IMAGE_DEPLOY) {
+                    if (res.container_status !== "running" && res.container_status !== "started") {
+                      this.stopInterval();
+                      this.$EventBus.$emit("nnModelDownload");
+                    }
+                  }
                 }
               }
             });

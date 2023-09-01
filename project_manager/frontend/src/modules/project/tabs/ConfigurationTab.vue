@@ -156,18 +156,21 @@ export default {
         this.outputMethod = this.projectInfo.deploy_output_method;
         this.inputSource = this.projectInfo.deploy_input_source;
 
-        await getTargetInfo(this.projectInfo.target_id).then(res => {
-          this.selectedTarget = res;
-          this.isTargetLoading = true;
-        });
-
-        await getDatasetListTango().then(res => {
-          const datasetInfo = res.find(q => q.name === this.projectInfo.dataset);
-          if (datasetInfo) {
-            this.selectedImage = datasetInfo;
-            this.isDatasetLoading = true;
-          }
-        });
+        if (!this.selectedTarget) {
+          await getTargetInfo(this.projectInfo.target_id).then(res => {
+            this.selectedTarget = res;
+            this.isTargetLoading = true;
+          });
+        }
+        if (!this.selectedImage) {
+          await getDatasetListTango().then(res => {
+            const datasetInfo = res.find(q => q.name === this.projectInfo.dataset);
+            if (datasetInfo) {
+              this.selectedImage = datasetInfo;
+              this.isDatasetLoading = true;
+            }
+          });
+        }
       }
     }
   }

@@ -658,6 +658,8 @@ class CodeGen:
                 self.make_requirements_file_for_docker()
             elif self.m_deploy_type == 'pc_server':
                 self.make_requirements_file_for_PCServer()
+            elif self.m_deploy_type == 'pc_web':
+                self.make_requirements_file_for_PCServer()
             else:
                 self.make_requirements_file_for_others()
 
@@ -802,7 +804,8 @@ class CodeGen:
                     output_names=['output'])
             # khlee only for test copy yolov.onnx to tango.onnx
             # must be deleted
-            shutil.copy("./db/yolov7.onnx", self.get_real_filepath(self.m_nninfo_weight_onnx_file))
+            # shutil.copy("./db/yolov7.onnx", self.get_real_filepath(self.m_nninfo_weight_onnx_file))
+            shutil.copy("./db/yolov7tvm.onnx", self.get_real_filepath(self.m_nninfo_weight_onnx_file))
 
 
             onnx_model = onnx.load(self.get_real_filepath(self.m_nninfo_weight_onnx_file))
@@ -2095,7 +2098,10 @@ class CodeGen:
                      }
             if self.m_sysinfo_engine_type == 'tensorrt':
                 t_deploy['pre_exec'] = ['tensorrt-converter.py']
-            t_total = {"build": t_build, "deploy": t_deploy}
+            t_opt = {"nn_file": 'detect.py',
+                     "weight_file": 'yolov5.pt',
+                     "annotation_file": 'coco128.yaml'}
+            t_total = {"build": t_build, "deploy": t_deploy, "optional": t_opt}
         else:
             t_pkg = {"atp": self.m_sysinfo_apt, "pypi": self.m_sysinfo_papi}
             t_com = {"engine": "pytorch",
@@ -2117,7 +2123,7 @@ class CodeGen:
                 t_deploy['pre_exec'] = ['tensorrt-converter.py']
             t_opt = {"nn_file": 'yolo.py',
                      "weight_file": 'yolov3.pt',
-                     "annotation_file": self.m_nninfo_annotation_file}
+                     "annotation_file": self.m_nninfo_deploy_annotation_file}
 
             t_total = {"build": t_build, "deploy": t_deploy, "optional": t_opt}
 

@@ -1,0 +1,21 @@
+# This file is for development only!
+# To expedite cloud deploy development, launch only the services related to
+# cloud deployment, excluding all others.
+version: "3"
+
+services:
+  cloud_deploy:
+    build:
+      context: .
+    # -- command is not requred in favor of s6-overlay supervisor
+    # command: >
+    #   ./entrypoint.sh
+    volumes:
+      - ./cloud_manager:/source/cloud_manager
+      - ./image_builder:/source/image_builder
+      - /var/run/docker.sock:/var/run/docker.sock
+    ports:
+      - "7007:7007"  # image builder (API)
+      - "8080:8080"  # image builder (GUI)
+      - "8088:8088"  # cloud manager
+
