@@ -39,6 +39,8 @@
 <script>
 import { mapState } from "vuex";
 import { TargetNamespace } from "@/store/modules/targetStore";
+
+import { TargetInfoList } from "@/shared/enums";
 export default {
   data() {
     return {
@@ -64,16 +66,14 @@ export default {
     },
 
     create() {
-      // if (this.ipAddress === "" || !this.ipAddress) {
-      //   this.$swal("Target", "Ip Address를 입력해 주세요.", "error");
-      //   return;
-      // } else if (this.port === "" || !this.port) {
-      //   this.$swal("Target", "Port를 입력해 주세요.", "error");
-      //   return;
-      // } else if (this.servicePort === "" || !this.servicePort) {
-      //   this.$swal("Target", "Service Port를 입력해 주세요.", "error");
-      //   return;
-      // }
+      const targetInfo = TargetInfoList.find(q => q.value === this.target.info);
+      if (targetInfo.requiredFields.includes("target_hostip") && (this.ipAddress === "" || !this.ipAddress)) {
+        this.$swal("Target", "Ip Address를 입력해 주세요.", "error");
+        return;
+      } else if (targetInfo.requiredFields.includes("target_hostport") && (this.port === "" || !this.port)) {
+        this.$swal("Target", "Port를 입력해 주세요.", "error");
+        return;
+      }
 
       this.$emit("create", { host_ip: this.ipAddress, host_port: this.port, host_service_port: this.servicePort });
     },

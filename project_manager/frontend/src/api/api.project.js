@@ -120,7 +120,21 @@ export async function uploadNNModel(user_id, project_id, file) {
   formData.append("nn_model", file);
 
   try {
-    response = await axios.post("/api/upload_nn_model", formData);
+    response = await axios.post("/api/upload_nn_model", formData, {
+      headers: { "Content-Type": "multipart/form-data" }
+    });
+  } catch (error) {
+    throw new Error(error);
+  }
+
+  return response.data;
+}
+
+export async function setWorkflow(project_id, workflow) {
+  let response = null;
+
+  try {
+    response = await axios.post("/api/set_workflow", { project_id: project_id, workflow: workflow });
   } catch (error) {
     throw new Error(error);
   }

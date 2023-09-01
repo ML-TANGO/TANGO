@@ -216,6 +216,7 @@ services:
   # Cloud deploy (with target image build)
   #---------------------------------
   cloud_deploy:
+    hostname: cloud_deploy
     build:
       context: ./deploy_targets/cloud
     # -- command is not requred in favor of s6-overlay supervisor
@@ -234,7 +235,7 @@ services:
   # K8S deploy
   #---------------------------------
   kube_deploy:
-    hostname: k8s
+    hostname: kube_deploy
     build:
       context: ./deploy_targets/k8s
     container_name: "tango_k8s"
@@ -281,6 +282,7 @@ services:
   # Visualizer 
   #---------------------------------
   viz2code:
+    hostname: visualization
     build:
       context: ./visualization
     command: >

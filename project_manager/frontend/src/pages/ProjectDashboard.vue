@@ -21,6 +21,11 @@
         <TabView v-if="isData(this.projectsByTab['BMS'])" :items="this.projectsByTab['BMS']" />
         <NoResultTab v-else />
       </v-tab-item>
+      <!-- Visualization -->
+      <v-tab-item>
+        <TabView v-if="isData(this.projectsByTab['Visualization'])" :items="this.projectsByTab['Visualization']" />
+        <NoResultTab v-else />
+      </v-tab-item>
       <!-- AUTO NN -->
       <v-tab-item>
         <TabView v-if="isData(this.projectsByTab['Auto NN'])" :items="this.projectsByTab['Auto NN']" />
@@ -36,11 +41,6 @@
         <TabView v-if="isData(this.projectsByTab['Image Deploy'])" :items="this.projectsByTab['Image Deploy']" />
         <NoResultTab v-else />
       </v-tab-item>
-      <!-- RUN IMAGE -->
-      <!-- <v-tab-item>
-        <TabView v-if="isData(this.projectsByTab['Run Image'])" :items="this.projectsByTab['Run Image']" />
-        <NoResultTab v-else />
-      </v-tab-item> -->
     </v-tabs-items>
 
     <ProjectCreateDialog :step="step" @stepChange="onStepChange" @close="close">
@@ -74,16 +74,17 @@ export default {
     return {
       tab: null,
       step: 1,
-      items: ["All Status", "Preparing", "BMS", "Auto NN", "Code Gen", "Image Deploy"],
-      defaultValue: { Preparing: [], BMS: [], "Auto NN": [], "Code Gen": [], "Image Deploy": [] },
+      items: ["All Status", "Preparing", "BMS", "Visualization", "Auto NN", "Code Gen", "Image Deploy"],
+      defaultValue: { Preparing: [], BMS: [], Visualization: [], "Auto NN": [], "Code Gen": [], "Image Deploy": [] },
       projectsByTab: {},
       tabItems: [
         { key: "Preparing", allowed: ["", "init"] },
         { key: "BMS", allowed: ["bms"] },
-        { key: "Auto NN", allowed: ["autonk", "yoloe", "autobb"] },
+        { key: "Visualization", allowed: ["visualization"] },
+        { key: "Auto NN", allowed: ["autonk", "yoloe", "autobb", "autonn_resnet"] },
         { key: "Code Gen", allowed: ["codeGen"] },
-        { key: "Image Deploy", allowed: ["imagedeploy"] },
-        { key: "Run Image", allowed: ["run_image"] }
+        { key: "Image Deploy", allowed: ["imagedeploy"] }
+        // { key: "Run Image", allowed: ["run_image"] }
       ]
     };
   },
@@ -123,6 +124,8 @@ export default {
           return acc;
         }, {})
       };
+
+      console.log("this.projectsByTab", this.projectsByTab);
     },
     onStepChange(step) {
       this.step = step;

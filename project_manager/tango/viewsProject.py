@@ -26,7 +26,7 @@ from rest_framework.response import Response
 from rest_framework.decorators import api_view, permission_classes, authentication_classes
 from oauth2_provider.contrib.rest_framework import OAuth2Authentication
 
-from .models import Project, AuthUser, Target
+from .models import Project, AuthUser, Target, WorkflowOrder
 
 from django.views.decorators.csrf import csrf_exempt, csrf_protect
 from django.forms.models import model_to_dict
@@ -35,13 +35,6 @@ from .projectHandler import *
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 root_path = os.path.dirname(os.path.dirname(BASE_DIR))
-
-# response_message = ""
-# last_logs_timestamp = 0
-# last_container = ""
-
-response_data = {}
-
 
 # @permission_classes([IsAuthenticated])                  # 권한 체크 - 로그인 여부
 # @authentication_classes([JSONWebTokenAuthentication])   # 토큰 확인
@@ -68,8 +61,6 @@ def container_start(request):
         project_info.container_status = 'started'
         project_info.save()
 
-        # print(container_id)
-
         return HttpResponse(json.dumps({'status': 200, 'message': str(container_id) + ' 시작 요청\n', 'response' : to_json['request_info']}))
 
     except Exception as error:
@@ -85,65 +76,50 @@ def status_request(request):
 
     try:
         print("----------status_request----------")
-        global response_data
+        response_log = ""
 
         user_id = request.data['user_id']
         project_id = request.data['project_id']
 
         queryset = Project.objects.get(id=project_id, create_user=str(user_id))
         container_id = queryset.container
-
-        if user_id not in response_data:
-            response_data[user_id] = {}
-        
-        if project_id not in response_data[user_id]:
-            response_data[user_id][project_id] = {
-                'last_container' : container_id,
-                'last_logs_timestamp' : 0,
-                'response_message' : '',
-                'is_complete_container' : False 
-            }
         
         response = asyncio.run(request_handler(container_id, user_id, project_id, queryset.target.target_info))
-        response_data[user_id][project_id]['response_message'] += str(container_id) + '- status_request response : ' + str(response)
+        response_log = str(queryset.current_log) + str(container_id) + '- status_request response : ' + str(response)
 
-        queryset.container = container_id
-        if response_data[user_id][project_id]['is_complete_container'] == True:
-            queryset.container_status = 'completed'
-        else :
+        if len(response) > 50:
+            queryset.save()
+            return HttpResponse(json.dumps({'container': container_id, 'container_status': queryset.container_status, 'message':  get_log_container_name(container_id) + ": status_request - Error\n"}))
+
+        # status_report에서 completed 였을 때를 제외하고
+        if queryset.container_status != 'completed':
             queryset.container_status = response
-        queryset.save()
-        
 
-        # print("status-request " + str(container_id) + ' result.....')
-        # print(response)
-
-        if response_data[user_id][project_id]['last_container'] != queryset.container:
-            response_data[user_id][project_id]['last_logs_timestamp'] = 0
+        ## 새로운 컨테이너에서 로그를 불러올때
+        # 컨테이너가 실행될때는 last_logs_timestamp 이후에 실행 되니 주석 처리
+        # if queryset.last_log_container != queryset.container:
+        #     queryset.last_logs_timestamp = 0
         
         if container_id != "imagedeploy":
-            logs = get_docker_log_handler(queryset.container, response_data[user_id][project_id]['last_logs_timestamp'])
+            logs = get_docker_log_handler(queryset.container, queryset.last_logs_timestamp)
         else:
-            logs = get_docker_log_handler(queryset.target.target_info, response_data[user_id][project_id]['last_logs_timestamp'])
+            logs = get_docker_log_handler(queryset.target.target_info, queryset.last_logs_timestamp)
+        
+        queryset.last_logs_timestamp = time.mktime(datetime.now().timetuple()) + 1.0
+        queryset.last_log_container = queryset.container
 
-        logs = get_docker_log_handler(queryset.container, response_data[user_id][project_id]['last_logs_timestamp'])
-        response_data[user_id][project_id]['last_logs_timestamp'] = time.mktime(datetime.now().timetuple()) + 1.0
-        response_data[user_id][project_id]['last_container'] = queryset.container
 
-        m = response_data[user_id][project_id]['response_message'] + '\n' + str(logs)
-        response_data[user_id][project_id]['response_message'] = ''
+        response_log += '\n' + str(logs)
+        queryset.current_log = ''
 
-        if response_data[user_id][project_id]['is_complete_container'] == True:
-            m += get_log_container_name(container_id) + " 완료\n"
-            response = "completed"
-        elif response_data[user_id][project_id]['is_complete_container'] == False and response == 'completed':
-            m += get_log_container_name(container_id) + " 완료\n"
+        if queryset.container_status == 'completed':
+            response_log += get_log_container_name(container_id) + " 완료\n"
             response = "completed"
 
-        response_data[user_id][project_id]['is_complete_container'] = False
-        return HttpResponse(json.dumps({'container': container_id,
-                                'container_status': response,
-                                'message': m,}))
+        update_project_log_file(user_id, project_id, response_log)
+
+        queryset.save()
+        return HttpResponse(json.dumps({'container': container_id, 'container_status': response, 'message': response_log,}))
 
     except Exception as error:
         print("status_request --- error")
@@ -158,8 +134,6 @@ def status_report(request):
 
     try:
         print("@@@@@@@@@@@@@@@@@@@@@@@ status report @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@")
-        global response_data
-
         user_id = request.GET['user_id']
         project_id = request.GET['project_id']
         container_id = db_container_name(request.GET['container_id'])
@@ -167,68 +141,27 @@ def status_report(request):
 
         queryset = Project.objects.get(id=project_id, create_user=str(user_id))
         queryset.container = container_id
-        queryset.container_status = result
-        queryset.save()
+        queryset.current_log = str(queryset.current_log) + "\n status_report - request : " + json.dumps(request.GET) + "\n"
 
-        if user_id not in response_data:
-            response_data[user_id] = {} 
-
-        if project_id not in response_data[user_id]:
-            response_data[user_id][project_id] = {
-                'last_container' : container_id,
-                'last_logs_timestamp' : 0,
-                'response_message' : '',
-                'is_complete_container' : False
-            }
-
-
-        response_data[user_id][project_id]['response_message'] += "\n status_report - request : "
-        response_data[user_id][project_id]['response_message'] += json.dumps(request.GET)
-        response_data[user_id][project_id]['response_message'] += "\n"
+        workflow_order = WorkflowOrder.objects.filter(project_id=project_id).order_by('order')
 
         if queryset.project_type == 'auto':
-            if container_id == 'bms' and result == 'success':
-                print("bms end .. ---- success")
-                queryset.container_status = 'completed'
-                queryset.save()
-                response_data[user_id][project_id]['response_message'] += 'base model select 완료\n'
-                response_data[user_id][project_id]['response_message'] += 'auto_nn_yolo_e 시작 요청\n'
-                response = asyncio.run(start_handler('yoloe', user_id, project_id))
-                print(response)
-
-                queryset = Project.objects.get(id=project_id, create_user=str(user_id))
-                queryset.container = 'yoloe'
-                queryset.container_status = 'running'
-                queryset.save()
-            elif container_id == 'yoloe' and result == 'success':
-                print("yoloe end .. ---- success")
-                queryset.container_status = 'completed'
-                queryset.save()
-                response_data[user_id][project_id]['response_message'] += 'AutoNN 완료\n'
-                response_data[user_id][project_id]['response_message'] += 'code gen 시작 요청\n'
-                response = asyncio.run(start_handler('codeGen', user_id, project_id))
-                print(response)
-                queryset = Project.objects.get(id=project_id, create_user=str(user_id))
-                queryset.container = 'codeGen'
-                queryset.container_status = 'running'
-                queryset.save()
-            elif container_id == 'codeGen' and result == 'success':
-                response_data[user_id][project_id]['response_message'] += 'codeGen 완료\n'
-
+            current_container_idx = findIndexByDicList(list(workflow_order.values()), 'workflow_name', container_id)
+            if (result == 'success' or result == 'completed') and current_container_idx != None :
+                if len(list(workflow_order.values())) - 1 > current_container_idx:
+                    next_container = list(workflow_order.values())[current_container_idx + 1]['workflow_name']
+                    if next_container:
+                        queryset.container = next_container
+                        log = str(queryset.current_log) + "\n" + get_log_container_name(container_id) + " 완료"
+                        log += "\n" + get_log_container_name(next_container) + " 시작 요청"
+                        queryset.current_log = log
+                        asyncio.run(start_handler(next_container, user_id, project_id, queryset.target.target_info))
+                        queryset.container_status = 'started'
         else:
-            if container_id == 'bms' and result == 'success':
-                print("bms end .. ---- success")
-                response_data[user_id][project_id]['is_complete_container'] = True
-            elif container_id == 'yoloe' and result == 'success':
-                print("yoloe end .. ---- success")
-                response_data[user_id][project_id]['is_complete_container'] = True
-            elif container_id == 'codeGen' and result == 'success':
-                print("codeGen end .. ---- success")
-                response_data[user_id][project_id]['is_complete_container'] = True
-            elif container_id == 'imageDeploy' and result == 'success':
-                print("imageDeploy end .. ---- success")
-                response_data[user_id][project_id]['is_complete_container'] = True
+            if result == 'success' or result == 'completed':
+                queryset.container_status = 'completed'
 
+        queryset.save()
         return HttpResponse(json.dumps({'status': 200}))
 
     except Exception as error:
@@ -514,28 +447,30 @@ def project_info(request):
         _type_: _description_
     """
     try:
+        result = None
+
         queryset = Project.objects.filter(id=request.data['id'],
                                         create_user=request.user)  # Project id로 검색
+        
+        workflow_order = WorkflowOrder.objects.filter(project_id=request.data['id']).order_by('order')
+        workflow_dic = {"workflow": list(workflow_order.values())}
+
         data = list(queryset.values())
 
-        print("***** project_info *****")
-        print(data[0])
+        project = dict(data[0], **workflow_dic)
 
 
         # TODO : 타겟이 0이 아닌 경우 SW 정보 전달
-        if data[0]['target_id'] is not None:
-            target_info = model_to_dict(Target.objects.get(id=int(data[0]['target_id'])))
+        if project['target_id'] is not None:
+            target_info = model_to_dict(Target.objects.get(id=int(project['target_id'])))
             target_info_dic = {"target_info": target_info}
 
-            result = dict(data[0],  **target_info_dic)
-
-            return Response(result)
-
+            result = dict(project,  **target_info_dic)
         else:
             # 딕셔너리 정보 합치기
-            result = dict(data[0])
+            result = dict(project)
 
-            return Response(result)
+        return Response(result)
     except Exception as e:
         print('error - project_info-=============')
         print(e)
@@ -1116,3 +1051,30 @@ def create_dataset_yaml(r_data_set_path, r_yaml_path):
     except Exception as e:
         print(e)
         return False
+
+
+
+# 워크플로우 추가
+@api_view(['POST'])
+@permission_classes([AllowAny])   # 토큰 확인
+def set_workflow(request):
+    """
+    """
+    try:
+        project_id = request.data["project_id"]
+        workflow = request.data["workflow"]
+        workflow_order = WorkflowOrder.objects.filter(project_id=project_id)
+        
+        if len(list(workflow_order.values())) > 0:
+            workflow_order.delete()
+
+        for index, flow in enumerate(workflow):
+            target = WorkflowOrder(workflow_name=flow, order = int(index), project_id=int(project_id))
+            target.save()
+
+        save_data = WorkflowOrder.objects.filter(project_id=project_id).order_by('order')
+
+        return HttpResponse(json.dumps({'status': 200, 'workflow': list(save_data.values())}))
+
+    except Exception as e:
+        return Response(status=500)
