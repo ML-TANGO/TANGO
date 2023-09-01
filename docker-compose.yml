@@ -81,7 +81,7 @@ services:
   bms:
     build:
       context: ./base_model_select
-    shm_size: "256M"
+    shm_size: '256M'
     command: >
       sh -c "python manage.py makemigrations &&
              python manage.py migrate --run-syncdb &&
@@ -101,76 +101,76 @@ services:
     ports:
       - "8081:8081"
 
-  #---------------------------------
-  # AutoNN: Bakcbone-NAS
-  #---------------------------------
-  autonn_bb:
-    build:
-      context: ./autonn/backbone_nas
-    shm_size: '256M'
-    ipc: host
-    command: >
-      sh -c "python manage.py makemigrations &&
-             python manage.py migrate &&
-             python manage.py runserver 0.0.0.0:8087"
-    # use the below lines commented out if you want to use gpu
-    # deploy:
-    #   resources:
-    #     reservations:
-    #       devices:
-    #         - driver: nvidia
-    #           capabilities:
-    #             - gpu
-    #             - utility
-    #             - compute
-    #             - video
-    # environment:
-    #   - NVIDIA_VISIBLE_DEVICES=all
-    volumes:
-      - ./autonn/backbone_nas:/source
-      - shared:/shared
-    ports:
-      - "8087:8087"
+  # #---------------------------------
+  # # AutoNN: Bakcbone-NAS
+  # #---------------------------------
+  # autonn_bb:
+  #   build:
+  #     context: ./autonn/backbone_nas
+  #   shm_size: '256M'
+  #   ipc: host
+  #   command: >
+  #     sh -c "python manage.py makemigrations &&
+  #            python manage.py migrate &&
+  #            python manage.py runserver 0.0.0.0:8087"
+  #   # use the below lines commented out if you want to use gpu
+  #   # deploy:
+  #   #   resources:
+  #   #     reservations:
+  #   #       devices:
+  #   #         - driver: nvidia
+  #   #           capabilities:
+  #   #             - gpu
+  #   #             - utility
+  #   #             - compute
+  #   #             - video
+  #   # environment:
+  #   #   - NVIDIA_VISIBLE_DEVICES=all
+  #   volumes:
+  #     - ./autonn/backbone_nas:/source
+  #     - shared:/shared
+  #   ports:
+  #     - "8087:8087"
+
+  # #---------------------------------
+  # # AutoNN: Neck-NAS
+  # #---------------------------------
+  # autonn_nk:
+  #   build:
+  #     context: ./autonn/neck_nas
+  #   shm_size: '256M'
+  #   ipc: host
+  #   command: >
+  #     sh -c "python manage.py makemigrations &&
+  #            python manage.py migrate &&
+  #            python manage.py runserver 0.0.0.0:8089"
+  #   # use the below lines commented out if you want to use gpu
+  #   # deploy:
+  #   #   resources:
+  #   #     reservations:
+  #   #       devices:
+  #   #         - driver: nvidia
+  #   #           capabilities:
+  #   #             - gpu
+  #   #             - utility
+  #   #             - compute
+  #   #             - video
+  #   # environment:
+  #   #   - NVIDIA_VISIBLE_DEVICES=all
+  #   volumes:
+  #     - ./autonn/neck_nas:/source
+  #     - shared:/shared
+  #     # - /Data:/shared/datasets # for local tests
+  #   ports:
+  #     - "8089:8089"
 
   #---------------------------------
-  # AutoNN: Neck-NAS
+  # AutoNN: YoloE
   #---------------------------------
-  autonn_nk:
-    build:
-      context: ./autonn/neck_nas
-    shm_size: '256M'
-    ipc: host
-    command: >
-      sh -c "python manage.py makemigrations &&
-             python manage.py migrate &&
-             python manage.py runserver 0.0.0.0:8089"
-    # use the below lines commented out if you want to use gpu
-    # deploy:
-    #   resources:
-    #     reservations:
-    #       devices:
-    #         - driver: nvidia
-    #           capabilities:
-    #             - gpu
-    #             - utility
-    #             - compute
-    #             - video
-    # environment:
-    #   - NVIDIA_VISIBLE_DEVICES=all
-    volumes:
-      - ./autonn/neck_nas:/source
-      - shared:/shared
-      # - /Data:/shared/datasets # for local tests
-    ports:
-      - "8089:8089"
-
-  ---------------------------------
-  AutoNN: YoloE
-  ---------------------------------
   autonn_yoloe:
     build:
       context: ./autonn/YoloE
-    shm_size: "256M"
+    shm_size: '256M'
     ipc: host
     command: >
       sh -c "python manage.py makemigrations &&
@@ -199,7 +199,7 @@ services:
       - "8090:8090"
 
   #---------------------------------
-  # code_gen Build
+  # code_gen Build 
   #---------------------------------
   code_gen:
     build:
@@ -266,8 +266,8 @@ services:
         - "8903:5000"
 
   #---------------------------------
-  # ondevice_deploy Build
-  #---------------------------------
+  # ondevice_deploy Build 
+  #---------------------------------    
   ondevice_deploy:
     hostname: ondevice
     build:
@@ -279,25 +279,6 @@ services:
       sh -c "cd /app && python3 ondevice_deploy.py"
     ports:
       - 8891:8891
-<<<<<<< HEAD
-  # #---------------------------------
-  # # Visualizer
-  # #---------------------------------
-  # viz2code:
-  #   build:
-  #     context: ./visualization
-  #   command: >
-  #     sh -c "cd ./visualization/frontend &&
-  #            npm run build &&
-  #            cd ..
-  #            python manage.py makemigrations &&
-  #            python manage.py migrate &&
-  #            python manage.py runserver react 0.0.0.0:8091"
-  #   volumes:
-  #     - ./viz2code:/source
-  #   ports:
-  #     - "8091:8091"
-=======
   #---------------------------------
   # Visualizer 
   #---------------------------------
@@ -316,13 +297,12 @@ services:
       - ./viz2code:/source
     ports:
       - "8091:8091"
->>>>>>> main
   #   depends_on:
   #     - postgresql
 
-#---------------------------------
-# Volumes
-#---------------------------------
+  #---------------------------------
+  # Volumes 
+  #---------------------------------
 volumes:
   registry_data: { }
   postgreSQL: # for Proejct Manager
