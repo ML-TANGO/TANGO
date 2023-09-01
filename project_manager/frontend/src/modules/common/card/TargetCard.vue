@@ -131,13 +131,6 @@ export default {
 
   computed: {
     isMoreInfo() {
-      console.log(
-        this.isValid(this.item?.host_ip) ||
-          this.isValid(this.item?.host_port) ||
-          this.isValid(this.item?.host_service_port) ||
-          this.isValid(this.item?.nfs_ip) ||
-          this.isValid(this.item?.nfs_path)
-      );
       return (
         this.isValid(this.item?.host_ip) ||
         this.isValid(this.item?.host_port) ||

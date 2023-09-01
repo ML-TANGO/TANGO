@@ -1,16 +1,15 @@
 <template>
   <div style="width: 100%; height: 100%" class="d-flex justify-center aling-center">
     <div style="width: 80%; height: 100%" class="d-flex justify-space-around align-center">
-      <ProgressIcon :text="'BMS'" :status="getStatus('bms')" @click="onClick($event, 'bms')" />
-      <ProgressIcon :text="'Auto NN'" :status="getStatus('yoloe')" @click="onClick($event, 'yoloe')" />
-      <ProgressIcon :text="'Code Gen'" :status="getStatus('codeGen')" @click="onClick($event, 'codeGen')" />
-      <!-- <div class="d-flex flex-column" style="gap: 5px">
-        <v-file-input @change="fileUpload" />
-        <v-btn color="#4a98fb" dark @click="download">Download</v-btn>
-      </div> -->
-      <ProgressIcon v-if="userEdit" :text="'User Editing'" :status="getUserEditingStatus" @click="onUserEditing" />
-      <ProgressIcon :text="'Image Deploy'" :status="getStatus('imagedeploy')" @click="onClick($event, 'imagedeploy')" />
-      <!-- <ProgressIcon style="width: calc(80% / 5)" :text="''" /> -->
+      <div v-for="(flow, index) in workflowNames" :key="`flow-${index}`" style="width: calc(80% / 4)">
+        <ProgressIcon
+          v-if="flow !== ContainerName.USER_EDITING"
+          :text="DisplayName[flow]"
+          :status="getStatus(flow)"
+          @click="onClick($event, flow)"
+        />
+        <ProgressIcon v-else :text="DisplayName[flow]" :status="getUserEditingStatus" @click="onUserEditing" />
+      </div>
     </div>
 
     <v-dialog v-model="isUserEditingDialog" max-width="500px">
@@ -46,6 +45,8 @@ import { ProjectNamespace } from "@/store/modules/project";
 import ProgressIcon from "./progress-icon/ProgressIcon.vue";
 import DragAndDrop from "@/modules/common/file-upload/DragAndDrop.vue";
 
+import { DisplayName, ContainerName } from "@/shared/enums";
+
 import { downloadNNModel, uploadNNModel } from "@/api";
 export default {
   components: { ProgressIcon, DragAndDrop },
@@ -61,13 +62,19 @@ export default {
 
     userEdit: {
       default: false
+    },
+
+    workflow: {
+      default: () => []
     }
   },
 
   data() {
     return {
-      runningOrder: ["bms", "yoloe", "codeGen", "imagedeploy"],
-      isUserEditingDialog: false
+      // runningOrder: ["bms", "yoloe", "codeGen", "imagedeploy"],
+      isUserEditingDialog: false,
+      DisplayName,
+      ContainerName
     };
   },
 
@@ -76,6 +83,10 @@ export default {
 
     getUserEditingStatus() {
       return this.running === "imagedeploy" ? "completed" : "preparing";
+    },
+
+    workflowNames() {
+      return this.workflow.length <= 0 ? [] : this.workflow.map(q => q.workflow_name);
     }
   },
 
@@ -85,15 +96,21 @@ export default {
 
   methods: {
     onClick(e, container) {
+      console.log("container", container);
       this.$emit("start", container);
+
+      if (container === ContainerName.VISUALIZATION) {
+        this.$emit("showVis2code");
+      }
     },
 
     getStatus(container) {
+      if (this.workflow.length <= 0) return;
       // 현재 프로젝트의 실행중인 컨테이너 status
-      const projectStatus = this.runningOrder.findIndex(q => q.includes(this.running));
+      const projectStatus = this.workflowNames.findIndex(q => q.includes(this.running));
 
       // 화면에 표시되는 컨테이너의 status
-      const compareStatus = this.runningOrder.findIndex(q => q.includes(container));
+      const compareStatus = this.workflowNames.findIndex(q => q.includes(container));
 
       if (compareStatus < projectStatus) {
         return "completed";
