@@ -1,13 +1,27 @@
-from sqlalchemy import create_engine
-from sqlalchemy.ext.declarative import declarative_base
-from sqlalchemy.orm import sessionmaker
+from contextlib import contextmanager
 
-SQL_ALCHEMY_DATABASE_URL = "sqlite:///./sql_app.db"
+import sqlmodel
+from sqlmodel import SQLModel, create_engine  # noqa to load SQLModel
 
-engine = create_engine(
-    SQL_ALCHEMY_DATABASE_URL,
-    connect_args={"check_same_thread": False},
-)
-SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
-Base = declarative_base()
+sqlite_file_name = "/source/cmgr_sql.db"
+sqlite_url = f"sqlite:///{sqlite_file_name}"
+
+engine = create_engine(sqlite_url)
+
+
+def create_db_and_tables():
+    SQLModel.metadata.create_all(engine)
+
+
+# #  Dependencies
+# def get_db_session():
+#     with sqlmodel.Session(engine) as db_session:
+#         yield db_session
+# DBSessionDepends = Annotated[sqlmodel.Session, Depends(get_db_session)]
+
+
+@contextmanager
+def get_db_session():
+    with sqlmodel.Session(engine) as db:
+        yield db
