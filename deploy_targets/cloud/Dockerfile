@@ -34,6 +34,14 @@ RUN /opt/python/bin/python3 -m venv /venvs/cloud_manager \
 RUN /venvs/cloud_manager/bin/pip install -U -r /source/cloud_manager/requirements.txt
 RUN /venvs/image_builder/bin/pip install -U -r /source/image_builder/requirements.txt
 
+# Install gcloud SDK and CLI.
+ADD https://dl.google.com/dl/cloudsdk/channels/rapid/downloads/google-cloud-cli-444.0.0-linux-x86_64.tar.gz /tmp/
+RUN mkdir -p /vendors \
+    && tar -xzf /tmp/google-cloud-cli-444.0.0-linux-x86_64.tar.gz -C /vendors/ \
+    && cd /vendors \
+    && ./google-cloud-sdk/install.sh -q
+ENV PATH="${PATH}:/vendors/google-cloud-sdk/bin"
+
 # Cleanup
 RUN rm -rf /tmp/*
 

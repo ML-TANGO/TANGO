@@ -1,12 +1,12 @@
 from typing import List, Union, Optional
 from pydantic import BaseModel
 
-from cloud_manager.targets.local.docker import LocalDocker
+# from cloud_manager.targets.local.docker import LocalDocker
 from cloud_manager.targets.gcp.cloudrun import CloudRun
 
 # Mapping between deployment target strings and their respective classes.
 TARGET_CLASS_MAP = {
-    "docker": LocalDocker,
+    # "docker": LocalDocker,
     "gcp-cloudrun": CloudRun,
 }
 

@@ -62,7 +62,7 @@ services:
   #   restart: always
 
   # #---------------------------------
-  # # Labelling tool 
+  # # Labelling tool
   # #---------------------------------
   # labelling:
   #   build:
@@ -72,7 +72,7 @@ services:
   #     - ./labelling/datadb:/var/lib/mysql
   #   ports:
   #     - "8086:80" # for Web UI
-  #     - "8095:10236" # for Rest API 
+  #     - "8095:10236" # for Rest API
 
   #---------------------------------
   # Base Model Selector
@@ -198,7 +198,7 @@ services:
       - "8090:8090"
 
   #---------------------------------
-  # code_gen Build 
+  # code_gen Build
   #---------------------------------
   code_gen:
     build:
@@ -222,10 +222,17 @@ services:
     # -- command is not requred in favor of s6-overlay supervisor
     # command: >
     #   sh -c "python main.py"
+    environment:
+      - CLOUD_MANAGER_PORT=8088
+      # GCP auth settings
+      - GOOGLE_APPLICATION_CREDENTIALS=/source/cloud_manager/service-account-file.json
+      - GCP_REGION=asia-northeast3
+      - GCP_PROJECT_ID=tango-project
     volumes:
-      - ./deploy_targets/cloud/cloud_manager:/source/cloud_manager
-      - ./deploy_targets/cloud/image_builder:/source/image_builder
+      - ./deploy_targets/cloud:/source
       - /var/run/docker.sock:/var/run/docker.sock
+      - /var/run/docker.sock:/var/run/docker.sock
+      - shared:/shared
     ports:
       - "7007:7007"  # image builder (API)
       - "8080:8080"  # image builder (GUI)
@@ -251,7 +258,7 @@ services:
       - "HOME=/home/root"
     ports:
       - "8901:8901"
-  
+
   #---------------------------------
   # K8S docker registry(image manager)
   #---------------------------------
@@ -265,8 +272,8 @@ services:
         - "8903:5000"
 
   #---------------------------------
-  # ondevice_deploy Build 
-  #---------------------------------    
+  # ondevice_deploy Build
+  #---------------------------------
   ondevice_deploy:
     hostname: ondevice
     build:
@@ -279,7 +286,7 @@ services:
     ports:
       - 8891:8891
   #---------------------------------
-  # Visualizer 
+  # Visualizer
   #---------------------------------
   viz2code:
     hostname: visualization
@@ -300,7 +307,7 @@ services:
   #     - postgresql
 
   #---------------------------------
-  # Volumes 
+  # Volumes
   #---------------------------------
 volumes:
   registry_data: { }
