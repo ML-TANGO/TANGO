@@ -67,6 +67,7 @@ Google Cloud Platfomr (GCP)를 통해 배포하기 위해서는 최소한 다음
     - IAM 메뉴로 가서 서비스 계정 이메일과 역할 확인
     - 역할이 "소유자"가 아닌 경우 "소유자"로 변경
         - 우측에 있는 편집 버튼("주 구성원 수정")을 클릭
+    <img width="804" alt="image" src="https://github.com/ML-TANGO/TANGO/assets/7539358/f350688a-72b0-4ca7-b3ec-4de070c48b30">
 
 계정 생성 및 권한 설정이 완료되었으면, 클라우드 배포 모듈 실행시 다음과 같은 환경 변수를 설정해야 한다(구체적인 값은 예시).
 ```shell
