@@ -144,7 +144,6 @@ function ImageList(props) {
                 obj.ACCURACY = ele.ACCURACY
                 objectList.push(obj)
               }
-              // console.log(objectList)
             })
           }
 
@@ -308,7 +307,6 @@ function ImageList(props) {
               </div>
               <div style={{ fontSize: "8px", marginTop: "-3px", color: "#888888" }}>
                 Tagged: {rowData.TAG_CNT === null ? 0 : rowData.TAG_CNT}, Boxes: {rowData.ANNO_CNT === null ? 0 : rowData.ANNO_CNT}{" "}
-                {/* {rowData.IS_ANNO === 1 ? "P" : "N"} */}
               </div>
             </div>
           )
