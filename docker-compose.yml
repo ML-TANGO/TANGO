@@ -61,18 +61,19 @@ services:
   #     MARIADB_ROOT_PASSWORD: password
   #   restart: always
 
-  # #---------------------------------
-  # # Labelling tool
-  # #---------------------------------
-  # labelling:
-  #   build:
-  #     context: ./labelling
-  #   volumes:
-  #     - ./labelling/dataset:/var/appdata
-  #     - ./labelling/datadb:/var/lib/mysql
-  #   ports:
-  #     - "8086:80" # for Web UI
-  #     - "8095:10236" # for Rest API
+  #---------------------------------
+  # Labelling tool
+  #---------------------------------
+  labelling:
+    build:
+      context: ./labelling
+    volumes:
+      - ./labelling/dataset:/var/appdata
+      - ./labelling/datadb:/var/lib/mysql
+      - shared:/shared
+    ports:
+      - "8086:80" # for Web UI
+      - "8095:10236" # for Rest API
 
   #---------------------------------
   # Base Model Selector
