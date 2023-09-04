@@ -270,7 +270,7 @@ services:
       volumes:
         - registry_data:/var/lib/registry/docker/registry/v2 # image 저장
       ports:
-        - "8903:5000"
+        - "8901:5000"
 
   #---------------------------------
   # ondevice_deploy Build
