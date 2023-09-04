@@ -32,10 +32,11 @@
 	"tempPath": "/var/appdata/TempPath",
 	"datasetPath": "/var/appdata/DataSets",
 	"aiPath": "/var/appdata/AiModel",
+	"deploymentPath": "/shared/datasets",
 	"checkSchedule": "* * * * *",
 	"maxModelCnt": 5,
-	"auth" : {
-		"tokenExpireTime" : "30m",
-		"refreshTokenExpireTime" : "3h"
+	"auth": {
+		"tokenExpireTime": "30m",
+		"refreshTokenExpireTime": "3h"
 	}
 }

@@ -1,22 +1,21 @@
-import aiohttp
-import ast
-import json
-import os
-import yaml
-import uvicorn
+from pathlib import Path
 
-from deploy import ManipulateContainer
-from fastapi import FastAPI, Request, Response, HTTPException, Depends
-from fastapi.encoders import jsonable_encoder
+from fastapi import BackgroundTasks, FastAPI, Response, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
-from sqlalchemy.orm import Session
-from yarl import URL
-from database import SessionLocal, engine
-import models
-import crud
 
-app = FastAPI(title="Deploy_Server")
-models.Base.metadata.create_all(bind=engine)
+
+from cloud_manager.database import create_db_and_tables
+from cloud_manager.models import RunningServiceStatuses, ServiceStatus, Service
+from cloud_manager.targets.defs import TARGET_CLASS_MAP
+from cloud_manager.service import (
+    get_service,
+    launch_service,
+    read_and_validate_deploy_yaml,
+    save_service,
+)
+
+
+app = FastAPI()
 
 app.add_middleware(
     CORSMiddleware,
@@ -28,122 +27,85 @@ app.add_middleware(
 )
 
 
-@app.middleware("http")
-async def db_session_middleware(request: Request, call_next):
-    response = Response("Internal server error", status_code=500)
-    try:
-        request.state.db = SessionLocal()
-        response = await call_next(request)
-    finally:
-        request.state.db.close()
-    return response
+@app.on_event("startup")
+def on_startup():
+    create_db_and_tables()
 
 
-#  Dependency
-def get_db(request: Request):
-    return request.state.db
+@app.get("/")
+async def status():
+    return Response(content="", status_code=200, media_type="text/plain")
 
 
-@app.get("/start/")
-async def image_build(
-    user_id: str,
-    project_id: str,
-    db: Session = Depends(get_db),
-):
-    if user_id and project_id:
-        return Response(content="started", status_code=200, media_type="text/plain")
-    try:
-        IMAGE_BUILD_URL = "http://0.0.0.0:8088"
-        user_input_data: dict = {}
-        path = f"/TANGO/shared/common/{user_id}/{project_id}/deployment.yml"  # TODO path could be changed when 공유폴더 is decided
-        with open(path) as f:
-            deployment_dict = yaml.load(f, Loader=yaml.FullLoader)
-        user_input_data = deployment_dict
-        user_input_data["user"] = {"user_id": user_id, "project_id": project_id}
-        crud.create_task(db, user_input_data["user"])
-        await _build_image(IMAGE_BUILD_URL, user_input_data, db)
-        return Response(content="starting", status_code=200, media_type="text/plain")
-    except Exception as e:
-        print(e)
-        return HTTPException(
-            status_code=400,
-            detail="failed",
+@app.get("/start")
+# NOTE: FastAPI's dependency injection does not seem to work with SQLite DB.
+#       Using the injection raises the following error:
+#         SQLite objects created in a thread can only be used in that same
+#         thread. The object was created in thread id 140737461385024 and this
+#         is thread id 140737390343744.
+#       So, we are manually creating a DB session whenever needed.
+# async def start_service(user_id: str, project_id: str, db: DBSessionDepends):
+async def start_service(user_id: str, project_id: str, bg_tasks: BackgroundTasks):
+    """
+    Start a service in a container for the given user and project ID.
+    """
+    service = await get_service(user_id, project_id)
+    if service and service.status in RunningServiceStatuses:
+        raise HTTPException(
+            status_code=400, detail=f"Service already exists ({service.status.value})"
         )
 
+    service = Service(user_id=user_id, project_id=project_id)
 
-@app.post("/containers/")
-async def run_container(request: Request, db: Session = Depends(get_db)):
-    container = ManipulateContainer()
-    user_input_data = ast.literal_eval(jsonable_encoder(await request.body()))
-    await container.run_container(db, data=user_input_data)
-    return Response(content="starting", status_code=200, media_type="text/plain")
+    # TODO: Current TANGO implementation assumes there is a shared mount folder
+    #       for every service container. This folder contains the deployment YAML
+    #       and other files needed to deploy services. This is not a good design
+    #       for cloud deployment, where the folder cannot be shared or mounted
+    #       across the public network.
+    deploy_yaml_path = Path(
+        f"/shared/common/{service.user_id}/{service.project_id}/deployment.yaml"
+    )
+    deploy_yaml = await read_and_validate_deploy_yaml(deploy_yaml_path)
 
+    service.status = ServiceStatus.STARTED
+    service.deploy_yaml = deploy_yaml
+    await save_service(service)
+    await launch_service(user_id, project_id, deploy_yaml, bg_tasks)
 
-@app.get("/stop/")
-async def stpp_container(
-    user_id: str,
-    project_id: str,
-    db: Session = Depends(get_db),
-):
-    container = ManipulateContainer()
-    try:
-        user_input_data = {"user_id": user_id, "project_id": project_id}
-        container_id = crud.get_container_id(db, user_input_data)[0]
-        await container.stop_container(
-            container_id=container_id, user_data=user_input_data, db=db
-        )
-        return Response(
-            content="finished",
-            status_code=200,
-            media_type="text/plain",
-        )
-    except Exception as e:
-        print(e)
+    return Response(content="started", status_code=200, media_type="text/plain")
 
 
-@app.get("/status_request/")
-async def get_container(
-    user_id: Union[str, None] = None,
-    project_id: Union[str, None] = None,
-    db: Session = Depends(get_db),
-):
-    if user_id and project_id:
-        return Response(content="ready", status_code=200, media_type="text/plain")
-    # container = ManipulateContainer()
-    try:
-        # user_input_data = {"user_id": user_id, "project_id": project_id}
-        # container_id = crud.get_container_id(db, user_input_data)[0]
-        # status = await container.get_container(container_id=container_id)
-        user_data = {"user_id": user_id, "project_id": project_id}
-        status = crud.get_user_specific_tasks_status(db, user_data)
-        return Response(content=status, status_code=200, media_type="text/plain")
-    except Exception as e:
-        print(e)
-        return HTTPException(status_code=400, detail=e)
+@app.get("/stop")
+async def stop_service(user_id: str, project_id: str):
+    """
+    Stop a service for the given user and project ID.
+    """
+    service = await get_service(user_id, project_id)
+    if not service:
+        raise HTTPException(status_code=404, detail="Service not found")
+    target_class = TARGET_CLASS_MAP[service.deploy_yaml.deploy.type]
+    target = target_class(service.user_id, service.project_id)
+    await target.stop_service(service.deploy_yaml.deploy.service_name)
+    service.status = ServiceStatus.STOPPED
+    await save_service(service)
+    return Response(content="finished", status_code=200, media_type="text/plain")
 
 
-async def _build_image(url: URL, data: dict, db: Session):
-    try:
-        crud.modify_tasks_status(db, user_data=data["user"], status="running")
-        async with aiohttp.ClientSession() as session:
-            async with session.post(
-                url + "/build/submit/preset/",
-                data=json.dumps(data),
-                ssl=False,
-            ) as response:
-                return await response.text()
-    except aiohttp.ClientResponseError as e:
-        crud.modify_tasks_status(db, user_data=data["user"], status="failed")
-        print(e)
-    except aiohttp.ClientError as e:
-        crud.modify_tasks_status(db, user_data=data["user"], status="failed")
-        print(e)
-
-
-if __name__ == "__main__":
-    uvicorn.run(
-        "server:app",
-        host="0.0.0.0",
-        port=8890,
-        # reload=True,
+@app.get("/status_request")
+async def status_request(user_id: str, project_id: str):
+    # async def status_request(user_id: str, project_id: str):
+    """
+    Get the status of a service for the given user and project ID.
+    """
+    service = await get_service(user_id, project_id)
+    if not service:
+        raise HTTPException(status_code=404, detail="Service not found")
+    target_class = TARGET_CLASS_MAP[service.deploy_yaml.deploy.type]
+    target = target_class(service.user_id, service.project_id)
+    resp = await target.get_service_status(service.deploy_yaml.deploy.service_name)
+    # if service.target_info.get("service_url"):
+    #     # TANGO manager does not receive JSON response, so just print it here.
+    #     print(f"Service URL: {service.target_info['service_url']}")
+    return Response(
+        content=resp["status"].value, status_code=200, media_type="text/plain"
     )

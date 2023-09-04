@@ -23,23 +23,19 @@ class datasetImporter():
         self.datasetCd = param["DATASET_CD"]
         self.purposeType = param["PURPOSE_TYPE"].upper()
         self.fileInfo = self.param["FILE_INFO"]
-
-    # def voc2weda(self):
-    #     import xmltodict
+        self.basePath = self.param["BASE_PATH"]
 
     def coco2weda(self):
-        currentPath = os.path.dirname(self.fileInfo[0]["FILE_PATH"])
-
-        jsonPath = glob(os.path.join(currentPath, "*.json"))
+        jsonPath = glob(os.path.join(self.basePath, "*.json"))
         errorFiles = []
         msg = ""
 
         try:
             for jsonFile in jsonPath:
-                st = time.time()
                 with open(jsonFile, 'rb') as f:
                     jsonData = simdjson.loads(f.read())
 
+                # print(jsonFile)
                 categories = jsonData["categories"]
                 annotations = jsonData["annotations"]
                 images = jsonData["images"]
@@ -58,7 +54,7 @@ class datasetImporter():
                 for fileIdx, fileInfo in enumerate(self.fileInfo):
                     try:
                         filePath = fileInfo["FILE_PATH"]
-                        
+
                         if ".json" in filePath:
                             continue
                         dataCd = fileInfo["DATA_CD"]
@@ -68,7 +64,7 @@ class datasetImporter():
 
                         tmpId = (item for item in images if item["file_name"] == baseName)
                         imageInfo = next(tmpId, False)
-                        
+
                         if imageInfo is not False:
                             imageId = imageInfo["id"]
                         else:
@@ -77,12 +73,13 @@ class datasetImporter():
 
                         # get annotaion Data for image_id
                         annoInfo = [item for item in annotations if item["image_id"] == imageId]
+                        # print(annoInfo)
 
                         if self.purposeType == "D":
                             for annoData in annoInfo:
                                 tmpId = (item for item in categories if item["TAG_CD"] == annoData["category_id"])
                                 categoryInfo = next(tmpId, False)
-                                polygonData.append({
+                                polygon = {
                                     "DATASET_CD": self.datasetCd,
                                     "DATA_CD": dataCd,
                                     "TAG_CD": categoryInfo["TAG_CD"],
@@ -101,13 +98,15 @@ class datasetImporter():
                                             "Y": float(round(annoData["bbox"][1] + annoData["bbox"][3], 2))
                                         }
                                     ]
-                                })
+                                }
+
+                                polygonData.append(polygon)
                             ext = pathlib.Path(baseName).suffix
                             baseName = baseName.split(ext)[0]
-                            saveName = os.path.join(currentPath, baseName + ".dat")
-
-                            with open(saveName, "w") as f2:
-                                json.dump({"POLYGON_DATA": polygonData}, f2)
+                            saveName = os.path.join(os.path.dirname(filePath), baseName + ".dat")
+                            if len(polygonData) != 0:
+                                with open(saveName, "w") as f2:
+                                    json.dump({"POLYGON_DATA": polygonData}, f2)
 
                         elif self.purposeType == "S":
                             for annoData in annoInfo:
@@ -141,11 +140,10 @@ class datasetImporter():
 
                             ext = pathlib.Path(baseName).suffix
                             baseName = baseName.split(ext)[0]
-                            saveName = os.path.join(currentPath, baseName + ".dat")
-                            # saveName = baseName + ".dat"
-
-                            with open(saveName, "w") as f2:
-                                json.dump({"POLYGON_DATA": polygonData}, f2)
+                            saveName = os.path.join(os.path.dirname(filePath), baseName + ".dat")
+                            if len(polygonData) != 0:
+                                with open(saveName, "w") as f2:
+                                    json.dump({"POLYGON_DATA": polygonData}, f2)
 
                     except Exception as e2:
                         # print(e2)
@@ -166,10 +164,10 @@ class datasetImporter():
         print(json.dumps(output, ensure_ascii=False))
 
 
+
 if __name__ == "__main__":
     datPath = sys.argv[1]
-    
-    # param = '{"DATASET_CD":"D122131","PURPOSE_TYPE":"S","FILE_INFO":[{"FILE_PATH":"/Volumes/DATA/weda/2023/src/etc/etri/test/000000000285.jpg","DATA_CD":"000001"}]}'
+
     with open(datPath, "r") as f:
         param = json.load(f)
 

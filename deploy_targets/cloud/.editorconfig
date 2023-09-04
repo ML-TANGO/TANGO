@@ -1,0 +1,26 @@
+root = true
+
+[*]
+end_of_line = lf
+insert_final_newline = true
+trim_trailing_whitespace = true
+charset = utf-8
+max_line_length = 0
+
+[*.{py,pyi,pyx,rst}]
+max_line_length = 105
+indent_style = space
+indent_size = 4
+
+[*.{md}]
+max_line_length = 80
+indent_style = space
+indent_size = 4
+
+[*.yml]
+indent_style = space
+indent_size = 2
+
+[*.toml]
+indent_style = space
+indent_size = 4

@@ -61,18 +61,19 @@ services:
   #     MARIADB_ROOT_PASSWORD: password
   #   restart: always
 
-  # #---------------------------------
-  # # Labelling tool 
-  # #---------------------------------
-  # labelling:
-  #   build:
-  #     context: ./labelling
-  #   volumes:
-  #     - ./labelling/dataset:/var/appdata
-  #     - ./labelling/datadb:/var/lib/mysql
-  #   ports:
-  #     - "8086:80" # for Web UI
-  #     - "8095:10236" # for Rest API 
+  #---------------------------------
+  # Labelling tool
+  #---------------------------------
+  labelling:
+    build:
+      context: ./labelling
+    volumes:
+      - ./labelling/dataset:/var/appdata
+      - ./labelling/datadb:/var/lib/mysql
+      - shared:/shared
+    ports:
+      - "8086:80" # for Web UI
+      - "8095:10236" # for Rest API
 
   #---------------------------------
   # Base Model Selector
@@ -198,7 +199,7 @@ services:
       - "8090:8090"
 
   #---------------------------------
-  # code_gen Build 
+  # code_gen Build
   #---------------------------------
   code_gen:
     build:
@@ -215,42 +216,65 @@ services:
   #---------------------------------
   # Cloud deploy (with target image build)
   #---------------------------------
-#   cloud_deploy:
-#    build:
-#      context: ./deploy_targets/cloud
-#    # -- command is not requred in favor of s6-overlay supervisor
-#    # command: >
-#    #   sh -c "python main.py"
-#    volumes:
-#      - ./deploy_targets/cloud/cloud_manager:/source/cloud_manager
-#      - ./deploy_targets/cloud/image_builder:/source/image_builder
-#      - /var/run/docker.sock:/var/run/docker.sock
-#    ports:
-#      - "7007:7007"  # image builder (API)
-#      - "8080:8080"  # image builder (GUI)
-#      - "8088:8088"  # cloud manager
+  cloud_deploy:
+    hostname: cloud_deploy
+    build:
+      context: ./deploy_targets/cloud
+    # -- command is not requred in favor of s6-overlay supervisor
+    # command: >
+    #   sh -c "python main.py"
+    environment:
+      - CLOUD_MANAGER_PORT=8088
+      # GCP auth settings
+      - GOOGLE_APPLICATION_CREDENTIALS=/source/cloud_manager/service-account-file.json
+      - GCP_REGION=asia-northeast3
+      - GCP_PROJECT_ID=tango-project
+    volumes:
+      - ./deploy_targets/cloud:/source
+      - /var/run/docker.sock:/var/run/docker.sock
+      - /var/run/docker.sock:/var/run/docker.sock
+      - shared:/shared
+    ports:
+      - "7007:7007"  # image builder (API)
+      - "8080:8080"  # image builder (GUI)
+      - "8088:8088"  # cloud manager
 
   #---------------------------------
   # K8S deploy
   #---------------------------------
   kube_deploy:
-    hostname: k8s
+    hostname: kube_deploy
     build:
       context: ./deploy_targets/k8s
     container_name: "tango_k8s"
-    command: bash -c "cd /app && python3 k8s_deploy.py"
+    privileged: true
+    command:
+      bash -c "cd /app && python3 k8s_deploy.py"
     volumes:
       - $HOME/.kube:/home/root/.kube
-      - shared:/tango
+      - shared:/app/tango
       - ./deploy_targets/k8s:/app
+      - /var/run/docker.sock:/var/run/docker.sock
     environment:
       - "HOME=/home/root"
     ports:
-      - "8902:8902"
+      - "8901:8901"
 
   #---------------------------------
-  # ondevice_deploy Build 
-  #---------------------------------    
+  # K8S docker registry(image manager)
+  #---------------------------------
+
+  registry:
+      image: registry
+      container_name: registry
+      volumes:
+        - registry_data:/var/lib/registry/docker/registry/v2 # image 저장
+      ports:
+        - "8901:5000"
+
+  #---------------------------------
+  # ondevice_deploy Build
+  #---------------------------------
   ondevice_deploy:
     hostname: ondevice
     build:
@@ -263,28 +287,30 @@ services:
     ports:
       - 8891:8891
   #---------------------------------
-  # Visualizer 
+  # Visualizer
   #---------------------------------
-#  viz2code:
-#    build:
-#      context: ./visualization
-#    command: >
-#      sh -c "cd ./visualization/frontend &&
-#             npm run build &&
-#             cd ..
-#             python manage.py makemigrations &&
-#             python manage.py migrate &&
-#             python manage.py runserver react 0.0.0.0:8091"
-#    volumes:
-#      - ./viz2code:/source
-#    ports:
-#      - "8091:8091"
-#  #   depends_on:
-#  #     - postgresql
+  viz2code:
+    hostname: visualization
+    build:
+      context: ./visualization
+    command: >
+      sh -c "cd ./visualization/frontend &&
+             npm run build &&
+             cd ..
+             python manage.py makemigrations &&
+             python manage.py migrate &&
+             python manage.py runserver react 0.0.0.0:8091"
+    volumes:
+      - ./viz2code:/source
+    ports:
+      - "8091:8091"
+  #   depends_on:
+  #     - postgresql
 
   #---------------------------------
-  # Volumes 
+  # Volumes
   #---------------------------------
 volumes:
+  registry_data: { }
   postgreSQL: # for Proejct Manager
   shared: # shared Directory

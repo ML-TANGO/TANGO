@@ -1,5 +1,6 @@
 <template>
-  <div class="container" style="width: calc(80% / 4)" @mouseout="onMouseout" @mouseover="onMouseover" @click="onClick">
+  <!-- style="width: calc(80% / 4)" -->
+  <div class="container" @mouseout="onMouseout" @mouseover="onMouseover" @click="onClick">
     <v-img
       :src="progressIcon"
       max-height="95"

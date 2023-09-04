@@ -10,9 +10,17 @@ services:
     # -- command is not requred in favor of s6-overlay supervisor
     # command: >
     #   ./entrypoint.sh
+    environment:
+      - CLOUD_MANAGER_DEBUG=1
+      - CLOUD_MANAGER_PORT=8088
+      # Google Cloud configurartion
+      - GOOGLE_APPLICATION_CREDENTIALS=/source/cloud_manager/service-account-file.json
+      - GCP_REGION=asia-northeast3
+      - GCP_PROJECT_ID=backendai-testbed
     volumes:
-      - ./cloud_manager:/source/cloud_manager
-      - ./image_builder:/source/image_builder
+      - .:/source
+      # - shared:/shared
+      - ./shared:/shared  # shared files for testing
       - /var/run/docker.sock:/var/run/docker.sock
     ports:
       - "7007:7007"  # image builder (API)

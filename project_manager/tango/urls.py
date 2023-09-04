@@ -59,5 +59,7 @@ urlpatterns = [
 
     url(r'^download_nn_model', viewsProject.download_nn_model, name='download_nn_model'), # nn_model 다운로드(외부IDE연동)
     url(r'^upload_nn_model', viewsProject.upload_nn_model, name='upload_nn_model'),       # nn_model 업로드(외부IDE연동)
+
+    url(r'^set_workflow', viewsProject.set_workflow, name='set_workflow'),       # workflow 셋팅
 ]
 
