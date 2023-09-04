@@ -215,20 +215,20 @@ services:
   #---------------------------------
   # Cloud deploy (with target image build)
   #---------------------------------
-  cloud_deploy:
-    build:
-      context: ./deploy_targets/cloud
-    # -- command is not requred in favor of s6-overlay supervisor
-    # command: >
-    #   sh -c "python main.py"
-    volumes:
-      - ./deploy_targets/cloud/cloud_manager:/source/cloud_manager
-      - ./deploy_targets/cloud/image_builder:/source/image_builder
-      - /var/run/docker.sock:/var/run/docker.sock
-    ports:
-      - "7007:7007"  # image builder (API)
-      - "8080:8080"  # image builder (GUI)
-      - "8088:8088"  # cloud manager
+#   cloud_deploy:
+#    build:
+#      context: ./deploy_targets/cloud
+#    # -- command is not requred in favor of s6-overlay supervisor
+#    # command: >
+#    #   sh -c "python main.py"
+#    volumes:
+#      - ./deploy_targets/cloud/cloud_manager:/source/cloud_manager
+#      - ./deploy_targets/cloud/image_builder:/source/image_builder
+#      - /var/run/docker.sock:/var/run/docker.sock
+#    ports:
+#      - "7007:7007"  # image builder (API)
+#      - "8080:8080"  # image builder (GUI)
+#      - "8088:8088"  # cloud manager
 
   #---------------------------------
   # K8S deploy
@@ -265,22 +265,22 @@ services:
   #---------------------------------
   # Visualizer 
   #---------------------------------
-  viz2code:
-    build:
-      context: ./visualization
-    command: >
-      sh -c "cd ./visualization/frontend &&
-             npm run build &&
-             cd ..
-             python manage.py makemigrations &&
-             python manage.py migrate &&
-             python manage.py runserver react 0.0.0.0:8091"
-    volumes:
-      - ./viz2code:/source
-    ports:
-      - "8091:8091"
-  #   depends_on:
-  #     - postgresql
+#  viz2code:
+#    build:
+#      context: ./visualization
+#    command: >
+#      sh -c "cd ./visualization/frontend &&
+#             npm run build &&
+#             cd ..
+#             python manage.py makemigrations &&
+#             python manage.py migrate &&
+#             python manage.py runserver react 0.0.0.0:8091"
+#    volumes:
+#      - ./viz2code:/source
+#    ports:
+#      - "8091:8091"
+#  #   depends_on:
+#  #     - postgresql
 
   #---------------------------------
   # Volumes 
