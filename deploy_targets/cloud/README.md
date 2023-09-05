@@ -34,7 +34,7 @@ https://github.com/ML-TANGO/TANGO/wiki/Guides-%7C-Exchanging-Data-among-Containe
 
 Port | Description
 -----|------------
-8088 | 클라우드 배포 매니저 REST API 서버 포트
+8890 | 클라우드 배포 매니저 REST API 서버 포트
 7007 | 이미지 빌더 서버 포트(클라우드 배포 매니저에서만 통신하면 되므로 실서버에서는 노출하지 않아도 무출)
 8080 | 이미지 빌더 GUI 서버 포트(전용 GUI는 통합 매니저에서 사용하지 않으므로 실서버에서는 노출하지 않아도 무방)
 
@@ -50,7 +50,7 @@ GET | /start | Start service | `user_id`, `project_id` | 200 | `started` / `erro
 GET | /stop | Stop service | `user_id`, `project_id` | 200 | `finished` / `error` / ...
 GET | /status_request | Service status | `user_id`, `project_id` | 200 | `running` / `stopped` / ...
 
-보다 상세한 최신 API 스펙은 클라우드 배포 모듈을 구동한 후 `/docs` 경로로 접근하면 Swagger UI를 통해 확인할 수 있다. (예: http://localhost:8088/docs)
+보다 상세한 최신 API 스펙은 클라우드 배포 모듈을 구동한 후 `/docs` 경로로 접근하면 Swagger UI를 통해 확인할 수 있다. (예: http://localhost:8890/docs)
 
 
 ## 대상 타겟 장치

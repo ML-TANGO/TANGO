@@ -21,7 +21,7 @@ deploy:
   entrypoint: [run.sh, -p, "opt1", "arg"]
   network:
     service_host_ip: 1.2.3.4  # for cloud
-    service_host_port: 8088   # for cloud
+    service_host_port: 8890   # for cloud
   k8s:
     nfsip: 192.168.0.189      # for k8s, NFS-server IP
     nfspath: /var/lib/docker/volumes/tango_shared/_data # for k8s, NFS-server path
