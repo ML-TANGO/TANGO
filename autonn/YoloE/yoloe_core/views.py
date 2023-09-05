@@ -203,8 +203,10 @@ def process_yolo(userid, project_id, data_yaml, proj_yaml):
             proj_info = yaml.safe_load(f)
         print(proj_info)
 
-        large_env = ['cloud', 'T4']
-        if proj_info['target_info'] in large_env:
+        #TODO: IT NEEDS TO BE CHANGED TO REFER TO RESOLUTION(640, 1280), NOT TARGET_INFO
+        large_env = ['cloud', 'k8s', 'k8sjetsonnano', 'pcweb', 'pc', 'jetsonagxorin']
+        t_info = proj_info['target_info'].replace('-', '').replace('_', '').lower()
+        if t_info in large_env:
             run_ps = run_yolo_aux
         else:
             run_ps = run_yolo
