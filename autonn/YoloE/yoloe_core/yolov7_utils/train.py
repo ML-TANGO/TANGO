@@ -612,7 +612,8 @@ def run_yolo(proj_path, dataset_yaml_path, data=None, target=None, train_mode='s
         hyp = yaml.load(f, Loader=yaml.SafeLoader)  # load hyps
     if opt.batch_size == -1: 
         model = Model(opt.cfg, ch=3, nc=80, anchors=hyp.get('anchors'))
-        opt.batch_size = get_batch_size_for_gpu(model, max(opt.img_size), amp=True)
+        opt.batch_size = int(get_batch_size_for_gpu(model, max(opt.img_size), amp=True) * 0.8)
+        # 0.8 is multiplied by batch size to prevent cuda memory error due to a memory leak of yolov7
         del model
         torch.cuda.empty_cache()
         gc.collect()
