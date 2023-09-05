@@ -16,7 +16,6 @@ from distutils.dir_util import copy_tree
 import argparse
 
 from .yolov7_utils.train import run_yolo
-from .yolov7_utils.train_aux import run_yolo_aux
 from . import models
 
 
@@ -203,14 +202,7 @@ def process_yolo(userid, project_id, data_yaml, proj_yaml):
             proj_info = yaml.safe_load(f)
         print(proj_info)
 
-        #TODO: IT NEEDS TO BE CHANGED TO REFER TO RESOLUTION(640, 1280), NOT TARGET_INFO
-        large_env = ['cloud', 'k8s', 'k8sjetsonnano', 'pcweb', 'pc', 'jetsonagxorin']
-        t_info = proj_info['target_info'].replace('-', '').replace('_', '').lower()
-        if t_info in large_env:
-            run_ps = run_yolo_aux
-        else:
-            run_ps = run_yolo
-        final_model = run_ps(proj_path, str(data_yaml), train_mode='search')
+        final_model = run_yolo(proj_path, str(data_yaml), train_mode='search')
         print('process_yolo: train done')
 
         best_pt_path = Path(proj_path) / 'yoloe.pt'

@@ -612,10 +612,19 @@ def run_yolo_aux(proj_path, dataset_yaml_path, data=None, target=None, train_mod
         torch.cuda.empty_cache()
         gc.collect()
 
+    device_str = ''
+    for i in range(torch.cuda.device_count()):
+        device_str = device_str + str(i) + ','
+    opt.device = device_str[:-1]
+    print(f'[ Device Auto Count ]: {opt.device}')
+    opt.batch_size = opt.batch_size * torch.cuda.device_count()
+    print(f'[ BatchSize Auto Fix ]: {opt.batch_size}')
+
     # DDP mode
     opt.total_batch_size = opt.batch_size
     device = select_device(opt.device, batch_size=opt.batch_size)
     if opt.local_rank != -1:
+        print(f'[ local rank check ]: opt.local_rank is not -1')
         assert torch.cuda.device_count() > opt.local_rank
         torch.cuda.set_device(opt.local_rank)
         device = torch.device('cuda', opt.local_rank)
