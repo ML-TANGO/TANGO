@@ -36,6 +36,7 @@ from .utils.loss import ComputeLoss, ComputeLossOTA
 from .utils.plots import plot_images, plot_labels, plot_results, plot_evolution
 from .utils.torch_utils import ModelEMA, select_device, intersect_dicts, torch_distributed_zero_first, is_parallel
 from .utils.wandb_logging.wandb_utils import WandbLogger, check_wandb_resume
+from .train_aux import run_yolo_aux
 
 logger = logging.getLogger(__name__)
 
@@ -569,6 +570,11 @@ def run_yolo(proj_path, dataset_yaml_path, data=None, target=None, train_mode='s
     opt = parser.parse_args()
     '''
 
+    with open(str(Path(proj_path) / 'basemodel.yaml')) as f:
+        basemodel_check = yaml.load(f, Loader=yaml.SafeLoader)  # load hyps
+    if len(basemodel_check['anchors']) > 3:
+        return run_yolo_aux(proj_path, dataset_yaml_path, data, target, train_mode, final_arch)
+
     with open(Path(os.path.dirname(__file__)) / 'args.yaml', encoding='utf-8') as f:
         opt = argparse.Namespace(**yaml.safe_load(f))
     with open(Path(proj_path) / 'project_info.yaml', encoding='utf-8') as f:
@@ -612,15 +618,25 @@ def run_yolo(proj_path, dataset_yaml_path, data=None, target=None, train_mode='s
         hyp = yaml.load(f, Loader=yaml.SafeLoader)  # load hyps
     if opt.batch_size == -1: 
         model = Model(opt.cfg, ch=3, nc=80, anchors=hyp.get('anchors'))
-        opt.batch_size = get_batch_size_for_gpu(model, max(opt.img_size), amp=True)
+        opt.batch_size = int(get_batch_size_for_gpu(model, max(opt.img_size), amp=True) * 0.8)
+        # 0.8 is multiplied by batch size to prevent cuda memory error due to a memory leak of yolov7
         del model
         torch.cuda.empty_cache()
         gc.collect()
+
+    device_str = ''
+    for i in range(torch.cuda.device_count()):
+        device_str = device_str + str(i) + ','
+    opt.device = device_str[:-1]
+    print(f'[ Device Auto Count ]: {opt.device}')
+    opt.batch_size = opt.batch_size * torch.cuda.device_count()
+    print(f'[ BatchSize Auto Fix ]: {opt.batch_size}')
 
     # DDP mode
     opt.total_batch_size = opt.batch_size
     device = select_device(opt.device, batch_size=opt.batch_size)
     if opt.local_rank != -1:
+        print(f'[ local rank check ]: opt.local_rank is not -1')
         assert torch.cuda.device_count() > opt.local_rank
         torch.cuda.set_device(opt.local_rank)
         device = torch.device('cuda', opt.local_rank)

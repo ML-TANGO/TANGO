@@ -16,7 +16,6 @@ from distutils.dir_util import copy_tree
 import argparse
 
 from .yolov7_utils.train import run_yolo
-from .yolov7_utils.train_aux import run_yolo_aux
 from . import models
 
 
@@ -203,12 +202,7 @@ def process_yolo(userid, project_id, data_yaml, proj_yaml):
             proj_info = yaml.safe_load(f)
         print(proj_info)
 
-        large_env = ['cloud', 'T4']
-        if proj_info['target_info'] in large_env:
-            run_ps = run_yolo_aux
-        else:
-            run_ps = run_yolo
-        final_model = run_ps(proj_path, str(data_yaml), train_mode='search')
+        final_model = run_yolo(proj_path, str(data_yaml), train_mode='search')
         print('process_yolo: train done')
 
         best_pt_path = Path(proj_path) / 'yoloe.pt'
