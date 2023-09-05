@@ -232,7 +232,6 @@ services:
     volumes:
       - ./deploy_targets/cloud:/source
       - /var/run/docker.sock:/var/run/docker.sock
-      - /var/run/docker.sock:/var/run/docker.sock
       - shared:/shared
     ports:
       - "7007:7007"  # image builder (API)
