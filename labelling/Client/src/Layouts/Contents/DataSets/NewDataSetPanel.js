@@ -618,11 +618,14 @@ function NewDataSetPanel(props) {
         headers: {
           "Content-Type": "multipart/form-data"
         },
+        timeout: 1000 * 200,
         cancelToken: source.token
       }
 
+      console.log("SEND REQ")
       const response = await axios.post("/api/dataset/upload", formData, config)
       const result = response.data
+      console.log("RECIEVED")
 
       result?.forEach(ele => {
         let index = fileState.fileList.findIndex(file => file.path === ele.path)
