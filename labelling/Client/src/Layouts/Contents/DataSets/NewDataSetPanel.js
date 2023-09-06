@@ -611,6 +611,7 @@ function NewDataSetPanel(props) {
       formData.append("dir", JSON.stringify(arr))
 
       if (arr.length === 0) {
+        console.log("Array is empty")
         return false
       }
       const config = {
@@ -805,6 +806,7 @@ function NewDataSetPanel(props) {
   const upload = async () => {
     setPageState(prevState => ({ ...prevState, isUpload: true }))
     const files = fileState.fileList.filter(ele => ele.status !== 1)
+    const fileLength = files.length
     let split = files.length < 1000 ? 1 : 100
 
     if (typeState.dataType === "T") {
@@ -812,11 +814,15 @@ function NewDataSetPanel(props) {
     } else {
       while (split <= files.length) {
         let splited = files.splice(0, split)
+        console.log(`${files.length}/${fileLength} left`)
         let f = await _uploadSeperate(splited)
+        console.log(`result: ${f}`)
         if (f === false) break
       }
       if (files.length !== 0) {
-        await _uploadSeperate(files)
+        console.log(`${files.length}/${fileLength} left (last)`)
+        let f = await _uploadSeperate(files)
+        console.log(`result: ${f}`)
       }
     }
     setPageState(prevState => ({ ...prevState, isUpload: false }))
