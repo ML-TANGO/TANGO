@@ -820,7 +820,9 @@ function NewDataSetPanel(props) {
         console.log(`${files.length}/${fileLength} left`)
         let f = await _uploadSeperate(splited)
         console.log(`result: ${f}`)
-        if (f === false) break
+        if (f === false) {
+          await _uploadSeperate(splited)
+        }
       }
       if (files.length !== 0) {
         console.log(`${files.length}/${fileLength} left (last)`)
