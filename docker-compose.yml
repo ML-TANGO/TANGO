@@ -86,14 +86,17 @@ services:
       sh -c "python manage.py makemigrations &&
              python manage.py migrate --run-syncdb &&
              python manage.py runserver 0.0.0.0:8081"
-    # deploy:
-    #   resources:
-    #     reservations:
-    #       devices:
-    #         - driver: nvidia
-    #           capabilities: [gpu]
-    # environment:
-    #   - NVIDIA_VISIBLE_DEVICES=all
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              capabilities:
+                - gpu
+                - utility
+                - compute
+    environment:
+      - NVIDIA_VISIBLE_DEVICES=${GPU_NUM:-all}
     hostname: bms
     volumes:
       - ./base_model_select:/source
@@ -186,9 +189,8 @@ services:
                 - gpu
                 - utility
                 - compute
-                - video
     environment:
-      - NVIDIA_VISIBLE_DEVICES=all
+      - NVIDIA_VISIBLE_DEVICES=${GPU_NUM:-all}
     volumes:
       - ./autonn/YoloE:/source
       - shared:/shared

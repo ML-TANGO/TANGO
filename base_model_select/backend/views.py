@@ -16,6 +16,7 @@ from django.http import HttpResponse
 from pathlib import Path
 
 from . import models
+from ..batch_test.batch_size_test import run_batch_test
 
 
 PROCESSES = {}
@@ -68,7 +69,7 @@ def start(request):
     try:
         proj_info_yaml = get_user_requirements(userid, project_id)
 
-        pr = mp.Process(target=task_to_model_mapping, args=(proj_info_yaml, userid, project_id), daemon=True)
+        pr = mp.Process(target=bms_process, args=(proj_info_yaml, userid, project_id), daemon=True)
 
         pr_id = get_process_id()
         PROCESSES[pr_id] = pr
@@ -173,7 +174,14 @@ def status_report(userid, project_id, status="success"):
         print(e)
 
 
-def task_to_model_mapping(yaml_path, userid, project_id):
+def bms_process(yaml_path, userid, project_id):
+    basemodel_yaml = create_basemodel_yaml(yaml_path, userid, project_id)
+    batch_size = run_batch_test(basemodel_yaml, hyperparam_yaml)
+
+    status_report(userid, project_id, status="success")
+
+
+def create_basemodel_yaml(yaml_path, userid, project_id):
     with open(yaml_path, 'r') as f:
         proj_info = yaml.load(f, Loader=yaml.FullLoader)
     task = proj_info['task_type']
@@ -181,9 +189,12 @@ def task_to_model_mapping(yaml_path, userid, project_id):
 
     model = task_to_model_table[task]
     model_size = model_to_size_table[model][target]
-    shutil.copy(f'basemodel_yaml/{model}/{model}{model_size}.yaml', f'/shared/common/{userid}/{project_id}/basemodel.yaml')
 
-    status_report(userid, project_id, status="success")
+    source_path = f'basemodel_yaml/{model}/{model}{model_size}.yaml'
+    target_path = f'/shared/common/{userid}/{project_id}/basemodel.yaml'
+    shutil.copy(source_path, target_path)
+
+    return target_path
 
 
 def get_user_requirements(userid, projid):
