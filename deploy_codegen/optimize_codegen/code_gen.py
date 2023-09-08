@@ -613,6 +613,52 @@ class CodeGen:
         # if there are files in the target folder, remove them
         self.clear()
 
+        if m_sysinfo_task_type = "classification":
+            if self.m_sysinfo_engine_type == 'pytorch':
+                self.m_sysinfo_libs = []
+                self.m_sysinfo_apt = ['vim', 'python3.9']
+                self.m_sysinfo_papi = ['torch', 'torchvision', 'pandas', 'numpy', 'albumentations']
+                self.m_deploy_entrypoint = self.m_deploy_python_file
+                # code gen for classificaaion
+                # make nn_model folder
+                if not os.path.exists(self.m_current_code_folder):
+                    os.makedirs(self.m_current_code_folder)
+                # copy pt file
+                pt_path = "%s%s" % (self.m_current_file_path, self.m_nninfo_weight_pt_file)
+                shutil.copy(pt_path, self.m_current_code_folder)
+                # copy template code
+                codefile_path = "%s%s" % (self.m_current_file_path, self.m_deploy_python_file)
+                f = open(codefile_path, "w")
+                # copy heading 
+                f.write("#!/usr/bin/python\n")
+                f.write("# -*- coding: utf-8 -*-\n")
+                f.write("DEF_IMG_PATH = %s\n" % self.m_sysinfo_input_method) 
+                f.write("DEF_ACC = %s\n" % "cpu") # only for testing self.m_sysinfo_acc_type) 
+                f.write("DEF_PT_FILE = %s\n\n\n" self.m_nninfo_weight_pt_file)
+                try:
+                    f1 = open("./db/resnet152.db", 'r')
+                except IOError as err:
+                    logging.debug("resnet162 db open error")
+                    return -1
+                for line1 in f1:
+                    f.write(line1)
+                f1.close()
+                f.close()
+
+                if self.m_deploy_type == 'cloud':
+                    self.make_requirements_file_for_docker()
+                elif self.m_deploy_type == 'k8s':
+                    self.make_requirements_file_for_docker()
+                elif self.m_deploy_type == 'pc_server':
+                    self.make_requirements_file_for_PCServer()
+                elif self.m_deploy_type == 'pc_web':
+                    self.make_requirements_file_for_PCServer()
+                else:
+                    self.make_requirements_file_for_others()
+            else:
+                pass # add code for tensorrt
+            return
+
         # code gen
         # khlee rknn must be deleted !!!!!!
         if self.m_sysinfo_engine_type == 'rknn':   
