@@ -201,6 +201,8 @@ def process_yolo(userid, project_id, data_yaml, proj_yaml):
         with open(proj_yaml, 'r') as f:
             proj_info = yaml.safe_load(f)
         print(proj_info)
+        with open(Path(proj_path) / 'basemodel.yaml', 'r') as f:
+            basemodel_yaml = yaml.safe_load(f)
 
         final_model = run_yolo(proj_path, str(data_yaml), train_mode='search')
         print('process_yolo: train done')
@@ -216,7 +218,7 @@ def process_yolo(userid, project_id, data_yaml, proj_yaml):
         src_root = Path('/source/yoloe_core/yolov7_utils/')
         with open(src_root / 'args.yaml', encoding='utf-8') as f:
             opt = argparse.Namespace(**yaml.safe_load(f))
-        input_shape = opt.img_size
+        input_shape = [basemodel_yaml['imgsz'], basemodel_yaml['imgsz']]
         src_yaml_root = Path('/source/sample_yaml/')
         src_info_path = src_yaml_root / 'neural_net_info.yaml'
         from_py_modelfolder_path = src_root / 'models'
