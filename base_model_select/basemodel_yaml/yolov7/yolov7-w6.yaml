@@ -1,5 +1,6 @@
 name: yolov7-w6
 hyp: p6
+imgsz: 1280
 
 # parameters
 nc: 80  # number of classes

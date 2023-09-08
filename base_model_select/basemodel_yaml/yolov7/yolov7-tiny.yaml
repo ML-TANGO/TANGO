@@ -1,5 +1,6 @@
 name: yolov7-tiny
 hyp: tiny
+imgsz: 640
 
 # parameters
 nc: 80  # number of classes

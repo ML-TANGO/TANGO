@@ -16,7 +16,7 @@ from django.http import HttpResponse
 from pathlib import Path
 
 from . import models
-from ..batch_test.batch_size_test import run_batch_test
+from batch_test.batch_size_test import run_batch_test
 
 
 PROCESSES = {}
@@ -175,10 +175,32 @@ def status_report(userid, project_id, status="success"):
 
 
 def bms_process(yaml_path, userid, project_id):
-    basemodel_yaml = create_basemodel_yaml(yaml_path, userid, project_id)
-    batch_size = run_batch_test(basemodel_yaml, hyperparam_yaml)
+    with open(yaml_path, 'r') as f:
+        proj_info_dict = yaml.load(f, Loader=yaml.FullLoader)
 
-    status_report(userid, project_id, status="success")
+    basemodel_yaml = create_basemodel_yaml(yaml_path, userid, project_id)
+
+    if proj_info_dict['task_type'] == 'detection':
+        with open(basemodel_yaml, 'r') as f:
+            basemodel_dict = yaml.load(f, Loader=yaml.FullLoader)
+        batch_size = run_batch_test(basemodel_yaml, f"hyperparam_yaml/yolov7/hyp.scratch.{basemodel_dict['hyp']}.yaml", basemodel_dict['imgsz'])
+
+        if batch_size == False:
+            bmsinfo = models.Info.objects.get(userid=userid, project_id=project_id)
+            bmsinfo.status = "failed"
+            bmsinfo.save()
+            print(f'[ BMS ] Memory resource is not enough for training. Please shrink Model Size')
+        else:
+            with open(yaml_path, 'r') as f:
+                project_info_dict = yaml.load(f, Loader=yaml.FullLoader)
+            project_info_dict['batchsize'] = batch_size
+            with open(yaml_path, 'w') as f:
+                yaml.dump(project_info_dict, f, default_flow_style=False)
+
+            status_report(userid, project_id, status="success")
+
+    elif proj_info_dict['task_type'] == 'classification':
+        status_report(userid, project_id, status="success")
 
 
 def create_basemodel_yaml(yaml_path, userid, project_id):
