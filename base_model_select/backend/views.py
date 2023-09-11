@@ -20,35 +20,33 @@ from . import models
 
 PROCESSES = {}
 
-task_to_model_table = {'detection': 'yolov7',
-                       'classification': 'resnet'}
-model_to_size_table = {'yolov7':
-                          {
-                            'cloud': '-tiny',
-                            'k8s': '-tiny',
-                            'k8sjetsonnano': '-tiny',
-                            'pcweb': '-tiny',
-                            'pc': '-tiny',
-                            'jetsonagxorin': '-tiny',
-                            'jetsonagxxavier': '-tiny',
-                            'jetsonnano': '-tiny',
-                            'galaxys22': '-tiny',
-                            'odroidn2': '-tiny',
-                           },
-                       'resnet':
-                          {
-                            'cloud': '18',
-                            'k8s': '18',
-                            'k8sjetsonnano': '18',
-                            'pcweb': '18',
-                            'pc': '18',
-                            'jetsonagxorin': '18',
-                            'jetsonagxxavier': '18',
-                            'jetsonnano': '18',
-                            'galaxys22': '18',
-                            'odroidn2': '18',
-                          }
-                        }
+task_to_model_table = {"detection": "yolov7", "classification": "resnet"}
+model_to_size_table = {
+    "yolov7": {
+        "cloud": "-tiny",
+        "k8s": "-tiny",
+        "k8sjetsonnano": "-tiny",
+        "pcweb": "-tiny",
+        "pc": "-tiny",
+        "jetsonagxorin": "-tiny",
+        "jetsonagxxavier": "-tiny",
+        "jetsonnano": "-tiny",
+        "galaxys22": "-tiny",
+        "odroidn2": "-tiny",
+    },
+    "resnet": {
+        "cloud": "20",
+        "k8s": "20",
+        "k8sjetsonnano": "20",
+        "pcweb": "20",
+        "pc": "20",
+        "jetsonagxorin": "20",
+        "jetsonagxxavier": "20",
+        "jetsonnano": "20",
+        "galaxys22": "20",
+        "odroidn2": "20",
+    },
+}
 
 
 @api_view(['GET'])

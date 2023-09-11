@@ -1,0 +1,6 @@
+# ResNet110 Params
+layers:
+  - 18
+  - 18
+  - 18
+num_classes: 2
