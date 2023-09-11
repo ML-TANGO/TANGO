@@ -18,9 +18,10 @@ from pathlib import Path
 from distutils.dir_util import copy_tree
 import argparse
 
-# from .yolov7_utils.train import run_yolo
 from . import models
+from .resnet_utils import train
 
+from typing import Dict, List, Tuple
 
 PROCESSES = {}
 
@@ -174,7 +175,7 @@ def get_user_requirements(userid, projid):
 
 def status_report(userid, project_id, status="success"):
     try:
-        url = "http://projectmanager:8092/status_report"
+        url = "http://projectmanager:8085/status_report"
         headers = {"Content-Type": "text/plain"}
         payload = {
             "container_id": "autonn_resnet",
@@ -196,14 +197,35 @@ def status_report(userid, project_id, status="success"):
 def process_resnet(userid, project_id, data_yaml, proj_yaml):
     try:
         common_root = Path("/shared/common/")
-        proj_path = os.path.dirname(proj_yaml)
+        proj_path = Path(proj_yaml).parent
+        best_model_path = proj_path / 'resnet.pt'
+        Path(proj_path).mkdir(parents=True, exist_ok=True)
 
         with open(proj_yaml, "r") as f:
             proj_info = yaml.safe_load(f)
-        print(proj_info)
+        with open(proj_path / 'basemodel.yaml', 'r') as f:
+            basemodel_info = yaml.safe_load(f)
+        final_model = train.run_resnet(proj_path, data_yaml)
+        print('process_resnet: train done')
+    
+        best_pt_path = str(Path(proj_path) / 'resset.pt')
+        Path(best_pt_path).parent.mkdir(parents=True, exist_ok=True)
+        shutil.copyfile(final_model, best_pt_path)
+        os.remove(final_model)
+        print(f'saved the best model: {str(best_pt_path)}')
+
+        src_yaml_root = Path('/source/sample_yaml/')
+        prjct_path = Path('/shared/common/') / userid / project_id
+        src_info_path = src_yaml_root / 'neural_net_info.yaml'
+        final_info_path = prjct_path / 'neural_net_info.yaml'
+        input_shape = basemodel_info.get("input_size", [256])[0]
+        create_nn_info(src_info_path, final_info_path, best_pt_path, [input_shape, input_shape])
+
+        exp_num = exp_num_check(proj_path)
+        shutil.copy(proj_yaml, Path(proj_path) / str('exp' + str(exp_num) + '_project_info.yaml'))
 
         status_report(userid, project_id, status="success")
-        print("process_resnet ends")
+        print("process_resnet: ends")
     except ValueError as e:
         print(e)
 
@@ -246,6 +268,37 @@ def get_ready_for_test(request):
     except Exception as e:
         print(e)
 
+
+def create_nn_info(
+                src_info_path: str,
+                final_info_path: str,
+                final_pt_path: str,
+                input_shape: Tuple[int, int]):
+    nn_info = dict()
+    with open(src_info_path) as f:
+        nn_yaml = yaml.load(f, Loader=yaml.FullLoader)
+    py_list = ["models/resnet_cifar10.py"]
+    for k in nn_yaml.keys():
+        if type(nn_yaml[k]) == str:
+            nn_info[str(k)] = str(nn_yaml[k])
+        else:
+            nn_info[str(k)] = nn_yaml[k]
+    nn_info['class_name'] = str("ResNet()")
+    nn_info['weight_file']= str("resset.pt")
+    nn_info['input_tensor_shape'] = [1, 1, input_shape[0], input_shape[1]]
+    with open(final_info_path, 'w') as file:
+        yaml.dump(nn_info, file, default_flow_style=False)
+
+def exp_num_check(proj_path):
+    current_filelist = os.listdir(proj_path)
+    exp_num_list = []
+    for filename in current_filelist:
+        if 'exp' in filename[:3]:
+            exp_num_list.append(int(filename.split('_')[0][3:]))
+    if len(exp_num_list)==0:
+        return 0
+    else:
+        return max(exp_num_list)+1
 
 # def make_directory(path_list):
 #     path = Path('')
