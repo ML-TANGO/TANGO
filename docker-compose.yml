@@ -199,6 +199,38 @@ services:
       - "8090:8090"
 
   #---------------------------------
+  # AutoNN: ResNet
+  #---------------------------------
+  autonn_resnet:
+    build:
+      context: ./autonn/ResNet
+    shm_size: '256M'
+    ipc: host
+    command: >
+      sh -c "python manage.py makemigrations &&
+             python manage.py migrate &&
+             python manage.py runserver 0.0.0.0:8092"
+    # use the below lines commented out if you want to use gpu
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              capabilities:
+                - gpu
+                - utility
+                - compute
+                - video
+    environment:
+      - NVIDIA_VISIBLE_DEVICES=all
+    volumes:
+      - ./autonn/ResNet:/source
+      - shared:/shared
+    hostname: autonn-resnet
+    ports:
+      - "8092:8092"
+
+  #---------------------------------
   # code_gen Build
   #---------------------------------
   code_gen:
