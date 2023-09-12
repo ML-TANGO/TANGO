@@ -32,18 +32,18 @@ README
 
 ---
 ### 사용 PORT
-    8088
+    7007
 
 ---
 ### PORT 번호 변경시
 ####  docker-compose.yaml 파일 수정
-    'target_image_build' 항목의 'command' 명령어 수정 ( 기존 8088 PORT 번호 변경 )
-    'target_image_build' 항목의 'ports' 수정         ( 기존 8088 PORT 번호 변경 )
+    'target_image_build' 항목의 'command' 명령어 수정 ( 기존 7007 PORT 번호 변경 )
+    'target_image_build' 항목의 'ports' 수정         ( 기존 7007 PORT 번호 변경 )
 
 #### DeepFramework( ui_manager ) 소스코드 수정 필요
     ~/ui_manager/frontend/src/service/restDummyApi.js 파일 수정
 
-    requestCreateImage_Dummy 함수내의 기존 8088 PORT 번호 변경
+    requestCreateImage_Dummy 함수내의 기존 7007 PORT 번호 변경
 
 ---
 ### Docker volumne

@@ -29,7 +29,7 @@ export const ObjectType = {
 export const ContainerName = {
   BMS: "bms",
   AUTO_NN: "yoloe",
-  AUTO_NN_RESNET: "autonn_resnet",
+  AUTO_NN_RESNET: "autonn-resnet",
   CODE_GEN: "codeGen",
   IMAGE_DEPLOY: "imagedeploy",
   USER_EDITING: "user_edit",

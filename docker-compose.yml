@@ -61,9 +61,9 @@ services:
   #     MARIADB_ROOT_PASSWORD: password
   #   restart: always
 
-  # #---------------------------------
-  # # Labelling tool
-  # #---------------------------------
+  #---------------------------------
+  # Labelling tool
+  #---------------------------------
   labelling:
     build:
       context: ./labelling
@@ -86,14 +86,17 @@ services:
       sh -c "python manage.py makemigrations &&
              python manage.py migrate --run-syncdb &&
              python manage.py runserver 0.0.0.0:8081"
-    # deploy:
-    #   resources:
-    #     reservations:
-    #       devices:
-    #         - driver: nvidia
-    #           capabilities: [gpu]
-    # environment:
-    #   - NVIDIA_VISIBLE_DEVICES=all
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              capabilities:
+                - gpu
+                - utility
+                - compute
+    environment:
+      - NVIDIA_VISIBLE_DEVICES=${GPU_NUM:-all}
     hostname: bms
     volumes:
       - ./base_model_select:/source
@@ -186,9 +189,8 @@ services:
                 - gpu
                 - utility
                 - compute
-                - video
     environment:
-      - NVIDIA_VISIBLE_DEVICES=all
+      - NVIDIA_VISIBLE_DEVICES=${GPU_NUM:-all}
     volumes:
       - ./autonn/YoloE:/source
       - shared:/shared
@@ -199,7 +201,7 @@ services:
       - "8090:8090"
 
   #---------------------------------
-  # code_gen Build 
+  # code_gen Build
   #---------------------------------
   code_gen:
     build:
@@ -217,26 +219,32 @@ services:
   # Cloud deploy (with target image build)
   #---------------------------------
   cloud_deploy:
-    hostname: cloud_deploy
+    hostname: cloud-deploy
     build:
       context: ./deploy_targets/cloud
     # -- command is not requred in favor of s6-overlay supervisor
     # command: >
     #   sh -c "python main.py"
+    environment:
+      - CLOUD_MANAGER_PORT=8088
+      # GCP auth settings
+      - GOOGLE_APPLICATION_CREDENTIALS=/source/cloud_manager/service-account-file.json
+      - GCP_REGION=asia-northeast3
+      - GCP_PROJECT_ID=tango-project
     volumes:
-      - ./deploy_targets/cloud/cloud_manager:/source/cloud_manager
-      - ./deploy_targets/cloud/image_builder:/source/image_builder
+      - ./deploy_targets/cloud:/source
       - /var/run/docker.sock:/var/run/docker.sock
+      - shared:/shared
     ports:
       - "7007:7007"  # image builder (API)
       - "8080:8080"  # image builder (GUI)
-      - "8088:8088"  # cloud manager
+      - "8890:8890"  # cloud manager
 
   #---------------------------------
   # K8S deploy
   #---------------------------------
   kube_deploy:
-    hostname: kube_deploy
+    hostname: kube-deploy
     build:
       context: ./deploy_targets/k8s
     container_name: "tango_k8s"
@@ -252,7 +260,7 @@ services:
       - "HOME=/home/root"
     ports:
       - "8901:8901"
-  
+
   #---------------------------------
   # K8S docker registry(image manager)
   #---------------------------------
@@ -263,11 +271,11 @@ services:
       volumes:
         - registry_data:/var/lib/registry/docker/registry/v2 # image 저장
       ports:
-        - "8903:5000"
+        - "8901:5000"
 
   #---------------------------------
-  # ondevice_deploy Build 
-  #---------------------------------    
+  # ondevice_deploy Build
+  #---------------------------------
   ondevice_deploy:
     hostname: ondevice
     build:
@@ -280,7 +288,7 @@ services:
     ports:
       - 8891:8891
   #---------------------------------
-  # Visualizer 
+  # Visualizer
   #---------------------------------
   viz2code:
     hostname: visualization
@@ -301,7 +309,7 @@ services:
   #     - postgresql
 
   #---------------------------------
-  # Volumes 
+  # Volumes
   #---------------------------------
 volumes:
   registry_data: { }
