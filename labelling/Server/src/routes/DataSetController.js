@@ -6,13 +6,13 @@ import path from "path"
 import fs from "fs"
 import fse from "fs-extra"
 import rimraf from "rimraf"
-import sizeOf from "image-size"
+import probe from "probe-image-size"
+import format from "format-duration"
 
 import DH from "../lib/DatabaseHandler"
 import CC from "../lib/CommonConstants"
 import CL from "../lib/ConfigurationLoader"
 import CF from "../lib/CommonFunction"
-import e from "express"
 var logger = require("../lib/Logger")(__filename)
 
 const router = express.Router()
@@ -268,35 +268,39 @@ router.post("/removeDataSet", async (req, res, next) => {
 
 const _removeDataSet = async (data) => {
 	try {
-		logger.info(`[REMOVE] Removing Dataset.... [${data.DATASET_CD}]`)
 		const datasetDir = path.join(config.datasetPath, data.DATASET_CD)
-		logger.info(`[REMOVE] Removing Dataset.... [${datasetDir}]`)
-		fs.existsSync(datasetDir) && rimraf.sync(datasetDir)
-		const deploymentDir = path.join(
-			config.deploymentPath,
-			data.TITLE.replace(/[^\w\d\uAC00-\uD7AF]/g, "_")
-		)
-		logger.info(`[REMOVE] Removing Dataset.... [${deploymentDir}]`)
-		fs.existsSync(deploymentDir) && rimraf.sync(deploymentDir)
 
-		logger.info(`[REMOVE] Removing Dataset elements`)
+		logger.info(`[REMOVE] Remove dataset elements [${data.DATASET_CD}]`)
 		let option = {}
 		option.source = CC.MAPPER.DATASET
 		option.queryId = "removeDataElements"
 		option.param = data
 		await DH.executeQuery(option)
 
-		logger.info(`[REMOVE] Removing Dataset analaysis`)
+		logger.info(`[REMOVE] Remove dataset analaysis [${data.DATASET_CD}]`)
 		option.queryId = "removeAnalysis"
 		await DH.executeQuery(option)
 
-		logger.info(`[REMOVE] Removing Dataset features`)
+		logger.info(`[REMOVE] Remove dataset features [${data.DATASET_CD}]`)
 		option.queryId = "removeFeatures"
 		await DH.executeQuery(option)
 
+		logger.info(
+			`[REMOVE] Remove dataset files [${data.DATASET_CD}][${datasetDir}]`
+		)
+		fs.existsSync(datasetDir) && rimraf.sync(datasetDir)
+		const deploymentDir = path.join(
+			config.deploymentPath,
+			data.TITLE.replace(/[^\w\d\uAC00-\uD7AF]/g, "_")
+		)
+		logger.info(
+			`[REMOVE] Remove deployment files [${data.DATASET_CD}][${deploymentDir}]`
+		)
+		fs.existsSync(deploymentDir) && rimraf.sync(deploymentDir)
+
 		option.queryId = "removeDataSet"
 		await DH.executeQuery(option)
-		logger.info(`[REMOVE] Remove DataSet Success [${data.DATASET_CD}]`)
+		logger.info(`[REMOVE] Remove dataset done [${data.DATASET_CD}]`)
 	} catch (error) {
 		logger.error(`Remove Fail [${data.DATASET_CD}] \n${error.stack}`)
 
@@ -414,82 +418,97 @@ router.post("/setDupDataset", async (req, res, next) => {
 
 router.post("/setNewDataSets", async (req, res, next) => {
 	let option = {}
-	let rollback = {}
-	rollback.orgData = {}
-	rollback.newData = {}
 
-	// 데이터셋 코드 생성
-	logger.info("[CREATE] Register new dataset code")
-	// 발급
-	option.source = CC.MAPPER.DATASET
-	option.queryId = "setNewDataSetNumber"
-	option.param = req.body
-	option.param.YEAR = moment().format("YY")
-	await DH.executeQuery(option)
-	// 조회
-	option.queryId = "getNewDataSetNumber"
-	let cd = await DH.executeQuery(option)
-	req.body.DATASET_CD = cd[0].DATASET_NUMBER
-	logger.info(`[CREATE] DATASET_CD: ${req.body.DATASET_CD}`)
+	console.log(config.datasetPath)
+	console.log(req.body.DATASET_CD)
+	console.log(config.tempPath)
+	console.log(req.body.uuid)
+
+	try {
+		// 데이터셋 코드 생성
+		logger.info("[CREATE] Register new dataset code")
+		// 발급
+		option.source = CC.MAPPER.DATASET
+		option.queryId = "setNewDataSetNumber"
+		option.param = req.body
+		option.param.YEAR = moment().format("YY")
+		await DH.executeQuery(option)
+		// 조회
+		option.queryId = "getNewDataSetNumber"
+		let cd = await DH.executeQuery(option)
+		req.body.DATASET_CD = cd[0].DATASET_NUMBER
+		logger.info(`[CREATE] DATASET_CD: ${req.body.DATASET_CD}`)
+	} catch (e) {
+		logger.error("Failed to create dataset code")
+		logger.error(e)
+		res.json({ status: 0, err: { MSG: "데이터셋 코드 생성 실패" } })
+		return
+	}
 
 	// 파일 이동
 	// ----------------------------------------------------------------------
-	logger.info("[CREATE] Make file structure")
 	const datasetDir = path.join(config.datasetPath, req.body.DATASET_CD)
 	const tempDir = path.join(config.tempPath, req.body.uuid)
-	req.body.DATASET_DIR = datasetDir
-	if (req.body.OBJECT_TYPE === "C") {
-		// create folder
-		req.body.tags.forEach((tag) => {
-			let datasetSubPath = path.join(datasetDir, tag.label)
-			if (!fs.existsSync(datasetSubPath)) {
-				fs.mkdirSync(datasetSubPath, { recursive: true })
-			}
-		})
-		req.body.files.forEach((file) => {
-			fs.renameSync(
-				path.join(tempDir, file.path),
-				path.join(datasetDir, file.base, file.name)
-			)
-		})
-	} else {
-		fs.renameSync(tempDir, datasetDir)
+	try {
+		logger.info("[CREATE] Make file structure")
+
+		req.body.DATASET_DIR = datasetDir
+		if (req.body.OBJECT_TYPE === "C") {
+			// create folder
+			req.body.tags.forEach((tag) => {
+				let datasetSubPath = path.join(datasetDir, tag.label)
+				if (!fs.existsSync(datasetSubPath)) {
+					fs.mkdirSync(datasetSubPath, { recursive: true })
+				}
+			})
+			req.body.files.forEach((file) => {
+				fs.renameSync(
+					path.join(tempDir, file.path),
+					path.join(datasetDir, file.base, file.name)
+				)
+			})
+		} else {
+			fs.renameSync(tempDir, datasetDir)
+		}
+
+		logger.info(
+			`[CREATE] DATASET_ROOT_PATH: ${req.body.DATASET_DIR}, TEMP_ROOT_PATH: ${tempDir}`
+		)
+	} catch (e) {
+		logger.error("Failed to make file structure")
+		logger.error(e)
+		res.json({ status: 0, err: { MSG: "데이터셋 구조 생성 실패" } })
+		return
 	}
-
-	logger.info(
-		`[CREATE] DATASET_ROOT_PATH: ${req.body.DATASET_DIR}, TEMP_ROOT_PATH: ${tempDir}`
-	)
-
-	// if(data.OBJECT_TYPE === "C" &&  req.body.files.find(ff=>ff.)){
-
-	// }
 
 	//데이터셋 메인 썸네일 생성
 	// ----------------------------------------------------------------------
-	logger.info("[CREATE] Make main thumbnail")
-	const imageExtensions = [".jpg", ".jpeg", ".png", ".gif"]
-	let selected = req.body.files.find((ff) =>
-		imageExtensions.includes(path.extname(ff.name).toLowerCase())
-	)
-	let img = null
-	// classification
-	if (req.body.OBJECT_TYPE === "C") {
-		img = path.join(datasetDir, selected.base, selected.name)
-	} else {
-		if (selected.base === "untagged") {
-			img = path.join(datasetDir, selected.name)
-		} else {
-			img = path.join(datasetDir, selected.base, selected.name)
-		}
-	}
-
-	let thum = path.join(
-		datasetDir,
-		"THUM_" + path.parse(path.basename(selected.name)).name + ".jpg"
-	)
-	logger.info(`[CREATE] Thumbnail image path: ${thum}`)
-	let resResult
 	try {
+		logger.info("[CREATE] Make main thumbnail")
+		const imageExtensions = [".jpg", ".jpeg", ".png", ".gif"]
+		let selected = req.body.files.find((ff) =>
+			imageExtensions.includes(path.extname(ff.name).toLowerCase())
+		)
+		console.log(selected)
+		let img = null
+		// classification
+		if (req.body.OBJECT_TYPE === "C") {
+			img = path.join(datasetDir, selected.base, selected.name)
+		} else {
+			if (selected.base === "untagged") {
+				img = path.join(datasetDir, selected.name)
+			} else {
+				img = path.join(datasetDir, selected.base, selected.name)
+			}
+		}
+		console.log(img)
+
+		let thum = path.join(
+			datasetDir,
+			"THUM_" + path.parse(path.basename(selected.name)).name + ".jpg"
+		)
+		logger.info(`[CREATE] Thumbnail image path: ${thum}`)
+		let resResult
 		resResult = await CF.sendRequestResLong(
 			config.masterIp,
 			config.masterPort,
@@ -522,35 +541,44 @@ router.post("/setNewDataSets", async (req, res, next) => {
 
 		option.queryId = "setDataElement"
 		await DH.executeQuery(option)
-	} catch (error) {
-		logger.error(error)
-		res.json({ status: 0, err: error, msg: "썸네일 생성 실패" })
-		rollbackDataSet(rollback.orgData, rollback.newData)
+	} catch (e) {
+		logger.error("Failed to create main thumbnail")
+		logger.error(e)
+		res.json({ status: 0, err: { MSG: "썸네일 생성 실패" } })
 		return
+		// rollbackDataSet(rollback.orgData, rollback.newData)
+		// return
 	}
 
 	// 데이터셋 생성
-	logger.info("[CREATE] Create dataset")
-	logger.info(`[CREATE] Query new dataset`)
-	option.param.DATASET_CD = req.body.DATASET_CD
-	option.param.CRN_USR = req.body.USER_ID || "user"
-	option.param.THUM_NAIL_CD = "T0000000"
-	option.param.CATEGORY1 = "USER"
-	option.queryId = "setNewDataSet"
-	await DH.executeQuery(option)
+	try {
+		logger.info("[CREATE] Create dataset")
+		logger.info(`[CREATE] Query new dataset`)
+		option.param.DATASET_CD = req.body.DATASET_CD
+		option.param.CRN_USR = req.body.USER_ID || "user"
+		option.param.THUM_NAIL_CD = "T0000000"
+		option.param.CATEGORY1 = "USER"
+		option.queryId = "setNewDataSet"
+		await DH.executeQuery(option)
 
-	logger.info(`[CREATE] Query dataset status`)
-	option.source = CC.MAPPER.IMG_ANNO
-	option.param = {}
-	option.param.DATASET_CD = req.body.DATASET_CD
-	option.param.DATASET_STS = "CREATE"
-	option.queryId = "updateDataSetStatus"
-	await DH.executeQuery(option)
+		logger.info(`[CREATE] Query dataset status`)
+		option.source = CC.MAPPER.IMG_ANNO
+		option.param = {}
+		option.param.DATASET_CD = req.body.DATASET_CD
+		option.param.DATASET_STS = "CREATE"
+		option.queryId = "updateDataSetStatus"
+		await DH.executeQuery(option)
 
-	logger.info(`[CREATE] Create dataset`)
-	_createDataSets(req.body, 0)
+		logger.info(`[CREATE] Create dataset`)
+		_createDataSets(req.body, 0)
 
-	res.json({ status: 1 })
+		res.json({ status: 1 })
+	} catch (e) {
+		logger.error("Failed to create database")
+		logger.error(e)
+		res.json({ status: 0, err: { MSG: "데이터베이스 생성 실패" } })
+		return
+	}
 
 	logger.info("[CREATE] Check Project manager")
 	option.source = CC.MAPPER.TANGO
@@ -821,74 +849,76 @@ const _createDataSets = async (data, dataCd) => {
 			if (classOption.param.DATA.length > 0) {
 				await DH.executeQuery(classOption)
 			}
-			let thumFiles = []
-			const startTime = Date.now()
-			for (let i = 0; i < fileList.length; i++) {
+			let startTime = Date.now()
+			const fileCount = fileList.length
+			for (let i = 0; i < fileCount; i++) {
 				// fileList.forEach((fl, flIdx) => {
-				let flIdx = i
-				let fl = fileList[i]
+				const flIdx = i + 1
+				const fl = fileList[i]
 				let polygonData = []
 				if (!fl.name.includes(".json")) {
 					// convert anno
-					let imageInfo = images.find((imf) => imf.file_name === fl.name)
-					let annoInfo = annotations.filter(
-						(annof) => annof.image_id === imageInfo.id
+					const imageInfo = images.find((imf) => imf.file_name === fl.name)
+					const annoInfo = annotations.filter(
+						(annof) => annof.image_id === imageInfo?.id
 					)
-					if (data.OBJECT_TYPE === "D") {
-						annoInfo.map((annom) => {
-							let ploygon = {
-								DATASET_CD: data.DATASET_CD,
-								DATA_CD: fl.DATA_CD,
-								TAG_CD: annom.category_id,
-								TAG_NAME: categories[annom.category_id].name,
-								COLOR: categories[annom.category_id].name,
-								CLASS_CD: "",
-								CURSOR: "isRect",
-								NEEDCOUNT: 2,
-								POSITION: [
-									{
-										X: parseFloat(annom["bbox"][0].toFixed(2)),
-										Y: parseFloat(annom["bbox"][1].toFixed(2)),
-									},
-									{
-										X: parseFloat(
-											(annom["bbox"][0] + annom["bbox"][2]).toFixed(2)
-										),
-										Y: parseFloat(
-											(annom["bbox"][1] + annom["bbox"][3]).toFixed(2)
-										),
-									},
-								],
-							}
-							polygonData.push(ploygon)
-						})
-					} else if (data.OBJECT_TYPE === "S") {
-						annoInfo.map((annom) => {
-							if (annom.iscrowd === 0) {
-								const segmentation = annom.segmentation.flat()
-								const position = segmentation.reduce(
-									(result, value, index, array) => {
-										if (index % 2 === 0) {
-											result.push({ X: value, Y: array[index + 1] })
-										}
-										return result
-									},
-									[]
-								)
-								let ploygon = {
+					if (annoInfo) {
+						if (data.OBJECT_TYPE === "D") {
+							annoInfo.map((annom) => {
+								const ploygon = {
 									DATASET_CD: data.DATASET_CD,
 									DATA_CD: fl.DATA_CD,
 									TAG_CD: annom.category_id,
 									TAG_NAME: categories[annom.category_id].name,
 									COLOR: categories[annom.category_id].name,
 									CLASS_CD: "",
-									CURSOR: "isPolygon",
-									NEEDCOUNT: -1,
-									POSITION: position,
+									CURSOR: "isRect",
+									NEEDCOUNT: 2,
+									POSITION: [
+										{
+											X: parseFloat(annom["bbox"][0].toFixed(2)),
+											Y: parseFloat(annom["bbox"][1].toFixed(2)),
+										},
+										{
+											X: parseFloat(
+												(annom["bbox"][0] + annom["bbox"][2]).toFixed(2)
+											),
+											Y: parseFloat(
+												(annom["bbox"][1] + annom["bbox"][3]).toFixed(2)
+											),
+										},
+									],
 								}
 								polygonData.push(ploygon)
-							}
-						})
+							})
+						} else if (data.OBJECT_TYPE === "S") {
+							annoInfo.map((annom) => {
+								if (annom.iscrowd === 0) {
+									const segmentation = annom.segmentation.flat()
+									const position = segmentation.reduce(
+										(result, value, index, array) => {
+											if (index % 2 === 0) {
+												result.push({ X: value, Y: array[index + 1] })
+											}
+											return result
+										},
+										[]
+									)
+									let ploygon = {
+										DATASET_CD: data.DATASET_CD,
+										DATA_CD: fl.DATA_CD,
+										TAG_CD: annom.category_id,
+										TAG_NAME: categories[annom.category_id].name,
+										COLOR: categories[annom.category_id].name,
+										CLASS_CD: "",
+										CURSOR: "isPolygon",
+										NEEDCOUNT: -1,
+										POSITION: position,
+									}
+									polygonData.push(ploygon)
+								}
+							})
+						}
 					}
 
 					// write dat files
@@ -932,32 +962,73 @@ const _createDataSets = async (data, dataCd) => {
 					elementOption.param.FPS = fl.FPS === undefined ? 0 : fl.FPS
 					elementOption.param.TAG_CD = 0
 					await DH.executeQuery(elementOption)
-
-					await CF.sendRequestResLong(
-						config.masterIp,
-						config.masterPort,
-						CC.URI.makeThumnail,
-						[
-							{
-								MDL_TYPE: data.DATA_TYPE,
-								PATH: path.join(data.DATASET_DIR, fl.path),
-								SAVE_PATH:
-									data.OBJECT_TYPE !== "C" && fl.base === "untagged"
-										? path.join(data.DATASET_DIR, fl.name)
-										: path.join(data.DATASET_DIR, fl.base, "THUM_" + fl.name),
-							},
-						]
-					).catch((err) => {
-						throw new Error(`Thumnail Network Fail ${err.stack}`)
-					})
 					const endTime = Date.now()
-					const timePerFile = (endTime - startTime) / (flIdx + 1)
-					const filesLeft = fileList.length - (flIdx + 1)
+					const timePerFile = (endTime - startTime) / flIdx
+					const filesLeft = fileCount - flIdx
 					const estimateTime = timePerFile * filesLeft
-					logger.info(
-						`[UPDATE] (${flIdx}/${fileList.length}) ${saveFilePath} - ${estimateTime}ms left`
-					)
+					if (flIdx % 100 === 0 || flIdx === fileCount)
+						logger.info(
+							`[CREATE] (${flIdx}/${fileCount}) Update database done - ${format(
+								estimateTime
+							)}`
+						)
 				}
+			}
+
+			if (data.AUTO_TYPE === "Y") {
+				data.AUTO_EPOCH = data.EPOCH === undefined ? -1 : data.EPOCH
+				option.source = CC.MAPPER.DATASET
+				option.param = {}
+				option.param.DATASET_CD = data.DATASET_CD
+				option.param.AUTO_ACC = data.AUTO_ACC
+				option.param.AUTO_MODEL = data.AUTO_MODEL
+				option.param.AUTO_EPOCH = data.AUTO_EPOCH
+				option.param.AUTO_TYPE = data.AUTO_TYPE
+				option.queryId = "setUpdateDataset"
+				await DH.executeQuery(option)
+
+				await _prePredictAll(data.DATASET_CD, data, data.AUTO_ACC)
+			} else {
+				option.source = CC.MAPPER.IMG_ANNO
+				option.param = {}
+				option.param.DATASET_CD = data.DATASET_CD
+				option.param.DATASET_STS = "DONE"
+				option.queryId = "updateDataSetStatus"
+				await DH.executeQuery(option)
+			}
+
+			startTime = Date.now()
+			for (let i = 0; i < fileCount; i++) {
+				const flIdx = i + 1
+				const fl = fileList[i]
+				const saveFilePath =
+					data.OBJECT_TYPE !== "C" && fl.base === "untagged"
+						? path.join(data.DATASET_DIR, fl.name)
+						: path.join(data.DATASET_DIR, fl.base, "THUM_" + fl.name)
+				await CF.sendRequestResLong(
+					config.masterIp,
+					config.masterPort,
+					CC.URI.makeThumnail,
+					[
+						{
+							MDL_TYPE: data.DATA_TYPE,
+							PATH: path.join(data.DATASET_DIR, fl.path),
+							SAVE_PATH: saveFilePath,
+						},
+					]
+				).catch((err) => {
+					throw new Error(`Thumnail Network Fail ${err.stack}`)
+				})
+				const endTime = Date.now()
+				const timePerFile = (endTime - startTime) / flIdx
+				const filesLeft = fileCount - flIdx
+				const estimateTime = timePerFile * filesLeft
+				if (flIdx % 100 === 0 || flIdx === fileCount)
+					logger.info(
+						`[CREATE] (${flIdx}/${fileCount}) Create thumbnail done - ${format(
+							estimateTime
+						)}`
+					)
 			}
 		} else {
 			// 파일 등록
@@ -972,28 +1043,27 @@ const _createDataSets = async (data, dataCd) => {
 					await _makeImageThumbnails(data)
 				}
 			}
-		}
+			if (data.AUTO_TYPE === "Y") {
+				data.AUTO_EPOCH = data.EPOCH === undefined ? -1 : data.EPOCH
+				option.source = CC.MAPPER.DATASET
+				option.param = {}
+				option.param.DATASET_CD = data.DATASET_CD
+				option.param.AUTO_ACC = data.AUTO_ACC
+				option.param.AUTO_MODEL = data.AUTO_MODEL
+				option.param.AUTO_EPOCH = data.AUTO_EPOCH
+				option.param.AUTO_TYPE = data.AUTO_TYPE
+				option.queryId = "setUpdateDataset"
+				await DH.executeQuery(option)
 
-		if (data.AUTO_TYPE === "Y") {
-			data.AUTO_EPOCH = data.EPOCH === undefined ? -1 : data.EPOCH
-			option.source = CC.MAPPER.DATASET
-			option.param = {}
-			option.param.DATASET_CD = data.DATASET_CD
-			option.param.AUTO_ACC = data.AUTO_ACC
-			option.param.AUTO_MODEL = data.AUTO_MODEL
-			option.param.AUTO_EPOCH = data.AUTO_EPOCH
-			option.param.AUTO_TYPE = data.AUTO_TYPE
-			option.queryId = "setUpdateDataset"
-			await DH.executeQuery(option)
-
-			await _prePredictAll(data.DATASET_CD, data, data.AUTO_ACC)
-		} else {
-			option.source = CC.MAPPER.IMG_ANNO
-			option.param = {}
-			option.param.DATASET_CD = data.DATASET_CD
-			option.param.DATASET_STS = "DONE"
-			option.queryId = "updateDataSetStatus"
-			await DH.executeQuery(option)
+				await _prePredictAll(data.DATASET_CD, data, data.AUTO_ACC)
+			} else {
+				option.source = CC.MAPPER.IMG_ANNO
+				option.param = {}
+				option.param.DATASET_CD = data.DATASET_CD
+				option.param.DATASET_STS = "DONE"
+				option.queryId = "updateDataSetStatus"
+				await DH.executeQuery(option)
+			}
 		}
 	} catch (error) {
 		logger.error(`[${data.DATASET_CD}] Create Fail \n${error.stack}`)
@@ -1011,21 +1081,21 @@ const _createDataSets = async (data, dataCd) => {
 	}
 }
 
-const rollbackDataSet = (orgData, newData) => {
-	try {
-		logger.info("Rollback Dataset")
-		!fs.existsSync(orgData.tempPath) && fs.mkdirSync(orgData.tempPath)
-		orgData.files.map((ele) => {
-			let orgFilePath = path.join(orgData.tempPath, ele.name)
-			let newFilePath = path.join(newData.dataPath, ele.name)
-			orgFilePath = orgFilePath.replace(/ /g, "")
-			newFilePath = newFilePath.replace(/ /g, "")
-			!fs.existsSync(orgFilePath) && fs.renameSync(newFilePath, orgFilePath)
-		})
-	} catch (error) {
-		logger.error(`[ ${orgData.tempPath} ] Rollbal Fail`)
-	}
-}
+// const rollbackDataSet = (orgData, newData) => {
+// 	try {
+// 		logger.info("Rollback Dataset")
+// 		!fs.existsSync(orgData.tempPath) && fs.mkdirSync(orgData.tempPath)
+// 		orgData.files.map((ele) => {
+// 			let orgFilePath = path.join(orgData.tempPath, ele.name)
+// 			let newFilePath = path.join(newData.dataPath, ele.name)
+// 			orgFilePath = orgFilePath.replace(/ /g, "")
+// 			newFilePath = newFilePath.replace(/ /g, "")
+// 			!fs.existsSync(orgFilePath) && fs.renameSync(newFilePath, orgFilePath)
+// 		})
+// 	} catch (error) {
+// 		logger.error(`[ ${orgData.tempPath} ] Rollback Fail`)
+// 	}
+// }
 
 // jogoon 추가함. 로직은 확인해봐야함
 // auto labeling 실패시 호출
@@ -1206,9 +1276,9 @@ router.post(
 
 		const datasetTypeName = (index, total) => {
 			const targetPercentage = (index / total) * 100
-			if (targetPercentage > parseInt(split[0], 10) + parseInt(split[1], 10))
+			if (targetPercentage >= parseInt(split[0], 10) + parseInt(split[1], 10))
 				return "test"
-			else if (targetPercentage > parseInt(split[0], 10)) return "valid"
+			else if (targetPercentage >= parseInt(split[0], 10)) return "val"
 			else return "train"
 		}
 		const normalizeCoordinates = (x1, y1, x2, y2, imageWidth, imageHeight) => {
@@ -1253,10 +1323,10 @@ router.post(
 				const tagNames = tagList.map((tm) => tm.NAME)
 
 				// create data.yaml (category, category count, train_path, val_path)
-				const dataYamlPath = path.join(deploymentPath, "data.yaml")
+				const dataYamlPath = path.join(deploymentPath, "dataset.yaml")
 				let dataYaml = `# train and valid data\n`
-				dataYaml += `train: ./train/images\n`
-				dataYaml += `valid: ./valid/images\n\n`
+				dataYaml += `train: ${deploymentPath}/images/train\n`
+				dataYaml += `valid: ${deploymentPath}/images/val\n\n`
 				dataYaml += `# number of classes\n`
 				dataYaml += `nc: ${tagList.length}\n\n`
 				dataYaml += `# class names\n`
@@ -1268,82 +1338,90 @@ router.post(
 					flag: "w",
 				})
 				// make dir (train_path/images,train_path/labels)
-				let datasetTypePath = path.join(deploymentPath, "train", "images")
+				let datasetTypePath = path.join(deploymentPath, "images", "train")
 				!fs.existsSync(datasetTypePath) &&
 					fs.mkdirSync(datasetTypePath, { recursive: true })
-				datasetTypePath = path.join(deploymentPath, "train", "labels")
+				datasetTypePath = path.join(deploymentPath, "images", "val")
 				!fs.existsSync(datasetTypePath) &&
 					fs.mkdirSync(datasetTypePath, { recursive: true })
-				datasetTypePath = path.join(deploymentPath, "valid", "images")
+				datasetTypePath = path.join(deploymentPath, "images", "test")
 				!fs.existsSync(datasetTypePath) &&
 					fs.mkdirSync(datasetTypePath, { recursive: true })
-				datasetTypePath = path.join(deploymentPath, "valid", "labels")
+				datasetTypePath = path.join(deploymentPath, "labels", "train")
 				!fs.existsSync(datasetTypePath) &&
 					fs.mkdirSync(datasetTypePath, { recursive: true })
-				datasetTypePath = path.join(deploymentPath, "test", "images")
+				datasetTypePath = path.join(deploymentPath, "labels", "val")
 				!fs.existsSync(datasetTypePath) &&
 					fs.mkdirSync(datasetTypePath, { recursive: true })
-				datasetTypePath = path.join(deploymentPath, "test", "labels")
+				datasetTypePath = path.join(deploymentPath, "labels", "test")
 				!fs.existsSync(datasetTypePath) &&
 					fs.mkdirSync(datasetTypePath, { recursive: true })
 				// copy ( train/images, val/images, test/images)
-				const promises = fileList.map((fm, fmIdx) => {
-					return new Promise((resolve, reject) => {
-						try {
-							let destinationPath = path.join(
-								deploymentPath,
-								fm.DATASET_TYPE,
-								"images",
-								fm.FILE_NAME + fm.FILE_EXT
-							)
-							fs.copyFileSync(fm.FILE_PATH, destinationPath)
+				const startTime = Date.now()
+				for (let i = 0; i < fileCount; i++) {
+					const flIdx = i + 1
+					const fl = fileList[i]
+					let destinationPath = path.join(
+						deploymentPath,
+						"images",
+						fl.DATASET_TYPE,
+						fl.FILE_NAME + fl.FILE_EXT
+					)
+					try {
+						fs.copyFileSync(fl.FILE_PATH, destinationPath)
+						// get image resolution
+						const imgData = require("fs").readFileSync(fl.FILE_PATH)
+						const imageInfo = probe.sync(imgData)
+						// get polygonData
+						const polygonData = JSON.parse(fs.readFileSync(fl.ANNO_DATA))
 
-							// get image resolution
-							const imageInfo = sizeOf(fm.FILE_PATH)
-							// get polygonData
-							const polygonData = JSON.parse(fs.readFileSync(fm.ANNO_DATA))
+						destinationPath = path.join(
+							deploymentPath,
+							"labels",
+							fl.DATASET_TYPE,
+							fl.FILE_NAME + ".txt"
+						)
+						let annoData = ""
 
-							destinationPath = path.join(
-								deploymentPath,
-								fm.DATASET_TYPE,
-								"labels",
-								fm.FILE_NAME + ".txt"
+						polygonData?.POLYGON_DATA?.map((ppm) => {
+							// mapping category number by name
+							const categoryId = tagNames.indexOf(ppm.TAG_NAME)
+							// change position to percent value
+							// from x1,y1,x2,y2 to x(center) y(center) width height in 0-1 scale
+							const anno = normalizeCoordinates(
+								ppm.POSITION[0].X,
+								ppm.POSITION[0].Y,
+								ppm.POSITION[1].X,
+								ppm.POSITION[1].Y,
+								imageInfo.width,
+								imageInfo.height
 							)
-							let annoData = ""
-							polygonData.POLYGON_DATA.map((ppm) => {
-								// mapping category number by name
-								const categoryId = tagNames.indexOf(ppm.TAG_NAME)
-								// change position to percent value
-								// from x1,y1,x2,y2 to x(center) y(center) width height in 0-1 scale
-								const anno = normalizeCoordinates(
-									ppm.POSITION[0].X,
-									ppm.POSITION[0].Y,
-									ppm.POSITION[1].X,
-									ppm.POSITION[1].Y,
-									imageInfo.width,
-									imageInfo.height
-								)
-								annoData += `${categoryId} ${anno.x} ${anno.y} ${anno.width} ${anno.height}\n`
-							})
+							annoData += `${categoryId} ${anno.x} ${anno.y} ${anno.width} ${anno.height}\n`
+						})
+						const endTime = Date.now()
+						const timePerFile = (endTime - startTime) / flIdx
+						const filesLeft = fileCount - flIdx
+						const estimateTime = timePerFile * filesLeft
+						if (flIdx % 100 === 0 || flIdx === fileCount) {
 							logger.info(
-								`[DEPLOYMENT] (${fmIdx}/${fileCount}) Create annotation file: ${destinationPath}`
+								`[DEPLOYMENT] (${flIdx}/${fileCount}) Create annotation file done - ${format(
+									estimateTime
+								)}`
 							)
-
-							fs.writeFileSync(destinationPath, annoData, {
-								encoding: "utf8",
-								flag: "w",
-							})
-
-							resolve()
-						} catch (e) {
-							reject(e)
 						}
-					})
-				})
 
-				const results = await Promise.all(promises)
+						fs.writeFileSync(destinationPath, annoData, {
+							encoding: "utf8",
+							flag: "w",
+						})
+					} catch (e) {
+						logger.error(
+							`[ERROR] (${flIdx}/${fileCount}) Cannot create annotation file: ${destinationPath}`
+						)
+					}
+				}
 			}
-
+			logger.info(`[DEPLOYMENT] Create deployment done ${deploymentPath}`)
 			res.json({ result: true })
 		} catch (e) {
 			res.json({ result: e })
@@ -1364,6 +1442,7 @@ router.post(
 				req.body.datasetName
 			)
 			fs.existsSync(deploymentPath) && rimraf.sync(deploymentPath)
+			logger.info(`[REMOVE] Remove deployment done ${deploymentPath}`)
 			res.json({ result: true })
 		} catch (e) {
 			res.json({ result: e })
