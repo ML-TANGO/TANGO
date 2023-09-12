@@ -1421,7 +1421,7 @@ router.post(
 					}
 				}
 			}
-
+			logger.info(`[DEPLOYMENT] Create deployment done ${deploymentPath}`)
 			res.json({ result: true })
 		} catch (e) {
 			res.json({ result: e })
