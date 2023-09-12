@@ -140,6 +140,21 @@ function NewDataSetPanel(props) {
   const resultRef = useRef(null)
   const toggle = () => setPageState(prevState => ({ ...prevState, modal: !prevState.modal }))
 
+  const beforeunload = function (e) {
+    // 경고 메시지 설정 (사용자에게 표시할 내용)
+    const confirmationMessage = "변경 사항이 저장되지 않을 수 있습니다. 페이지를 나가시겠습니까?"
+
+    // 이벤트 객체에 경고 메시지를 추가하여 얼럿 또는 확인 다이얼로그를 표시
+    e.returnValue = confirmationMessage
+    return confirmationMessage
+  }
+  useEffect(() => {
+    window.addEventListener("beforeunload", beforeunload)
+    return () => {
+      window.removeEventListener("beforeunload", beforeunload)
+    }
+  }, [])
+
   useLayoutEffect(() => {
     async function init() {
       try {
@@ -622,18 +637,18 @@ function NewDataSetPanel(props) {
         cancelToken: source.token
       }
 
-      console.log("SEND REQ")
       const response = await axios.post("/api/dataset/upload", formData, config)
       const result = response.data
-      console.log("RECIEVED")
 
       result?.forEach(ele => {
         let index = fileState.fileList.findIndex(file => file.path === ele.path)
         fileState.fileList[index].status = ele.status
         fileState.fileList[index].isNew = true
-        if (ele.status === 1)
-          setFileState(prevState => ({ ...prevState, successCount: fileState.fileList.filter(el => el.status === 1).length }))
-        else setFileState(prevState => ({ ...prevState, failCount: fileState.fileList.filter(el => el.status === -1).length }))
+        setFileState(prevState => ({
+          ...prevState,
+          successCount: fileState.fileList.filter(el => el.status === 1).length,
+          failCount: fileState.fileList.filter(el => el.status === -1).length
+        }))
       })
       setFileState(prevState => ({ ...prevState, fileList: fileState.fileList }))
 
@@ -648,7 +663,7 @@ function NewDataSetPanel(props) {
           fileState.fileList[index].status = -1
           setFileState(prevState => ({ ...prevState, failCount: prevState.failCount + 1 }))
         })
-        setFileState(prevState => ({ ...prevState, failCount: fileState.fileList.filter(el => el.status === -1).length }))
+        setFileState(prevState => ({ ...prevState, fileList: fileState.fileList }))
         toast.error(<CommonToast Icon={MdError} text={"Upload Fail"} />)
         return false
       }
@@ -699,9 +714,11 @@ function NewDataSetPanel(props) {
               fileState.fileList[index].isNew = true
               fileState.fileList[index].columns = ele.columns
               ele.columns.forEach(col => colList.add(col))
-              if (ele.status === 1)
-                setFileState(prevState => ({ ...prevState, successCount: fileState.fileList.filter(el => el.status === 1).length }))
-              else setFileState(prevState => ({ ...prevState, failCount: fileState.fileList.filter(el => el.status === -1).length }))
+              setFileState(prevState => ({
+                ...prevState,
+                successCount: fileState.fileList.filter(el => el.status === 1).length,
+                failCount: fileState.fileList.filter(el => el.status === -1).length
+              }))
             })
             setFileState(prevState => ({ ...prevState, fileList: fileState.fileList }))
             resolve(Array.from(colList))
@@ -714,7 +731,7 @@ function NewDataSetPanel(props) {
               arr.forEach(ele => {
                 let index = fileState.fileList.findIndex(file => file.path === ele)
                 fileState.fileList[index].status = -1
-                setFileState(prevState => ({ ...prevState, failCount: fileState.fileList.filter(el => el.status === -1).length }))
+                setFileState(prevState => ({ ...prevState, failCount: prevState.failCount + 1 }))
               })
               setFileState(prevState => ({ ...prevState, fileList: fileState.fileList }))
               toast.error(<CommonToast Icon={MdError} text={"Upload Fail"} />)
@@ -816,18 +833,20 @@ function NewDataSetPanel(props) {
       await _uploadSeperateText()
     } else {
       while (split <= files.length) {
+        let retryCnt = 10
         let splited = files.splice(0, split)
-        console.log(`${files.length}/${fileLength} left`)
+        // console.log(`${files.length}/${fileLength} left`)
         let f = await _uploadSeperate(splited)
-        console.log(`result: ${f}`)
-        if (f === false) {
-          await _uploadSeperate(splited)
+        while (f === false && retryCnt > 0) {
+          retryCnt -= 1
+          console.log(`Upload failed. Remain retry count: ${retryCnt}`)
+          f = await _uploadSeperate(splited)
         }
       }
       if (files.length !== 0) {
-        console.log(`${files.length}/${fileLength} left (last)`)
+        // console.log(`${files.length}/${fileLength} left (last)`)
         let f = await _uploadSeperate(files)
-        console.log(`result: ${f}`)
+        // console.log(`result: ${f}`)
       }
     }
     setPageState(prevState => ({ ...prevState, isUpload: false }))
