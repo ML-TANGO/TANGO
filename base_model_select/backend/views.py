@@ -16,6 +16,7 @@ from django.http import HttpResponse
 from pathlib import Path
 
 from . import models
+from batch_test.batch_size_test import run_batch_test
 
 
 PROCESSES = {}
@@ -68,7 +69,7 @@ def start(request):
     try:
         proj_info_yaml = get_user_requirements(userid, project_id)
 
-        pr = mp.Process(target=task_to_model_mapping, args=(proj_info_yaml, userid, project_id), daemon=True)
+        pr = mp.Process(target=bms_process, args=(proj_info_yaml, userid, project_id), daemon=True)
 
         pr_id = get_process_id()
         PROCESSES[pr_id] = pr
@@ -173,7 +174,36 @@ def status_report(userid, project_id, status="success"):
         print(e)
 
 
-def task_to_model_mapping(yaml_path, userid, project_id):
+def bms_process(yaml_path, userid, project_id):
+    with open(yaml_path, 'r') as f:
+        proj_info_dict = yaml.load(f, Loader=yaml.FullLoader)
+
+    basemodel_yaml = create_basemodel_yaml(yaml_path, userid, project_id)
+
+    if proj_info_dict['task_type'] == 'detection':
+        with open(basemodel_yaml, 'r') as f:
+            basemodel_dict = yaml.load(f, Loader=yaml.FullLoader)
+        batch_size = run_batch_test(basemodel_yaml, f"hyperparam_yaml/yolov7/hyp.scratch.{basemodel_dict['hyp']}.yaml", basemodel_dict['imgsz'])
+
+        if batch_size == False:
+            bmsinfo = models.Info.objects.get(userid=userid, project_id=project_id)
+            bmsinfo.status = "failed"
+            bmsinfo.save()
+            print(f'[ BMS ] Memory resource is not enough for training. Please shrink Model Size')
+        else:
+            with open(yaml_path, 'r') as f:
+                project_info_dict = yaml.load(f, Loader=yaml.FullLoader)
+            project_info_dict['batchsize'] = batch_size
+            with open(yaml_path, 'w') as f:
+                yaml.dump(project_info_dict, f, default_flow_style=False)
+
+            status_report(userid, project_id, status="success")
+
+    elif proj_info_dict['task_type'] == 'classification':
+        status_report(userid, project_id, status="success")
+
+
+def create_basemodel_yaml(yaml_path, userid, project_id):
     with open(yaml_path, 'r') as f:
         proj_info = yaml.load(f, Loader=yaml.FullLoader)
     task = proj_info['task_type']
@@ -181,9 +211,12 @@ def task_to_model_mapping(yaml_path, userid, project_id):
 
     model = task_to_model_table[task]
     model_size = model_to_size_table[model][target]
-    shutil.copy(f'basemodel_yaml/{model}/{model}{model_size}.yaml', f'/shared/common/{userid}/{project_id}/basemodel.yaml')
 
-    status_report(userid, project_id, status="success")
+    source_path = f'basemodel_yaml/{model}/{model}{model_size}.yaml'
+    target_path = f'/shared/common/{userid}/{project_id}/basemodel.yaml'
+    shutil.copy(source_path, target_path)
+
+    return target_path
 
 
 def get_user_requirements(userid, projid):

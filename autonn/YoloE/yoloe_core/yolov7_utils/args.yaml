@@ -3,7 +3,7 @@ weights: ''
 cfg: ''
 data: ''
 hyp: ''
-epochs: 2
+epochs: 1
 batch_size: -1
 img_size: [640, 640]
 rect: False

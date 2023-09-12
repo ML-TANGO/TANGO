@@ -7,7 +7,7 @@ import { toast } from "react-toastify"
 import { Transition } from "react-spring/renderprops"
 
 // react-icons
-import { FiCopy, FiEdit, FiImage, FiRepeat, FiTrash2, FiCheck, FiPieChart } from "react-icons/fi"
+import { FiCopy, FiEdit, FiImage, FiRepeat, FiTrash2, FiCheck, FiPieChart, FiExternalLink } from "react-icons/fi"
 import { MdDeleteForever, MdError } from "react-icons/md"
 import { BiError } from "react-icons/bi"
 import { FaPlusCircle } from "react-icons/fa"
@@ -247,7 +247,6 @@ const DataSets = props => {
   const [dataSetList, setDataSetList] = useState([])
   const [filterList, setFilterList] = useState([])
   const [filterTempList, setFilterTempList] = useState(null)
-  // const [, setConfirmText] = useState("")
   const [isPanel, setIsPanel] = useState(false)
   const [searchKey, setSearchKey] = useState(null)
   const [editData, setEditData] = useState({})
@@ -256,13 +255,11 @@ const DataSets = props => {
 
   const [isPanelRender, setIsPanelRender] = useState(false)
   const confirmTextRef = useRef("")
+  const dataSplitRef = useRef([70, 20, 10])
   const createDataSet = useEnterpriseDivision(process.env.BUILD, "dataSet", "createDataSet")
   const dataSetDuplication = useEnterpriseDivision(process.env.BUILD, "dataSet", "dataSetDuplication")
   const listHeight = useListHeight()
 
-  // ###################################################################################
-  // initialize
-  // ###################################################################################
   useEffect(() => {
     initDataSet()
 
@@ -313,9 +310,6 @@ const DataSets = props => {
       })
   }
 
-  // ###################################################################################
-  // handler
-  // ###################################################################################
   const _handleRemove = useCallback(
     data => () => {
       if (data.DATASET_STS === "DONE" || data.DATASET_STS.includes("_FAIL")) {
@@ -327,7 +321,6 @@ const DataSets = props => {
                   <BiError />
                   Delete Dataset
                 </h1>
-                {/* message: "Please type [" + data.TITLE + "] to avoid unexpected action.", */}
                 <div className="custom-modal-body">
                   <div className="text-warning">Warning. This action is irreversible.</div>
                   <div className="explain">
@@ -352,7 +345,7 @@ const DataSets = props => {
                       if (confirmTextRef.current.trim() === data.TITLE.trim()) {
                         document.getElementById("wrapper").scrollIntoView()
                         onClose()
-                        DataSetApi._removeDataSet({ DATASET_CD: data.DATASET_CD })
+                        DataSetApi._removeDataSet({ DATASET_CD: data.DATASET_CD, TITLE: data.TITLE })
                           .then(result => {
                             if (result.status === 1) {
                               const filter = dataSetList.filter(ele => ele.DATASET_CD !== data.DATASET_CD)
@@ -400,6 +393,147 @@ const DataSets = props => {
     [history]
   )
 
+  const _checkDirExist = async datasetName => {
+    let result = await DataSetApi._checkDirExist({ datasetName })
+    return result.result
+  }
+
+  const _deployDataSet = (type, split, datasetName, datasetCd) => {
+    DataSetApi._deployDataSet({ type, split, datasetName, datasetCd })
+      .then(result => {
+        return result.result
+      })
+      .catch(err => {
+        toast.error(<CommonToast Icon={MdError} text={"Deploy dataset failed"} />)
+        console.log(err.result)
+      })
+  }
+
+  const _removeDeployedDataSet = datasetName => {
+    console.log(`remove ${datasetName}`)
+    DataSetApi._removeDeployedDataSet({ datasetName })
+      .then(result => {
+        return result.result
+      })
+      .catch(err => {
+        toast.error(<CommonToast Icon={MdError} text={"Remove deployed dataset failed"} />)
+        console.log(err.result)
+      })
+  }
+
+  const _handleDeployment = useCallback(
+    data => async () => {
+      if (data.DATASET_STS === "DONE" || data.DATASET_STS.includes("_FAIL")) {
+        let datasetName = data.TITLE.replace(/[^\w\d\uAC00-\uD7AF]/g, "_")
+        let datasetPath = "/shared/datasets/" + datasetName
+        let checkDirExist = await _checkDirExist(datasetName)
+        confirmAlert({
+          closeOnClickOutside: false,
+          customUI: ({ onClose }) => {
+            return (
+              <div className="react-confirm-alert-custom">
+                <h1>
+                  <FiExternalLink />
+                  {checkDirExist ? "Remove deployed DataSet" : data.OBJECT_TYPE === "D" ? "Deploy DataSet (YoloV7)" : "Deploy DataSet"}
+                </h1>
+
+                <div className="custom-modal-body">
+                  {checkDirExist && <div className="text-warning">Warning. This action is irreversible.</div>}
+                  <div className="text-info">Path: {datasetPath}</div>
+                  {data.OBJECT_TYPE === "D" && !checkDirExist && (
+                    <div>
+                      <div className="react-confirm-alert-input-split">
+                        <div className="text">Train</div>
+                        <input
+                          type="text"
+                          className="value"
+                          onChange={e => {
+                            dataSplitRef.current[0] = e.target.value
+                          }}
+                          defaultValue={dataSplitRef.current[0]}
+                        />
+                      </div>
+                      <div className="react-confirm-alert-input-split">
+                        <div className="text">Validation</div>
+                        <input
+                          type="text"
+                          className="value"
+                          onChange={e => {
+                            dataSplitRef.current[1] = e.target.value
+                          }}
+                          defaultValue={dataSplitRef.current[1]}
+                        />
+                      </div>
+                      <div className="react-confirm-alert-input-split">
+                        <div className="text">Test</div>
+                        <input
+                          type="text"
+                          className="value"
+                          onChange={e => {
+                            dataSplitRef.current[2] = e.target.value
+                          }}
+                          defaultValue={dataSplitRef.current[2]}
+                        />
+                      </div>
+                    </div>
+                  )}
+                  <div style={{ marginTop: "10px" }}>
+                    Please type <strong>[ {data.TITLE} ]</strong> to avoid unexpected action.
+                  </div>
+                  <input
+                    type="text"
+                    className="react-confirm-alert-input"
+                    onChange={e => {
+                      confirmTextRef.current = e.target.value
+                    }}
+                  />
+                </div>
+                <div className="custom-buttons">
+                  {checkDirExist ? (
+                    <CommonButton
+                      className="bg-green"
+                      text="Remove"
+                      onClick={() => {
+                        if (confirmTextRef.current.trim() === data.TITLE.trim()) {
+                          _removeDeployedDataSet(datasetName)
+                          onClose()
+                        } else alert("Not matched.")
+                      }}
+                    />
+                  ) : (
+                    <CommonButton
+                      className="bg-green"
+                      text="Deploy"
+                      onClick={() => {
+                        if (confirmTextRef.current.trim() === data.TITLE.trim()) {
+                          if (
+                            parseInt(dataSplitRef.current[0]) + parseInt(dataSplitRef.current[1]) + parseInt(dataSplitRef.current[2]) ===
+                            100
+                          ) {
+                            _deployDataSet(data.OBJECT_TYPE, dataSplitRef.current, datasetName, data.DATASET_CD)
+                            onClose()
+                          } else {
+                            alert("The sum of train + validation + test should be 100.")
+                          }
+                        } else alert("Not matched.")
+                      }}
+                    />
+                  )}
+                  <CommonButton className="bg-red" text="Cancel" onClick={onClose} />
+                </div>
+              </div>
+            )
+          }
+        })
+      } else if (data.DATASET_STS === "AUTO") {
+        return alert("Auto labeling...")
+      } else {
+        return alert(`DataSet ${data.DATASET_STS}...`)
+      }
+    },
+    [history]
+  )
+
   const _handleEdit = useCallback(
     data => () => {
       if (data.DATASET_STS === "DONE" || data.DATASET_STS.includes("_FAIL")) {
@@ -432,7 +566,6 @@ const DataSets = props => {
 
   const _handleAnalysis = useCallback(
     data => () => {
-      // getAnalyticsInfo(data.DATASET_CD)
       return history.push({
         pathname: "/datasetAnalytics",
         state: { dataInfo: data }
@@ -440,7 +573,6 @@ const DataSets = props => {
     },
     [history]
   )
-  //jogoon 추가. 오토라벨링 실패시 다시 시도
   const _handleRetry = useCallback(
     data => () => {
       confirmAlert({
@@ -451,7 +583,6 @@ const DataSets = props => {
                 <BiError />
                 Auto Labeling
               </h1>
-              {/* message: "Please type [" + data.TITLE + "] to avoid unexpected action.", */}
               <div className="custom-modal-body">
                 <div className="text-warning">Warning. This action is irreversible.</div>
                 <div className="explain">Auto Labeling option is Yes</div>
@@ -532,10 +663,16 @@ const DataSets = props => {
       })
     }
     arr.push({
+      func: _handleDeployment(data),
+      label: "Deployment",
+      icon: <FiExternalLink />
+    })
+    arr.push({
       func: _handleRemove(data),
       label: "Delete",
       icon: <FiTrash2 />
     })
+
     return arr
   }
 

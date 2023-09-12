@@ -15,289 +15,288 @@ const logger = require("../lib/Logger")(__filename)
 let BUILD = "CE"
 
 const setBUILD = (build) => {
-  BUILD = build
+	BUILD = build
 }
 
 const getBUILD = () => {
-  return BUILD
+	return BUILD
 }
 
 exports.exeQuery = async (source, param, queryId) => {
-  return new Promise((resolve, reject) => {
-    let option = {}
-    option.source = source
-    option.param = param
-    option.queryId = queryId
-    DH.executeQuery(option)
-      .then((data) => {
-        resolve(data)
-      })
-      .catch((err) => {
-        reject(err)
-      })
-  })
+	return new Promise((resolve, reject) => {
+		let option = {}
+		option.source = source
+		option.param = param
+		option.queryId = queryId
+		DH.executeQuery(option)
+			.then((data) => {
+				resolve(data)
+			})
+			.catch((err) => {
+				reject(err)
+			})
+	})
 }
 
 exports.getMdlPath = (aiCd, epoch) => {
-  let mdl_path = path.join(config.aiPath, aiCd)
-  mdl_path = path.join(mdl_path, String(epoch).padStart(4, 0))
-  return mdl_path
+	let mdl_path = path.join(config.aiPath, aiCd)
+	mdl_path = path.join(mdl_path, String(epoch).padStart(4, 0))
+	return mdl_path
 }
 
 exports.createProcess = async (cmd, param) => {
-  return new Promise(async (resolve, reject) => {
-    try {
-      // execa.sync(cmd, param)
-      execa(cmd, param)
-      resolve(true)
-    } catch (error) {
-      logger.error(`Process Create Error \n${error.stderr}`)
-      reject(error)
-    }
-  })
+	return new Promise(async (resolve, reject) => {
+		try {
+			// execa.sync(cmd, param)
+			execa(cmd, param)
+			resolve(true)
+		} catch (error) {
+			logger.error(`Process Create Error \n${error.stderr}`)
+			reject(error)
+		}
+	})
 }
 
 exports.runProcess = async (cmd, param) => {
-  return new Promise(async (resolve, reject) => {
-    try {
-      let result = await execa(cmd, param)
-      resolve(result)
-    } catch (error) {
-      logger.error(`Process Run Error`)
-      reject(error)
-    }
-  })
+	return new Promise(async (resolve, reject) => {
+		try {
+			let result = await execa(cmd, param)
+			resolve(result)
+		} catch (error) {
+			logger.error(`Process Run Error`)
+			reject(error)
+		}
+	})
 }
 
 exports.sendSoc = (data, type) => {
-  process.send({ isSoc: 1, data, type })
+	process.send({ isSoc: 1, data, type })
 }
 
 exports.setSchedule = (data, type) => {
-  process.send({ isSECH: 1, data, type })
+	process.send({ isSECH: 1, data, type })
 }
 
 exports.prints = async (IS_CD) => {
-  logger.info(`Operation Service List Count[${SERVICE_AUTH_LIST}]`)
+	logger.info(`Operation Service List Count[${SERVICE_AUTH_LIST}]`)
 }
 
 exports.popService = async (IS_CD) => {
-  let temp = []
-  SERVICE_AUTH_LIST.map((ele) => {
-    if (ele.IS_CD !== String(IS_CD)) temp.push(ele)
-  })
-  console.log("==============")
-  console.log(JSON.stringify(temp))
-  process.send({ isService: "pop", data: IS_CD, listdata: temp })
+	let temp = []
+	SERVICE_AUTH_LIST.map((ele) => {
+		if (ele.IS_CD !== String(IS_CD)) temp.push(ele)
+	})
+	console.log("==============")
+	console.log(JSON.stringify(temp))
+	process.send({ isService: "pop", data: IS_CD, listdata: temp })
 }
 
 exports.checkService = async (IS_CD, serviceAuth) => {
-  logger.info(`Operation Service List Count[${SERVICE_AUTH_LIST.length}]`)
+	logger.info(`Operation Service List Count[${SERVICE_AUTH_LIST.length}]`)
 
-  let idx = SERVICE_AUTH_LIST.findIndex((ele) => ele.IS_CD === String(IS_CD))
-  let param = {}
-  param.IS_CD = IS_CD
+	let idx = SERVICE_AUTH_LIST.findIndex((ele) => ele.IS_CD === String(IS_CD))
+	let param = {}
+	param.IS_CD = IS_CD
 
-  if (idx < 0) {
-    //DB 조회
-    let isInfo = await CF.exeQuery(C.Q.IS, param, "getActiveService")
-    isInfo = isInfo[0]
+	if (idx < 0) {
+		//DB 조회
+		let isInfo = await CF.exeQuery(C.Q.IS, param, "getActiveService")
+		isInfo = isInfo[0]
 
-    if (isInfo === undefined) return false
-    isInfo.SERVICE_AUTH = String(isInfo.SERVICE_AUTH)
+		if (isInfo === undefined) return false
+		isInfo.SERVICE_AUTH = String(isInfo.SERVICE_AUTH)
 
-    isInfo.SERVICE_AUTH = serviceAuth
-    if (isInfo.SERVICE_AUTH === null || isInfo.SERVICE_AUTH !== serviceAuth) {
-      return false
-    } else {
-      let headers = await CF.exeQuery(C.Q.QP, param, "getHeaderList")
-      let addService = {
-        IS_CD: IS_CD,
-        SERVICE_AUTH: serviceAuth,
-        HEADERS: headers,
-        IS_INFO: isInfo
-      }
-      // headers = headers
-      //   .filter((x) => x.IS_CLASS === 0)
-      //   .map((el) => el.COLUMN_NAMES)
-      // console.log(headers)
+		isInfo.SERVICE_AUTH = serviceAuth
+		if (isInfo.SERVICE_AUTH === null || isInfo.SERVICE_AUTH !== serviceAuth) {
+			return false
+		} else {
+			let headers = await CF.exeQuery(C.Q.QP, param, "getHeaderList")
+			let addService = {
+				IS_CD: IS_CD,
+				SERVICE_AUTH: serviceAuth,
+				HEADERS: headers,
+				IS_INFO: isInfo,
+			}
+			// headers = headers
+			//   .filter((x) => x.IS_CLASS === 0)
+			//   .map((el) => el.COLUMN_NAMES)
+			// console.log(headers)
 
-      // global.SERVICE_AUTH_LIST.push(addService)
-      // process.send({ isService: "get", data: addService })
-      process.send({ isService: "set", data: addService })
-      return addService
-    }
-  } else {
-    if (SERVICE_AUTH_LIST[idx].SERVICE_AUTH !== serviceAuth) return false
-    else return SERVICE_AUTH_LIST[idx]
-  }
+			// global.SERVICE_AUTH_LIST.push(addService)
+			// process.send({ isService: "get", data: addService })
+			process.send({ isService: "set", data: addService })
+			return addService
+		}
+	} else {
+		if (SERVICE_AUTH_LIST[idx].SERVICE_AUTH !== serviceAuth) return false
+		else return SERVICE_AUTH_LIST[idx]
+	}
 }
 
 exports.checkModel = async (AI_CD, isReady, EPOCH) => {
-  let runPredict = false
-  let returnCode = [{ status: 1 }]
-  let checkModel = false
-  let modelFull = false
-  let maxModelCnt = P_BUILD === "EE" ? config.maxModelCnt : 1
-  let result = await CF.sendRequestResLong(
-    config.masterIp,
-    config.masterPort,
-    C.URI.activePredictor,
-    {}
-  )
+	let runPredict = false
+	let returnCode = [{ status: 1 }]
+	let checkModel = false
+	let modelFull = false
+	let maxModelCnt = P_BUILD === "EE" ? config.maxModelCnt : 1
+	let result = await CF.sendRequestResLong(
+		config.masterIp,
+		config.masterPort,
+		C.URI.activePredictor,
+		{}
+	)
 
-  CF.resException(result, C.URI.activePredictor)
+	CF.resException(result, C.URI.activePredictor)
 
-  if (result.length >= maxModelCnt) {
-    logger.info(`Usable Model Full (${result.length}/${maxModelCnt})`)
-    modelFull = true
-  }
-  result.map((ele) => {
-    if (ele.AI_CD === AI_CD && ele.EPOCH === EPOCH) {
-      checkModel = true
-    }
-  })
+	if (result.length >= maxModelCnt) {
+		logger.info(`Usable Model Full (${result.length}/${maxModelCnt})`)
+		modelFull = true
+	}
+	result.map((ele) => {
+		if (ele.AI_CD === AI_CD && ele.EPOCH === EPOCH) {
+			checkModel = true
+		}
+	})
 
-  if (isReady) {
-    if (checkModel) runPredict = true
-    else {
-      if (modelFull) returnCode = [{ status: 2 }]
-      else returnCode = [{ status: 3 }]
-    }
-  } else {
-    if (checkModel) [{ status: 1 }]
-    else {
-      if (modelFull) returnCode = [{ status: 2 }]
-      else runPredict = true
-    }
-  }
-  return { code: returnCode, runPrc: runPredict }
+	if (isReady) {
+		if (checkModel) runPredict = true
+		else {
+			if (modelFull) returnCode = [{ status: 2 }]
+			else returnCode = [{ status: 3 }]
+		}
+	} else {
+		if (checkModel) [{ status: 1 }]
+		else {
+			if (modelFull) returnCode = [{ status: 2 }]
+			else runPredict = true
+		}
+	}
+	return { code: returnCode, runPrc: runPredict }
 }
 
 exports.resException = (result, dst) => {
-  if (result.STATUS !== undefined && result.STATUS === 0) {
-    result.code = "Bin"
-    result.dst = dst
-    throw result
-  } else return 1
+	if (result.STATUS !== undefined && result.STATUS === 0) {
+		result.code = "Bin"
+		result.dst = dst
+		throw result
+	} else return 1
 }
 
 exports.sendCurl = (msg, host) => {
-  let options = {
-    uri: host,
-    method: "POST",
-    body: msg,
-    json: true //json으로 보낼경우 true로 해주어야 header값이 json으로 설정됩니다.
-  }
-  // console.log("go aSync" + options.uri)
-  request.post(options, (err, httpResponse, body) => {
-    if (err) console.log(err)
-    // else console.log(body.STATE)
-  })
+	let options = {
+		uri: host,
+		method: "POST",
+		body: msg,
+		json: true, //json으로 보낼경우 true로 해주어야 header값이 json으로 설정됩니다.
+	}
+	// console.log("go aSync" + options.uri)
+	request.post(options, (err, httpResponse, body) => {
+		if (err) console.log(err)
+		// else console.log(body.STATE)
+	})
 }
 
 exports.sendRequest = (ip, port, rName, msg) => {
-  let options = {
-    uri: "http://" + ip + ":" + port + rName,
-    method: "POST",
-    body: [msg],
-    json: true //json으로 보낼경우 true로 해주어야 header값이 json으로 설정됩니다.
-  }
-  // console.log("go aSync" + options.uri)
-  request.post(options, (err, httpResponse, body) => {
-    if (err) console.log(err)
-    // else console.log(body.STATE)
-  })
+	let options = {
+		uri: "http://" + ip + ":" + port + rName,
+		method: "POST",
+		body: [msg],
+		json: true, //json으로 보낼경우 true로 해주어야 header값이 json으로 설정됩니다.
+	}
+	// console.log("go aSync" + options.uri)
+	request.post(options, (err, httpResponse, body) => {
+		if (err) console.log(err)
+		// else console.log(body.STATE)
+	})
 }
 
 exports.sendGetRequest = (ip, port, rName, msg) => {
+	rName += "?"
+	Object.keys(msg).map((key) => {
+		rName += `${key}=${msg[key]}&`
+	})
 
-  rName += "?"
-  Object.keys(msg).map((key) => {
-    rName += `${key}=${msg[key]}&`
-  })
+	rName = rName.substr(0, rName.length - 1)
 
-  rName = rName.substr(0, rName.length-1)
+	let url = "http://" + ip + ":" + port + rName
+	console.log(url)
 
-  let url = "http://" + ip + ":" + port + rName
-  console.log(url)
-
-  let options = {
-    uri: url,
-    method: "GET",
-    json: false //json으로 보낼경우 true로 해주어야 header값이 json으로 설정됩s니다.
-  }
-  // console.log("go aSync" + options.uri)
-  request.get(options, (err, httpResponse, body) => {
-    if (err) {
-      logger.error(`fail to Send Status ${url}\n${err.stack}`)
-    }
-    // else console.log(body.STATE)
-  })
+	let options = {
+		uri: url,
+		method: "GET",
+		json: false, //json으로 보낼경우 true로 해주어야 header값이 json으로 설정됩s니다.
+	}
+	// console.log("go aSync" + options.uri)
+	request.get(options, (err, httpResponse, body) => {
+		if (err) {
+			logger.error(`fail to Send Status ${url}\n${err.stack}`)
+		}
+		// else console.log(body.STATE)
+	})
 }
 
 exports.sendRequestRes = (ip, port, rName, msg) => {
-  return new Promise((resolve, reject) => {
-    try {
-      let options = {
-        uri: "http://" + ip + ":" + port + rName,
-        method: "POST",
-        body: [msg],
-        timeout: 5000,
-        json: true //json으로 보낼경우 true로 해주어야 header값이 json으로 설정됩니다.
-      }
-      logger.debug(`[REST_SHORT] ${options.uri}`)
-      request.post(options, (err, httpResponse, body) => {
-        if (err) {
-          logger.error(err.stack)
-          reject(err)
-        } else resolve(body)
-      })
-    } catch (error) {
-      logger.error(err.stack)
-      reject(err)
-    }
-  })
+	return new Promise((resolve, reject) => {
+		try {
+			let options = {
+				uri: "http://" + ip + ":" + port + rName,
+				method: "POST",
+				body: [msg],
+				timeout: 5000,
+				json: true, //json으로 보낼경우 true로 해주어야 header값이 json으로 설정됩니다.
+			}
+			logger.debug(`[REST_SHORT] ${options.uri}`)
+			request.post(options, (err, httpResponse, body) => {
+				if (err) {
+					logger.error(err.stack)
+					reject(err)
+				} else resolve(body)
+			})
+		} catch (error) {
+			logger.error(err.stack)
+			reject(err)
+		}
+	})
 }
 
 exports.sendRequestResLong = (ip, port, rName, msg) => {
-  return new Promise((resolve, reject) => {
-    try {
-      let options = {
-        uri: "http://" + ip + ":" + port + rName,
-        method: "POST",
-        body: [msg],
-        timeout: 60 * 10 * 1000,
-        json: true //json으로 보낼경우 true로 해주어야 header값이 json으로 설정됩니다.
-      }
-      logger.debug(`[REST] ${options.uri}`)
-      request.post(options, (err, httpResponse, body) => {
-        if (err) {
-          logger.error(err.stack)
-          reject(err)
-        } else resolve(body)
-      })
-    } catch (error) {
-      logger.error(err.stack)
-      reject(err)
-    }
-  })
+	return new Promise((resolve, reject) => {
+		try {
+			let options = {
+				uri: "http://" + ip + ":" + port + rName,
+				method: "POST",
+				body: [msg],
+				timeout: 0,
+				json: true, //json으로 보낼경우 true로 해주어야 header값이 json으로 설정됩니다.
+			}
+			logger.debug(`[REST] ${options.uri}`)
+			request.post(options, (err, httpResponse, body) => {
+				if (err) {
+					logger.error(err.stack)
+					reject(err)
+				} else resolve(body)
+			})
+		} catch (error) {
+			logger.error(err.stack)
+			reject(err)
+		}
+	})
 }
 
 const checkUrl = (session, url) => {
-  return new Promise((resolve, reject) => {
-    let target = url
-    session.pingHost(target, function (error, target) {
-      if (error) resolve(false)
-      else resolve(true)
-    })
-  })
+	return new Promise((resolve, reject) => {
+		let target = url
+		session.pingHost(target, function (error, target) {
+			if (error) resolve(false)
+			else resolve(true)
+		})
+	})
 }
 
 exports.multiHelthCheck = async (isInfo) => {
-  try {
-    console.log(isInfo)
-  } catch (error) {}
+	try {
+		console.log(isInfo)
+	} catch (error) {}
 }
 
 // exports.multiHelthCheck2 = async (isInfo) => {

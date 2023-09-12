@@ -805,7 +805,7 @@ class CodeGen:
             # khlee only for test copy yolov.onnx to tango.onnx
             # must be deleted
             # shutil.copy("./db/yolov7.onnx", self.get_real_filepath(self.m_nninfo_weight_onnx_file))
-            shutil.copy("./db/yolov7tvm.onnx", self.get_real_filepath(self.m_nninfo_weight_onnx_file))
+            # shutil.copy("./db/yolov7tvm.onnx", self.get_real_filepath(self.m_nninfo_weight_onnx_file))
 
 
             onnx_model = onnx.load(self.get_real_filepath(self.m_nninfo_weight_onnx_file))
@@ -2092,8 +2092,8 @@ class CodeGen:
                          "service_container_port": self.m_deploy_network_serviceport 
                          },
                      "k8s": { 
-                         "nfs_ip": '192.168.0.189', # self.m_deploy_nfs_ip,
-                         "nfs_path": '/var/lib/docker/volumes/tango_shared/_data' # self.m_deploy_nfs_path 
+                         "nfs_ip": self.m_deploy_nfs_ip,
+                         "nfs_path": self.m_deploy_nfs_path 
                          }
                      }
             if self.m_sysinfo_engine_type == 'tensorrt':

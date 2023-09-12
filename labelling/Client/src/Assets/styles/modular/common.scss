@@ -636,6 +636,12 @@ ul {
     margin-bottom: 10px;
     font-weight: bold;
   }
+  .text-info {
+    color: rgb(0, 106, 255) !important;
+    margin-bottom: 10px;
+    font-weight: bold;
+    font-size: 20px;
+  }
   input {
     margin-top: 5px;
   }
@@ -688,6 +694,13 @@ ul {
   .text-warning {
     color: rgb(255, 4, 0) !important;
     margin-top: 20px;
+    font-size: 16px;
+  }
+  .text-info {
+    color: #17a2b8;
+    margin-bottom: 10px;
+    font-weight: bold;
+    font-size: 16px;
   }
   strong {
     color: rgb(0, 136, 255);
@@ -707,6 +720,27 @@ ul {
     transition: border-color 0.15s ease-in-out, box-shadow 0.15s ease-in-out;
     &:focus {
       border: 1px solid #80bdff;
+    }
+  }
+  .react-confirm-alert-input-split {
+    .text {
+      width: 50px;
+    }
+    .value {
+      font-size: 1rem;
+      margin: 3px 0;
+      background-color: #000;
+      border: 1px solid #ced4da;
+      border-radius: 0.25rem;
+      padding: 0.375rem 0.75rem;
+      width: 25%;
+      height: calc(1.5em + 0.75rem + 2px);
+      line-height: 1.5;
+      color: #fff;
+      transition: border-color 0.15s ease-in-out, box-shadow 0.15s ease-in-out;
+      &:focus {
+        border: 1px solid #80bdff;
+      }
     }
   }
 }
