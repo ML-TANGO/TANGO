@@ -968,7 +968,9 @@ const _createDataSets = async (data, dataCd) => {
 					const estimateTime = timePerFile * filesLeft
 					if (flIdx % 100 === 0 || flIdx === fileCount)
 						logger.info(
-							`[UPDATE] (${flIdx}/${fileCount}) - ${format(estimateTime)}`
+							`[CREATE] (${flIdx}/${fileCount}) Update database done - ${format(
+								estimateTime
+							)}`
 						)
 				}
 			}
@@ -1023,7 +1025,9 @@ const _createDataSets = async (data, dataCd) => {
 				const estimateTime = timePerFile * filesLeft
 				if (flIdx % 100 === 0 || flIdx === fileCount)
 					logger.info(
-						`[THUMBNAIL] (${flIdx}/${fileCount}) - ${format(estimateTime)}`
+						`[CREATE] (${flIdx}/${fileCount}) Create thumbnail done - ${format(
+							estimateTime
+						)}`
 					)
 			}
 		} else {
@@ -1400,7 +1404,7 @@ router.post(
 						const estimateTime = timePerFile * filesLeft
 						if (flIdx % 100 === 0 || flIdx === fileCount) {
 							logger.info(
-								`[DEPLOYMENT] (${flIdx}/${fileCount}) Create annotation file - ${format(
+								`[DEPLOYMENT] (${flIdx}/${fileCount}) Create annotation file done - ${format(
 									estimateTime
 								)}`
 							)
