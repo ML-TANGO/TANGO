@@ -23,7 +23,7 @@ function CommonPanel({ top, bottom, tail, springProps, title, panelToggle, isSav
   return (
     <React.Fragment>
       <div
-        style={{ width: "100vw", height: "100vh", background: "#000", opacity: 0.4, position: "absolute", top: 0, left: 0, zIndex: 999 }}
+        style={{ width: "100vw", height: "100vh", background: "#000", opacity: 0.4, position: "absolute", top: 0, left: 0, zIndex: 998 }}
       ></div>
 
       <div
@@ -35,7 +35,7 @@ function CommonPanel({ top, bottom, tail, springProps, title, panelToggle, isSav
           position: "absolute",
           top: "0",
           right: "0",
-          zIndex: "1000",
+          zIndex: "999",
           overflowY: "auto"
         }}
       >
