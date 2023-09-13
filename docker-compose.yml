@@ -269,7 +269,7 @@ services:
       image: registry
       container_name: registry
       volumes:
-        - registry_data:/var/lib/registry/docker/registry/v2 # image 저장
+        - registry_data:/var/lib/registry/docker/registry/v2
       ports:
         - "8903:5000"
 
