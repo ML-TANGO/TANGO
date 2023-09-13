@@ -1326,7 +1326,7 @@ router.post(
 				const dataYamlPath = path.join(deploymentPath, "dataset.yaml")
 				let dataYaml = `# train and valid data\n`
 				dataYaml += `train: ${deploymentPath}/images/train\n`
-				dataYaml += `valid: ${deploymentPath}/images/val\n\n`
+				dataYaml += `val: ${deploymentPath}/images/val\n\n`
 				dataYaml += `# number of classes\n`
 				dataYaml += `nc: ${tagList.length}\n\n`
 				dataYaml += `# class names\n`
