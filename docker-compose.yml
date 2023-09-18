@@ -33,7 +33,7 @@ services:
   # DB for Project Manager
   #---------------------------------
   postgresql:
-    image: postgres:latest
+    image: postgres:15.4
     restart: always
     volumes:
       - postgreSQL:/var/lib/postgresql/data
