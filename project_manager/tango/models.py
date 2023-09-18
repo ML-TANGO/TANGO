@@ -267,7 +267,7 @@ class WorkflowOrder(models.Model):
     Attributes:
     """
     id = models.AutoField(primary_key=True)                                 # order 아이디 : 기본키
-    workflow_name = models.CharField(blank=True, null=True, max_length=30)  # workflow 이름 : (BMS, yoloe 등등..)
+    workflow_name = models.CharField(blank=True, null=True, max_length=30)  # workflow 이름 : (BMS, yolo_nas 등등..)
     order = models.IntegerField(blank=True, null=True)                      # 워크플로우 순서
     project_id = models.IntegerField(blank=True, null=True)                 # workflow가 속한 프로젝트 아이디
 

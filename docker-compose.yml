@@ -168,11 +168,11 @@ services:
   #     - "8089:8089"
 
   #---------------------------------
-  # AutoNN: YoloE
+  # AutoNN: yolo_nas
   #---------------------------------
   autonn_yoloe:
     build:
-      context: ./autonn/YoloE
+      context: ./autonn/yolo_nas
     shm_size: '256M'
     ipc: host
     command: >
@@ -192,11 +192,11 @@ services:
     environment:
       - NVIDIA_VISIBLE_DEVICES=${GPU_NUM:-all}
     volumes:
-      - ./autonn/YoloE:/source
+      - ./autonn/yolo_nas:/source
       - shared:/shared
-      - ./autonn/YoloE/sample_yaml/dataset.yaml:/shared/datasets/coco/dataset.yaml # TEMP FILE UNTIL LABELLING MODULE WORKING
-      - ${COCODIR:-./autonn/YoloE/sample_data/coco128}:/shared/datasets/coco # TEMP FILE UNTIL LABELLING MODULE WORKING
-    hostname: yoloe
+      - ./autonn/yolo_nas/sample_yaml/dataset.yaml:/shared/datasets/coco/dataset.yaml # TEMP FILE UNTIL LABELLING MODULE WORKING
+      - ${COCODIR:-./autonn/yolo_nas/sample_data/coco128}:/shared/datasets/coco # TEMP FILE UNTIL LABELLING MODULE WORKING
+    hostname: yolo_nas
     ports:
       - "8090:8090"
 
