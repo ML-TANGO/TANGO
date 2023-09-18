@@ -3,7 +3,7 @@ DEFAULT_OPTIONS = {
     "input_mean": [0.5],
     "input_std": [0.5],
     "batch_size": [4],
-    "network_type": ["FP32"], # FP32, FP16
+    "network_type": ["FP32"],  # FP32, FP16
     "epochs": [3],
     "optimizer": ["SGD", "NAG"],
     "initial_lr": [0.01, 0.005],
@@ -26,6 +26,7 @@ from .models.resnet_cifar10 import ResNet, BasicBlock
 
 from typing import Dict, List, Tuple
 
+
 class FocalLoss(nn.Module):
     def __init__(self, alpha=0.25, gamma=2, logits=False, reduce=True):
         super(FocalLoss, self).__init__()
@@ -44,16 +45,18 @@ class FocalLoss(nn.Module):
         else:
             return F_loss
 
+
 def get_optimizer(optimizer_name: str, model: nn.Module, lr=0.1, momentum=0.9) -> optim.Optimizer:
     optimizer_case = {
-        "SGD": lambda lr, mo: optim.SGD(model.parameters(), lr=lr, momentum=mo, weight_decay=1E-4),
-        "Adam": lambda lr, mo: optim.Adam(model.parameters(), lr=lr, weight_decay=1E-4),
-        "NAG": lambda lr, mo: optim.SGD(model.parameters(), lr=lr, momentum=mo, nesterov=True, weight_decay=5E-4),
+        "SGD": lambda lr, mo: optim.SGD(model.parameters(), lr=lr, momentum=mo, weight_decay=1e-4),
+        "Adam": lambda lr, mo: optim.Adam(model.parameters(), lr=lr, weight_decay=1e-4),
+        "NAG": lambda lr, mo: optim.SGD(model.parameters(), lr=lr, momentum=mo, nesterov=True, weight_decay=5e-4),
         "RMSprop": lambda lr, mo: optim.RMSprop(model.parameters(), lr=lr),
     }.get(optimizer_name, None)
     if optimizer_case is None:
         raise ValueError("Invalid optimizer name: {}".format(optimizer_name))
     return optimizer_case(lr, momentum)
+
 
 def get_loss_function(loss_function_name: str) -> nn.Module:
     loss_function_case = {
@@ -63,6 +66,7 @@ def get_loss_function(loss_function_name: str) -> nn.Module:
     if loss_function_case is None:
         raise ValueError("Invalid loss function name: {}".format(loss_function_name))
     return loss_function_case
+
 
 def get_transforms(input_size: int, input_mean: float, input_std: float) -> transforms.Compose:
     return transforms.Compose(
@@ -92,6 +96,7 @@ def validate_model(model: nn.Module, val_data_loader: DataLoader, device: torch.
     val_acc /= len(val_data_loader.dataset)
     return val_loss, val_acc
 
+
 def run_resnet(proj_path: str, dataset_yaml_path: str):
     proj_path = Path(proj_path)
     data_path = Path(dataset_yaml_path).parent
@@ -105,7 +110,7 @@ def run_resnet(proj_path: str, dataset_yaml_path: str):
     print("train on device: ", device)
     print("dataset_yaml_path: ", dataset_yaml_path)
 
-    with open(proj_path / 'basemodel.yaml', 'r') as f:
+    with open(proj_path / "basemodel.yaml", "r") as f:
         basemodel_info: dict = yaml.safe_load(f)
 
     layers: List[int] = basemodel_info.get("layers", [3, 3, 3])
@@ -126,13 +131,9 @@ def run_resnet(proj_path: str, dataset_yaml_path: str):
     dataset_size = len(dataset)
     val_size = int(dataset_size * 0.2)
     train_size = dataset_size - val_size
-    train_dataset, val_dataset = random_split(
-        dataset, [train_size, val_size])
-    train_data_loader = DataLoader(
-        train_dataset, batch_size=batch_size, shuffle=True, num_workers=2)
-    val_data_loader = DataLoader(
-        val_dataset, batch_size=batch_size, shuffle=False, num_workers=2)
-
+    train_dataset, val_dataset = random_split(dataset, [train_size, val_size])
+    train_data_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True, num_workers=2)
+    val_data_loader = DataLoader(val_dataset, batch_size=batch_size, shuffle=False, num_workers=2)
 
     # 모델 생성
     net = ResNet(BasicBlock, layers, num_classes).to(device)
@@ -179,5 +180,5 @@ def run_resnet(proj_path: str, dataset_yaml_path: str):
             print(f"save best model: {best_pt}")
         torch.save(net.state_dict(), last_pt)
         print(f"save last model: {last_pt}")
-            
+
     return best_pt

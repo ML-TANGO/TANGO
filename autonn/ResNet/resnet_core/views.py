@@ -178,13 +178,12 @@ def status_report(userid, project_id, status="success"):
         url = "http://projectmanager:8085/status_report"
         headers = {"Content-Type": "text/plain"}
         payload = {
-            "container_id": "autonn_resnet",
+            "container_id": "autonn-resnet",  # 추후 autonn_resnet로 변경 필요
             "user_id": userid,
             "project_id": project_id,
             "status": status,
         }
         response = requests.get(url, headers=headers, params=payload)
-        print(response.text)
 
         nasinfo = models.Info.objects.get(userid=userid, project_id=project_id)
         nasinfo.status = "completed"
@@ -196,38 +195,60 @@ def status_report(userid, project_id, status="success"):
 
 def process_resnet(userid, project_id, data_yaml, proj_yaml):
     try:
-        common_root = Path("/shared/common/")
         proj_path = Path(proj_yaml).parent
-        best_model_path = proj_path / 'resnet.pt'
         Path(proj_path).mkdir(parents=True, exist_ok=True)
 
         with open(proj_yaml, "r") as f:
             proj_info = yaml.safe_load(f)
-        with open(proj_path / 'basemodel.yaml', 'r') as f:
+        with open(proj_path / "basemodel.yaml", "r") as f:
             basemodel_info = yaml.safe_load(f)
-        final_model = train.run_resnet(proj_path, data_yaml)
-        print('process_resnet: train done')
-    
-        best_pt_path = str(Path(proj_path) / 'resset.pt')
-        Path(best_pt_path).parent.mkdir(parents=True, exist_ok=True)
-        shutil.copyfile(final_model, best_pt_path)
-        os.remove(final_model)
-        print(f'saved the best model: {str(best_pt_path)}')
 
-        src_yaml_root = Path('/source/sample_yaml/')
-        prjct_path = Path('/shared/common/') / userid / project_id
-        src_info_path = src_yaml_root / 'neural_net_info.yaml'
-        final_info_path = prjct_path / 'neural_net_info.yaml'
+        final_model = train.run_resnet(proj_path, data_yaml)
+        if not Path("/source/pretrained/kagglecxr_resnet152_normalize.pt").exists():
+            final_model = "/source/pretrained/kagglecxr_resnet152_normalize.pt"
+        print("process_resnet: train done")
+
+        best_pt_path = str(Path(proj_path) / "resnet.pt")
+        if Path(final_model).exists():
+            Path(best_pt_path).parent.mkdir(parents=True, exist_ok=True)
+            shutil.copyfile(final_model, best_pt_path)
+            os.remove(final_model)
+            print(f"saved the best model: {str(best_pt_path)}")
+
+        src_yaml_root = Path("/source/sample_yaml/")
+        prjct_path = Path("/shared/common/") / userid / project_id
+        src_info_path = src_yaml_root / "neural_net_info.yaml"
+        final_info_path = prjct_path / "neural_net_info.yaml"
         input_shape = basemodel_info.get("input_size", [256])[0]
         create_nn_info(src_info_path, final_info_path, best_pt_path, [input_shape, input_shape])
 
         exp_num = exp_num_check(proj_path)
-        shutil.copy(proj_yaml, Path(proj_path) / str('exp' + str(exp_num) + '_project_info.yaml'))
+        shutil.copy(proj_yaml, Path(proj_path) / str("exp" + str(exp_num) + "_project_info.yaml"))
 
-        status_report(userid, project_id, status="success")
         print("process_resnet: ends")
+
+        autogen_resnet(userid, project_id)
+        status_report(userid, project_id, status="success")
     except ValueError as e:
         print(e)
+
+
+def autogen_resnet(userid, project_id):
+    print("autogen_resnet: start")
+    project_root = Path("/shared/common/") / userid / project_id
+    source_root = Path("/source/") / "resnet_core"
+    nn_model_path = project_root / "nn_model"
+
+    nn_model_path.mkdir(parents=True, exist_ok=True)
+    (nn_model_path / "models").mkdir(parents=True, exist_ok=True)
+    model_file = source_root / "pretrained/kagglecxr_resnet152_normalize.pt"
+    shutil.copy(model_file, nn_model_path / "resnet.pt")
+    shutil.copy(project_root / "basemodel.yaml", nn_model_path / "basemodel.yaml")
+    shutil.copy(source_root / "resnet_utils/inference.py", nn_model_path / "inference.py")
+    shutil.copy(source_root / "resnet_utils/models/resnet_cifar10.py", nn_model_path / "models/resnet_cifar10.py")
+    print("autogen_resnet: ends")
+    return
+
 
 @api_view(["GET"])
 def get_ready_for_test(request):
@@ -242,38 +263,11 @@ def get_ready_for_test(request):
         print("------------------------------------------")
 
         return Response("ready_for_v7_test", status=200, content_type="text/plain")
-        # check user id & project id
-        try:
-            nasinfo = models.Info.objects.get(userid=userid, project_id=project_id)
-        except models.Info.DoesNotExist:
-            print("new user or project")
-            nasinfo = models.Info(userid=userid, project_id=project_id)
-
-        common_root = Path("/shared/common/")
-        proj_path = common_root / userid / project_id
-
-        Path(proj_path).mkdir(parents=True, exist_ok=True)
-        Path("/shared/datasets/").mkdir(parents=True, exist_ok=True)
-
-        shutil.copy("sample_yaml/project_info.yaml", proj_path)
-        shutil.copytree("sample_data/coco128", Path("/shared/") / "datasets" / "coco")
-        with open("sample_yaml/dataset.yaml") as f:
-            data_yaml = yaml.load(f, Loader=yaml.FullLoader)
-        data_yaml["train"] = str(Path("/shared/") / "datasets" / "coco" / "images" / "train2017")
-        data_yaml["test"] = str(Path("/shared/") / "datasets" / "coco" / "images" / "train2017")
-        data_yaml["val"] = str(Path("/shared/") / "datasets" / "coco" / "images" / "train2017")
-        with open(Path("/shared/datasets/coco/") / "dataset.yaml", "w") as f:
-            yaml.dump(data_yaml, f, default_flow_style=False)
-        return Response("ready_for_v7_test", status=200, content_type="text/plain")
     except Exception as e:
         print(e)
 
 
-def create_nn_info(
-                src_info_path: str,
-                final_info_path: str,
-                final_pt_path: str,
-                input_shape: Tuple[int, int]):
+def create_nn_info(src_info_path: str, final_info_path: str, final_pt_path: str, input_shape: Tuple[int, int]):
     nn_info = dict()
     with open(src_info_path) as f:
         nn_yaml = yaml.load(f, Loader=yaml.FullLoader)
@@ -283,22 +277,24 @@ def create_nn_info(
             nn_info[str(k)] = str(nn_yaml[k])
         else:
             nn_info[str(k)] = nn_yaml[k]
-    nn_info['class_name'] = str("ResNet()")
-    nn_info['weight_file']= str("resset.pt")
-    nn_info['input_tensor_shape'] = [1, 1, input_shape[0], input_shape[1]]
-    with open(final_info_path, 'w') as file:
+    nn_info["class_name"] = str("ResNet.load_config('basemodel.yaml')")
+    nn_info["weight_file"] = str("resnet.pt")
+    nn_info["input_tensor_shape"] = [1, 1, input_shape[0], input_shape[1]]
+    with open(final_info_path, "w") as file:
         yaml.dump(nn_info, file, default_flow_style=False)
+
 
 def exp_num_check(proj_path):
     current_filelist = os.listdir(proj_path)
     exp_num_list = []
     for filename in current_filelist:
-        if 'exp' in filename[:3]:
-            exp_num_list.append(int(filename.split('_')[0][3:]))
-    if len(exp_num_list)==0:
+        if "exp" in filename[:3]:
+            exp_num_list.append(int(filename.split("_")[0][3:]))
+    if len(exp_num_list) == 0:
         return 0
     else:
-        return max(exp_num_list)+1
+        return max(exp_num_list) + 1
+
 
 # def make_directory(path_list):
 #     path = Path('')
