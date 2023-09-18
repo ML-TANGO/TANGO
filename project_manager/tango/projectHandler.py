@@ -130,7 +130,7 @@ def get_container_info(host_name):
         'bms' : "8081",
         'yoloe' : "8090",
         'codeGen' : "8888",
-        'autonn_resnet': "8092",
+        'autonn-resnet': "8092",
         'visualization': "8091"
     }
     return host_name, ports_by_container[host_name]
@@ -146,7 +146,7 @@ def get_docker_container_name(container):
         containerName = 'autonn_yoloe'
     elif container == 'labelling' :
         containerName = 'labelling'
-    elif container == 'autonn_resnet' :
+    elif container == 'autonn-resnet' :
         containerName = 'autonn_resnet'
     elif container == 'autonn_bb' :
         containerName = 'autonn_bb'
@@ -168,9 +168,9 @@ def get_docker_container_name(container):
 def get_deploy_host_port(deploy_type):
     port = ''
     if deploy_type == 'Cloud' :
-        return "cloud_deploy", "8088"
+        return "cloud-deploy", "8890"
     elif deploy_type == 'K8S' or deploy_type == 'K8S_Jetson_Nano':
-        return "kube_deploy", "8902"
+        return "kube-deploy", "8901"
     else:
         # ondevice 등등.... 
         return "ondevice", "8891"
@@ -200,7 +200,7 @@ def print_roundtrip(response, *args, **kwargs):
 def get_log_container_name(container):
     if container == 'bms':
         return 'BMS'
-    elif container == 'yoloe' or container == 'autonn_resnet':
+    elif container == 'yoloe' or container == 'autonn-resnet':
         return 'Auto NN'
     elif container == 'codeGen' or container == 'code_gen' or container == 'codegen':
         return 'Code Gen'
@@ -217,7 +217,7 @@ def db_container_name(container):
         return 'yoloe'
     elif container == 'visualization':
         return 'visualization'
-    elif container == 'autonn_resnet':
+    elif container == 'autonn-resnet':
         return 'autonn_resnet'
     elif container == 'codeGen' or container == 'code_gen' or container == 'codegen':
         return 'codeGen'

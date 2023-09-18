@@ -412,7 +412,7 @@ def train(hyp, opt, device, tb_writer=None):
             if not opt.notest or final_epoch:  # Calculate mAP
                 wandb_logger.current_epoch = epoch + 1
                 results, maps, times = test.test(data_dict,
-                                                 batch_size=batch_size * 2,
+                                                 batch_size=batch_size, # multiplying by 2 may cause out of gpu memory
                                                  imgsz=imgsz_test,
                                                  model=ema.ema,
                                                  single_cls=opt.single_cls,
@@ -524,64 +524,25 @@ def train(hyp, opt, device, tb_writer=None):
 
 
 def run_yolo_aux(proj_path, dataset_yaml_path, data=None, target=None, train_mode='search', final_arch=None):
-    '''
-    parser = argparse.ArgumentParser()
-    parser.add_argument('--weights', type=str, default='yolo7.pt', help='initial weights path')
-    parser.add_argument('--cfg', type=str, default='', help='model.yaml path')
-    parser.add_argument('--data', type=str, default='data/coco.yaml', help='data.yaml path')
-    parser.add_argument('--hyp', type=str, default='data/hyp.scratch.p5.yaml', help='hyperparameters path')
-    parser.add_argument('--epochs', type=int, default=300)
-    parser.add_argument('--batch-size', type=int, default=16, help='total batch size for all GPUs')
-    parser.add_argument('--img-size', nargs='+', type=int, default=[640, 640], help='[train, test] image sizes')
-    parser.add_argument('--rect', action='store_true', help='rectangular training')
-    parser.add_argument('--resume', nargs='?', const=True, default=False, help='resume most recent training')
-    parser.add_argument('--nosave', action='store_true', help='only save final checkpoint')
-    parser.add_argument('--notest', action='store_true', help='only test final epoch')
-    parser.add_argument('--noautoanchor', action='store_true', help='disable autoanchor check')
-    parser.add_argument('--evolve', action='store_true', help='evolve hyperparameters')
-    parser.add_argument('--bucket', type=str, default='', help='gsutil bucket')
-    parser.add_argument('--cache-images', action='store_true', help='cache images for faster training')
-    parser.add_argument('--image-weights', action='store_true', help='use weighted image selection for training')
-    parser.add_argument('--device', default='', help='cuda device, i.e. 0 or 0,1,2,3 or cpu')
-    parser.add_argument('--multi-scale', action='store_true', help='vary img-size +/- 50%%')
-    parser.add_argument('--single-cls', action='store_true', help='train multi-class data as single-class')
-    parser.add_argument('--adam', action='store_true', help='use torch.optim.Adam() optimizer')
-    parser.add_argument('--sync-bn', action='store_true', help='use SyncBatchNorm, only available in DDP mode')
-    parser.add_argument('--local_rank', type=int, default=-1, help='DDP parameter, do not modify')
-    parser.add_argument('--workers', type=int, default=8, help='maximum number of dataloader workers')
-    parser.add_argument('--project', default='runs/train', help='save to project/name')
-    parser.add_argument('--entity', default=None, help='W&B entity')
-    parser.add_argument('--name', default='exp', help='save to project/name')
-    parser.add_argument('--exist-ok', action='store_true', help='existing project/name ok, do not increment')
-    parser.add_argument('--quad', action='store_true', help='quad dataloader')
-    parser.add_argument('--linear-lr', action='store_true', help='linear LR')
-    parser.add_argument('--label-smoothing', type=float, default=0.0, help='Label smoothing epsilon')
-    parser.add_argument('--upload_dataset', action='store_true', help='Upload dataset as W&B artifact table')
-    parser.add_argument('--bbox_interval', type=int, default=-1, help='Set bounding-box image logging interval for W&B')
-    parser.add_argument('--save_period', type=int, default=-1, help='Log model after every "save_period" epoch')
-    parser.add_argument('--artifact_alias', type=str, default="latest", help='version of dataset artifact to be used')
-    parser.add_argument('--v5-metric', action='store_true', help='assume maximum recall as 1.0 in AP calculation')
-    opt = parser.parse_args()
-    '''
 
+    # get options from yaml
+    with open(str(Path(proj_path) / 'basemodel.yaml')) as f:
+        basemodel_yaml = yaml.load(f, Loader=yaml.SafeLoader)  # load hyps
     with open(Path(os.path.dirname(__file__)) / 'args.yaml', encoding='utf-8') as f:
         opt = argparse.Namespace(**yaml.safe_load(f))
     with open(Path(proj_path) / 'project_info.yaml', encoding='utf-8') as f:
         proj_info = yaml.safe_load(f)
     print(proj_info)
+
     opt.data = str(dataset_yaml_path)
-    # opt.cfg = str(Path(os.path.dirname(__file__)) / 'cfg' / 'training' / str(str(proj_info['nas_type']) + str(proj_info['model_size']) +'.yaml'))
     opt.cfg = str(Path(proj_path) / 'basemodel.yaml')    
-    opt.hyp = Path(os.path.dirname(__file__)) / 'data' / 'hyp.scratch.p6.yaml'
-    opt.img_size = [1280, 1280]
+    opt.hyp = Path(os.path.dirname(__file__)) / 'data' / f"hyp.scratch.{basemodel_yaml['hyp']}.yaml"
+    opt.img_size = [basemodel_yaml['imgsz'], basemodel_yaml['imgsz']]
 
     # Set DDP variables
     opt.world_size = int(os.environ['WORLD_SIZE']) if 'WORLD_SIZE' in os.environ else 1
     opt.global_rank = int(os.environ['RANK']) if 'RANK' in os.environ else -1
     set_logging(opt.global_rank)
-    #if opt.global_rank in [-1, 0]:
-    #    check_git_status()
-    #    check_requirements()
 
     # Resume
     wandb_run = check_wandb_resume(opt)
@@ -604,21 +565,12 @@ def run_yolo_aux(proj_path, dataset_yaml_path, data=None, target=None, train_mod
     # Hyperparameters
     with open(opt.hyp) as f:
         hyp = yaml.load(f, Loader=yaml.SafeLoader)  # load hyps
-    if opt.batch_size == -1: 
-        model = Model(opt.cfg, ch=3, nc=80, anchors=hyp.get('anchors'))
-        opt.batch_size = int(get_batch_size_for_gpu(model, max(opt.img_size), amp=True) * 0.8)
-        # 0.8 is multiplied by batch size to prevent cuda memory error due to a memory leak of yolov7
-        del model
-        torch.cuda.empty_cache()
-        gc.collect()
 
+    opt.batch_size = proj_info['batchsize']
     device_str = ''
     for i in range(torch.cuda.device_count()):
         device_str = device_str + str(i) + ','
     opt.device = device_str[:-1]
-    print(f'[ Device Auto Count ]: {opt.device}')
-    opt.batch_size = opt.batch_size * torch.cuda.device_count()
-    print(f'[ BatchSize Auto Fix ]: {opt.batch_size}')
 
     # DDP mode
     opt.total_batch_size = opt.batch_size
