@@ -203,7 +203,7 @@ services:
   #---------------------------------
   # AutoNN: ResNet
   #---------------------------------
-  autonn-resnet:
+  autonn_resnet:
     build:
       context: ./autonn/ResNet
     shm_size: '256M'
