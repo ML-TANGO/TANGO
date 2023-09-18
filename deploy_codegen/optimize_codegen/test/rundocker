@@ -1,4 +1,5 @@
 # sudo docker run -it --rm -v ~/tango:/tango -p 8888:8888  --workdir=/app code_gen /bin/bash
+# sudo docker run -it --rm -v /var/snap/docker/common/var-lib-docker/volumes/tango_shared/_data:/tango -v ~/workspace/TANGO:/source  --net=host  --workdir=/app code_gen /bin/bash
 sudo docker run -it --rm -v /var/snap/docker/common/var-lib-docker/volumes/tango_shared/_data:/tango -v ~/workspace/TANGO:/source  --net=host  --workdir=/app tango-code_gen /bin/bash
 # sudo docker run -it --rm  -v ~/TANGO:/tango  --net=host  --workdir=/app tango-code_gen /bin/bash
 #sudo docker run -d -it --name tango-code_gen-1  -p 8888:8888 --workdir=/app  tango-code_gen /bin/bash

@@ -23,8 +23,8 @@ import shutil
 import zipfile
 import numpy as np
 import onnx
-import tvm
-import tvm.relay as relay
+# for test import tvm
+# for test import tvm.relay as relay
 import sys
 import logging
 import threading
@@ -38,6 +38,7 @@ import requests
 # code_gen.py
 import      torch
 import      torch.onnx
+import tensorflow as tf
 # from        torchvision import  models
 # from        onnxruntime.quantization import  quantize_dynamic
 # from        onnxruntime.quantization import  QuantType
@@ -51,7 +52,7 @@ def_top_data_folder = "/tango/datasets"    # for docker
 def_code_folder_name = "nn_model"
 
 # for rknn
-from rknn.api import RKNN
+#from rknn.api import RKNN
 def_rknn_file = "yolov5.rknn"
 def_rknn_template = "yolov5.template"
 
@@ -613,7 +614,7 @@ class CodeGen:
         # if there are files in the target folder, remove them
         self.clear()
 
-        if m_sysinfo_task_type = "classification":
+        if self.m_sysinfo_task_type == "classification":
             if self.m_sysinfo_engine_type == 'pytorch':
                 self.m_sysinfo_libs = []
                 self.m_sysinfo_apt = ['vim', 'python3.9']
@@ -627,14 +628,14 @@ class CodeGen:
                 pt_path = "%s%s" % (self.m_current_file_path, self.m_nninfo_weight_pt_file)
                 shutil.copy(pt_path, self.m_current_code_folder)
                 # copy template code
-                codefile_path = "%s%s" % (self.m_current_file_path, self.m_deploy_python_file)
+                codefile_path = "%s%s%s" % (self.m_current_code_folder, "/", self.m_deploy_python_file)
                 f = open(codefile_path, "w")
                 # copy heading 
                 f.write("#!/usr/bin/python\n")
                 f.write("# -*- coding: utf-8 -*-\n")
                 f.write("DEF_IMG_PATH = %s\n" % self.m_sysinfo_input_method) 
                 f.write("DEF_ACC = %s\n" % "cpu") # only for testing self.m_sysinfo_acc_type) 
-                f.write("DEF_PT_FILE = %s\n\n\n" self.m_nninfo_weight_pt_file)
+                f.write("DEF_PT_FILE = %s\n\n\n" % self.m_nninfo_weight_pt_file)
                 try:
                     f1 = open("./db/resnet152.db", 'r')
                 except IOError as err:
@@ -655,8 +656,28 @@ class CodeGen:
                     self.make_requirements_file_for_PCServer()
                 else:
                     self.make_requirements_file_for_others()
+            elif self.m_sysinfo_engine_type == 'tensorrt':
+                # add code for tensorrt
+                if not os.path.exists(self.m_current_code_folder):
+                    os.makedirs(self.m_current_code_folder)
+                # read model file
+                # convert the model file to onnx file
+                # convert the onnx file to tensorrt file
+                # copy tensorrt file to the nn_model folder
+                # copy template code file to the nn_model folder
+
+                if self.m_deploy_type == 'cloud':
+                    self.make_requirements_file_for_docker()
+                elif self.m_deploy_type == 'k8s':
+                    self.make_requirements_file_for_docker()
+                elif self.m_deploy_type == 'pc_server':
+                    self.make_requirements_file_for_PCServer()
+                elif self.m_deploy_type == 'pc_web':
+                    self.make_requirements_file_for_PCServer()
+                else:
+                    self.make_requirements_file_for_others()
             else:
-                pass # add code for tensorrt
+                print("the inference engine is not support for classification")
             return
 
         # code gen
@@ -719,8 +740,95 @@ class CodeGen:
             self.gen_acl_code()
             self.make_requirements_file_for_others()
         elif self.m_sysinfo_engine_type == 'tflite':
-            # khlee to be added
-            pass
+            # pt 2 onnx
+            if self.m_nninfo_yolo_base_file_path != ".":  
+                if isinstance(self.m_nninfo_class_file, list):
+                    m_filelist = self.m_nninfo_class_file
+                else:
+                    m_filelist = [self.m_nninfo_class_file]
+                for mfile in m_filelist:
+                    self.copy_subfolderfile(mfile, self.m_nninfo_yolo_base_file_path)
+
+            # convert .py to onnx and copy
+            if isinstance(self.m_nninfo_class_file, list):
+                t_file = self.m_nninfo_class_file[0]
+            else:
+                t_file = self.m_nninfo_class_file
+            t_file = "%s%s" % (t_file, "\n")
+            tmp = t_file.split("/")
+            cnt = len(tmp)
+            t_file = tmp[0]
+            for  i in range(cnt-1):
+                t_file = "%s.%s" % (t_file, tmp[i+1])
+            t_file = t_file.split(".py\n")[0]
+            t_file = t_file.split("\n")[0]
+            t_split = self.m_nninfo_class_name.split("(")
+            t_class_name = t_split[0]
+            tmp_param = t_split[1].split(")")[0]
+            tmp_param = tmp_param.split("=")[1]
+
+            t_list = t_file.split(".")
+            t_list_len = len(t_list)
+            t_fromlist = ""
+            for i in range(t_list_len-1):
+                t_fromlist = "%s%s" % (t_fromlist, t_list[i])
+                if i < (t_list_len-2): 
+                    t_fromlist = "%s%s" % (t_fromlist, ".")
+            t_impmod = __import__(t_file, fromlist=[t_fromlist])
+            t_cls = getattr(t_impmod, t_class_name)
+
+            f_param = self.get_real_filepath(tmp_param[1:-1])
+            pt_model = t_cls(cfg=f_param)
+            pt_path = "%s%s" % (self.m_current_file_path, self.m_nninfo_weight_pt_file)
+            pt_model.load_state_dict(torch.load(pt_path, map_location=torch.device('cpu')), strict=False)
+            pt_model.eval()
+            # convert and save onnx file 
+            dummy = torch.randn(
+                    self.m_nninfo_input_tensor_shape[0], 
+                    self.m_nninfo_input_tensor_shape[1], 
+                    self.m_nninfo_input_tensor_shape[2], 
+                    self.m_nninfo_input_tensor_shape[3], 
+                    requires_grad=True)
+            t_folder = "%s/%s" % (self.m_current_code_folder, self.m_nninfo_weight_onnx_file)
+            torch.onnx.export(pt_model, dummy,
+                    t_folder,
+                    opset_version = 11,
+                    export_params=True, 
+                    input_names=['input'],
+                    output_names=['output'])
+            print("tflite: pt -> onnx")
+            # shutil.copy("./db/yolov7-tiny.onnx", t_folder)
+            # onnx 2 tf
+            os.system('onnx-tf convert -i %s -o  mymodel.pb' % t_folder)
+            print("tflite: onnx -> tf")
+            # tf to tflite
+            converter = tf.lite.TFLiteConverter.from_saved_model('mymodel.pb')
+            converter.optimizations = [tf.lite.Optimize.DEFAULT]
+            print("tflite: tf -> tflite")
+            tf_lite_model = converter.convert()
+            open('mymodel.tflite', 'wb').write(tf_lite_model)
+            # /bin/rm -r mymodel.pb
+            if os.path.exists("mymodel.pb"):
+                shutil.rmtree("mymodel.pb")
+            # rm mymodel.onnx
+            os.remove(t_folder)
+            # cp mymodel.tflite
+            shutil.copy("mymodel.tflite", "/app/tflite_yolov7_test/app/main/assets/yolovy_tiny_fp32_320.tflite")
+            # rm mymodel.tflite
+            os.remove("mymodel.tflite")
+            # build apk
+            print("tflite: butild apk")
+            if os.path.exists("/bin/rm -rf /app/tflite_yolov7_test/app/.cxx"):
+                shutil.rmtree("/bin/rm -rf /app/tflite_yolov7_test/app/.cxx")
+            os.system("/app/tflite_yolov7_test/gradlew init < /app/enter.txt  && cd /app/tflite_yolov7_test && ./gradlew assembleDebug")
+            # copy apk nn_model
+            print("tflite: copy apk")
+            shutil.copy("/app/tflite_yolov7_test/app/build/outputs/apk/debug/app-debug.apk", self.m_current_code_folder)
+            # copy android project files nn_model
+            print("tflite: copy android project")
+            shutil.copytree("/app/tflite_yolov7_test", self.m_current_code_folder)
+            # kkkhhhllleeeeeeeee
+
         elif self.m_sysinfo_engine_type == "tensorrt":
             self.m_deploy_entrypoint = [self.m_deploy_python_file]
             # move autonn's pytorch to target folder(like prefix folder)
@@ -1116,29 +1224,29 @@ class CodeGen:
         self.m_converted_file = "%s%s" % (self.m_current_file_path, def_rknn_file)
         # comment out for test only -> uncomment needed
         # Create RKNN object
-        rknn = RKNN(verbose=True)
+        # rknn = RKNN(verbose=True)
         
         # pre-process config
         logging.debug('--> Config model')
-        rknn.config(mean_values=[[0, 0, 0]], std_values=[[255, 255, 255]],
-                    output_tensor_type='int8')
+        # rknn.config(mean_values=[[0, 0, 0]], std_values=[[255, 255, 255]],
+        #            output_tensor_type='int8')
 
         # Load ONNX model
-        ret = rknn.load_onnx(self.get_real_filepath(self.m_nninfo_weight_onnx_file), outputs=['output'])
+        # ret = rknn.load_onnx(self.get_real_filepath(self.m_nninfo_weight_onnx_file), outputs=['output'])
         if ret != 0:
             logging.debug('Load model failed!')
             return -1
         logging.debug('--> Loading model')
 
         # Build model
-        ret = rknn.build(do_quantization=True)
+        # ret = rknn.build(do_quantization=True)
         if ret != 0:
             logging.debug('Build model failed!')
             return -1
         logging.debug('--> Building model')
 
         # Export RKNN model
-        ret = rknn.export_rknn(self.m_converted_file)
+        # ret = rknn.export_rknn(self.m_converted_file)
         if ret != 0:
             return -1
         logging.debug('--> Export rknn model')
@@ -1717,7 +1825,9 @@ class CodeGen:
             t_file = t_file.split(".py\n")[0]
             t_file = t_file.split("\n")[0]
             if self.m_nninfo_yolo_base_file_path != ".":  
-                t_file = "%s.%s" % (self.m_nninfo_yolo_base_file_path, t_file)
+                #kkkhhhllleee
+                tmp_path = self.m_nninfo_yolo_base_file_path.replace("/", ".")
+                t_file = "%s.%s" % (tmp_path, t_file)
             f.write('import %s as ye\n' % t_file)
             f.write('def_pt_file = "%s"\n' % self.m_nninfo_weight_pt_file)
             # remove prefix coco/coco.yaml -> coco.yaml
