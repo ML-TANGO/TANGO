@@ -20,7 +20,7 @@
 		"prjPath": "/Users/jogoon/weda/ETRI/bluaiQI_Projects"
 	},
 	"Log": {
-		"level": "debug",
+		"level": "info",
 		"save": "true",
 		"dirPath": "/Users/jogoon/weda/ETRI/bluailogs"
 	},

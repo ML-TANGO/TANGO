@@ -38,8 +38,8 @@ RUN apt-get update && \
 
 # # RUN ln -sf /usr/share/terminfo/x/xterm-color /usr/share/terminfo/x/xterm-256color
 # RUN mkdir /data
-# COPY ./tango/common/kpst1234/12 /data
-# COPY /var/lib/docker/volumes/tango_shared/_data/common/kpst1234/12 /data
+# COPY ./tango/common/test123/1 /data
+# COPY /var/lib/docker/volumes/tango_shared/_data/common/test123/1 /data
 # WORKDIR /data
 
 RUN python3 -m pip install -U pip setuptools && \
@@ -53,7 +53,7 @@ RUN python3 -m pip install -U pip setuptools && \
     python3 -m pip install jupyterlab
 
 WORKDIR /
-COPY tango/common/kpst1234/12 /data
+COPY tango/common/test123/1 /data
 WORKDIR  /data
 RUN python3 -m pip install -r nn_model/requirements.txt
 
