@@ -1,3 +1,4 @@
+import yaml
 import torch
 from torch import Tensor
 import torch.nn as nn
@@ -61,6 +62,12 @@ class BasicBlock(nn.Module):
 
 
 class ResNet(nn.Module):
+    @classmethod
+    def load_config(cls, yaml_path: str) -> "ResNet":
+        with open(yaml_path, "r") as f:
+            config = yaml.load(f, Loader=yaml.FullLoader)
+        return cls(BasicBlock, config["layers"], 2)
+
     def __init__(
         self,
         block,
