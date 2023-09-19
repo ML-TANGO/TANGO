@@ -97,8 +97,8 @@ def status_request(request):
             return HttpResponse(json.dumps({'container': container_id, 'container_status': queryset.container_status, 'message':  get_log_container_name(container_id) + ": status_request - Error\n"}))
 
         # status_report에서 completed 였을 때를 제외하고
-        if queryset.container_status != 'completed':
-            queryset.container_status = response['response']
+        # if queryset.container_status != 'completed':
+        #     queryset.container_status = response['response']
 
         ## 새로운 컨테이너에서 로그를 불러올때
         # 컨테이너가 실행될때는 last_logs_timestamp 이후에 실행 되니 주석 처리
