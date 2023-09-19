@@ -1,0 +1,396 @@
+﻿{
+  "node": [
+    {
+      "order": 1,
+      "layer": "Conv2d",
+      "parameters": "'in_channels': 3 \n 'out_channels': 64 \n 'kernel_size': (7, 7) \n 'stride': (2, 2) \n 'padding': (3, 3) \n 'bias': False"
+    },
+
+    {
+      "order": 2,
+      "layer": "BatchNorm2d",
+      "parameters": "'num_features': 64"
+    },
+
+    {
+      "order": 3,
+      "layer": "ReLU",
+      "parameters": "'inplace': True"
+    },
+
+    {
+      "order": 4,
+      "layer": "MaxPool2d",
+      "parameters": "'kernel_size': (3, 3) \n 'stride': (2, 2) \n 'padding': (1, 1) \n 'dilation': 1 \n 'return_indices': False \n  'ceil_mode': False"
+    },
+
+    {
+      "order": 5,
+      "layer": "Bottleneck",
+      "parameters": "'inplanes': 64 \n 'planes': 64 \n 'stride': 1 \n 'downsample': True \n 'groups': 1 \n 'base_width': 64 \n 'dilation': 1 \n 'norm_layer': None"
+    },
+
+    {
+      "order": 6,
+      "layer": "Bottleneck",
+      "parameters": "'inplanes': 256 \n 'planes': 64 \n 'stride': 1 \n 'downsample': False \n 'groups': 1 \n 'base_width': 64 \n 'dilation': 1 \n 'norm_layer': None"
+    },
+
+    {
+      "order": 7,
+      "layer": "Bottleneck",
+      "parameters": "'inplanes': 256 \n 'planes': 64 \n 'stride': 1 \n 'downsample': False \n 'groups': 1 \n 'base_width': 64 \n 'dilation': 1 \n 'norm_layer': None"
+    },
+
+    {
+      "order": 8,
+      "layer": "Bottleneck",
+      "parameters": "'inplanes': 256 \n 'planes': 128 \n 'stride': 2 \n 'downsample': True \n 'groups': 1 \n 'base_width': 64 \n 'dilation': 1 \n 'norm_layer': None"
+    },
+
+    {
+      "order": 9,
+      "layer": "Bottleneck",
+      "parameters": "'inplanes': 512 \n 'planes': 128 \n 'stride': 1 \n 'downsample': False \n 'groups': 1 \n 'base_width': 64 \n 'dilation': 1 \n 'norm_layer': None"
+    },
+
+    {
+      "order": 10,
+      "layer": "Bottleneck",
+      "parameters": "'inplanes': 512 \n 'planes': 128 \n 'stride': 1 \n 'downsample': False \n 'groups': 1 \n 'base_width': 64 \n 'dilation': 1 \n 'norm_layer': None"
+    },
+
+    {
+      "order": 11,
+      "layer": "Bottleneck",
+      "parameters": "'inplanes': 512 \n 'planes': 128 \n 'stride': 1 \n 'downsample': False \n 'groups': 1 \n 'base_width': 64 \n 'dilation': 1 \n 'norm_layer': None"
+    },
+
+    {
+      "order": 12,
+      "layer": "Bottleneck",
+      "parameters": "'inplanes': 512 \n 'planes': 128 \n 'stride': 1 \n 'downsample': False \n 'groups': 1 \n 'base_width': 64 \n 'dilation': 1 \n 'norm_layer': None"
+    },
+
+    {
+      "order": 13,
+      "layer": "Bottleneck",
+      "parameters": "'inplanes': 512 \n 'planes': 128 \n 'stride': 1 \n 'downsample': False \n 'groups': 1 \n 'base_width': 64 \n 'dilation': 1 \n 'norm_layer': None"
+    },
+
+    {
+      "order": 14,
+      "layer": "Bottleneck",
+      "parameters": "'inplanes': 512 \n 'planes': 128 \n 'stride': 1 \n 'downsample': False \n 'groups': 1 \n 'base_width': 64 \n 'dilation': 1 \n 'norm_layer': None"
+    },
+
+    {
+      "order": 15,
+      "layer": "Bottleneck",
+      "parameters": "'inplanes': 512 \n 'planes': 128 \n 'stride': 1 \n 'downsample': False \n 'groups': 1 \n 'base_width': 64 \n 'dilation': 1 \n 'norm_layer': None"
+    },
+
+    {
+      "order": 16,
+      "layer": "Bottleneck",
+      "parameters": "'inplanes': 512 \n 'planes': 256 \n 'stride': 2 \n 'downsample': True \n 'groups': 1 \n 'base_width': 64 \n 'dilation': 1 \n 'norm_layer': None"
+    },
+
+    {
+      "order": 17,
+      "layer": "Bottleneck",
+      "parameters": "'inplanes': 1024 \n 'planes': 256 \n 'stride': 1 \n 'downsample': False \n 'groups': 1 \n 'base_width': 64 \n 'dilation': 1 \n 'norm_layer': None"
+    },
+
+    {
+      "order": 18,
+      "layer": "Bottleneck",
+      "parameters": "'inplanes': 1024 \n 'planes': 256 \n 'stride': 1 \n 'downsample': False \n 'groups': 1 \n 'base_width': 64 \n 'dilation': 1 \n 'norm_layer': None"
+    },
+
+    {
+      "order": 19,
+      "layer": "Bottleneck",
+      "parameters": "'inplanes': 1024 \n 'planes': 256 \n 'stride': 1 \n 'downsample': False \n 'groups': 1 \n 'base_width': 64 \n 'dilation': 1 \n 'norm_layer': None"
+    },
+
+    {
+      "order": 20,
+      "layer": "Bottleneck",
+      "parameters": "'inplanes': 1024 \n 'planes': 256 \n 'stride': 1 \n 'downsample': False \n 'groups': 1 \n 'base_width': 64 \n 'dilation': 1 \n 'norm_layer': None"
+    },
+
+    {
+      "order": 21,
+      "layer": "Bottleneck",
+      "parameters": "'inplanes': 1024 \n 'planes': 256 \n 'stride': 1 \n 'downsample': False \n 'groups': 1 \n 'base_width': 64 \n 'dilation': 1 \n 'norm_layer': None"
+    },
+
+    {
+      "order": 22,
+      "layer": "Bottleneck",
+      "parameters": "'inplanes': 1024 \n 'planes': 256 \n 'stride': 1 \n 'downsample': False \n 'groups': 1 \n 'base_width': 64 \n 'dilation': 1 \n 'norm_layer': None"
+    },
+
+    {
+      "order": 23,
+      "layer": "Bottleneck",
+      "parameters": "'inplanes': 1024 \n 'planes': 256 \n 'stride': 1 \n 'downsample': False \n 'groups': 1 \n 'base_width': 64 \n 'dilation': 1 \n 'norm_layer': None"
+    },
+
+    {
+      "order": 24,
+      "layer": "Bottleneck",
+      "parameters": "'inplanes': 1024 \n 'planes': 256 \n 'stride': 1 \n 'downsample': False \n 'groups': 1 \n 'base_width': 64 \n 'dilation': 1 \n 'norm_layer': None"
+    },
+
+    {
+      "order": 25,
+      "layer": "Bottleneck",
+      "parameters": "'inplanes': 1024 \n 'planes': 256 \n 'stride': 1 \n 'downsample': False \n 'groups': 1 \n 'base_width': 64 \n 'dilation': 1 \n 'norm_layer': None"
+    },
+
+    {
+      "order": 26,
+      "layer": "Bottleneck",
+      "parameters": "'inplanes': 1024 \n 'planes': 256 \n 'stride': 1 \n 'downsample': False \n 'groups': 1 \n 'base_width': 64 \n 'dilation': 1 \n 'norm_layer': None"
+    },
+
+    {
+      "order": 27,
+      "layer": "Bottleneck",
+      "parameters": "'inplanes': 1024 \n 'planes': 256 \n 'stride': 1 \n 'downsample': False \n 'groups': 1 \n 'base_width': 64 \n 'dilation': 1 \n 'norm_layer': None"
+    },
+
+    {
+      "order": 28,
+      "layer": "Bottleneck",
+      "parameters": "'inplanes': 1024 \n 'planes': 256 \n 'stride': 1 \n 'downsample': False \n 'groups': 1 \n 'base_width': 64 \n 'dilation': 1 \n 'norm_layer': None"
+    },
+
+    {
+      "order": 29,
+      "layer": "Bottleneck",
+      "parameters": "'inplanes': 1024 \n 'planes': 256 \n 'stride': 1 \n 'downsample': False \n 'groups': 1 \n 'base_width': 64 \n 'dilation': 1 \n 'norm_layer': None"
+    },
+
+    {
+      "order": 30,
+      "layer": "Bottleneck",
+      "parameters": "'inplanes': 1024 \n 'planes': 256 \n 'stride': 1 \n 'downsample': False \n 'groups': 1 \n 'base_width': 64 \n 'dilation': 1 \n 'norm_layer': None"
+    },
+
+    {
+      "order": 31,
+      "layer": "Bottleneck",
+      "parameters": "'inplanes': 1024 \n 'planes': 256 \n 'stride': 1 \n 'downsample': False \n 'groups': 1 \n 'base_width': 64 \n 'dilation': 1 \n 'norm_layer': None"
+    },
+
+    {
+      "order": 32,
+      "layer": "Bottleneck",
+      "parameters": "'inplanes': 1024 \n 'planes': 256 \n 'stride': 1 \n 'downsample': False \n 'groups': 1 \n 'base_width': 64 \n 'dilation': 1 \n 'norm_layer': None"
+    },
+
+    {
+      "order": 33,
+      "layer": "Bottleneck",
+      "parameters": "'inplanes': 1024 \n 'planes': 256 \n 'stride': 1 \n 'downsample': False \n 'groups': 1 \n 'base_width': 64 \n 'dilation': 1 \n 'norm_layer': None"
+    },
+
+    {
+      "order": 34,
+      "layer": "Bottleneck",
+      "parameters": "'inplanes': 1024 \n 'planes': 256 \n 'stride': 1 \n 'downsample': False \n 'groups': 1 \n 'base_width': 64 \n 'dilation': 1 \n 'norm_layer': None"
+    },
+
+    {
+      "order": 35,
+      "layer": "Bottleneck",
+      "parameters": "'inplanes': 1024 \n 'planes': 256 \n 'stride': 1 \n 'downsample': False \n 'groups': 1 \n 'base_width': 64 \n 'dilation': 1 \n 'norm_layer': None"
+    },
+
+    {
+      "order": 36,
+      "layer": "Bottleneck",
+      "parameters": "'inplanes': 1024 \n 'planes': 256 \n 'stride': 1 \n 'downsample': False \n 'groups': 1 \n 'base_width': 64 \n 'dilation': 1 \n 'norm_layer': None"
+    },
+
+    {
+      "order": 37,
+      "layer": "Bottleneck",
+      "parameters": "'inplanes': 1024 \n 'planes': 256 \n 'stride': 1 \n 'downsample': False \n 'groups': 1 \n 'base_width': 64 \n 'dilation': 1 \n 'norm_layer': None"
+    },
+
+    {
+      "order": 38,
+      "layer": "Bottleneck",
+      "parameters": "'inplanes': 1024 \n 'planes': 256 \n 'stride': 1 \n 'downsample': False \n 'groups': 1 \n 'base_width': 64 \n 'dilation': 1 \n 'norm_layer': None"
+    },
+
+    {
+      "order": 39,
+      "layer": "Bottleneck",
+      "parameters": "'inplanes': 1024 \n 'planes': 256 \n 'stride': 1 \n 'downsample': False \n 'groups': 1 \n 'base_width': 64 \n 'dilation': 1 \n 'norm_layer': None"
+    },
+
+    {
+      "order": 40,
+      "layer": "Bottleneck",
+      "parameters": "'inplanes': 1024 \n 'planes': 256 \n 'stride': 1 \n 'downsample': False \n 'groups': 1 \n 'base_width': 64 \n 'dilation': 1 \n 'norm_layer': None"
+    },
+
+    {
+      "order": 41,
+      "layer": "Bottleneck",
+      "parameters": "'inplanes': 1024 \n 'planes': 256 \n 'stride': 1 \n 'downsample': False \n 'groups': 1 \n 'base_width': 64 \n 'dilation': 1 \n 'norm_layer': None"
+    },
+
+    {
+      "order": 42,
+      "layer": "Bottleneck",
+      "parameters": "'inplanes': 1024 \n 'planes': 256 \n 'stride': 1 \n 'downsample': False \n 'groups': 1 \n 'base_width': 64 \n 'dilation': 1 \n 'norm_layer': None"
+    },
+
+    {
+      "order": 43,
+      "layer": "Bottleneck",
+      "parameters": "'inplanes': 1024 \n 'planes': 256 \n 'stride': 1 \n 'downsample': False \n 'groups': 1 \n 'base_width': 64 \n 'dilation': 1 \n 'norm_layer': None"
+    },
+
+    {
+      "order": 44,
+      "layer": "Bottleneck",
+      "parameters": "'inplanes': 1024 \n 'planes': 256 \n 'stride': 1 \n 'downsample': False \n 'groups': 1 \n 'base_width': 64 \n 'dilation': 1 \n 'norm_layer': None"
+    },
+
+    {
+      "order": 45,
+      "layer": "Bottleneck",
+      "parameters": "'inplanes': 1024 \n 'planes': 256 \n 'stride': 1 \n 'downsample': False \n 'groups': 1 \n 'base_width': 64 \n 'dilation': 1 \n 'norm_layer': None"
+    },
+
+    {
+      "order": 46,
+      "layer": "Bottleneck",
+      "parameters": "'inplanes': 1024 \n 'planes': 256 \n 'stride': 1 \n 'downsample': False \n 'groups': 1 \n 'base_width': 64 \n 'dilation': 1 \n 'norm_layer': None"
+    },
+
+    {
+      "order": 47,
+      "layer": "Bottleneck",
+      "parameters": "'inplanes': 1024 \n 'planes': 256 \n 'stride': 1 \n 'downsample': False \n 'groups': 1 \n 'base_width': 64 \n 'dilation': 1 \n 'norm_layer': None"
+    },
+
+    {
+      "order": 48,
+      "layer": "Bottleneck",
+      "parameters": "'inplanes': 1024 \n 'planes': 256 \n 'stride': 1 \n 'downsample': False \n 'groups': 1 \n 'base_width': 64 \n 'dilation': 1 \n 'norm_layer': None"
+    },
+
+    {
+      "order": 49,
+      "layer": "Bottleneck",
+      "parameters": "'inplanes': 1024 \n 'planes': 256 \n 'stride': 1 \n 'downsample': False \n 'groups': 1 \n 'base_width': 64 \n 'dilation': 1 \n 'norm_layer': None"
+    },
+
+    {
+      "order": 50,
+      "layer": "Bottleneck",
+      "parameters": "'inplanes': 1024 \n 'planes': 256 \n 'stride': 1 \n 'downsample': False \n 'groups': 1 \n 'base_width': 64 \n 'dilation': 1 \n 'norm_layer': None"
+    },
+
+    {
+      "order": 51,
+      "layer": "Bottleneck",
+      "parameters": "'inplanes': 1024 \n 'planes': 256 \n 'stride': 1 \n 'downsample': False \n 'groups': 1 \n 'base_width': 64 \n 'dilation': 1 \n 'norm_layer': None"
+    },
+
+    {
+      "order": 52,
+      "layer": "Bottleneck",
+      "parameters": "'inplanes': 1024 \n 'planes': 512 \n 'stride': 2 \n 'downsample': True \n 'groups': 1 \n 'base_width': 64 \n 'dilation': 1 \n 'norm_layer': None"
+    },
+
+    {
+      "order": 53,
+      "layer": "Bottleneck",
+      "parameters": "'inplanes': 2048 \n 'planes': 512 \n 'stride': 1 \n 'downsample': False \n 'groups': 1 \n 'base_width': 64 \n 'dilation': 1 \n 'norm_layer': None"
+    },
+
+    {
+      "order": 54,
+      "layer": "Bottleneck",
+      "parameters": "'inplanes': 2048 \n 'planes': 512 \n 'stride': 1 \n 'downsample': False \n 'groups': 1 \n 'base_width': 64 \n 'dilation': 1 \n 'norm_layer': None"
+    },
+
+    {
+      "order": 55,
+      "layer": "AdaptiveAvgPool2d",
+      "parameters": "'output_size': (1, 1)"
+    },
+
+    {
+      "order": 56,
+      "layer": "Linear",
+      "parameters": "'in_features': 2048 \n 'out_features': 1000 \n 'bias': True"
+    }
+
+  ],
+  "edge": [
+    {"id":1,"prior":1,"next":2},
+    {"id":2,"prior":2,"next":3},
+    {"id":3,"prior":3,"next":4},
+    {"id":4,"prior":4,"next":5},
+    {"id":5,"prior":5,"next":6},
+    {"id":6,"prior":6,"next":7},
+    {"id":7,"prior":7,"next":8},
+    {"id":8,"prior":8,"next":9},
+    {"id":9,"prior":9,"next":10},
+    {"id":10,"prior":10,"next":11},
+    {"id":11,"prior":11,"next":12},
+    {"id":12,"prior":12,"next":13},
+    {"id":13,"prior":13,"next":14},
+    {"id":14,"prior":14,"next":15},
+    {"id":15,"prior":15,"next":16},
+    {"id":16,"prior":16,"next":17},
+    {"id":17,"prior":17,"next":18},
+    {"id":18,"prior":18,"next":19},
+    {"id":19,"prior":19,"next":20},
+    {"id":20,"prior":20,"next":21},
+    {"id":21,"prior":21,"next":22},
+    {"id":22,"prior":22,"next":23},
+    {"id":23,"prior":23,"next":24},
+    {"id":24,"prior":24,"next":25},
+    {"id":25,"prior":25,"next":26},
+    {"id":26,"prior":26,"next":27},
+    {"id":27,"prior":27,"next":28},
+    {"id":28,"prior":28,"next":29},
+    {"id":29,"prior":29,"next":30},
+    {"id":30,"prior":30,"next":31},
+    {"id":31,"prior":31,"next":32},
+    {"id":32,"prior":32,"next":33},
+    {"id":33,"prior":33,"next":34},
+    {"id":34,"prior":34,"next":35},
+    {"id":35,"prior":35,"next":36},
+    {"id":36,"prior":36,"next":37},
+    {"id":37,"prior":37,"next":38},
+    {"id":38,"prior":38,"next":39},
+    {"id":39,"prior":39,"next":40},
+    {"id":40,"prior":40,"next":41},
+    {"id":41,"prior":41,"next":42},
+    {"id":42,"prior":42,"next":43},
+    {"id":43,"prior":43,"next":44},
+    {"id":44,"prior":44,"next":45},
+    {"id":45,"prior":45,"next":46},
+    {"id":47,"prior":47,"next":48},
+    {"id":48,"prior":48,"next":49},
+    {"id":49,"prior":49,"next":50},
+    {"id":50,"prior":50,"next":51},
+    {"id":51,"prior":51,"next":52},
+    {"id":52,"prior":52,"next":53},
+    {"id":53,"prior":53,"next":54},
+    {"id":54,"prior":54,"next":55},
+    {"id":55,"prior":55,"next":56}
+  ]
+}
