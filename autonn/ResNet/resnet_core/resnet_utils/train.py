@@ -2,7 +2,6 @@ DEFAULT_OPTIONS = {
     "input_size": [256, 256],
     "input_mean": [0.5],
     "input_std": [0.5],
-    "batch_size": [4],
     "network_type": ["FP32"],  # FP32, FP16
     "epochs": [3],
     "optimizer": ["SGD", "NAG"],
@@ -102,23 +101,27 @@ def run_resnet(proj_path: str, dataset_yaml_path: str):
     data_path = Path(dataset_yaml_path).parent
     last_pt = proj_path / "weights" / "last.pt"
     best_pt = proj_path / "weights" / "best.pt"
-    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     if not last_pt.parent.exists():
         last_pt.parent.mkdir(parents=True, exist_ok=True)
     if not best_pt.parent.exists():
         best_pt.parent.mkdir(parents=True, exist_ok=True)
-    print("train on device: ", device)
-    print("dataset_yaml_path: ", dataset_yaml_path)
+
+
+    with open(proj_path / "project_info.yaml", "r") as f:
+        project_info: dict = yaml.safe_load(f)  #
 
     with open(proj_path / "basemodel.yaml", "r") as f:
         basemodel_info: dict = yaml.safe_load(f)
+
+
+    device = torch.device("cuda" if torch.cuda.is_available() and project_info.get("acc", "cpu") == "cuda" else "cpu")
+    batch_size: int = project_info.get("batch_size", 3)
 
     layers: List[int] = basemodel_info.get("layers", [3, 3, 3])
     num_classes: int = basemodel_info.get("num_classes", 2)
     input_size: int = DEFAULT_OPTIONS.get("input_size", [256])[0]
     input_mean: float = DEFAULT_OPTIONS.get("input_mean", [0.5])[0]
     input_std: float = DEFAULT_OPTIONS.get("input_std", [0.5])[0]
-    batch_size: int = DEFAULT_OPTIONS.get("batch_size", [4])[0]
     network_type: str = DEFAULT_OPTIONS.get("network_type", ["FP32"])[0]
     epochs: int = DEFAULT_OPTIONS.get("epochs", [100])[0]
     optim_name: str = DEFAULT_OPTIONS.get("optimizer", ["SGD"])[0]
