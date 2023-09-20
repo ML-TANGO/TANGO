@@ -272,8 +272,8 @@ export default {
 
     async containerStartRequest(container) {
       const res = await containerStart(container, this.projectInfo.create_user, this.projectInfo.id);
-      this.updateLog(res.message);
-      this.updateLog(res.response);
+      this.updateLog({ message: res.message });
+      this.updateLog({ message: res.response });
     }
   }
 };

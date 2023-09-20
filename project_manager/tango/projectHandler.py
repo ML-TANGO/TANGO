@@ -41,9 +41,7 @@ async def continer_start_api(host, user_id, project_id):
         'project_id' : project_id,
     }
     response = requests.get(url, headers=headers, params=payload)
-    print_roundtrip_text = print_roundtrip(response)
-    print(print_roundtrip_text)
-    print(response.content.decode('utf-8'))
+    print_roundtrip_text = print_roundtrip(response, "Start", host)
 
     # return response.json()
     # return str(response.content.decode('utf-8'))
@@ -93,14 +91,12 @@ async def continer_request_api(host, user_id, project_id):
         'project_id' : project_id,
     }
     response = requests.get(url, headers=headers, params=payload)
-    print("response")
-    print(response)
-
-    
+    print_roundtrip_text = print_roundtrip(response, "Status Request", host)
 
     # return response.json()
     # return str(response.content.decode('utf-8'))
-    return str(response.content, 'utf-8').replace('"','')
+    # return str(response.content, 'utf-8').replace('"','')
+    return json.dumps({'response': str(response.content, 'utf-8').replace('"',''), 'request_info': str(print_roundtrip_text)})
 
 
 #endregion
@@ -177,11 +173,12 @@ def get_deploy_host_port(deploy_type):
 #endregion
 
 
-def print_roundtrip(response, *args, **kwargs):
+def print_roundtrip(response, path, container):
     format_headers = lambda d: '\n'.join(f'{k}: {v}' for k, v in d.items())
 
     return str(textwrap.dedent('''
-        ---------------- request ----------------
+        ---------------- {path} ----------------
+        Project Manager --> {container}
         {req.method} {req.url}
         {reqhdrs}
         ---------------- response ----------------
@@ -189,11 +186,14 @@ def print_roundtrip(response, *args, **kwargs):
         {reshdrs}
 
         response : {res.text}
+        ------------------------------------------
     ''').format(
         req=response.request, 
         res=response, 
         reqhdrs=format_headers(response.request.headers), 
         reshdrs=format_headers(response.headers), 
+        path=path,
+        container=container
     ))
 
 # 로그에 보여질 Container 명으로 변경
@@ -218,7 +218,7 @@ def db_container_name(container):
     elif container == 'visualization':
         return 'visualization'
     elif container == 'autonn-resnet':
-        return 'autonn_resnet'
+        return 'autonn-resnet'
     elif container == 'codeGen' or container == 'code_gen' or container == 'codegen':
         return 'codeGen'
 
