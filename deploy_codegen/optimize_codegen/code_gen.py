@@ -369,6 +369,8 @@ class CodeGen:
         self.m_current_projectid = pid
         self.m_current_file_path = "%s%s%s%s%s%s" % (def_top_folder, "/", uid, "/", pid, "/")
         self.m_current_code_folder = "%s%s" % (self.m_current_file_path, def_code_folder_name)
+        print("aaa")
+        print(pid)
         return 0
 
     ####################################################################
@@ -720,8 +722,12 @@ class CodeGen:
             self.m_deploy_entrypoint = self.m_deploy_python_file
             self.gen_python_code()
             if self.m_deploy_type == 'cloud':
+                # kkkhhhllleeeeeeeee khlee
+                self.m_nninfo_weight_pt_file = 'yolov3.pt',
                 self.make_requirements_file_for_docker()
             elif self.m_deploy_type == 'k8s':
+                # kkkhhhllleeeeeeeee khlee
+                self.m_nninfo_weight_pt_file = "yolov5s.pt"
                 self.make_requirements_file_for_docker()
             elif self.m_deploy_type == 'pc_server':
                 self.make_requirements_file_for_PCServer()
@@ -2255,7 +2261,7 @@ class CodeGen:
             if self.m_sysinfo_engine_type == 'tensorrt':
                 t_deploy['pre_exec'] = ['tensorrt-converter.py']
             t_opt = {"nn_file": 'detect.py',
-                     "weight_file": 'yolov5.pt',
+                     "weight_file": self.m_nninfo_weight_pt_file,
                      "annotation_file": 'coco128.yaml'}
             t_total = {"build": t_build, "deploy": t_deploy, "optional": t_opt}
         else:
@@ -2278,7 +2284,7 @@ class CodeGen:
             if self.m_sysinfo_engine_type == 'tensorrt':
                 t_deploy['pre_exec'] = ['tensorrt-converter.py']
             t_opt = {"nn_file": 'yolo.py',
-                     "weight_file": 'yolov3.pt',
+                     "weight_file": self.m_nninfo_weight_pt_file,
                      "annotation_file": self.m_nninfo_deploy_annotation_file}
 
             t_total = {"build": t_build, "deploy": t_deploy, "optional": t_opt}
