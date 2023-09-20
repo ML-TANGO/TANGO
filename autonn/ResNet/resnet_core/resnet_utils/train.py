@@ -114,7 +114,7 @@ def run_resnet(proj_path: str, dataset_yaml_path: str):
         basemodel_info: dict = yaml.safe_load(f)
 
 
-    device = torch.device("cuda" if torch.cuda.is_available() and project_info.get("acc", "cpu") == "cuda" else "cpu")
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     batch_size: int = project_info.get("batch_size", 3)
 
     layers: List[int] = basemodel_info.get("layers", [3, 3, 3])
