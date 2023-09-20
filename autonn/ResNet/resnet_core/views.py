@@ -204,7 +204,8 @@ def process_resnet(userid, project_id, data_yaml, proj_yaml):
             basemodel_info = yaml.safe_load(f)
 
         final_model = train.run_resnet(proj_path, data_yaml)
-        if not Path("/source/pretrained/kagglecxr_resnet152_normalize.pt").exists():
+        pretrained_path = Path("/source/pretrained/kagglecxr_resnet152_normalize.pt")
+        if pretrained_path.exists():
             final_model = "/source/pretrained/kagglecxr_resnet152_normalize.pt"
         print("process_resnet: train done")
 
