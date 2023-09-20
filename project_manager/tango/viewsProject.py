@@ -84,16 +84,21 @@ def status_request(request):
         queryset = Project.objects.get(id=project_id, create_user=str(user_id))
         container_id = queryset.container
         
-        response = asyncio.run(request_handler(container_id, user_id, project_id, queryset.target.target_info))
-        response_log = str(queryset.current_log) + str(container_id) + '- status_request response : ' + str(response)
+        res = asyncio.run(request_handler(container_id, user_id, project_id, queryset.target.target_info))
+        response = json.loads(res)
 
-        if len(response) > 50:
+        log_str = str(queryset.current_log) + str(container_id) + '- status_request response : ' + str(response['response'])
+        # log_str = str(queryset.current_log) 
+        # log_str += response['request_info']
+        response_log = log_str
+
+        if len(response['response']) > 50:
             queryset.save()
             return HttpResponse(json.dumps({'container': container_id, 'container_status': queryset.container_status, 'message':  get_log_container_name(container_id) + ": status_request - Error\n"}))
 
         # status_report에서 completed 였을 때를 제외하고
-        if queryset.container_status != 'completed':
-            queryset.container_status = response
+        # if queryset.container_status != 'completed':
+        #     queryset.container_status = response['response']
 
         ## 새로운 컨테이너에서 로그를 불러올때
         # 컨테이너가 실행될때는 last_logs_timestamp 이후에 실행 되니 주석 처리
@@ -114,12 +119,12 @@ def status_request(request):
 
         if queryset.container_status == 'completed':
             response_log += get_log_container_name(container_id) + " 완료\n"
-            response = "completed"
+            response['response'] = "completed"
 
         update_project_log_file(user_id, project_id, response_log)
 
         queryset.save()
-        return HttpResponse(json.dumps({'container': container_id, 'container_status': response, 'message': response_log,}))
+        return HttpResponse(json.dumps({'container': container_id, 'container_status': response['response'], 'message': response_log,}))
 
     except Exception as error:
         print("status_request --- error")
@@ -139,9 +144,31 @@ def status_report(request):
         container_id = db_container_name(request.GET['container_id'])
         result = request.GET['status']
 
+        headers = ''
+        for header, value in request.META.items():
+            if not header.startswith('HTTP'):
+                continue
+            header = '-'.join([h.capitalize() for h in header[5:].lower().split('_')])
+            headers += '{}: {}\n'.format(header, value)
+
         queryset = Project.objects.get(id=project_id, create_user=str(user_id))
         queryset.container = container_id
-        queryset.current_log = str(queryset.current_log) + "\n status_report - request : " + json.dumps(request.GET) + "\n"
+        log_str =  str(queryset.current_log) 
+        log_str += '---------------- Status Report ----------------'
+        log_str += "\n" + get_log_container_name(container_id) + " --> Project Manager"
+        log_str += "\n" + str(request)
+        log_str += "\n" + "method : " + request.method
+        log_str += "\n" + headers
+        log_str += '---------------- Params ----------------'
+        log_str += '\nuser_id : '+ str(user_id)
+        log_str += '\nproject_id : '+ str(project_id)
+        log_str += '\ncontainer_id : '+ str(container_id)
+        log_str += '\nstatus : '+ str(result)
+        log_str += '\n----------------------------------------'
+        log_str += '\n\n'
+
+
+        queryset.current_log = log_str
 
         workflow_order = WorkflowOrder.objects.filter(project_id=project_id).order_by('order')
 
