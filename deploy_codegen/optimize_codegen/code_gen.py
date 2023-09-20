@@ -587,12 +587,16 @@ class CodeGen:
             elif key == 'need_nms':
                 self.m_nninfo_postproc_need_nms = value
             self.m_nninfo_yolo_require_packages = []
-            with open(self.get_real_filepath(def_yolo_requirements)) as f:
+            try:
+                f = open(self.get_real_filepath(def_yolo_requirements)) 
                 while True:
                     line = f.readline()
                     if not line:
                         break
                     self.m_nninfo_yolo_require_packages.append(line.replace("\n", ""))
+                f.close()
+            except IOError as err:
+                print("yolo requirement file not found")
         return 0
 
     ####################################################################
@@ -680,6 +684,7 @@ class CodeGen:
                     self.make_requirements_file_for_others()
             else:
                 print("the inference engine is not support for classification")
+            self.m_last_run_state = 0
             return
 
         # code gen
