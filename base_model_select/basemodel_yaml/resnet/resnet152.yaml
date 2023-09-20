@@ -1,0 +1,6 @@
+# ResNet152 Params
+layers:
+  - 25
+  - 25
+  - 25
+num_classes: 2

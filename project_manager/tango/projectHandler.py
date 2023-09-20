@@ -164,9 +164,9 @@ def get_docker_container_name(container):
 def get_deploy_host_port(deploy_type):
     port = ''
     if deploy_type == 'Cloud' :
-        return "cloud-deploy", "8890"
+        return "cloud-deploy", "8088"
     elif deploy_type == 'K8S' or deploy_type == 'K8S_Jetson_Nano':
-        return "kube-deploy", "8901"
+        return "kube-deploy", "8902"
     else:
         # ondevice 등등.... 
         return "ondevice", "8891"

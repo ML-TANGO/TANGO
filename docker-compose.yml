@@ -201,6 +201,38 @@ services:
       - "8090:8090"
 
   #---------------------------------
+  # AutoNN: ResNet
+  #---------------------------------
+  autonn_resnet:
+    build:
+      context: ./autonn/ResNet
+    shm_size: '256M'
+    ipc: host
+    command: >
+      sh -c "python manage.py makemigrations &&
+             python manage.py migrate &&
+             python manage.py runserver 0.0.0.0:8092"
+    # use the below lines commented out if you want to use gpu
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              capabilities:
+                - gpu
+                - utility
+                - compute
+                - video
+    environment:
+      - NVIDIA_VISIBLE_DEVICES=all
+    volumes:
+      - ./autonn/ResNet:/source
+      - shared:/shared
+    hostname: autonn-resnet
+    ports:
+      - "8092:8092"
+
+  #---------------------------------
   # code_gen Build
   #---------------------------------
   code_gen:
@@ -236,9 +268,9 @@ services:
       - /var/run/docker.sock:/var/run/docker.sock
       - shared:/shared
     ports:
-      - "7007:7007"  # image builder (API)
-      - "8080:8080"  # image builder (GUI)
-      - "8890:8890"  # cloud manager
+      - "7007:7007" # image builder (API)
+      - "8080:8080" # image builder (GUI)
+      - "8890:8890" # cloud manager
 
   #---------------------------------
   # K8S deploy
@@ -249,8 +281,7 @@ services:
       context: ./deploy_targets/k8s
     container_name: "tango_k8s"
     privileged: true
-    command:
-      bash -c "cd /app && python3 k8s_deploy.py"
+    command: bash -c "cd /app && python3 k8s_deploy.py"
     volumes:
       - $HOME/.kube:/home/root/.kube
       - shared:/app/tango
@@ -266,12 +297,12 @@ services:
   #---------------------------------
 
   registry:
-      image: registry
-      container_name: registry
-      volumes:
-        - registry_data:/var/lib/registry/docker/registry/v2
-      ports:
-        - "8903:5000"
+    image: registry
+    container_name: registry
+    volumes:
+      - registry_data:/var/lib/registry/docker/registry/v2
+    ports:
+      - "8903:5000"
 
   #---------------------------------
   # ondevice_deploy Build
@@ -312,6 +343,6 @@ services:
   # Volumes
   #---------------------------------
 volumes:
-  registry_data: { }
+  registry_data: {}
   postgreSQL: # for Proejct Manager
   shared: # shared Directory

@@ -1,0 +1,6 @@
+# ResNet20 Params
+layers:
+  - 3
+  - 3
+  - 3
+num_classes: 2

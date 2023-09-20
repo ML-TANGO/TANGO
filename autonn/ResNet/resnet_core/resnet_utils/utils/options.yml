@@ -1,0 +1,15 @@
+options:
+  batch_size:
+    - 64
+  epochs:
+    - 100
+  dataset:
+    - dataset1
+  net:
+    - resnet
+  optimizer:
+    - SGD
+    - NAG
+  initial_lr:
+    - 0.01
+    - 0.005
