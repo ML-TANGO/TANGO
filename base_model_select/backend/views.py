@@ -135,13 +135,13 @@ def status_request(request):
             return Response("running", status=200, content_type='text/plain')
         else:
             print("tracked bms you want, but not running anymore")
-            if bmsinfo.status == "running":
+            if bmsinfo.status in ["started", "running"]:
                 bmsinfo.status = "failed"
                 bmsinfo.save()
             print(f"bmsinfo.status: {bmsinfo.status}")
             return Response(bmsinfo.status, status=200, content_type='text/plain')
     except:
-        if bmsinfo.status == "running":
+        if bmsinfo.status in ["started", "running"]:
             bmsinfo.status = "failed"
             bmsinfo.save()
         return Response(bimsinfo.status, status=200, content_type='text/plain')
