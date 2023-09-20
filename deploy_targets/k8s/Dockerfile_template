@@ -82,7 +82,7 @@ RUN python3 -m pip install -U pip setuptools && \
 WORKDIR /
 COPY tango/common/{{userid}}/{{projectid}} /data
 WORKDIR  /data
-RUN python3 -m pip install -r nn_model/requirements.txt
+RUN python3 -m pip install -r nn_model/fileset-main/yolov5s/requirements.txt
 
 
 
