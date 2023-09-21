@@ -131,12 +131,12 @@ def status_request(request):
 
     try:
         if PROCESSES[str(nasinfo.process_id)].is_alive():
-            print("found thread running yolo_nas")
+            print("found thread running YoloE")
             nasinfo.status = "running"
             nasinfo.save()
             return Response("running", status=200, content_type='text/plain')
         else:
-            print("tracked yolo_nas process you want, but not running anymore")
+            print("tracked YoloE process you want, but not running anymore")
             if nasinfo.status == "running":
                 nasinfo.status = "failed"
                 nasinfo.save()
@@ -174,7 +174,7 @@ def status_report(userid, project_id, status="success"):
             'Content-Type' : 'text/plain'
         }
         payload = {
-            'container_id' : "yolo_nas",
+            'container_id' : "YoloE",
             'user_id' : userid,
             'project_id' : project_id,
             'status' : status
@@ -207,7 +207,7 @@ def process_yolo(userid, project_id, data_yaml, proj_yaml):
         final_model = run_yolo(proj_path, str(data_yaml), train_mode='search')
         print('process_yolo: train done')
 
-        best_pt_path = Path(proj_path) / 'yolo_nas.pt'
+        best_pt_path = Path(proj_path) / 'YoloE.pt'
         Path(proj_path).mkdir(parents=True, exist_ok=True)
         print(str(best_pt_path))
         shutil.copyfile(final_model, str(best_pt_path))
@@ -269,7 +269,7 @@ def create_nn_info(
             nn_info[str(k)] = nn_yaml[k]
     # nn_info['class_file'] = final_py_list
     nn_info['class_name'] = str("Model(cfg='basemodel.yaml')")
-    nn_info['weight_file']= str("yolo_nas.pt")
+    nn_info['weight_file']= str("YoloE.pt")
     # nn_info['input_tensor_shape'] = [1, 3, 640, 640]
     print(input_shape)
     nn_info['input_tensor_shape'] = [1, 3, input_shape[0], input_shape[1]]

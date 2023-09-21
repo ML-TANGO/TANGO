@@ -5,7 +5,7 @@
 base_dir_autonn: 'yoloe_core/yolov7_utils'
 class_file: ['models/yolo.py', 'basemodel.yaml', 'models/common.py', 'models/experimental.py', 'utils/autoanchor.py', 'utils/datasets.py', 'utils/general.py', 'utils/torch_utils.py', 'utils/loss.py', 'utils/metrics.py', 'utils/plots.py']
 class_name: Model(cfg='basemodel.yaml')
-weight_file: yolo_nas.pt
+weight_file: YoloE.pt
 
 
 # Input

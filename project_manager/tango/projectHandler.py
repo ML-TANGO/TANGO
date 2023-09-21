@@ -128,7 +128,7 @@ def get_docker_log_handler(container, last_logs_timestamp):
 def get_container_info(host_name):
     ports_by_container = {
         'bms' : "8081",
-        'yolo_nas' : "8090",
+        'YoloE' : "8090",
         'codeGen' : "8888",
         'autonn-resnet': "8092",
         'visualization': "8091"
@@ -142,7 +142,7 @@ def get_docker_container_name(container):
         containerName = ''
     elif container == 'bms' :
         containerName = 'bms'
-    elif container == 'yolo_nas' :
+    elif container == 'YoloE' :
         containerName = 'autonn_yoloe'
     elif container == 'labelling' :
         containerName = 'labelling'
@@ -200,7 +200,7 @@ def print_roundtrip(response, *args, **kwargs):
 def get_log_container_name(container):
     if container == 'bms':
         return 'BMS'
-    elif container == 'yolo_nas' or container == 'autonn-resnet':
+    elif container == 'YoloE' or container == 'autonn-resnet':
         return 'Auto NN'
     elif container == 'codeGen' or container == 'code_gen' or container == 'codegen':
         return 'Code Gen'
@@ -213,8 +213,8 @@ def get_log_container_name(container):
 def db_container_name(container):
     if container == 'bms':
         return 'bms'
-    elif container == 'yolo_nas':
-        return 'yolo_nas'
+    elif container == 'YoloE':
+        return 'YoloE'
     elif container == 'visualization':
         return 'visualization'
     elif container == 'autonn-resnet':
@@ -286,7 +286,7 @@ def findIndexByDicList(list, find_column, find_value):
 # def db_container_name(container):
 #     if container == 'bms' or container == 'BMS':
 #         return 'bms'
-#     elif container == 'yolo_nas':
-#         return 'yolo_nas'
+#     elif container == 'YoloE':
+#         return 'YoloE'
 #     elif container == 'codeGen' or container == 'code_gen' or container == 'codegen':
 #         return 'codeGen'

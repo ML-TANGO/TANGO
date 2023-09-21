@@ -193,8 +193,8 @@ shared
 
 # AutoNN
 autonn/neck_nas/neckNAS/ku/runs/
-autonn/yolo_nas/yoloe_core/migrations
-autonn/yolo_nas/runs/
+autonn/YoloE/yoloe_core/migrations
+autonn/YoloE/runs/
 
 # BMS
 base_model_select/backend/migrations
