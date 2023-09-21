@@ -369,8 +369,6 @@ class CodeGen:
         self.m_current_projectid = pid
         self.m_current_file_path = "%s%s%s%s%s%s" % (def_top_folder, "/", uid, "/", pid, "/")
         self.m_current_code_folder = "%s%s" % (self.m_current_file_path, def_code_folder_name)
-        print("aaa")
-        print(pid)
         return 0
 
     ####################################################################
@@ -586,17 +584,17 @@ class CodeGen:
                 self.m_nninfo_postproc_iou_thres = float(value)
             elif key == 'need_nms':
                 self.m_nninfo_postproc_need_nms = value
-            self.m_nninfo_yolo_require_packages = []
-            try:
-                f = open(self.get_real_filepath(def_yolo_requirements)) 
-                while True:
-                    line = f.readline()
-                    if not line:
-                        break
-                    self.m_nninfo_yolo_require_packages.append(line.replace("\n", ""))
-                f.close()
-            except IOError as err:
-                print("yolo requirement file not found")
+        self.m_nninfo_yolo_require_packages = []
+        try:
+            f = open(self.get_real_filepath(def_yolo_requirements)) 
+            while True:
+                line = f.readline()
+                if not line:
+                    break
+                self.m_nninfo_yolo_require_packages.append(line.replace("\n", ""))
+            f.close()
+        except IOError as err:
+            print("yolo requirement file not found")
         return 0
 
     ####################################################################
@@ -626,6 +624,23 @@ class CodeGen:
                 self.m_sysinfo_apt = ['vim', 'python3.9']
                 self.m_sysinfo_papi = ['torch', 'torchvision', 'pandas', 'numpy', 'albumentations']
                 self.m_deploy_entrypoint = self.m_deploy_python_file
+                if not os.path.exists(self.m_current_code_folder):
+                    os.makedirs(self.m_current_code_folder)
+                # copy requirements.txt file
+                req_file  = "%s%s%s" % (self.m_current_code_folder, "/", "requirements.txt")
+                p_len = len(self.m_sysinfo_papi)
+                if p_len >= 0:
+                    try:
+                        rf = open(req_file, "w") 
+                    except IOError as err:
+                        logging.debug("requirements file open error")
+                        return -1
+                    for i in range(p_len):
+                        rf.write(self.m_sysinfo_papi[i])
+                        rf.write("\n")
+                    rf.close()
+
+                # copy pt file
                 # code gen for classificaaion
                 # make nn_model folder
                 if not os.path.exists(self.m_current_code_folder):
