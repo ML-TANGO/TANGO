@@ -245,7 +245,13 @@ def autogen_resnet(userid, project_id):
 
     nn_model_path.mkdir(parents=True, exist_ok=True)
     (nn_model_path / "models").mkdir(parents=True, exist_ok=True)
-    model_file = source_root / "pretrained/kagglecxr_resnet152_normalize.pt"
+    if Path(source_root / "pretrained/kagglecxr_resnet152_normalize.pt").exists():
+        model_file = source_root / "pretrained/kagglecxr_resnet152_normalize.pt"
+    elif Path(project_root / "weights" / "best.pt").exists():
+        model_file = project_root / "weights" / "best.pt"
+    else:
+        model_file = project_root / "weights" / "last.pt"
+
     shutil.copy(model_file, nn_model_path / "resnet.pt")
     shutil.copy(project_root / "basemodel.yaml", nn_model_path / "basemodel.yaml")
     shutil.copy(source_root / "resnet_utils/inference.py", nn_model_path / "inference.py")
