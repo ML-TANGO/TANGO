@@ -2,14 +2,14 @@ import React, { useState } from 'react';
 import "./ModalStyle.css";
 import { EditText} from 'react-edit-text';
 import 'react-edit-text/dist/index.css';
-import Sidebar from "../sidebar";
+import Sidebar from "../sidebar/LayerToggle";
 import axios from 'axios';
 
 
 
 const BatchNorm2d = (props) => {
   const [text, setText] = React.useState(
-    String(props.params).substr(16, 3)
+    String(props.params).substr(16, 10)
   );
 
   const { open, save, close, header } = props;
@@ -32,7 +32,7 @@ const BatchNorm2d = (props) => {
 
 //    console.log(text8, "text7");
 //    console.log(text9, "text7");
-
+    props.setState("");
     save();
   };
 
@@ -43,24 +43,28 @@ const BatchNorm2d = (props) => {
           <header>
             {header}
 
-
-            <button className="close" onClick={() => {
-              setText('512')}
-  } >
-              default
-            </button>
-            <button className="save" onClick={bfsave}>
-              save
-            </button>
-
           </header>
           <main>
           <React.Fragment>
-          <div><label htmlFor="text">num_features:</label>
-          <EditText name="num_features" type="number" style={{width: '50px'}} value={text}
-            onChange={setText} inline/></div>
+          <div>
+              <li>
+                  <label htmlFor="text">num_features:</label>
+                  <EditText name="num_features" type="number" style={{width: '50px'}} value={text}
+                    onChange={setText} inline/>
+              </li>
+              </div>
           </React.Fragment>
           </main>
+            <div className="btnDiv">
+                <button className="close" onClick={() => {
+              setText('512')}
+  } >
+              default
+                </button>
+                <button className="save" onClick={bfsave}>
+                  save
+                </button>
+            </div>
 
         </section>
       ) : null}

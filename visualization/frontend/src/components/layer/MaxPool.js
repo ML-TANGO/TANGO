@@ -3,7 +3,7 @@ import React, { useState } from 'react';
 import "./ModalStyle.css";
 import { EditText} from 'react-edit-text';
 import 'react-edit-text/dist/index.css';
-import Sidebar from "../sidebar";
+import Sidebar from "../sidebar/LayerToggle";
 
 // *** 이거 추가해야 함
 import axios from 'axios';
@@ -111,7 +111,7 @@ const MaxPoolModal = (props) => {
 
 //    console.log(text8, "text7");
 //    console.log(text9, "text7");
-
+props.setState("");
     save();
   };
 
@@ -126,7 +126,62 @@ const MaxPoolModal = (props) => {
               Save
             </button> } */}
 
-            <button className="close" onClick={() => {
+
+            {/* <button className="close" onClick={close}>
+              &times;
+            </button> */}
+          </header>
+          <main>
+          <React.Fragment>
+
+
+
+          <div>
+              <li>
+                  <label htmlFor="text">kernel_size:</label>
+                  <EditText name="kernel_size1" type="number" style={{width: '40px'}} value={text}
+            onChange={setText} inline/>
+                  <label htmlFor="text"> X </label>
+                  <EditText name="kernel_size2" type="number" style={{width: '40px'}} value={text2}
+            onChange={setText2} inline/>
+              </li>
+              <li>
+                  <label htmlFor="text">stride:</label>
+                  <EditText name="stride1" type="number" style={{width: '40px'}} value={text3}
+            onChange={setText3} inline/>
+                  <label htmlFor="text"> X </label>
+                  <EditText name="stride2" type="number" style={{width: '40px'}} value={text4}
+            onChange={setText4} inline/>
+              </li>
+              <li>
+                  <label htmlFor="text">padding:</label>
+                  <EditText name="padding1" type="number" style={{width: '40px'}} value={text5}
+            onChange={setText5} inline/>
+                  <label htmlFor="text"> X </label>
+                  <EditText name="padding2" type="number" style={{width: '40px'}} value={text6}
+            onChange={setText6} inline/>
+              </li>
+              <li>
+                  <label htmlFor="text">dilation:</label>
+                  <EditText name="in_channels" type="number" style={{width: '50px'}} value={text7}
+            onChange={setText7} inline/>
+              </li>
+              <li>
+                  <label htmlFor="text">return_indices:</label>
+                  <label> <input type="radio" name="radio1" value="True" onChange={handleClickRadioButton1} checked={radio1.includes("T")===true ? true : false}/>True </label>
+                  <label> <input type="radio" name="radio1" value="False" onChange={handleClickRadioButton1} checked={radio1.includes("F")===true ? true : false}/>False </label>
+              </li>
+              <li>
+                  <label htmlFor="text">ceil_mode:</label>
+                  <label> <input type="radio" name="radio2" value="True" onChange={handleClickRadioButton2} checked={radio2.includes("T")===true ? true : false}/>True </label>
+                  <label> <input type="radio" name="radio2" value="False" onChange={handleClickRadioButton2} checked={radio2.includes("F")===true ? true : false}/>False </label>
+              </li>
+          </div>
+
+          </React.Fragment>
+          </main>
+            <div className="btnDiv">
+          <button className="close" onClick={() => {
               setText('2')
               setText2('2')
               setText3('2')
@@ -143,55 +198,7 @@ const MaxPoolModal = (props) => {
             <button className="save" onClick={bfsave}>
               save
             </button>
-            {/* <button className="close" onClick={close}>
-              &times;
-            </button> */}
-          </header>
-          <main>
-          <React.Fragment>
-
-
-
-          <div><label htmlFor="text">kernel_size:</label>
-          <EditText name="kernel_size1" type="number" style={{width: '40px'}} value={text}
-            onChange={setText} inline/>
-          <label htmlFor="text"> X </label>
-          <EditText name="kernel_size2" type="number" style={{width: '40px'}} value={text2}
-            onChange={setText2} inline/>
-          </div>
-          <div><label htmlFor="text">stride:</label>
-          <EditText name="stride1" type="number" style={{width: '40px'}} value={text3}
-            onChange={setText3} inline/>
-          <label htmlFor="text"> X </label>
-          <EditText name="stride2" type="number" style={{width: '40px'}} value={text4}
-            onChange={setText4} inline/>
-          </div>
-
-          <div><label htmlFor="text">padding:</label>
-          <EditText name="padding1" type="number" style={{width: '40px'}} value={text5}
-            onChange={setText5} inline/>
-          <label htmlFor="text"> X </label>
-          <EditText name="padding2" type="number" style={{width: '40px'}} value={text6}
-            onChange={setText6} inline/>
-          </div>
-          <div><label htmlFor="text">dilation:</label>
-          <EditText name="in_channels" type="number" style={{width: '50px'}} value={text7}
-            onChange={setText7} inline/></div>
-
-          <div><label htmlFor="text">return_indices:</label>
-          <label> <input type="radio" name="radio1" value="True" onChange={handleClickRadioButton1} checked={radio1.includes("T")===true ? true : false}/>True </label>
-          <label> <input type="radio" name="radio1" value="False" onChange={handleClickRadioButton1} checked={radio1.includes("F")===true ? true : false}/>False </label>
-          </div>
-
-          <div><label htmlFor="text">ceil_mode:</label>
-          <label> <input type="radio" name="radio2" value="True" onChange={handleClickRadioButton2} checked={radio2.includes("T")===true ? true : false}/>True </label>
-          <label> <input type="radio" name="radio2" value="False" onChange={handleClickRadioButton2} checked={radio2.includes("F")===true ? true : false}/>False </label>
-          </div>
-          </React.Fragment>
-          </main>
-          {/* <main>{val}</main> */}
-          {/* <footer>
-          </footer> */}
+                </div>
         </section>
       ) : null}
     </div>

@@ -334,6 +334,7 @@ services:
              python manage.py runserver react 0.0.0.0:8091"
     volumes:
       - ./viz2code:/source
+      - shared:/shared
     ports:
       - "8091:8091"
   #   depends_on:

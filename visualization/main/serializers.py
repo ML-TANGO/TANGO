@@ -10,6 +10,7 @@ from .models import Start
 from .models import Status
 from .models import Running
 from .models import Stop
+from .models import Sort
 
 
 # from .models import Stop
@@ -53,6 +54,16 @@ class ArchitectureSerializer(serializers.ModelSerializer):
         """A dummy docstring."""
         model = Architecture
         fields = ('architecture',)
+
+
+class SortSerializer(serializers.ModelSerializer):
+    # pylint: disable-msg=too-few-public-methods
+    """A dummy docstring."""
+
+    class Meta:  # pylint: disable-msg=too-few-public-methods
+        """A dummy docstring."""
+        model = Sort
+        fields = '__all__'
 
 
 class StartSerializer(serializers.ModelSerializer):

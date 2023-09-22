@@ -3,7 +3,7 @@ import React, { useState } from "react";
 import "./ModalStyle.css";
 import { EditText, EditTextarea } from "react-edit-text";
 import "react-edit-text/dist/index.css";
-import Sidebar from "../sidebar";
+import Sidebar from "../sidebar/LayerToggle";
 import axios from 'axios';
 
 const Softmax = (props) => {
@@ -35,7 +35,7 @@ const Softmax = (props) => {
 
   //    console.log(text8, "text7");
   //    console.log(text9, "text7");
-
+props.setState("");
       save();
     };
 
@@ -49,7 +49,30 @@ const Softmax = (props) => {
               Save
             </button> } */}
 
-            <button
+
+            {/* <button className="close" onClick={close}>
+              &times;
+            </button> */}
+          </header>
+          <main>
+            <React.Fragment>
+              <div>
+                <li>
+                  <label htmlFor="text">dim:</label>
+                  <EditText
+                  name="dim"
+                  type="number"
+                  style={{ width: "40px" }}
+                  value={text}
+                  onChange={setText}
+                  inline
+                />
+                </li>
+              </div>
+            </React.Fragment>
+          </main>
+          <div className="btnDiv">
+          <button
               className="close"
               onClick={() => {
                 setText("0");
@@ -60,28 +83,7 @@ const Softmax = (props) => {
             <button className="save" onClick={bfsave}>
               save
             </button>
-            {/* <button className="close" onClick={close}>
-              &times;
-            </button> */}
-          </header>
-          <main>
-            <React.Fragment>
-              <div>
-                <label htmlFor="text">dim:</label>
-                <EditText
-                  name="dim"
-                  type="number"
-                  style={{ width: "40px" }}
-                  value={text}
-                  onChange={setText}
-                  inline
-                />
-              </div>
-            </React.Fragment>
-          </main>
-          {/* <main>{val}</main> */}
-          {/* <footer>
-          </footer> */}
+            </div>
         </section>
       ) : null}
     </div>

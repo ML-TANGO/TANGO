@@ -71,7 +71,7 @@ const AvgPool2d = (props) => {
   
   //    console.log(text8, "text7");
   //    console.log(text9, "text7");
-  
+        props.setState("");
       save();
     };
 
@@ -84,8 +84,79 @@ const AvgPool2d = (props) => {
             {/* { <button className="save" onClick={close}>
               Save
             </button> } */}
+              {/* <button className="close" onClick={close}>
+              &times;
+            </button> */}
+          </header>
+          <main>
+            <React.Fragment>
+              <div>
+                  <li>
+                        <label htmlFor="text">kernel_size:</label>
+                        <EditText
+                          name="kernel_size1"
+                          type="number"
+                          style={{ width: "40px" }}
+                          value={text}
+                          onChange={setText}
+                          inline
+                        />
+                        <label htmlFor="text"> X </label>
+                        <EditText
+                          name="kernel_size2"
+                          type="number"
+                          style={{ width: "40px" }}
+                          value={text2}
+                          onChange={setText2}
+                          inline
+                        />
+                  </li>
+                  <li>
+                      <label htmlFor="text">stride:</label>
+                        <EditText
+                          name="kernel_size1"
+                          type="number"
+                          style={{ width: "40px" }}
+                          value={text3}
+                          onChange={setText3}
+                          inline
+                        />
+                        <label htmlFor="text"> X </label>
+                        <EditText
+                          name="kernel_size2"
+                          type="number"
+                          style={{ width: "40px" }}
+                          value={text4}
+                          onChange={setText4}
+                          inline
+                         />
+                  </li>
+                  <li>
+                      <label htmlFor="text">padding:</label>
+                        <EditText
+                          name="kernel_size1"
+                          type="number"
+                          style={{ width: "40px" }}
+                          value={text5}
+                          onChange={setText5}
+                          inline
+                        />
+                        <label htmlFor="text"> X </label>
+                        <EditText
+                          name="kernel_size2"
+                          type="number"
+                          style={{ width: "40px" }}
+                          value={text6}
+                          onChange={setText6}
+                          inline
+                        />
+                  </li>
+              </div>
 
-            <button
+            </React.Fragment>
+          </main>
+            <div className="btnDiv">
+                <button
               className="close" onClick={() => {
                 setText("2");
                 setText2("2");
@@ -95,82 +166,12 @@ const AvgPool2d = (props) => {
                 setText6("0");
               }}
             >
-              default
-            </button>
-            <button className="save" onClick={bfsave}>
-              save
-            </button>
-            {/* <button className="close" onClick={close}>
-              &times;
-            </button> */}
-          </header>
-          <main>
-            <React.Fragment>
-              <div>
-                <label htmlFor="text">kernel_size:</label>
-                <EditText
-                  name="kernel_size1"
-                  type="number"
-                  style={{ width: "40px" }}
-                  value={text}
-                  onChange={setText}
-                  inline
-                />
-                <label htmlFor="text"> X </label>
-                <EditText
-                  name="kernel_size2"
-                  type="number"
-                  style={{ width: "40px" }}
-                  value={text2}
-                  onChange={setText2}
-                  inline
-                />
-              </div>
-              <div>
-                <label htmlFor="text">stride:</label>
-                <EditText
-                  name="kernel_size1"
-                  type="number"
-                  style={{ width: "40px" }}
-                  value={text3}
-                  onChange={setText3}
-                  inline
-                />
-                <label htmlFor="text"> X </label>
-                <EditText
-                  name="kernel_size2"
-                  type="number"
-                  style={{ width: "40px" }}
-                  value={text4}
-                  onChange={setText4}
-                  inline
-                />
-              </div>
-              <div>
-                <label htmlFor="text">padding:</label>
-                <EditText
-                  name="kernel_size1"
-                  type="number"
-                  style={{ width: "40px" }}
-                  value={text5}
-                  onChange={setText5}
-                  inline
-                />
-                <label htmlFor="text"> X </label>
-                <EditText
-                  name="kernel_size2"
-                  type="number"
-                  style={{ width: "40px" }}
-                  value={text6}
-                  onChange={setText6}
-                  inline
-                />
-              </div>
-            </React.Fragment>
-          </main>
-          {/* <main>{val}</main> */}
-          {/* <footer>
-          </footer> */}
+                default
+                </button>
+                <button className="save" onClick={bfsave}>
+                save
+                </button>
+            </div>
         </section>
       ) : null}
     </div>

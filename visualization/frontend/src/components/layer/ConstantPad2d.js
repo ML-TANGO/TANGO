@@ -53,7 +53,7 @@ const ConstantPad2d = (props) => {
   
   //    console.log(text8, "text7");
   //    console.log(text9, "text7");
-  
+  props.setState("");
       save();
     };
 
@@ -66,8 +66,37 @@ const ConstantPad2d = (props) => {
             {/* { <button className="save" onClick={close}>
               Save
             </button> } */}
-
-            <button
+          </header>
+          <main>
+            <React.Fragment>
+              <div>
+                  <li>
+                      <label htmlFor="text">padding:</label>
+                        <EditText
+                          name="padding"
+                          type="number"
+                          style={{ width: "40px" }}
+                          value={text}
+                          onChange={setText}
+                          inline
+                        />
+                  </li>
+                  <li>
+                      <label htmlFor="text">value:</label>
+                        <EditText
+                          name="value"
+                          type="text"
+                          style={{ width: "40px" }}
+                          value={text2}
+                          onChange={setText2}
+                          inline
+                        />
+                  </li>
+              </div>
+            </React.Fragment>
+          </main>
+            <div className="btnDiv">
+                <button
               className="close"
               onClick={() => {
                 setText("2");
@@ -79,36 +108,11 @@ const ConstantPad2d = (props) => {
             <button className="save" onClick={bfsave}>
               save
             </button>
+            </div>
+
             {/* <button className="close" onClick={close}>
               &times;
             </button> */}
-          </header>
-          <main>
-            <React.Fragment>
-              <div>
-                <label htmlFor="text">padding:</label>
-                <EditText
-                  name="padding"
-                  type="number"
-                  style={{ width: "40px" }}
-                  value={text}
-                  onChange={setText}
-                  inline
-                />
-              </div>
-              <div>
-                <label htmlFor="text">value:</label>
-                <EditText
-                  name="value"
-                  type="text"
-                  style={{ width: "40px" }}
-                  value={text2}
-                  onChange={setText2}
-                  inline
-                />
-              </div>
-            </React.Fragment>
-          </main>
           {/* <main>{val}</main> */}
           {/* <footer>
             

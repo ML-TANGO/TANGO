@@ -1,80 +1,35 @@
-
-@media screen and (min-width: 250px) {
-.App {
-  font-family: sans-serif;
-  text-align: center;
-}
-body {
-  height: 100%;
-  weight: 100%;
-  background-color: #191c22;
-  color: white;
-  font-size: 12px;
-  padding: 23px 53px 53px 53px
+* {
+    margin: 0;
+    padding: 0;
 }
 
+/*전체화면*/
+/*@media page and (min-width: 250px) {*/
+/*.App {*/
+/*  font-family: sans-serif;*/
+/*  text-align: center;*/
+/*}*/
 
-.react-flow {
-  background: #434854;
-  border-radius: 6px;
-  box-shadow: 2.5px 2.5px 3px 0 rgba(0, 0, 0, 0.51);
-  margin: 0px 0px 0px 15px;
+/*.react-flow {*/
+/*  background: whitesmoke;*/
+/*  border-radius: 6px;*/
+/*  box-shadow: 2.5px 2.5px 3px 0 rgba(0, 0, 0, 0.51);*/
+/*  margin: 0px 0px 0px 15px;*/
 
-
+.FullPage {
+    display: flex;
+    flex-direction: row;
+    width: 100vw;
+    height: 100vh;
+    background-color: whitesmoke;
 }
 
 .dndflow {
-  left: 0;
-  margin-top: 2%;
-
-
-  flex-direction: column;
-  display: flex;
-  height:100%;
-
-}
-
-.dndflow aside {
-
-  flex-direction: column;
-  display: flex;
-  border-radius: 6px;
-  border: solid 0.5px #fff;
-  padding: 10px 20px 10px 20px;
-  font-size: 20px;
-  background:  #191c22;
-  height: 90vh;
-  width: 13%;
-  float: left;
-  margin-bottom: 2%;
-
-  overflow-x:hidden;
-  overflow-y:scroll;
-}
-
-.dndflow aside .description {
-  margin-bottom: 10px;
-
-}
-
-
-
-.dndflow .dndnode {
-  text-align: center;
-  font-size: 12.5px;
-  font-family: Helvetica;
-  color: "#fff";
-  box-shadow: 2.5px 2.5px 3px 0 rgba(0, 0, 0, 0.51);
-  width: 100%;
-  padding: 15px 0px 15px 0px;
-  border: 1px solid #1a192b;
-  background-color: #434854;
-  border-radius: 6px;
-  margin-bottom: 10px;
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  cursor: grab;
+    flex-direction: row-reverse;
+    display: flex;
+    width: 100%;
+    height: 100%;
+    background-color:whitesmoke;
 }
 
 .dndflow .dndnode.input {
@@ -89,78 +44,462 @@ body {
 
 .dndflow .reactflow-wrapper {
   flex-grow: 1;
-  margin-bottom: 2%;
 }
 
+/*image 삭제*/
+/*img{*/
+/*    min-width: 200px;*/
+/*    width: auto;*/
+/*    max-width: 100%;*/
+/*    min-height: 20vh;*/
+/*    height: auto;*/
+/*}*/
 
-  .dndflow {
-    flex-direction: row-reverse;
-  }
+/*tc{*/
+/*    width: 960px;*/
+/*    height: 10px;*/
+/*    padding-top:0px;*/
+/*    margin: 0px 0px 0px 40px;*/
+/*    font-size: 16.5px;*/
+/*    font-weight: normal;*/
+/*    font-stretch: normal;*/
+/*    font-style: normal;*/
+/*    letter-spacing: normal;*/
+/*    text-align: center;*/
+/*    color: #cdcdcd;*/
+/*}*/
 
-
-  .category {
-    font-size: 15.5px;
-    text-align: left;
-    font-weight: bold;
-    margin: 0 8.9px 9.5px;
-  }
-
-
-img{
-    min-width: 200px;
-    width: auto;
-    max-width: 100%;
-    min-height: 20vh;
-    height: auto;
+.reactBtn{
+margin-top: 58%;
+    margin-left: 85%;
+    float: left;
+    width:300px;
 }
 
-tc{
-    width: 960px;
-    height: 10px;
-    padding-top:0px;
-    margin: 0px 0px 0px 40px;
-    font-size: 16.5px;
-    font-weight: normal;
-    font-stretch: normal;
-    font-style: normal;
-    letter-spacing: normal;
+.inspect{
+    background-color: #4F5057;
+    border-radius: 6px;
+    border-color: #434854;
     text-align: center;
-    color: #cdcdcd;
-}
+    box-shadow: 2.5px 2.5px 3px 0 rgba(0, 0, 0, 0.51);
 
-.arrange{
 
-    display: inline-block;
-    margin-top: 2%;
-    margin-left: 70%;
+    /*display: inline-block;*/
+    /*margin-top: 58%;*/
+    /*margin-left: 92%;*/
+    /*margin-bottom:10%;*/
+
 
     float: left;
     color: #fff;
     width: 105px;
-    height: 40px;
-    text-align: center;
-    border-radius: 6px;
-    border-color: #434854;
-    box-shadow: 2.5px 2.5px 3px 0 rgba(0, 0, 0, 0.51);
-    background-color: #434854;
+    height: 35px;
+
 }
 
 .btn_fin{
-    display: inline-block;
-    float: left;
-    margin-top: 2%;
-
-    margin-left: 10px;
-    width: 105px;
-    height: 40px;
-    color: #fff;
-    text-align: center;
-    border-color: #4a80ff;
+    background-color: #4F5057;
     border-radius: 6px;
+    border-color: #434854;
+    text-align: center;
     box-shadow: 2.5px 2.5px 3px 0 rgba(0, 0, 0, 0.51);
-    background-color: #4a80ff;
 
+    /*display: inline-block;*/
+    /*margin-top: 58%;*/
+    /*margin-left: 85%;*/
+    /*margin-bottom:10%;*/
+
+    float: left;
+    color: #fff;
+    width: 105px;
+    height: 35px;
+    z-index: 999;
 }
 
+.categoryConv li div{
+    background-color:#F2E3DC
+}
 
+.categoryPool li div{
+    background-color:#FAF1CB
+}
+
+.categoryPad li div{
+    background-color:#EBCDCF
+}
+
+.categoryActi li div{
+    background-color:#D9E3E8
+}
+
+.categoryNorm li div{
+    background-color:#DEE8E4
+}
+
+.categoryLinear li div{
+    background-color:#F4E7D3
+}
+
+.categoryDrop li div{
+    background-color:#E0D8E4
+}
+
+.categoryLoss li div{
+    background-color:#F2D1CB
+}
+
+.categoryUtil li div{
+    background-color:#FAECAF
+}
+
+.categoryVision li div{
+    background-color:#F0D0AD
+}
+
+.categoryResidual li div{
+    background-color:#EBEBEB
+}
+
+/*.Menu nav{*/
+/*    display: flex;*/
+/*    padding-left: 0.5%;*/
+/*    width: 3%;*/
+/*    background-color: #4e5058;*/
+/*    height:100%;*/
+/*}*/
+
+.Sidebar {
+    display: flex;
+    flex-direction: row;
+    flex-wrap: wrap;
+    height: 100vh;
+    width: 25%;
+}
+
+/* Tab */
+.Sidebar .Tab {
+    display: flex;
+    flex-direction: column;
+    background-color: #4F5057;
+    height: 65%;
+    width: 20%;
+}
+
+/* Tab안의 이미지 */
+.Sidebar .tab_image {
+  width: 65%;
+  margin-left: 15%;
+  margin-top: 40%;
+}
+
+/* 이미지 클릭 시 테두리 */
+.Sidebar .selected .tab_image {
+  margin-left: 5%;
+  margin-top: 40%;
+  background-color: lightgrey;
+  padding: 15%;
+  border-radius: 40% 0 0 40%;
+}
+
+/* Layer Toggle  */
+.Sidebar .LayerToggle {
+    display: flex;
+    flex-direction: column;
+    height: 65%;
+    width: 80%;
+    overflow-y: scroll;
+    background-color: white;
+}
+
+/* Layer Toggle 이름 */
+.LayerToggle .Layer{
+    font-size: 135%;
+    margin-top: 15%;
+    margin-bottom: 5%;
+    margin-left: 8%;
+}
+
+/* Layer Toggle 안의 토글 부분*/
+.LayerToggle details {
+    cursor:pointer;
+    margin-top: 3%;
+    margin-bottom: 3%;
+    margin-left: 8%;
+    font-size: 115%;
+    font-weight: 350;
+}
+
+.LayerToggle details summary::marker {
+    display:none;
+    content:"▶     ";
+}
+
+.LayerToggle details[open] summary::marker {
+    display:none;
+    content:"▽     " ;
+}
+
+.LayerToggle details ul {
+  list-style: none;
+}
+
+.LayerToggle .dndnode {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    cursor: grab;
+    text-align: center;
+    font-size: 90%;
+    font-weight: 400;
+    font-family: Helvetica;
+    width: 60%;
+    border-radius: 10px;
+    margin-top: 3%;
+    margin-bottom: 3%;
+    margin-left: 8%;
+    padding: 5%;
+    box-shadow: 7px 7px 7px 0px rgba(0, 0, 0, 0.2);
+}
+
+.Sidebar .NetworkInformation {
+    display: flex;
+    flex-direction: column;
+    height: 65%;
+    width: 80%;
+    background-color: white;
+}
+
+.NetworkInformation .NetworkInformationDiv {
+    text-align: center;
+    height: 100%;
+    width: 100%;
+}
+
+.NetworkInformation .InfoText {
+    font-size: 135%;
+    margin-top: 15%;
+    margin-bottom: 5%;
+    margin-left: 8%;
+}
+
+.NetworkInformation .YoloText {
+    font-size: 115%;
+    margin-bottom: 5%;
+}
+
+.NetworkInformation .yolo_image {
+    width: 60%;
+    height: 90%;
+}
+
+.Sidebar .AbstractNetwork {
+    display: flex;
+    flex-direction: column;
+    height: 65%;
+    width: 80%;
+}
+
+.AbstractNetwork .AbstractText {
+    font-size: 135%;
+    margin-top: 15%;
+    margin-bottom: 5%;
+    margin-left: 8%;
+}
+
+.AbstractNetwork .GroupText {
+    font-size: 115%;
+    margin-bottom: 2%;
+    width: 100%;
+}
+
+.AbstractNetwork .AbstractBtn {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    width: 30%;
+    height: 30%;
+    margin: 3px;
+    border-radius: 10px;
+    background-color: #787a82;
+    color: #FFFFFF;
+    box-shadow: 0px 4px 4px rgba(0, 0, 0, 0.09);
+}
+
+.AbstractBtn:focus {
+    background-color: #FFFFFF;
+    color: #787a82;
+}
+
+.AbstractNetwork .AutoGroup {
+    display: flex;
+    flex-direction: row;
+    flex-wrap: wrap;
+    align-content: center;
+    justify-content: center;
+    text-align: center;
+    height: 50%;
+    width: 100%;
+}
+
+.AbstractNetwork .CustomGroup {
+    display: flex;
+    flex-direction: row;
+    flex-wrap: wrap;
+    align-content: center;
+    justify-content: center;
+    text-align: center;
+    height: 50%;
+    width: 100%;
+}
+
+.AbstractNetwork .GroupInformation {
+    height: 100%;
+    width: 100%;
+    text-align: center;
+}
+
+.Sidebar .CodeTab {
+    display: flex;
+    flex-direction: column;
+    height: 65%;
+    width: 80%;
+}
+
+.CodeTab .CodeText {
+    font-size: 135%;
+    margin-top: 15%;
+    margin-bottom: 5%;
+    margin-left: 8%;
+}
+
+.CodeTab .Framework {
+    display: flex;
+    flex-direction: row;
+    flex-wrap: wrap;
+    align-content: center;
+    justify-content: center;
+    text-align: center;
+    height: 70%;
+    width: 100%;
+}
+
+.CodeTab .FrameworkText {
+    font-size: 115%;
+    margin-bottom: 2%;
+    width: 100%;
+}
+
+.CodeTab .FrameworkBtn {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    width: 40%;
+    height: 30%;
+    margin: 3%;
+    border-radius: 10px;
+    background-color: #787a82;
+    color: #FFFFFF;
+    box-shadow: 0px 4px 4px rgba(0, 0, 0, 0.09);
+}
+
+.CodeTab .Code {
+    display: flex;
+    flex-direction: row;
+    flex-wrap: wrap;
+    align-content: center;
+    justify-content: center;
+    text-align: center;
+    height: 80%;
+    width: 100%;
+}
+
+.CodeTab .CodeGroupText {
+   font-size: 115%;
+    margin-bottom: 2%;
+    width: 100%;
+}
+
+.LayerInfo{
+    display: flex;
+    align-items: center;
+    flex-direction: column;
+    width: 100%;
+    height: 35%;
+    color:white;
+    text-align:center;
+    background-color: #4F5057;
+}
+
+.LayerInfo h3 {
+    margin-top: 7%;
+    margin-bottom: 7%;
+}
+
+.modal{
+    display: flex;
+    color: #4E5058;
+    width: 90%;
+    height: 70%;
+    border-radius: 3%;
+}
+
+.modal > section{
+    background-color: white;
+    width:90%;
+    max-width:400px;
+    margin:0 auto;
+    border-radius:10px;
+    animation: modal-show 0.3s;
+    overflow: hidden;
+}
+
+.modal > section > header {
+    margin-top: 2%;
+    margin-bottom: 2%;
+    padding-top: 2%;
+    padding-bottom: 2%;
+    width: 100%;
+    font-weight: 600;
+    border-bottom: 1px dashed #4E5058;
+}
+
+.modal >section > main {
+    height: 70%;
+    margin-bottom: 2%;
+    margin-top: 2%;
+    width: 100%;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-items: center;
+    justify-content: center;
+    text-align: left;
+}
+
+.modal button{
+    background-color: #4e5058;
+    color:white;
+    border-radius:8px;
+    width: 50%;
+    height: 20%;
+    outline:none;
+    cursor: pointer;
+    border:0;
+}
+
+.btnDiv {
+    display: flex;
+    flex-direction: row;
+    text-align: center;
+    height: 40%;
+}
+
+.close {
+    margin-right: 17.5%;
+    margin-left: 2.5%;
+}
+
+.save{
+    margin-left: 17.5%;
+    margin-right: 2.5%;
 }

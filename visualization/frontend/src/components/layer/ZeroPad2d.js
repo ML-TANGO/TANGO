@@ -34,7 +34,7 @@ const ZeroPad2d = (props) => {
   
   //    console.log(text8, "text7");
   //    console.log(text9, "text7");
-  
+  props.setState("");
       save();
     };
 
@@ -48,7 +48,30 @@ const ZeroPad2d = (props) => {
               Save
             </button> } */}
 
-            <button
+
+            {/* <button className="close" onClick={close}>
+              &times;
+            </button> */}
+          </header>
+          <main>
+            <React.Fragment>
+              <div>
+                <li>
+                  <label htmlFor="text">padding:</label>
+                <EditText
+                  name="ZeroPad2d"
+                  type="number"
+                  style={{ width: "40px" }}
+                  value={text}
+                  onChange={setText}
+                  inline
+                />
+                </li>
+              </div>
+            </React.Fragment>
+          </main>
+          <div className="btnDiv">
+           <button
               className="close"
               onClick={() => {
                 setText("1");
@@ -59,29 +82,7 @@ const ZeroPad2d = (props) => {
             <button className="save" onClick={bfsave}>
               save
             </button>
-            {/* <button className="close" onClick={close}>
-              &times;
-            </button> */}
-          </header>
-          <main>
-            <React.Fragment>
-              <div>
-                <label htmlFor="text">padding:</label>
-                <EditText
-                  name="ZeroPad2d"
-                  type="number"
-                  style={{ width: "40px" }}
-                  value={text}
-                  onChange={setText}
-                  inline
-                />
-              </div>
-            </React.Fragment>
-          </main>
-          {/* <main>{val}</main> */}
-          {/* <footer>
-            
-          </footer> */}
+            </div>
         </section>
       ) : null}
     </div>
