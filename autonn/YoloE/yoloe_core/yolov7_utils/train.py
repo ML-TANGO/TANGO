@@ -531,7 +531,10 @@ def train(hyp, opt, device, tb_writer=None, target=None):
             wandb_logger.wandb.log_artifact(str(final), type='model',
                                             name='run_' + wandb_logger.wandb_run.id + '_model',
                                             aliases=['last', 'best', 'stripped'])
-        wandb_logger.finish_ruruntimeruntimen()
+        
+        # change code
+        #wandb_logger.finish_ruruntimeruntimen()
+        wandb_logger.finish_run()
     else:
         dist.destroy_process_group()
     torch.cuda.empty_cache()
@@ -567,6 +570,9 @@ def run_yolo(proj_path, dataset_yaml_path, data=None, target=None, train_mode='s
     opt.global_rank = int(os.environ['RANK']) if 'RANK' in os.environ else -1
     set_logging(opt.global_rank)
 
+    # change fixed total batch size
+    opt.total_batch_size = 24
+
     # Resume
     wandb_run = check_wandb_resume(opt)
     if opt.resume and not wandb_run:  # resume an interrupted run
@@ -589,7 +595,9 @@ def run_yolo(proj_path, dataset_yaml_path, data=None, target=None, train_mode='s
     with open(opt.hyp) as f:
         hyp = yaml.load(f, Loader=yaml.SafeLoader)  # load hyps
 
-    opt.batch_size = proj_info['batchsize']
+    # opt.batch_size = proj_info['batchsize']
+    # set fixed batch size
+    opt.batch_size = 24
     device_str = ''
     for i in range(torch.cuda.device_count()):
         device_str = device_str + str(i) + ','
