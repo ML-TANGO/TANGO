@@ -44,7 +44,7 @@ from .nas.supernet.supernet_yolov7 import YOLOSuperNet
 logger = logging.getLogger(__name__)
 
 
-def train(hyp, opt, device, tb_writer=None):
+def train(hyp, opt, device, tb_writer=None, target=None):
     logger.info(colorstr('hyperparameters: ') + ', '.join(f'{k}={v}' for k, v in hyp.items()))
     save_dir, epochs, batch_size, total_batch_size, weights, rank, freeze = \
         Path(opt.save_dir), opt.epochs, opt.batch_size, opt.total_batch_size, opt.weights, opt.global_rank, opt.freeze
@@ -91,7 +91,7 @@ def train(hyp, opt, device, tb_writer=None):
         with torch_distributed_zero_first(rank):
             attempt_download(weights)  # download if not found locally
         ckpt = torch.load(weights, map_location=device)  # load checkpoint
-        if 'nasinfo.target_device' == 'Galaxy S22':
+        if target == 'Galaxy_S22':
             model = YOLOSuperNet(opt.cfg or ckpt['model'].yaml, ch=3, nc=nc, anchors=hyp.get('anchors')).to(device)  # create
         else:
             model = Model(opt.cfg or ckpt['model'].yaml, ch=3, nc=nc, anchors=hyp.get('anchors')).to(device)  # create
@@ -101,7 +101,8 @@ def train(hyp, opt, device, tb_writer=None):
         model.load_state_dict(state_dict, strict=False)  # load
         logger.info('Transferred %g/%g items from %s' % (len(state_dict), len(model.state_dict()), weights))  # report
     else:
-        if 'nasinfo.target_device' == 'Galaxy S22':
+        if target == 'Galaxy_S22':
+            pass
             model = YOLOSuperNet(opt.cfg or ckpt['model'].yaml, ch=3, nc=nc, anchors=hyp.get('anchors')).to(device)  # create
         else:
             model = Model(opt.cfg or ckpt['model'].yaml, ch=3, nc=nc, anchors=hyp.get('anchors')).to(device)  # create
@@ -530,7 +531,7 @@ def train(hyp, opt, device, tb_writer=None):
             wandb_logger.wandb.log_artifact(str(final), type='model',
                                             name='run_' + wandb_logger.wandb_run.id + '_model',
                                             aliases=['last', 'best', 'stripped'])
-        wandb_logger.finish_run()
+        wandb_logger.finish_ruruntimeruntimen()
     else:
         dist.destroy_process_group()
     torch.cuda.empty_cache()
@@ -553,7 +554,11 @@ def run_yolo(proj_path, dataset_yaml_path, data=None, target=None, train_mode='s
     print(proj_info)
 
     opt.data = str(dataset_yaml_path)
-    opt.cfg = str(Path(proj_path) / 'basemodel.yaml')
+    if target == 'Galaxy_S22':
+        # autonn/YoloE/yoloe_core/yolov7_utils/cfg/supernet/yolov7_supernet.yml
+        opt.cfg = str('yolov7_utils/cfg/supernet/yolov7_supernet.yml')
+    else:
+        opt.cfg = str(Path(proj_path) / 'basemodel.yaml')
     opt.hyp = Path(os.path.dirname(__file__)) / 'data' / f"hyp.scratch.{basemodel_yaml['hyp']}.yaml"
     opt.img_size = [basemodel_yaml['imgsz'], basemodel_yaml['imgsz']]
 
@@ -610,7 +615,7 @@ def run_yolo(proj_path, dataset_yaml_path, data=None, target=None, train_mode='s
             prefix = colorstr('tensorboard: ')
             logger.info(f"{prefix}Start with 'tensorboard --logdir {opt.project}', view at http://localhost:6006/")
             tb_writer = SummaryWriter(opt.save_dir)  # Tensorboard
-        results, train_final = train(hyp, opt, device, tb_writer)
+        results, train_final = train(hyp, opt, device, tb_writer, target)
 
     # Evolve hyperparameters (optional)
     else:
@@ -691,7 +696,7 @@ def run_yolo(proj_path, dataset_yaml_path, data=None, target=None, train_mode='s
                 hyp[k] = round(hyp[k], 5)  # significant digits
 
             # Train mutation
-            results, train_final = train(hyp.copy(), opt, device)
+            results, train_final = train(hyp.copy(), opt, device, target=target)
 
             # Write mutation results
             print_mutation(hyp.copy(), results, yaml_file, opt.bucket)

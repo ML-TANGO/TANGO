@@ -1,7 +1,7 @@
 import torch
 import torch.nn as nn
 
-from yolov7_utils.common import Conv, Concat
+from models.common import Conv, Concat
 from nas.supernet.dynamic_layers.dynamic_op import DynamicConv2d, DynamicBatchNorm2d
 
 

@@ -204,7 +204,8 @@ def process_yolo(userid, project_id, data_yaml, proj_yaml):
         with open(Path(proj_path) / 'basemodel.yaml', 'r') as f:
             basemodel_yaml = yaml.safe_load(f)
 
-        final_model = run_yolo(proj_path, str(data_yaml), train_mode='search')
+        target_info = proj_info['target_info']
+        final_model = run_yolo(proj_path, str(data_yaml), target=target_info, train_mode='search')
         print('process_yolo: train done')
 
         best_pt_path = Path(proj_path) / 'YoloE.pt'
