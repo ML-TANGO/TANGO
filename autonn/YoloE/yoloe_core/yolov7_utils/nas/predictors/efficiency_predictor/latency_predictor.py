@@ -10,11 +10,12 @@ import torch.nn.functional as F
 import copy
 
 class LatencyPredictor:
-    def __init__(self, target):
+    def __init__(self, target, device):
         path = os.path.dirname(os.path.realpath(__file__))
         bpred_path = os.path.join(path, "./trained_lat_pred/{}_backbone.pt".format(target))
         hpred_path = os.path.join(path, "./trained_lat_pred/{}_head.pt".format(target))
 
+        self.device = device
         self.b_net = Net(
             nfeat=20,
             hw_embed_on=False,
@@ -34,13 +35,13 @@ class LatencyPredictor:
         self.h_net.eval()
 
     def predict_efficiency(self, arch):
-        b_feat, h_feat = arch_to_feat(arch)
+        b_feat, h_feat = arch_to_feat(arch, self.device)
         latency_b = self.b_net(b_feat)
         latency_h = self.h_net(h_feat)
 
         return latency_b + latency_h
     
-def arch_to_feat(arch):
+def arch_to_feat(arch, device):
     # This function converts a backbone arch_encoding to a feature vector (20-D).
     d_list = copy.deepcopy(arch['d'])
 
@@ -56,7 +57,7 @@ def arch_to_feat(arch):
         tidx = int(d_list[i+4]) - 1
         b_onehot[i*5 + tidx] = 1
 
-    return torch.Tensor(b_onehot).to(device='cuda').float(), torch.Tensor(h_onehot).to(device='cuda').float()
+    return torch.Tensor(b_onehot).to(device).float(), torch.Tensor(h_onehot).to(device).float()
 
 
 class Net(nn.Module):

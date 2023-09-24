@@ -64,11 +64,11 @@ class EvolutionFinder:
         self.arch_manager = ArchManager()
         self.num_blocks = self.arch_manager.num_blocks # [4, 4]
 
-        self.mutate_prob = kwargs.get("mutate_prob", 0.1)
-        self.population_size = kwargs.get("population_size", 5)
-        self.max_time_budget = kwargs.get("max_time_budget", 5)
-        self.parent_ratio = kwargs.get("parent_ratio", 0.25)
-        self.mutation_ratio = kwargs.get("mutation_ratio", 0.5)
+        self.mutate_prob = kwargs.get("mutate_prob", 1.)
+        self.population_size = kwargs.get("population_size", 1)
+        self.max_time_budget = kwargs.get("max_time_budget", 1)
+        self.parent_ratio = kwargs.get("parent_ratio", 1.)
+        self.mutation_ratio = kwargs.get("mutation_ratio", 1.)
         
     def invite_reset_constraint_type(self):
         print(
@@ -165,8 +165,8 @@ class EvolutionFinder:
 
         for _ in trange(population_size, desc="Generate random population..."):
             sample, efficiency = self.random_sample()
-            acc = self.accuracy_predictor.predict_accuracy_once(sample)
-            population.append((acc, sample, efficiency))
+            subnet, acc = self.accuracy_predictor.predict_accuracy_once(sample)
+            population.append((acc, sample, efficiency, subnet))
 
         if verbose:
             print("Start Evolution...")
@@ -207,7 +207,7 @@ class EvolutionFinder:
                 efficiency_pool.append(efficiency)
 
             for i in trange(population_size, desc=f"[{iter+1}|{max_time_budget}] Mutate and Crossover..."):
-                acc = self.accuracy_predictor.predict_accuracy_once(child_pool[i])                
+                _, acc = self.accuracy_predictor.predict_accuracy_once(child_pool[i])                
                 population.append((acc, child_pool[i], efficiency_pool[i]))
 
         return best_valids, best_info

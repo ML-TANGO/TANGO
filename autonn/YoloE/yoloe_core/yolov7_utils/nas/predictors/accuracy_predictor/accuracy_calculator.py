@@ -4,18 +4,21 @@ Accuracy predictor will be added to increase the search efficiency.
 '''
 
 import os
+import sys
 import yaml
 import torch
 import torch.distributed as dist
 from copy import deepcopy
-from finetune import finetune
-from test import test  # import test.py to get mAP for each subnet
 from tqdm import tqdm
 
-from yolov7_utils.datasets import create_dataloader
-from yolov7_utils.general import colorstr, check_img_size
-from yolov7_utils.torch_utils import select_device
-
+sys.path.append(os.path.dirname(os.path.dirname(__file__)))  # to run '$ python *.py' files in subdirectories
+# sys.path.append('.../')  # to run '$ python *.py' files in subdirectories
+from yolov7_utils import test # import test.py to get mAP after each epoch
+from utils.finetune import finetune
+from utils.datasets import create_dataloader
+from utils.general import colorstr, check_img_size
+from utils.torch_utils import select_device
+from models.experimental import attempt_load
 
 class AccuracyCalculator():
     def __init__(
@@ -47,8 +50,9 @@ class AccuracyCalculator():
             opt.batch_size = opt.total_batch_size // opt.world_size
             
         # Hyperparameters
-        with open(opt.hyp) as f:
-            self.hyp = hyp = yaml.load(f, Loader=yaml.SafeLoader)  # load hyps
+        # with open(opt.hyp) as f:
+        #     self.hyp = hyp = yaml.load(f, Loader=yaml.SafeLoader)  # load hyps
+        self.hyp = opt.hyp
             
         # load data yaml
         with open(opt.data, encoding="UTF-8") as f:
@@ -62,7 +66,7 @@ class AccuracyCalculator():
         # prepare test dataset
         test_path = data_dict['val']
         self.testloader = create_dataloader(test_path, imgsz_test, opt.batch_size * 2, gs, opt,  # testloader
-                                       hyp=hyp, cache=opt.cache_images and not opt.notest, rect=True, rank=-1,
+                                       hyp=self.hyp, cache=opt.cache_images and not opt.notest, rect=True, rank=-1,
                                        world_size=opt.world_size, workers=opt.workers,
                                        pad=0.5, prefix=colorstr('val: '))[0]
         
@@ -99,19 +103,19 @@ class AccuracyCalculator():
             self.supernet.set_active_subnet(sample['d'])
             
             # Calculate mAP
-            results, _, _ = test(self.opt.data,
-                                batch_size=self.opt.batch_size * 2,
-                                imgsz=self.imgsz_test,
-                                conf_thres=0.001,
-                                iou_thres=0.7,
-                                model=self.supernet,
-                                single_cls=self.opt.single_cls,
-                                dataloader=self.testloader,
-                                # save_dir=save_dir,
-                                save_json=False,
-                                plots=False,
-                                is_coco=self.is_coco,
-                                v5_metric=self.opt.v5_metric)
+            results, _, _ = test.test(self.opt.data,
+                                      batch_size=self.opt.batch_size * 2,
+                                      imgsz=self.imgsz_test,
+                                      conf_thres=0.001,
+                                      iou_thres=0.7,
+                                      model=self.supernet.half(),   # change
+                                      single_cls=self.opt.single_cls,
+                                      dataloader=self.testloader,
+                                      # save_dir=save_dir,
+                                      save_json=False,
+                                      plots=False,
+                                      is_coco=self.is_coco,
+                                      v5_metric=self.opt.v5_metric)
             
             # mp, mr, map50, map, avg_loss = results
             map= results[3]
@@ -132,22 +136,20 @@ class AccuracyCalculator():
         subnet, finetune_results = self.finetune_subnet(subnet)
         
         # Calculate mAP
-        results, _, _ = test(self.opt.data,
-                            batch_size=self.opt.batch_size * 2,
-                            imgsz=self.imgsz_test,
-                            conf_thres=0.001,
-                            iou_thres=0.7,
-                            model=subnet,
-                            single_cls=self.opt.single_cls,
-                            dataloader=self.testloader,
-                            # save_dir=save_dir,
-                            save_json=False,
-                            plots=False,
-                            is_coco=self.is_coco,
-                            v5_metric=self.opt.v5_metric)
+        # results, _, _ = test.test(self.opt.data,
+        #                           batch_size=self.opt.batch_size * 2,
+        #                           imgsz=self.imgsz_test,
+        #                           conf_thres=0.001,
+        #                           iou_thres=0.7,
+        #                           model=subnet.half(),
+        #                           single_cls=self.opt.single_cls,
+        #                           dataloader=self.testloader,
+        #                           # save_dir=save_dir,
+        #                           save_json=False,
+        #                           plots=False,
+        #                           is_coco=self.is_coco,
+        #                           v5_metric=self.opt.v5_metric)
             
         # mp, mr, map50, map, avg_loss = results
-        map = results[3]
-        return map
-    
-    
+        map = finetune_results[3]
+        return subnet, map

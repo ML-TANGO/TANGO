@@ -40,6 +40,7 @@ from .train_aux import run_yolo_aux
 
 # YOLOv7-NAS
 from .nas.supernet.supernet_yolov7 import YOLOSuperNet
+from .search_yolo import run_search
 
 logger = logging.getLogger(__name__)
 
@@ -562,6 +563,9 @@ def run_yolo(proj_path, dataset_yaml_path, data=None, target=None, train_mode='s
         opt.cfg = str('yolov7_utils/cfg/supernet/yolov7_supernet.yml')
     else:
         opt.cfg = str(Path(proj_path) / 'basemodel.yaml')
+    
+    # change tiny to p5
+    basemodel_yaml['hyp'] = 'p5'
     opt.hyp = Path(os.path.dirname(__file__)) / 'data' / f"hyp.scratch.{basemodel_yaml['hyp']}.yaml"
     opt.img_size = [basemodel_yaml['imgsz'], basemodel_yaml['imgsz']]
 
@@ -606,6 +610,7 @@ def run_yolo(proj_path, dataset_yaml_path, data=None, target=None, train_mode='s
     # DDP mode
     opt.total_batch_size = opt.batch_size
     device = select_device(opt.device, batch_size=opt.batch_size)
+
     if opt.local_rank != -1:
         print(f'[ local rank check ]: opt.local_rank is not -1')
         assert torch.cuda.device_count() > opt.local_rank
@@ -713,5 +718,14 @@ def run_yolo(proj_path, dataset_yaml_path, data=None, target=None, train_mode='s
         plot_evolution(yaml_file)
         print(f'Hyperparameter evolution complete. Best results saved as: {yaml_file}\n'
               f'Command to train a new model with these hyperparameters: $ python train.py --hyp {yaml_file}')
+        
+    # search subnetwork
+    if target == 'Galaxy_S22':
+        train_final = run_search(opt)
 
-    return train_final
+    print('=============================================================================')
+    print('fianl process')
+    print(train_final)
+    print('=============================================================================')
+
+    return train_final  # best.pt
