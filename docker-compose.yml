@@ -198,7 +198,7 @@ services:
       - shared:/shared
       - ./autonn/YoloE/sample_yaml/dataset.yaml:/shared/datasets/coco/dataset.yaml # TEMP FILE UNTIL LABELLING MODULE WORKING
       - ${COCODIR:-./autonn/YoloE/sample_data/coco128}:/shared/datasets/coco # TEMP FILE UNTIL LABELLING MODULE WORKING
-    hostname: yoloe
+    hostname: YoloE
     ports:
       - "8090:8090"
 

@@ -38,10 +38,14 @@ from .utils.torch_utils import ModelEMA, select_device, intersect_dicts, torch_d
 from .utils.wandb_logging.wandb_utils import WandbLogger, check_wandb_resume
 from .train_aux import run_yolo_aux
 
+# YOLOv7-NAS
+from .nas.supernet.supernet_yolov7 import YOLOSuperNet
+from .search_yolo import run_search
+
 logger = logging.getLogger(__name__)
 
 
-def train(hyp, opt, device, tb_writer=None):
+def train(hyp, opt, device, tb_writer=None, target=None):
     logger.info(colorstr('hyperparameters: ') + ', '.join(f'{k}={v}' for k, v in hyp.items()))
     save_dir, epochs, batch_size, total_batch_size, weights, rank, freeze = \
         Path(opt.save_dir), opt.epochs, opt.batch_size, opt.total_batch_size, opt.weights, opt.global_rank, opt.freeze
@@ -88,14 +92,21 @@ def train(hyp, opt, device, tb_writer=None):
         with torch_distributed_zero_first(rank):
             attempt_download(weights)  # download if not found locally
         ckpt = torch.load(weights, map_location=device)  # load checkpoint
-        model = Model(opt.cfg or ckpt['model'].yaml, ch=3, nc=nc, anchors=hyp.get('anchors')).to(device)  # create
+        if target == 'Galaxy_S22':
+            model = YOLOSuperNet(opt.cfg or ckpt['model'].yaml, ch=3, nc=nc, anchors=hyp.get('anchors')).to(device)  # create
+        else:
+            model = Model(opt.cfg or ckpt['model'].yaml, ch=3, nc=nc, anchors=hyp.get('anchors')).to(device)  # create
         exclude = ['anchor'] if (opt.cfg or hyp.get('anchors')) and not opt.resume else []  # exclude keys
         state_dict = ckpt['model'].float().state_dict()  # to FP32
         state_dict = intersect_dicts(state_dict, model.state_dict(), exclude=exclude)  # intersect
         model.load_state_dict(state_dict, strict=False)  # load
         logger.info('Transferred %g/%g items from %s' % (len(state_dict), len(model.state_dict()), weights))  # report
     else:
-        model = Model(opt.cfg, ch=3, nc=nc, anchors=hyp.get('anchors')).to(device)  # create
+        if target == 'Galaxy_S22':
+            pass
+            model = YOLOSuperNet(opt.cfg or ckpt['model'].yaml, ch=3, nc=nc, anchors=hyp.get('anchors')).to(device)  # create
+        else:
+            model = Model(opt.cfg or ckpt['model'].yaml, ch=3, nc=nc, anchors=hyp.get('anchors')).to(device)  # create
     with torch_distributed_zero_first(rank):
         check_dataset(data_dict)  # check
     train_path = data_dict['train']
@@ -521,6 +532,9 @@ def train(hyp, opt, device, tb_writer=None):
             wandb_logger.wandb.log_artifact(str(final), type='model',
                                             name='run_' + wandb_logger.wandb_run.id + '_model',
                                             aliases=['last', 'best', 'stripped'])
+        
+        # change code
+        #wandb_logger.finish_ruruntimeruntimen()
         wandb_logger.finish_run()
     else:
         dist.destroy_process_group()
@@ -544,7 +558,14 @@ def run_yolo(proj_path, dataset_yaml_path, data=None, target=None, train_mode='s
     print(proj_info)
 
     opt.data = str(dataset_yaml_path)
-    opt.cfg = str(Path(proj_path) / 'basemodel.yaml')
+    if target == 'Galaxy_S22':
+        # autonn/YoloE/yoloe_core/yolov7_utils/cfg/supernet/yolov7_supernet.yml
+        opt.cfg = str('yolov7_utils/cfg/supernet/yolov7_supernet.yml')
+    else:
+        opt.cfg = str(Path(proj_path) / 'basemodel.yaml')
+    
+    # change tiny to p5
+    basemodel_yaml['hyp'] = 'p5'
     opt.hyp = Path(os.path.dirname(__file__)) / 'data' / f"hyp.scratch.{basemodel_yaml['hyp']}.yaml"
     opt.img_size = [basemodel_yaml['imgsz'], basemodel_yaml['imgsz']]
 
@@ -552,6 +573,9 @@ def run_yolo(proj_path, dataset_yaml_path, data=None, target=None, train_mode='s
     opt.world_size = int(os.environ['WORLD_SIZE']) if 'WORLD_SIZE' in os.environ else 1
     opt.global_rank = int(os.environ['RANK']) if 'RANK' in os.environ else -1
     set_logging(opt.global_rank)
+
+    # change fixed total batch size
+    opt.total_batch_size = 24
 
     # Resume
     wandb_run = check_wandb_resume(opt)
@@ -575,7 +599,9 @@ def run_yolo(proj_path, dataset_yaml_path, data=None, target=None, train_mode='s
     with open(opt.hyp) as f:
         hyp = yaml.load(f, Loader=yaml.SafeLoader)  # load hyps
 
-    opt.batch_size = proj_info['batchsize']
+    # opt.batch_size = proj_info['batchsize']
+    # set fixed batch size
+    opt.batch_size = 24
     device_str = ''
     for i in range(torch.cuda.device_count()):
         device_str = device_str + str(i) + ','
@@ -584,6 +610,7 @@ def run_yolo(proj_path, dataset_yaml_path, data=None, target=None, train_mode='s
     # DDP mode
     opt.total_batch_size = opt.batch_size
     device = select_device(opt.device, batch_size=opt.batch_size)
+
     if opt.local_rank != -1:
         print(f'[ local rank check ]: opt.local_rank is not -1')
         assert torch.cuda.device_count() > opt.local_rank
@@ -601,7 +628,7 @@ def run_yolo(proj_path, dataset_yaml_path, data=None, target=None, train_mode='s
             prefix = colorstr('tensorboard: ')
             logger.info(f"{prefix}Start with 'tensorboard --logdir {opt.project}', view at http://localhost:6006/")
             tb_writer = SummaryWriter(opt.save_dir)  # Tensorboard
-        results, train_final = train(hyp, opt, device, tb_writer)
+        results, train_final = train(hyp, opt, device, tb_writer, target)
 
     # Evolve hyperparameters (optional)
     else:
@@ -682,7 +709,7 @@ def run_yolo(proj_path, dataset_yaml_path, data=None, target=None, train_mode='s
                 hyp[k] = round(hyp[k], 5)  # significant digits
 
             # Train mutation
-            results, train_final = train(hyp.copy(), opt, device)
+            results, train_final = train(hyp.copy(), opt, device, target=target)
 
             # Write mutation results
             print_mutation(hyp.copy(), results, yaml_file, opt.bucket)
@@ -691,5 +718,14 @@ def run_yolo(proj_path, dataset_yaml_path, data=None, target=None, train_mode='s
         plot_evolution(yaml_file)
         print(f'Hyperparameter evolution complete. Best results saved as: {yaml_file}\n'
               f'Command to train a new model with these hyperparameters: $ python train.py --hyp {yaml_file}')
+        
+    # search subnetwork
+    if target == 'Galaxy_S22':
+        train_final = run_search(opt)
 
-    return train_final
+    print('=============================================================================')
+    print('fianl process')
+    print(train_final)
+    print('=============================================================================')
+
+    return train_final  # best.pt

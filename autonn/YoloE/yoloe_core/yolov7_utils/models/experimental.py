@@ -5,9 +5,12 @@ import torch.nn as nn
 
 import os
 import sys
+import pickle   # add
+
 sys.path.append(os.path.dirname(os.path.dirname(__file__)))  # to run '$ python *.py' files in subdirectories
-from .common import Conv, DWConv
-from utils.google_utils import attempt_download
+from models.common import Conv, DWConv
+sys.path.append(os.path.dirname(os.path.dirname(__file__)) + '/utils')
+from google_utils import attempt_download
 
 
 class CrossConv(nn.Module):
@@ -242,9 +245,6 @@ class End2End(nn.Module):
         x = self.model(x)
         x = self.end2end(x)
         return x
-
-
-
 
 
 def attempt_load(weights, map_location=None):
