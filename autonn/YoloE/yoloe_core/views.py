@@ -14,6 +14,7 @@ from rest_framework.decorators import api_view
 from pathlib import Path
 from distutils.dir_util import copy_tree
 import argparse
+from onedrivedownloader import download
 
 from .yolov7_utils.train import run_yolo
 from . import models
@@ -195,7 +196,7 @@ def status_report(userid, project_id, status="success"):
 
 def process_yolo(userid, project_id, data_yaml, proj_yaml):
     try:
-        common_root = Path('/shared/common/')
+        common_root = Path('/shared/common')
         proj_path = os.path.dirname(proj_yaml)
 
         with open(proj_yaml, 'r') as f:
@@ -205,6 +206,12 @@ def process_yolo(userid, project_id, data_yaml, proj_yaml):
             basemodel_yaml = yaml.safe_load(f)
 
         target_info = proj_info['target_info']
+        if target_info == 'Galaxy_S22':
+            print(str(common_root / 'yolov7_supernet.pt'))
+            download(url='https://livecauac-my.sharepoint.com/:u:/g/personal/costor_cau_ac_kr/EWqGqKUTPa1FoOioMLZRvtkBR06-nbFiCWLvF5fHnVDu-w?e=hI88Gb',
+                     filename=str(common_root / 'yolov7_supernet.pt'))
+
+
         final_model = run_yolo(proj_path, str(data_yaml), target=target_info, train_mode='search')
         print('process_yolo: train done')
 

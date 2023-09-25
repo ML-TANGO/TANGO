@@ -36,8 +36,7 @@ def run_search(opt):
     efficiency_predictor = LatencyPredictor(target="galaxy10", device=device)
 
     # Create model
-    # /shared/models/yolov7_supernet.pt
-    opt.weights = str(Path('/shared/models') / opt.weights)
+    opt.weights = str(Path('/shared/common') / opt.weights)
     supernet = attempt_load(opt.weights, map_location=device)
 
     # opt parameters for fintuning
