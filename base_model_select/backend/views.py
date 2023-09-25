@@ -213,6 +213,14 @@ def create_basemodel_yaml(yaml_path, userid, project_id):
     source_path = f'basemodel_yaml/{model}/{model}{model_size}.yaml'
     target_path = f'/shared/common/{userid}/{project_id}/basemodel.yaml'
     shutil.copy(source_path, target_path)
+    
+    if task == 'classification':
+        source_path = f'basemodel_yaml/{model}/resnet50.json'
+        target_path = f'/shared/common/{userid}/{project_id}/basemodel.json'
+        shutil.copy(source_path, target_path)
+        print('[ BMS ] JSON file is also created in addition to yaml file.')
+    else:
+        print('[ BMS ] The type of task is not classification. JSON file will not be created.')
 
     return target_path
 
