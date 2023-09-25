@@ -144,7 +144,7 @@ def status_request(request):
         if bmsinfo.status in ["started", "running"]:
             bmsinfo.status = "failed"
             bmsinfo.save()
-        return Response(bimsinfo.status, status=200, content_type='text/plain')
+        return Response(bmsinfo.status, status=200, content_type='text/plain')
 
 
 def status_report(userid, project_id, status="success"):
@@ -178,26 +178,26 @@ def bms_process(yaml_path, userid, project_id):
 
     basemodel_yaml = create_basemodel_yaml(yaml_path, userid, project_id)
 
-    if proj_info_dict['task_type'] == 'detection':
-        with open(basemodel_yaml, 'r') as f:
-            basemodel_dict = yaml.load(f, Loader=yaml.FullLoader)
-        batch_size = run_batch_test(basemodel_yaml, f"hyperparam_yaml/yolov7/hyp.scratch.{basemodel_dict['hyp']}.yaml", basemodel_dict['imgsz'])
+    with open(basemodel_yaml, 'r') as f:
+        basemodel_dict = yaml.load(f, Loader=yaml.FullLoader)
+    batch_size = run_batch_test(basemodel_yaml, 
+                                proj_info_dict['task_type'],
+                                basemodel_dict['imgsz'] if proj_info_dict['task_type']=='detction' else 256, 
+                                f"hyperparam_yaml/yolov7/hyp.scratch.{basemodel_dict['hyp']}.yaml" if proj_info_dict['task_type']=='detection' else None, 
+                                )
 
-        if batch_size == False:
-            bmsinfo = models.Info.objects.get(userid=userid, project_id=project_id)
-            bmsinfo.status = "failed"
-            bmsinfo.save()
-            print(f'[ BMS ] Memory resource is not enough for training. Please shrink Model Size')
-        else:
-            with open(yaml_path, 'r') as f:
-                project_info_dict = yaml.load(f, Loader=yaml.FullLoader)
-            project_info_dict['batchsize'] = batch_size
-            with open(yaml_path, 'w') as f:
-                yaml.dump(project_info_dict, f, default_flow_style=False)
+    if batch_size == False:
+        bmsinfo = models.Info.objects.get(userid=userid, project_id=project_id)
+        bmsinfo.status = "failed"
+        bmsinfo.save()
+        print(f'[ BMS ] Memory resource is not enough for training. Please shrink Model Size')
+    else:
+        with open(yaml_path, 'r') as f:
+            project_info_dict = yaml.load(f, Loader=yaml.FullLoader)
+        project_info_dict['batchsize'] = batch_size
+        with open(yaml_path, 'w') as f:
+            yaml.dump(project_info_dict, f, default_flow_style=False)
 
-            status_report(userid, project_id, status="success")
-
-    elif proj_info_dict['task_type'] == 'classification':
         status_report(userid, project_id, status="success")
 
 
