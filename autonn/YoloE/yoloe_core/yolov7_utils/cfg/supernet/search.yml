@@ -1,5 +1,5 @@
 # hyp params for evolution search
-pop_size: 2
+pop_size: 1
 num_generations: 500
 parent_ratio: 1.
 mutate_prob: 0.1

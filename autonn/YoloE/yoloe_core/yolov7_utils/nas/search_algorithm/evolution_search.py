@@ -65,8 +65,8 @@ class EvolutionFinder:
         self.num_blocks = self.arch_manager.num_blocks # [4, 4]
 
         self.mutate_prob = kwargs.get("mutate_prob", 0.1)
-        self.population_size = kwargs.get("population_size", 2)
-        self.max_time_budget = kwargs.get("max_time_budget", 2)
+        self.population_size = kwargs.get("population_size", 1)
+        self.max_time_budget = kwargs.get("max_time_budget", 1)
         self.parent_ratio = kwargs.get("parent_ratio", 1.)
         self.mutation_ratio = kwargs.get("mutation_ratio", 0.5)
         
