@@ -29,4 +29,3 @@ typing_extensions==4.1.1
 urllib3==1.26.7
 pyyaml==6.0
 protobuf==3.20.1
-onedrivedownloader==1.1.3
