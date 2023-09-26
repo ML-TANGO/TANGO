@@ -2,6 +2,8 @@
 """Django's command-line utility for administrative tasks."""
 import os
 import sys
+import inspect
+sys.path.append(os.path.dirname(__file__))
 
 
 def main():

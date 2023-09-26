@@ -2,22 +2,29 @@
 import torch
 import gc
 import yaml
+import os
 
 from copy import deepcopy
+from pathlib import Path
 
-from .yolo.yolo import Model as yolo_model
+from .yolo.models.yolo import Model as yolo_model
+from .yolo.nas.supernet.supernet_yolov7 import YOLOSuperNet
 from .resnet.resnet_cifar10 import ResNet as resnet_model
 from .resnet.resnet_cifar10 import BasicBlock
 
 
-def run_batch_test(basemodel_yaml, task, imgsz, hyp_yaml=None):
+def run_batch_test(basemodel_yaml, task, imgsz, hyp_yaml=None, nas=None):
     prefix = '[ AutoBatch ]'
-
     if task=='detection':
         with open(hyp_yaml, 'r') as f:
             hyp = yaml.load(f, Loader=yaml.SafeLoader)  # load hyps
-        model = yolo_model(basemodel_yaml, ch=3, nc=80, anchors=hyp.get('anchors'))
-        print(f'{prefix} Yolo is used for AutoBatch ({task})')
+        if nas:
+            model = YOLOSuperNet(str(Path(os.path.dirname(__file__))/'yolo'/'nas'/'supernet'/'yolov7_supernet.yml'), ch=3, nc=80, anchors=hyp.get('anchors'))
+            model.set_max_net()
+            print(f'{prefix} YOLOSuperNet is used for AutoBatch.')
+        else:
+            model = yolo_model(basemodel_yaml, ch=3, nc=80, anchors=hyp.get('anchors'))
+            print(f'YOLO is used for AutoBatch.')
 
     elif task=='classification':
         with open(basemodel_yaml, 'r') as f:
@@ -25,7 +32,7 @@ def run_batch_test(basemodel_yaml, task, imgsz, hyp_yaml=None):
         model = resnet_model(BasicBlock, 
                              basemodel_dict.get('layers', [3,3,3]), 
                              basemodel_dict.get('num_classes', 2))
-        print(f'{prefix} ResNet is used for AutoBatch ({task})')
+        print(f'{prefix} {task} model is used for AutoBatch.')
 
     else:
         print(f'{prefix} task is unknown ({task})')
