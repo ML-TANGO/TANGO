@@ -20,7 +20,6 @@ def main():
         if sys.argv[2] == 'react':
             project_root = os.getcwd()
             os.chdir(os.path.join(project_root, "frontend"))
-            os.system("npm run build")
             os.chdir(project_root)
             sys.argv.pop(2)
     except IndexError:
@@ -30,5 +29,4 @@ def main():
 
 
 if __name__ == '__main__':
-    copyfile('/shared/resnet50.json', '/visualization/frontend/src/resnet50.json')
     main()

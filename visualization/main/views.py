@@ -11,6 +11,7 @@ import requests
 from django.core import serializers
 import json
 from collections import OrderedDict
+from shutil import copyfile
 
 from rest_framework.decorators import api_view
 from rest_framework import viewsets
@@ -94,7 +95,7 @@ def pthlist(request):
 
         edges = Edge.objects.all()
         nodes = Node.objects.all()
-	
+
         #name = random_char(8)
         name = 'resnet50'
 
@@ -149,9 +150,7 @@ def pthlist(request):
             print(json.dumps(json_data, ensure_ascii=False, indent="\t"))
 
 
-            json_path = ('/shared/' + name + '.json').replace("\\", '/')
-            with open(json_path, 'w', encoding="utf-8") as make_file:
-                json.dump(json_data, make_file, ensure_ascii=False, indent='\t')
+
 
 
             if serializer.is_valid():
@@ -163,6 +162,10 @@ def pthlist(request):
                 get_status = Status.objects.all()
                 user_id = get_status[len(get_status)-1].user_id
                 project_id = get_status[len(get_status)-1].project_id
+
+                json_path = ('/shared/common/'+str(user_id)+'/'+str(project_id)+'/basemodel.json').replace("\\", '/')
+                with open(json_path, 'w', encoding="utf-8") as make_file:
+                    json.dump(json_data, make_file, ensure_ascii=False, indent='\t')
 
                 url = 'http://projectmanager:8085/status_report'
                 #url = 'http://' + host_ip + ':8091/status_report'
@@ -287,6 +290,12 @@ def startList(request):
                                                'project_id': project_id})
             if serializer.is_valid():
                 serializer.save()
+                copyfile('/shared/common/'+str(user_id)+'/'+str(project_id)+'/basemodel.json', '/visualization/frontend/src/resnet50.json')
+                #copyfile('./frontend/src/VGG16.json', './frontend/src/resnet50.json')
+                print('start api GET')
+                os.system("cd frontend && npm run build")
+
+
             else:
                 sleep(3)
                 host_ip = str(request.get_host())[:-5]
@@ -362,32 +371,36 @@ def statusList(request):
                                     ':8091/api/running/', verify=False)
 
             time = get_time.text[-16:-3]
-            print('time', time)
+
 
             # 현재 시점의 timestamp와 비교하기
             saved_time = datetime.fromtimestamp(int(time)/1000)
             now = datetime.now()
             diff = now - saved_time
             diff_sec = diff.seconds
-            print("diff_sec: ", diff_sec)
+            #print("diff_sec: ", diff_sec)
 
             if diff_sec > 5:  # 1분 이상이면
                 #started를 running으로 변경
                 if serializer.is_valid():
                     serializer.save()
+                    print('status request api GET (running)')
                     return HttpResponse('running',
                                         content_type="text/plain")
                 else:
                     print(serializer.errors)
+                    print('status request api GET (ready)')
                     return HttpResponse('ready',
                                         content_type="text/plain")
 
             else:
+                print('status request api GET (started)')
                 return HttpResponse('started',
                                     content_type="text/plain")
 
         # pylint: disable=broad-except
-        except Exception:
+        except Exception as e:
+            print('status request api GET (failed). error: ', e)
             return HttpResponse('failed',
                                 content_type="text/plain")
     else:
@@ -653,4 +666,3 @@ def random_char(number):
     '''
     characters = string.ascii_letters + string.digits
     return ''.join(random.choice(characters) for x in range(number))
-
