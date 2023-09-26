@@ -171,7 +171,7 @@ def status_report(userid, project_id, status="success"):
         print("An error occurs when BMS reports a project status")
         print(e)
 
-
+   
 def bms_process(yaml_path, userid, project_id):
     with open(yaml_path, 'r') as f:
         proj_info_dict = yaml.load(f, Loader=yaml.FullLoader)
