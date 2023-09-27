@@ -1,10 +1,10 @@
+## libraries in  yolov7 
 import argparse
 import logging
 import sys
 from copy import deepcopy
 
-import os
-sys.path.append(os.path.dirname(os.path.dirname(__file__)))  # to run '$ python *.py' files in subdirectories
+sys.path.append('.../')  # to run '$ python *.py' files in subdirectories
 logger = logging.getLogger(__name__)
 import torch
 from models.common import *
@@ -19,6 +19,23 @@ try:
     import thop  # for FLOPS computation
 except ImportError:
     thop = None
+
+## libraries in  ofa
+import copy
+import torch.nn as nn
+
+from ofa_utils.layers import (
+    set_layer_from_config,
+    MBConvLayer,
+    ConvLayer,
+    IdentityLayer,
+    LinearLayer,
+    ResidualBlock,
+)
+from ofa_utils import MyNetwork, make_divisible, MyGlobalAvgPool2d
+
+## search_block.py
+from .search_block import BBoneELAN, HeadELAN, DyConv, TinyELAN, TinyDyConv
 
 
 class Detect(nn.Module):
@@ -506,9 +523,9 @@ class IBin(nn.Module):
         return torch.stack((xv, yv), 2).view((1, 1, ny, nx, 2)).float()
 
 
-class Model(nn.Module):
+class YOLOModel(nn.Module):
     def __init__(self, cfg='yolor-csp-c.yaml', ch=3, nc=None, anchors=None):  # model, input channels, number of classes
-        super(Model, self).__init__()
+        super(YOLOModel, self).__init__()
         self.traced = False
         if isinstance(cfg, dict):
             self.yaml = cfg  # model dict
@@ -750,7 +767,7 @@ def parse_model(d, ch):  # model_dict, input_channels(3)
                 pass
 
         n = max(round(n * gd), 1) if n > 1 else n  # depth gain
-        if m in [nn.Conv2d, Conv, RobustConv, RobustConv2, DWConv, GhostConv, RepConv, RepConv_OREPA, DownC, 
+        if m in [nn.Conv2d, Conv, DyConv, RobustConv, RobustConv2, DWConv, GhostConv, RepConv, RepConv_OREPA, DownC, 
                  SPP, SPPF, SPPCSPC, GhostSPPCSPC, MixConv2d, Focus, Stem, GhostStem, CrossConv, 
                  Bottleneck, BottleneckCSPA, BottleneckCSPB, BottleneckCSPC, 
                  RepBottleneck, RepBottleneckCSPA, RepBottleneckCSPB, RepBottleneckCSPC,  
@@ -778,6 +795,20 @@ def parse_model(d, ch):  # model_dict, input_channels(3)
                      ST2CSPA, ST2CSPB, ST2CSPC]:
                 args.insert(2, n)  # number of repeats
                 n = 1
+        elif m is BBoneELAN:
+            c1, c2 = ch[f], int(args[0]*(args[-1]+1))
+            args = [c1, *args]
+        elif m is HeadELAN:
+            c1, c2 = ch[f], int((args[0]*2) + (args[0]/2 * (args[-1]-1)))
+            args = [c1, *args]
+        elif m is TinyELAN: # TinyELAN
+            c1, c2 = ch[f], args[0]
+            args = [c1, c2, *args[1:]]
+        elif m is TinyDyConv:
+            c1, c2 = args[0], int(args[0]//2)
+            if c2 != no:  # if not output
+                c2 = make_divisible(c2 * gw, 8)
+            args = [c1, c2, *args[1:]]
         elif m is nn.BatchNorm2d:
             args = [ch[f]]
         elif m is Concat:
@@ -816,8 +847,8 @@ def parse_model(d, ch):  # model_dict, input_channels(3)
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
-    parser.add_argument('--cfg', type=str, default='yolor-csp-c.yaml', help='model.yaml')
-    parser.add_argument('--device', default='', help='cuda device, i.e. 0 or 0,1,2,3 or cpu')
+    parser.add_argument('--cfg', type=str, default='./yaml/yolov7_elan_test.yml', help='model.yaml')
+    parser.add_argument('--device', default='cpu', help='cuda device, i.e. 0 or 0,1,2,3 or cpu')
     parser.add_argument('--profile', action='store_true', help='profile model speed')
     opt = parser.parse_args()
     opt.cfg = check_file(opt.cfg)  # check file
@@ -825,7 +856,7 @@ if __name__ == '__main__':
     device = select_device(opt.device)
 
     # Create model
-    model = Model(opt.cfg).to(device)
+    model = YOLOModel(opt.cfg).to(device)
     model.train()
     
     if opt.profile:

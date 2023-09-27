@@ -135,16 +135,16 @@ def status_request(request):
             return Response("running", status=200, content_type='text/plain')
         else:
             print("tracked bms you want, but not running anymore")
-            if bmsinfo.status == "running":
+            if bmsinfo.status in ["started", "running"]:
                 bmsinfo.status = "failed"
                 bmsinfo.save()
             print(f"bmsinfo.status: {bmsinfo.status}")
             return Response(bmsinfo.status, status=200, content_type='text/plain')
     except:
-        if bmsinfo.status == "running":
+        if bmsinfo.status in ["started", "running"]:
             bmsinfo.status = "failed"
             bmsinfo.save()
-        return Response(bimsinfo.status, status=200, content_type='text/plain')
+        return Response(bmsinfo.status, status=200, content_type='text/plain')
 
 
 def status_report(userid, project_id, status="success"):
@@ -171,33 +171,34 @@ def status_report(userid, project_id, status="success"):
         print("An error occurs when BMS reports a project status")
         print(e)
 
-
+   
 def bms_process(yaml_path, userid, project_id):
     with open(yaml_path, 'r') as f:
         proj_info_dict = yaml.load(f, Loader=yaml.FullLoader)
 
     basemodel_yaml = create_basemodel_yaml(yaml_path, userid, project_id)
 
-    if proj_info_dict['task_type'] == 'detection':
-        with open(basemodel_yaml, 'r') as f:
-            basemodel_dict = yaml.load(f, Loader=yaml.FullLoader)
-        batch_size = run_batch_test(basemodel_yaml, f"hyperparam_yaml/yolov7/hyp.scratch.{basemodel_dict['hyp']}.yaml", basemodel_dict['imgsz'])
+    with open(basemodel_yaml, 'r') as f:
+        basemodel_dict = yaml.load(f, Loader=yaml.FullLoader)
+    batch_size = run_batch_test(basemodel_yaml, 
+                                proj_info_dict['task_type'],
+                                basemodel_dict['imgsz'] if proj_info_dict['task_type']=='detction' else 256, 
+                                f"hyperparam_yaml/yolov7/hyp.scratch.{basemodel_dict['hyp']}.yaml" if proj_info_dict['task_type']=='detection' else None, 
+                                True if proj_info_dict['target_info']=='Galaxy_S22' else False,
+                                )
 
-        if batch_size == False:
-            bmsinfo = models.Info.objects.get(userid=userid, project_id=project_id)
-            bmsinfo.status = "failed"
-            bmsinfo.save()
-            print(f'[ BMS ] Memory resource is not enough for training. Please shrink Model Size')
-        else:
-            with open(yaml_path, 'r') as f:
-                project_info_dict = yaml.load(f, Loader=yaml.FullLoader)
-            project_info_dict['batchsize'] = batch_size
-            with open(yaml_path, 'w') as f:
-                yaml.dump(project_info_dict, f, default_flow_style=False)
+    if batch_size == False:
+        bmsinfo = models.Info.objects.get(userid=userid, project_id=project_id)
+        bmsinfo.status = "failed"
+        bmsinfo.save()
+        print(f'[ BMS ] Memory resource is not enough for training. Please shrink Model Size')
+    else:
+        with open(yaml_path, 'r') as f:
+            project_info_dict = yaml.load(f, Loader=yaml.FullLoader)
+        project_info_dict['batchsize'] = batch_size
+        with open(yaml_path, 'w') as f:
+            yaml.dump(project_info_dict, f, default_flow_style=False)
 
-            status_report(userid, project_id, status="success")
-
-    elif proj_info_dict['task_type'] == 'classification':
         status_report(userid, project_id, status="success")
 
 
@@ -213,6 +214,14 @@ def create_basemodel_yaml(yaml_path, userid, project_id):
     source_path = f'basemodel_yaml/{model}/{model}{model_size}.yaml'
     target_path = f'/shared/common/{userid}/{project_id}/basemodel.yaml'
     shutil.copy(source_path, target_path)
+    
+    if task == 'classification':
+        source_path = f'basemodel_yaml/{model}/resnet50.json'
+        target_path = f'/shared/common/{userid}/{project_id}/basemodel.json'
+        shutil.copy(source_path, target_path)
+        print('[ BMS ] JSON file is also created in addition to yaml file.')
+    else:
+        print('[ BMS ] The type of task is not classification. JSON file will not be created.')
 
     return target_path
 
