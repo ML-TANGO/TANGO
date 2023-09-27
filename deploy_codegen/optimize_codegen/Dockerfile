@@ -8,7 +8,6 @@ RUN apt-get install -y build-essential cmake git libprotoc-dev protobuf-compiler
 RUN git init
 RUN git update-ref -d HEAD
 RUN pip3 install "pybind11[golbal]"
-RUN pip3 install "pybind11[golbal]"
 RUN pip3 install onnx
 RUN pip3 install onnx-simplifier
 RUN pip3 install tvm
