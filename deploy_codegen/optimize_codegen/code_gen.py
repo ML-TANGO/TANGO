@@ -13,7 +13,6 @@ nms code gen.
 deployment.yaml location change : under nn_model
 deployment.yaml user editing -> user can be add papy app libs 
 tflite code gen.
-remove rknn
 input source mp4 + jpg in same folder
 '''
 
@@ -23,8 +22,8 @@ import shutil
 import zipfile
 import numpy as np
 import onnx
-# for test import tvm
-# for test import tvm.relay as relay
+import tvm
+import tvm.relay as relay
 import sys
 import logging
 import threading
@@ -50,11 +49,6 @@ logging.basicConfig(level=logging.DEBUG, format="(%(threadName)s) %(message)s")
 def_top_folder = "/tango/common"    # for docker
 def_top_data_folder = "/tango/datasets"    # for docker
 def_code_folder_name = "nn_model"
-
-# for rknn
-#from rknn.api import RKNN
-def_rknn_file = "yolov5.rknn"
-def_rknn_template = "yolov5.template"
 
 # for TensorRT
 def_trt_converter_file_name = "tensorrt-converter.py"
@@ -87,7 +81,7 @@ def_memory_size = 1
 def_cpu_type = ""  # 'x86'  # arm
 def_acc_type = ""  # 'cpu'  # cpu/cuda/opencl
 def_os_type = ""  # ubuntu'  # linux/windows
-def_engine_type = ""  # pytorch'  # acl/rknn/tvm/tensorrt
+def_engine_type = ""  # pytorch'  # acl/tvm/tensorrt
 def_libs = [] # ["python==3.9", "torch>=1.1.0"]
 def_apt = [] # ["vim", "python3.9"]
 def_papi = [] # ["flask==1.2.3", "torch>=1.1.0"]
@@ -104,7 +98,7 @@ def_deploy_nfs_path = "/tango/common/model"
 def_class_file = ""  # 'input.py'
 def_model_definition_file = ""
 def_weight_pt_file = ""  # 'input.pt'
-def_weight_onnx_file = "tango.onnx"  # ' input.onnx'
+def_weight_onnx_file = ""  # ' input.onnx'
 def_dataset_path = "/tango/datasets"  
 def_annotation_file = "dataset.yaml"  # 'coco.dat'
 def_ondevice_python_requirements = "requirements.txt"  
@@ -121,6 +115,51 @@ def_tvm_manual = './db/odroid-m1-manual.txt'
 
 def_yolo_base_file_path = "."
 def_yolo_requirements = "yoloe_requirements.txt"
+
+
+# for android
+os.environ['TF_CPP_MIN_LOG_LEVEL']='2'
+
+def tf2tflite(input_size = 640, pb_file="model_float32.pb", output_file="mymodel.tflite"):
+    input_arrays = ['inputs']
+    output_arrays = ['Identity', 'Identity_1', 'Identity_2']
+    converter = tf.compat.v1.lite.TFLiteConverter.from_frozen_graph(pb_file, input_arrays, output_arrays)
+    converter.experimental_new_quantizer = False
+    # converter.inference_input_type = tf.uint8
+    converter.inference_output_type = tf.float32
+    converter.optimizations = [tf.lite.Optimize.DEFAULT]
+    converter.target_spec.supported_types = [tf.float16]
+    tflite_model = converter.convert()
+    with open(output_file, 'wb') as w:
+        w.write(tflite_model)
+    return
+
+def onnx2tflite(onnx_filename = "./yolov7-tiny.onnx"):
+    # onnx2openvino
+    mycmd = "python3 /opt/intel/openvino_2021/deployment_tools/model_optimizer/mo.py "
+    mycmd = mycmd + " --input_model %s" % onnx_filename
+    mycmd = mycmd + " --input_shape [1,3,640,640] "
+    mycmd = mycmd + " --output_dir .  "
+    mycmd = mycmd + " --data_type FP32 "
+    mycmd = mycmd + " --output Conv_134,Conv_149,Conv_164"
+    os.system(mycmd)
+
+    # openvino2tflite
+    os.system("openvino2tensorflow --model_path ./yolov7-tiny.xml  --model_output_path .  --output_no_quant_float32_tflite")
+
+    #move the tflite file to the place
+    os.system("cp model_float32.tflite ./tflite_yolov7_test/app/src/main/assets/yolov7-tiny_fp32_640.tflite")
+    os.system("rm -f ./tflite_yolov7_test/app/build/intermediates/assets/debug/yolov7-tiny_fp32_640.tflite")
+
+    #apk build
+    os.system("./tflite_yolov7_test/gradlew init < /app/enter.txt  && cd ./tflite_yolov7_test && ./gradlew assembleDebug")
+    os.system("cp ./tflite_yolov7_test/app/build/outputs/apk/debug/app-debug.apk /app")
+
+    # remove temp file & dirs
+    os.system("sudo /bin/rm -rf yolov7-tiny.xml tflite *.onnx *.mapping *.bin *.ptl *.tflite")
+    ret = "app-debug.apk"
+    return ret
+
 
 
 ####################################################################
@@ -200,7 +239,7 @@ class CodeGen:
     m_py = ""
     m_pt_model = ""
 
-    m_converted_file = def_rknn_file
+    m_converted_file = ""
     m_deploy_python_file = def_deploy_python_file
     m_requirement_file = def_requirement_file
 
@@ -516,8 +555,11 @@ class CodeGen:
                         else:
                             self.m_nninfo_weight_onnx_file = tmp_str  # .onnx
                 else:
-                    self.m_nninfo_weight_pt_file = value
-                    # self.m_nninfo_weight_onnx_file = value
+                    val = ".pt" in value 
+                    if val:
+                        self.m_nninfo_weight_pt_file = value
+                    else:
+                        self.m_nninfo_weight_onnx_file = value
             elif key == 'label_info_file':
                 self.m_nninfo_annotation_file = value
                 # parsing  labelmap
@@ -612,6 +654,7 @@ class CodeGen:
         self.m_sysinfo_apt = def_apt
         self.m_sysinfo_papi = def_papi
         self.m_nninfo_user_libs = []
+        self.m_nninfo_weight_onnx_file = ""
         self.parse_nninfo_file()
         self.parse_sysinfo_file()
 
@@ -622,7 +665,7 @@ class CodeGen:
             if self.m_sysinfo_engine_type == 'pytorch':
                 self.m_sysinfo_libs = []
                 self.m_sysinfo_apt = ['vim', 'python3.9']
-                self.m_sysinfo_papi = ['torch', 'torchvision', 'pandas', 'numpy', 'albumentations']
+                self.m_sysinfo_papi = ['torch', 'torchvision', 'opencv-python', 'pandas', 'numpy', 'albumentations']
                 self.m_deploy_entrypoint = self.m_deploy_python_file
                 if not os.path.exists(self.m_current_code_folder):
                     os.makedirs(self.m_current_code_folder)
@@ -654,9 +697,9 @@ class CodeGen:
                 # copy heading 
                 f.write("#!/usr/bin/python\n")
                 f.write("# -*- coding: utf-8 -*-\n")
-                f.write("DEF_IMG_PATH = %s\n" % self.m_sysinfo_input_method) 
-                f.write("DEF_ACC = %s\n" % "cpu") # only for testing self.m_sysinfo_acc_type) 
-                f.write("DEF_PT_FILE = %s\n\n\n" % self.m_nninfo_weight_pt_file)
+                f.write("DEF_IMG_PATH = \"%s\"\n" % self.m_sysinfo_input_method) 
+                f.write("DEF_ACC = %s\n" % "\"cpu\"") # only for testing self.m_sysinfo_acc_type) 
+                f.write("DEF_PT_FILE = \"%s\"\n\n\n" % self.m_nninfo_weight_pt_file)
                 try:
                     f1 = open("./db/resnet152.db", 'r')
                 except IOError as err:
@@ -700,42 +743,26 @@ class CodeGen:
             else:
                 print("the inference engine is not support for classification")
             self.m_last_run_state = 0
+            # kkkhhhllleeeeeeeee
+            os.system("chmod -Rf 777 %s" % self.m_current_code_folder)
             return
 
-        # code gen
-        # khlee rknn must be deleted !!!!!!
-        if self.m_sysinfo_engine_type == 'rknn':   
-            self.m_sysinfo_libs = ['libprotobuf.so.10', 'x86_64-linux-gnu']
-            self.m_sysinfo_apt = ['python3==3.6', 'python3-dev', 'python3-pip',
-                                  'libxslt1-dev', 'zlib1g-dev', 'libglib2.0',
-                                  'libsm6', 'libgl1-mesa-glx', 'libprotobuf-dev', 'gcc']
-            self.m_sysinfo_papi = [
-                'rknn_toolkit2-1.2.0_f7bb160f-cp36-cp36m-linux_x86_64.whl',
-                'numpy==1.16.6',
-                'onnx==1.7.0',
-                'onnxoptimizer==0.1.0',
-                'onnxruntime==1.6.0',
-                'tensorflow =1.14.0',
-                'tensorboard==1.14.0',
-                'protobuf==3.12.0',
-                'torch==1.6.0',
-                'torchvision==0.7.0',
-                'psutil==5.6.2',
-                'ruamel.yaml==0.15.81',
-                'scipy=1.2.1',
-                'tqdm==4.27.0',
-                'requests==2.21.0',
-                'opencv-python==4.4.0.46',
-                'PuLP==2.4',
-                'scikit_image==0.17.2',
-                'flatbuffers==1.12'
-            ]
-            self.m_deploy_entrypoint = [self.m_deploy_python_file]
-            self.gen_rknn_python_code()
-            self.make_requirements_file_for_others()
+        # tflite for galaxy 
+        if self.m_sysinfo_engine_type == 'tflite':   
+            if not os.path.exists(self.m_current_code_folder):
+                os.makedirs(self.m_current_code_folder)
+            # read  onnx file
+            my_onnx = "%s%s" % (self.m_current_file_path, self.m_nninfo_weight_onnx_file)
+            # onnx2tflitefile
+            ret = onnx2tflite(onnx_filename = my_onnx)
+            # copy apk to nn_model folder
+            shutil.copy(ret, self.m_current_code_folder)
+            self.m_last_run_state = 0
+            os.system("chmod -Rf 777 %s" % self.m_current_code_folder)
+            return
 
         # python
-        elif self.m_sysinfo_engine_type == 'pytorch':
+        if self.m_sysinfo_engine_type == 'pytorch':
             self.m_sysinfo_libs = []
             self.m_sysinfo_apt = ['vim', 'python3.9']
             self.m_sysinfo_papi = []
@@ -755,6 +782,7 @@ class CodeGen:
                 self.make_requirements_file_for_PCServer()
             else:
                 self.make_requirements_file_for_others()
+            os.system("chmod -Rf 777 %s" % self.m_current_code_folder)
 
         # acl
         elif self.m_sysinfo_engine_type == 'acl':
@@ -765,228 +793,144 @@ class CodeGen:
             self.m_sysinfo_papi = []
             self.gen_acl_code()
             self.make_requirements_file_for_others()
-        elif self.m_sysinfo_engine_type == 'tflite':
-            # pt 2 onnx
-            if self.m_nninfo_yolo_base_file_path != ".":  
-                if isinstance(self.m_nninfo_class_file, list):
-                    m_filelist = self.m_nninfo_class_file
-                else:
-                    m_filelist = [self.m_nninfo_class_file]
-                for mfile in m_filelist:
-                    self.copy_subfolderfile(mfile, self.m_nninfo_yolo_base_file_path)
-
-            # convert .py to onnx and copy
-            if isinstance(self.m_nninfo_class_file, list):
-                t_file = self.m_nninfo_class_file[0]
-            else:
-                t_file = self.m_nninfo_class_file
-            t_file = "%s%s" % (t_file, "\n")
-            tmp = t_file.split("/")
-            cnt = len(tmp)
-            t_file = tmp[0]
-            for  i in range(cnt-1):
-                t_file = "%s.%s" % (t_file, tmp[i+1])
-            t_file = t_file.split(".py\n")[0]
-            t_file = t_file.split("\n")[0]
-            t_split = self.m_nninfo_class_name.split("(")
-            t_class_name = t_split[0]
-            tmp_param = t_split[1].split(")")[0]
-            tmp_param = tmp_param.split("=")[1]
-
-            t_list = t_file.split(".")
-            t_list_len = len(t_list)
-            t_fromlist = ""
-            for i in range(t_list_len-1):
-                t_fromlist = "%s%s" % (t_fromlist, t_list[i])
-                if i < (t_list_len-2): 
-                    t_fromlist = "%s%s" % (t_fromlist, ".")
-            t_impmod = __import__(t_file, fromlist=[t_fromlist])
-            t_cls = getattr(t_impmod, t_class_name)
-
-            f_param = self.get_real_filepath(tmp_param[1:-1])
-            pt_model = t_cls(cfg=f_param)
-            pt_path = "%s%s" % (self.m_current_file_path, self.m_nninfo_weight_pt_file)
-            pt_model.load_state_dict(torch.load(pt_path, map_location=torch.device('cpu')), strict=False)
-            pt_model.eval()
-            # convert and save onnx file 
-            dummy = torch.randn(
-                    self.m_nninfo_input_tensor_shape[0], 
-                    self.m_nninfo_input_tensor_shape[1], 
-                    self.m_nninfo_input_tensor_shape[2], 
-                    self.m_nninfo_input_tensor_shape[3], 
-                    requires_grad=True)
-            t_folder = "%s/%s" % (self.m_current_code_folder, self.m_nninfo_weight_onnx_file)
-            torch.onnx.export(pt_model, dummy,
-                    t_folder,
-                    opset_version = 11,
-                    export_params=True, 
-                    input_names=['input'],
-                    output_names=['output'])
-            print("tflite: pt -> onnx")
-            # shutil.copy("./db/yolov7-tiny.onnx", t_folder)
-            # onnx 2 tf
-            os.system('onnx-tf convert -i %s -o  mymodel.pb' % t_folder)
-            print("tflite: onnx -> tf")
-            # tf to tflite
-            converter = tf.lite.TFLiteConverter.from_saved_model('mymodel.pb')
-            converter.optimizations = [tf.lite.Optimize.DEFAULT]
-            print("tflite: tf -> tflite")
-            tf_lite_model = converter.convert()
-            open('mymodel.tflite', 'wb').write(tf_lite_model)
-            # /bin/rm -r mymodel.pb
-            if os.path.exists("mymodel.pb"):
-                shutil.rmtree("mymodel.pb")
-            # rm mymodel.onnx
-            os.remove(t_folder)
-            # cp mymodel.tflite
-            shutil.copy("mymodel.tflite", "/app/tflite_yolov7_test/app/main/assets/yolovy_tiny_fp32_320.tflite")
-            # rm mymodel.tflite
-            os.remove("mymodel.tflite")
-            # build apk
-            print("tflite: butild apk")
-            if os.path.exists("/bin/rm -rf /app/tflite_yolov7_test/app/.cxx"):
-                shutil.rmtree("/bin/rm -rf /app/tflite_yolov7_test/app/.cxx")
-            os.system("/app/tflite_yolov7_test/gradlew init < /app/enter.txt  && cd /app/tflite_yolov7_test && ./gradlew assembleDebug")
-            # copy apk nn_model
-            print("tflite: copy apk")
-            shutil.copy("/app/tflite_yolov7_test/app/build/outputs/apk/debug/app-debug.apk", self.m_current_code_folder)
-            # copy android project files nn_model
-            print("tflite: copy android project")
-            shutil.copytree("/app/tflite_yolov7_test", self.m_current_code_folder)
-            # kkkhhhllleeeeeeeee
+            os.system("chmod -Rf 777 %s" % self.m_current_code_folder)
 
         elif self.m_sysinfo_engine_type == "tensorrt":
             self.m_deploy_entrypoint = [self.m_deploy_python_file]
-            # move autonn's pytorch to target folder(like prefix folder)
-            if self.m_nninfo_yolo_base_file_path != ".":  
+            
+            # if no onnx file
+            if self.m_nninfo_weight_onnx_file == "":
+                # move autonn's pytorch to target folder(like prefix folder)
+                if self.m_nninfo_yolo_base_file_path != ".":  
+                    if isinstance(self.m_nninfo_class_file, list):
+                        m_filelist = self.m_nninfo_class_file
+                    else:
+                        m_filelist = [self.m_nninfo_class_file]
+                    for mfile in m_filelist:
+                        self.copy_subfolderfile(mfile, self.m_nninfo_yolo_base_file_path)
+
+                # convert .py to onnx and copy
                 if isinstance(self.m_nninfo_class_file, list):
-                    m_filelist = self.m_nninfo_class_file
+                    t_file = self.m_nninfo_class_file[0]
                 else:
-                    m_filelist = [self.m_nninfo_class_file]
-                for mfile in m_filelist:
-                    self.copy_subfolderfile(mfile, self.m_nninfo_yolo_base_file_path)
-
-            # convert .py to onnx and copy
-            if isinstance(self.m_nninfo_class_file, list):
-                t_file = self.m_nninfo_class_file[0]
-            else:
-                t_file = self.m_nninfo_class_file
-            t_file = "%s%s" % (t_file, "\n")
-            tmp = t_file.split("/")
-            cnt = len(tmp)
-            t_file = tmp[0]
-            for  i in range(cnt-1):
-                t_file = "%s.%s" % (t_file, tmp[i+1])
-            t_file = t_file.split(".py\n")[0]
-            t_file = t_file.split("\n")[0]
-            t_split = self.m_nninfo_class_name.split("(")
-            t_class_name = t_split[0]
-            tmp_param = t_split[1].split(")")[0]
-            tmp_param = tmp_param.split("=")[1]
-
-            t_list = t_file.split(".")
-            t_list_len = len(t_list)
-            t_fromlist = ""
-            for i in range(t_list_len-1):
-                t_fromlist = "%s%s" % (t_fromlist, t_list[i])
-                if i < (t_list_len-2): 
-                    t_fromlist = "%s%s" % (t_fromlist, ".")
-            t_impmod = __import__(t_file, fromlist=[t_fromlist])
-            t_cls = getattr(t_impmod, t_class_name)
-
-            f_param = self.get_real_filepath(tmp_param[1:-1])
-            pt_model = t_cls(cfg=f_param)
-            pt_path = "%s%s" % (self.m_current_file_path, self.m_nninfo_weight_pt_file)
-            pt_model.load_state_dict(torch.load(pt_path, map_location=torch.device('cpu')), strict=False)
-            pt_model.eval()
-            # convert and save onnx file 
-            dummy = torch.randn(
-                    self.m_nninfo_input_tensor_shape[0], 
-                    self.m_nninfo_input_tensor_shape[1], 
-                    self.m_nninfo_input_tensor_shape[2], 
-                    self.m_nninfo_input_tensor_shape[3], 
-                    requires_grad=True)
-            t_folder = "%s/%s" % (self.m_current_code_folder, self.m_nninfo_weight_onnx_file)
-            torch.onnx.export(pt_model, dummy,
-                    t_folder,
-                    opset_version = 11,
-                    export_params=True, 
-                    input_names=['input'],
-                    output_names=['output'])
-            # khlee only for test copy yolov.onnx to tango.onnx
+                    t_file = self.m_nninfo_class_file
+                t_file = "%s%s" % (t_file, "\n")
+                tmp = t_file.split("/")
+                cnt = len(tmp)
+                t_file = tmp[0]
+                for  i in range(cnt-1):
+                    t_file = "%s.%s" % (t_file, tmp[i+1])
+                t_file = t_file.split(".py\n")[0]
+                t_file = t_file.split("\n")[0]
+                t_split = self.m_nninfo_class_name.split("(")
+                t_class_name = t_split[0]
+                tmp_param = t_split[1].split(")")[0]
+                tmp_param = tmp_param.split("=")[1]
+    
+                t_list = t_file.split(".")
+                t_list_len = len(t_list)
+                t_fromlist = ""
+                for i in range(t_list_len-1):
+                    t_fromlist = "%s%s" % (t_fromlist, t_list[i])
+                    if i < (t_list_len-2): 
+                        t_fromlist = "%s%s" % (t_fromlist, ".")
+                t_impmod = __import__(t_file, fromlist=[t_fromlist])
+                t_cls = getattr(t_impmod, t_class_name)
+    
+                f_param = self.get_real_filepath(tmp_param[1:-1])
+                pt_model = t_cls(cfg=f_param)
+                pt_path = "%s%s" % (self.m_current_file_path, self.m_nninfo_weight_pt_file)
+                pt_model.load_state_dict(torch.load(pt_path, map_location=torch.device('cpu')), strict=False)
+                pt_model.eval()
+                # convert and save onnx file 
+                dummy = torch.randn(
+                        self.m_nninfo_input_tensor_shape[0], 
+                        self.m_nninfo_input_tensor_shape[1], 
+                        self.m_nninfo_input_tensor_shape[2], 
+                        self.m_nninfo_input_tensor_shape[3], 
+                        requires_grad=True)
+                t_folder = "%s/%s" % (self.m_current_code_folder, self.m_nninfo_weight_onnx_file)
+                torch.onnx.export(pt_model, dummy,
+                        t_folder,
+                        opset_version = 11,
+                        export_params=True, 
+                        input_names=['input'],
+                        output_names=['output'])
+            else: # get onnx file so copy it
+                onnx_path = "%s%s" % (self.m_current_file_path, self.m_nninfo_weight_onnx_file)
+                t_folder = "%s/%s" % (self.m_current_code_folder, "yolov7.onnx")
+                shutil.copy(onnx_path, t_folder)
             # must be deleted 
-            shutil.copy("./db/yolov7.onnx", t_folder)
+            # shutil.copy("./db/yolov7.onnx", t_folder)
 
             self.gen_tensorrt_code(self.m_nninfo_input_tensor_shape[1], 
                     self.m_nninfo_input_tensor_shape[2], 
                     self.m_nninfo_input_data_type) 
             self.make_requirements_file_for_others()
+            os.system("chmod -Rf 777 %s" % self.m_current_code_folder)
         elif self.m_sysinfo_engine_type == "tvm":
             self.m_deploy_entrypoint = [self.m_deploy_python_file]
             tvm_dev_type = def_TVM_dev_type    # 0 llvm ,1 cuda,  
             tvm_width = def_TVM_width  
             tvm_height = def_TVM_height  
             tvm_data_type = def_TVM_data_type 
-            # move autonn's pytorch to target folder(like prefix folder)
-            if self.m_nninfo_yolo_base_file_path != ".":  
+            # if no onnx file
+            if self.m_nninfo_weight_onnx_file == "":
+                # move autonn's pytorch to target folder(like prefix folder)
+                if self.m_nninfo_yolo_base_file_path != ".":  
+                    if isinstance(self.m_nninfo_class_file, list):
+                        m_filelist = self.m_nninfo_class_file
+                    else:
+                        m_filelist = [self.m_nninfo_class_file]
+                    for mfile in m_filelist:
+                        self.copy_subfolderfile(mfile, self.m_nninfo_yolo_base_file_path)
+
+                # convert .py to onnx and copy
                 if isinstance(self.m_nninfo_class_file, list):
-                    m_filelist = self.m_nninfo_class_file
+                    t_file = self.m_nninfo_class_file[0]
                 else:
-                    m_filelist = [self.m_nninfo_class_file]
-                for mfile in m_filelist:
-                    self.copy_subfolderfile(mfile, self.m_nninfo_yolo_base_file_path)
+                    t_file = self.m_nninfo_class_file
+                t_file = "%s%s" % (t_file, "\n")
+                tmp = t_file.split("/")
+                cnt = len(tmp)
+                t_file = tmp[0]
+                for  i in range(cnt-1):
+                    t_file = "%s.%s" % (t_file, tmp[i+1])
+                t_file = t_file.split(".py\n")[0]
+                t_file = t_file.split("\n")[0]
+                t_split = self.m_nninfo_class_name.split("(")
+                t_class_name = t_split[0]
+                tmp_param = t_split[1].split(")")[0]
+                tmp_param = tmp_param.split("=")[1]
 
-            # convert .py to onnx and copy
-            if isinstance(self.m_nninfo_class_file, list):
-                t_file = self.m_nninfo_class_file[0]
-            else:
-                t_file = self.m_nninfo_class_file
-            t_file = "%s%s" % (t_file, "\n")
-            tmp = t_file.split("/")
-            cnt = len(tmp)
-            t_file = tmp[0]
-            for  i in range(cnt-1):
-                t_file = "%s.%s" % (t_file, tmp[i+1])
-            t_file = t_file.split(".py\n")[0]
-            t_file = t_file.split("\n")[0]
-            t_split = self.m_nninfo_class_name.split("(")
-            t_class_name = t_split[0]
-            tmp_param = t_split[1].split(")")[0]
-            tmp_param = tmp_param.split("=")[1]
-
-            t_list = t_file.split(".")
-            t_list_len = len(t_list)
-            t_fromlist = ""
-            for i in range(t_list_len-1):
-                t_fromlist = "%s%s" % (t_fromlist, t_list[i])
-                if i < (t_list_len-2): 
-                    t_fromlist = "%s%s" % (t_fromlist, ".")
-            t_impmod = __import__(t_file, fromlist=[t_fromlist])
-            t_cls = getattr(t_impmod, t_class_name)
-
-            f_param = self.get_real_filepath(tmp_param[1:-1])
-            pt_model = t_cls(cfg=f_param)
-            pt_path = "%s/%s" % (self.m_current_file_path, self.m_nninfo_weight_pt_file)
-            pt_model.load_state_dict(torch.load(pt_path, map_location=torch.device('cpu')), strict=False)
-            pt_model.eval()
-            # convert and save onnx file 
-            dummy = torch.randn(
-                    self.m_nninfo_input_tensor_shape[0], 
-                    self.m_nninfo_input_tensor_shape[1], 
-                    self.m_nninfo_input_tensor_shape[2], 
-                    self.m_nninfo_input_tensor_shape[3], 
-                    requires_grad=True)
-            torch.onnx.export(pt_model, dummy,
-                    self.get_real_filepath(self.m_nninfo_weight_onnx_file),
-                    opset_version = 11,
-                    export_params=True, 
-                    input_names=['input'],
-                    output_names=['output'])
-            # khlee only for test copy yolov.onnx to tango.onnx
-            # must be deleted
-            # shutil.copy("./db/yolov7.onnx", self.get_real_filepath(self.m_nninfo_weight_onnx_file))
-            # shutil.copy("./db/yolov7tvm.onnx", self.get_real_filepath(self.m_nninfo_weight_onnx_file))
-
+                t_list = t_file.split(".")
+                t_list_len = len(t_list)
+                t_fromlist = ""
+                for i in range(t_list_len-1):
+                    t_fromlist = "%s%s" % (t_fromlist, t_list[i])
+                    if i < (t_list_len-2): 
+                        t_fromlist = "%s%s" % (t_fromlist, ".")
+                t_impmod = __import__(t_file, fromlist=[t_fromlist])
+                t_cls = getattr(t_impmod, t_class_name)
+    
+                f_param = self.get_real_filepath(tmp_param[1:-1])
+                pt_model = t_cls(cfg=f_param)
+                pt_path = "%s/%s" % (self.m_current_file_path, self.m_nninfo_weight_pt_file)
+                pt_model.load_state_dict(torch.load(pt_path, map_location=torch.device('cpu')), strict=False)
+                pt_model.eval()
+                # convert and save onnx file 
+                dummy = torch.randn(
+                        self.m_nninfo_input_tensor_shape[0], 
+                        self.m_nninfo_input_tensor_shape[1], 
+                        self.m_nninfo_input_tensor_shape[2], 
+                        self.m_nninfo_input_tensor_shape[3], 
+                        requires_grad=True)
+                torch.onnx.export(pt_model, dummy,
+                        self.get_real_filepath(self.m_nninfo_weight_onnx_file),
+                        opset_version = 11,
+                        export_params=True, 
+                        input_names=['input'],
+                        output_names=['output'])
 
             onnx_model = onnx.load(self.get_real_filepath(self.m_nninfo_weight_onnx_file))
             input_name = onnx_model.graph.input[0].name
@@ -1073,6 +1017,7 @@ class CodeGen:
             self.gen_tvm_code(tvm_dev_type, tvm_width, tvm_height, tvm_data_type)
             self.make_requirements_file_for_others()
             os.remove(self.get_real_filepath(self.m_nninfo_weight_onnx_file))
+            os.system("chmod -Rf 777 %s" % self.m_current_code_folder)
 
         self.m_last_run_state = 0
         # modified
@@ -1154,566 +1099,6 @@ class CodeGen:
         Args: None
         Returns: None
         """
-        return 0
-
-    ####################################################################
-    # rknn변환 test
-    def gen_rknn_python_code(self):
-        """
-        Generate python code for RKNN device
-
-        Args: None
-        Returns: int
-            0 : success
-            -1 : error
-        """
-        if not os.path.exists(self.m_current_code_folder):
-            os.makedirs(self.m_current_code_folder)
-        # copy autonn's pytorch to target folder(like prefix folder)
-        if self.m_nninfo_yolo_base_file_path != ".":  
-            if isinstance(self.m_nninfo_class_file, list):
-                m_filelist = self.m_nninfo_class_file
-            else:
-                m_filelist = [self.m_nninfo_class_file]
-            for mfile in m_filelist:
-                self.copy_subfolderfile(mfile, self.m_nninfo_yolo_base_file_path)
-        # onnx conversion
-        # convert .py to onnx and copy
-        if isinstance(self.m_nninfo_class_file, list):
-            t_file = self.m_nninfo_class_file[0]
-        else:
-            t_file = self.m_nninfo_class_file
-        t_file = "%s%s" % (t_file, "\n")
-        tmp = t_file.split("/")
-        cnt = len(tmp)
-        t_file = tmp[0]
-        for  i in range(cnt-1):
-            t_file = "%s.%s" % (t_file, tmp[i+1])
-        t_file = t_file.split(".py\n")[0]
-        t_file = t_file.split("\n")[0]
-        t_split = self.m_nninfo_class_name.split("(")
-        t_class_name = t_split[0]
-        tmp_param = t_split[1].split(")")[0]
-        tmp_param = tmp_param.split("=")[1]
-
-        t_list = t_file.split(".")
-        t_list_len = len(t_list)
-        t_fromlist = ""
-        for i in range(t_list_len-1):
-            t_fromlist = "%s%s" % (t_fromlist, t_list[i])
-            if i < (t_list_len-2): 
-                t_fromlist = "%s%s" % (t_fromlist, ".")
-        t_impmod = __import__(t_file, fromlist=[t_fromlist])
-        t_cls = getattr(t_impmod, t_class_name)
-
-        f_param = self.get_real_filepath(tmp_param[1:-1])
-        pt_model = t_cls(cfg=f_param)
-        pt_path = "%s%s" % (self.m_current_file_path, self.m_nninfo_weight_pt_file)
-        pt_model.load_state_dict(torch.load(pt_path, map_location=torch.device('cpu')), strict=False)
-        pt_model.eval()
-        # convert and save onnx file 
-        # the followings must be uncomment, commented out just for testing 
-        # khlee
-        '''
-        dummy = torch.randn(
-                self.m_nninfo_input_tensor_shape[0], 
-                self.m_nninfo_input_tensor_shape[1], 
-                self.m_nninfo_input_tensor_shape[2], 
-                self.m_nninfo_input_tensor_shape[3], 
-                requires_grad=True)
-        torch.onnx.export(pt_model, dummy,
-                self.get_real_filepath(self.m_nninfo_weight_onnx_file),
-                opset_version = 11,
-                export_params = True, # default True  
-                # khlee
-                # the following  line makes RKNN builder make 'unsupported" Expand --> build time error
-                # if the following line is deleted, ONNXruntimeError ShapeInferenceError Incompatible dimensions  -> rknn load time  error
-                do_constant_folding = False, # default=True 
-                # training=False, aten=False, export_raw_ir=False, operator_export_type=None, enable_onnx_checker=True,
-                # verbose=True,
-                input_names=['input'],
-                output_names=['output'])
-        '''
-        # khlee only for test copy yolov.onnx to tango.onnx
-        # must be deleted 
-        o_file = "./db/yolov7.onnx"
-        shutil.copy(o_file, self.get_real_filepath(self.m_nninfo_weight_onnx_file))
-
-        # tmp_om = onnx.load(self.get_real_filepath(self.m_nninfo_weight_onnx_file))
-        # onnx_out = tmp_om.graph.output
-        # o_outputs = [] 
-        # for i in range(len(onnx_out)):
-        #     tmp = onnx_out[i].name
-        #     print(tmp)
-        #     o_outputs.append(tmp) 
-
-        self.m_converted_file = "%s%s" % (self.m_current_file_path, def_rknn_file)
-        # comment out for test only -> uncomment needed
-        # Create RKNN object
-        # rknn = RKNN(verbose=True)
-        
-        # pre-process config
-        logging.debug('--> Config model')
-        # rknn.config(mean_values=[[0, 0, 0]], std_values=[[255, 255, 255]],
-        #            output_tensor_type='int8')
-
-        # Load ONNX model
-        # ret = rknn.load_onnx(self.get_real_filepath(self.m_nninfo_weight_onnx_file), outputs=['output'])
-        if ret != 0:
-            logging.debug('Load model failed!')
-            return -1
-        logging.debug('--> Loading model')
-
-        # Build model
-        # ret = rknn.build(do_quantization=True)
-        if ret != 0:
-            logging.debug('Build model failed!')
-            return -1
-        logging.debug('--> Building model')
-
-        # Export RKNN model
-        # ret = rknn.export_rknn(self.m_converted_file)
-        if ret != 0:
-            return -1
-        logging.debug('--> Export rknn model')
-
-        # convert  and copy .pt file to nn_model folder  
-        if os.path.isfile(self.m_converted_file):
-            shutil.copy(self.m_converted_file, self.m_current_code_folder)
-            # after converting and copying, remove temporary converted file 
-            os.remove(self.m_converted_file)
-
-        # rknn code generation
-        tmp_str = "%s%s%s%s" % ("", "import ", self.m_sysinfo_vision_lib, def_newline)
-        tmp_str = "%s%s%s" % (tmp_str, "import numpy an np", def_newline)
-        tmp_str = "%s%s%s" % (tmp_str, "from rknnlite.api import RKNNLite", def_newline)
-        tmp_str = "%s%s%s" % (tmp_str, "import time", def_newline)
-        tmp_str = "%s%s" % (tmp_str, def_newline)
-
-        tmp_str = "%s%s%s%s" % (tmp_str, "rknn_model_file = ", def_rknn_file, def_newline)
-        # for test change the file name
-        tmp_str = "%s%s%s" % (tmp_str, "input_file = '480.mp4'", def_newline)
-        tmp_str = "%s%s%s%s" % (tmp_str, def_newline, def_newline, def_newline)
-
-        tmp_str = "%s%s%s%s" % (tmp_str, "IMG_SIZE = ", self.m_nninfo_input_tensor_shape[2],
-                                def_newline)
-        tmp_str = "%s%s%s%s" % (tmp_str, "BOX_THESH =  ", self.m_nninfo_postproc_iou_thres,
-                                def_newline)
-        tmp_str = "%s%s%s%s" % (tmp_str, "NMS_THRESH =", self.m_nninfo_postproc_conf_thres,
-                                def_newline)
-        tmp_str = "%s%s" % (tmp_str, def_newline)
-
-        tmp_str = "%s%s" % (tmp_str, "CLASSES = (")
-        for cnt in range(0, self.m_nninfo_number_of_labels):
-            if (cnt % 5) == 0:
-                tmp_str = "%s%s%s%s" % (tmp_str, def_newline, def_4blank, def_4blank)
-            if cnt == (self.m_nninfo_number_of_labels - 1):
-                tmp_str = "%s%s%s%s" % (tmp_str, "'", self.m_nninfo_labelmap_info[cnt], "'")
-            else:
-                tmp_str = "%s%s%s%s%s" % (tmp_str, "'", self.m_nninfo_labelmap_info[cnt],
-                                          "'", ', ')
-        tmp_str = "%s%s%s" % (tmp_str, ")", def_newline)
-        tmp_str = "%s%s" % (tmp_str, def_newline)
-        tmp_str = "%s%s" % (tmp_str, def_newline)
-
-        tmp_str = "%s%s%s" % (tmp_str, 'def sigmoid(x):', def_newline)
-        tmp_str = "%s%s%s" % (tmp_str, '    return 1 / (1 + np.exp(-x))', def_newline)
-        tmp_str = "%s%s" % (tmp_str, def_newline)
-        tmp_str = "%s%s" % (tmp_str, def_newline)
-
-        tmp_str = "%s%s%s" % (tmp_str, "def xywh2xyxy(x):", def_newline)
-        tmp_str = "%s%s%s" % (tmp_str, "    # Convert [x, y, w, h] to [x1, y1, x2, y2]",
-                              def_newline)
-        tmp_str = "%s%s%s" % (tmp_str, "    y = np.copy(x)", def_newline)
-        tmp_str = '%s%s%s' % (tmp_str, '    y[:, 0] = x[:, 0] - x[:, 2] / 2  # top left x',
-                              def_newline)
-        tmp_str = "%s%s%s" % (tmp_str, '    y[:, 1] = x[:, 1] - x[:, 3] / 2  # top left y',
-                              def_newline)
-        tmp_str = "%s%s%s" % (tmp_str,
-                              '    y[:, 2] = x[:, 0] + x[:, 2] / 2  # bottom right x',
-                              def_newline)
-        tmp_str = "%s%s%s" % (tmp_str,
-                              '    y[:, 3] = x[:, 1] + x[:, 3] / 2  # bottom right y',
-                              def_newline)
-        tmp_str = "%s%s%s" % (tmp_str, '    return y', def_newline)
-        tmp_str = "%s%s" % (tmp_str, def_newline)
-        tmp_str = "%s%s" % (tmp_str, def_newline)
-
-        tmp_str = "%s%s%s" % (tmp_str, "def process(input, mask, anchors):", def_newline)
-        tmp_str = "%s%s%s" % (tmp_str, "    anchors = [anchors[i] for i in mask]",
-                              def_newline)
-        tmp_str = "%s%s%s" % (tmp_str, "    grid_h, grid_w = map(int, input.shape[0:2])",
-                              def_newline)
-        tmp_str = "%s%s" % (tmp_str, def_newline)
-        tmp_str = "%s%s%s" % (tmp_str, "    box_confidence = sigmoid(input[..., 4])",
-                              def_newline)
-        tmp_str = "%s%s%s" % (tmp_str,
-                              "    box_confidence = np.expand_dims(box_confidence, axis=-1)",
-                              def_newline)
-        tmp_str = "%s%s" % (tmp_str, def_newline)
-        tmp_str = "%s%s%s" % (tmp_str, "    box_class_probs = sigmoid(input[..., 5:])",
-                              def_newline)
-        tmp_str = "%s%s" % (tmp_str, def_newline)
-        tmp_str = "%s%s%s" % (tmp_str, "    box_xy = sigmoid(input[..., :2]) * 2 - 0.5",
-                              def_newline)
-        tmp_str = "%s%s" % (tmp_str, def_newline)
-        tmp_str = "%s%s%s" % (tmp_str,
-                              "    col = np.tile(np.arange(0, grid_w), grid_w).reshape(-1, grid_w)",
-                              def_newline)
-        tmp_str = "%s%s%s" % (tmp_str,
-                              "    row = np.tile(np.arange(0, grid_h).reshape(-1, 1), grid_h)",
-                              def_newline)
-        tmp_str = "%s%s%s" % (tmp_str,
-                              "    col = col.reshape(grid_h, grid_w, 1, 1).repeat(3, axis=-2)",
-                              def_newline)
-        tmp_str = "%s%s%s" % (tmp_str,
-                              "    row = row.reshape(grid_h, grid_w, 1, 1).repeat(3, axis=-2)",
-                              def_newline)
-        tmp_str = "%s%s%s" % (tmp_str, "    grid = np.concatenate((col, row), axis=-1)",
-                              def_newline)
-        tmp_str = "%s%s%s" % (tmp_str, "    box_xy += grid", def_newline)
-        tmp_str = "%s%s%s" % (tmp_str, "    box_xy *= int(IMG_SIZE / grid_h)", def_newline)
-        tmp_str = "%s%s" % (tmp_str, def_newline)
-        tmp_str = "%s%s%s" % (tmp_str, "    box_wh = pow(sigmoid(input[..., 2:4]) * 2, 2)",
-                              def_newline)
-        tmp_str = "%s%s%s" % (tmp_str, "    box_wh = box_wh * anchors", def_newline)
-        tmp_str = "%s%s" % (tmp_str, def_newline)
-        tmp_str = "%s%s%s" % (tmp_str, "    box = np.concatenate((box_xy, box_wh), axis=-1)",
-                              def_newline)
-        tmp_str = "%s%s" % (tmp_str, def_newline)
-        tmp_str = "%s%s%s" % (tmp_str, "    return box, box_confidence, box_class_probs",
-                              def_newline)
-        tmp_str = "%s%s" % (tmp_str, def_newline)
-        tmp_str = "%s%s" % (tmp_str, def_newline)
-
-        tmp_str = "%s%s%s" % (tmp_str,
-                              "def filter_boxes(boxes, box_confidences, box_class_probs):",
-                              def_newline)
-        tmp_str = "%s%s%s%s" % (tmp_str,
-                                '    """Filter boxes with box threshold. It\'s a bit different with ',
-                                'origin yolov5 post process!',
-                                def_newline)
-        tmp_str = "%s%s" % (tmp_str, def_newline)
-        tmp_str = "%s%s%s" % (tmp_str, "    # Arguments", def_newline)
-        tmp_str = "%s%s%s" % (tmp_str, "        boxes: ndarray, boxes of objects.",
-                              def_newline)
-        tmp_str = "%s%s%s" % (tmp_str,
-                              "        box_confidences: ndarray, confidences of objects.",
-                              def_newline)
-        tmp_str = "%s%s%s" % (tmp_str,
-                              "        box_class_probs: ndarray, class_probs of objects.",
-                              def_newline)
-        tmp_str = "%s%s" % (tmp_str, def_newline)
-        tmp_str = "%s%s%s" % (tmp_str, "    # Returns", def_newline)
-        tmp_str = "%s%s%s" % (tmp_str, "        boxes: ndarray, filtered boxes.",
-                              def_newline)
-        tmp_str = "%s%s%s" % (tmp_str, "        classes: ndarray, classes for boxes.",
-                              def_newline)
-        tmp_str = "%s%s%s" % (tmp_str, "        scores: ndarray, scores for boxes.",
-                              def_newline)
-        tmp_str = "%s%s%s" % (tmp_str, '    """', def_newline)
-        tmp_str = "%s%s%s" % (tmp_str,
-                              "    box_classes = np.argmax(box_class_probs, axis=-1)",
-                              def_newline)
-        tmp_str = "%s%s%s" % (tmp_str,
-                              "    box_class_scores = np.max(box_class_probs, axis=-1)",
-                              def_newline)
-        tmp_str = "%s%s%s" % (tmp_str,
-                              "    pos = np.where(box_confidences[..., 0] >= BOX_THESH)",
-                              def_newline)
-        tmp_str = "%s%s" % (tmp_str, def_newline)
-        tmp_str = "%s%s%s" % (tmp_str, "    boxes = boxes[pos]", def_newline)
-        tmp_str = "%s%s%s" % (tmp_str, "    classes = box_classes[pos]", def_newline)
-        tmp_str = "%s%s%s" % (tmp_str, "    scores = box_class_scores[pos]", def_newline)
-        tmp_str = "%s%s" % (tmp_str, def_newline)
-        tmp_str = "%s%s%s" % (tmp_str, "    return boxes, classes, scores", def_newline)
-        tmp_str = "%s%s" % (tmp_str, def_newline)
-        tmp_str = "%s%s" % (tmp_str, def_newline)
-
-        tmp_str = "%s%s%s" % (tmp_str, "def nms_boxes(boxes, scores):", def_newline)
-        tmp_str = "%s%s%s" % (tmp_str, '    """Suppress non-maximal boxes.', def_newline)
-        tmp_str = "%s%s" % (tmp_str, def_newline)
-        tmp_str = "%s%s%s" % (tmp_str, "    # Arguments", def_newline)
-        tmp_str = "%s%s%s" % (tmp_str, "        boxes: ndarray, boxes of objects.",
-                              def_newline)
-        tmp_str = "%s%s%s" % (tmp_str, "        scores: ndarray, scores of objects.",
-                              def_newline)
-        tmp_str = "%s%s" % (tmp_str, def_newline)
-        tmp_str = "%s%s%s" % (tmp_str, "    # Returns", def_newline)
-        tmp_str = "%s%s%s" % (tmp_str, "        keep: ndarray, index of effective boxes.",
-                              def_newline)
-        tmp_str = "%s%s%s" % (tmp_str, '    """', def_newline)
-        tmp_str = "%s%s%s" % (tmp_str, "    x = boxes[:, 0]", def_newline)
-        tmp_str = "%s%s%s" % (tmp_str, "    y = boxes[:, 1]", def_newline)
-        tmp_str = "%s%s%s" % (tmp_str, "    w = boxes[:, 2] - boxes[:, 0]", def_newline)
-        tmp_str = "%s%s%s" % (tmp_str, "    h = boxes[:, 3] - boxes[:, 1]", def_newline)
-        tmp_str = "%s%s" % (tmp_str, def_newline)
-        tmp_str = "%s%s%s" % (tmp_str, "    areas = w * h", def_newline)
-        tmp_str = "%s%s%s" % (tmp_str, "    order = scores.argsort()[::-1]", def_newline)
-        tmp_str = "%s%s" % (tmp_str, def_newline)
-        tmp_str = "%s%s%s" % (tmp_str, "    keep = []", def_newline)
-        tmp_str = "%s%s%s" % (tmp_str, "    while order.size > 0:", def_newline)
-        tmp_str = "%s%s%s" % (tmp_str, "        i = order[0]", def_newline)
-        tmp_str = "%s%s%s" % (tmp_str, "        keep.append(i)", def_newline)
-        tmp_str = "%s%s" % (tmp_str, def_newline)
-        tmp_str = "%s%s%s" % (tmp_str, "        xx1 = np.maximum(x[i], x[order[1:]])",
-                              def_newline)
-        tmp_str = "%s%s%s" % (tmp_str, "        yy1 = np.maximum(y[i], y[order[1:]])",
-                              def_newline)
-        tmp_str = "%s%s%s" % (tmp_str,
-                              "        xx2 = np.minimum(x[i] + w[i], x[order[1:]] + w[order[1:]])",
-                              def_newline)
-        tmp_str = "%s%s%s" % (tmp_str,
-                              "        yy2 = np.minimum(y[i] + h[i], y[order[1:]] + h[order[1:]])",
-                              def_newline)
-        tmp_str = "%s%s" % (tmp_str, def_newline)
-        tmp_str = "%s%s%s" % (tmp_str,
-                              "        w1 = np.maximum(0.0, xx2 - xx1 + 0.00001)",
-                              def_newline)
-        tmp_str = "%s%s%s" % (tmp_str,
-                              "        h1 = np.maximum(0.0, yy2 - yy1 + 0.00001)",
-                              def_newline)
-        tmp_str = "%s%s%s" % (tmp_str, "        inter = w1 * h1", def_newline)
-        tmp_str = "%s%s" % (tmp_str, def_newline)
-        tmp_str = "%s%s%s" % (tmp_str,
-                              "        ovr = inter / (areas[i] + areas[order[1:]] - inter)",
-                              def_newline)
-        tmp_str = "%s%s%s" % (tmp_str,
-                              "        inds = np.where(ovr <= NMS_THRESH)[0]",
-                              def_newline)
-        tmp_str = "%s%s%s" % (tmp_str, "        order = order[inds + 1]",
-                              def_newline)
-        tmp_str = "%s%s%s" % (tmp_str, "    keep = np.array(keep)", def_newline)
-        tmp_str = "%s%s%s" % (tmp_str, "    return keep", def_newline)
-        tmp_str = "%s%s" % (tmp_str, def_newline)
-        tmp_str = "%s%s" % (tmp_str, def_newline)
-
-        tmp_str = "%s%s%s" % (tmp_str, "def yolov5_post_process(input_data):",
-                              def_newline)
-        length = len(self.m_nninfo_mask)
-        tmp_str = "%s%s" % (tmp_str, "    masks = [")
-        for i in range(0, length):
-            if (i % 3) == 0:
-                tmp_str = "%s%s%s%s" % (tmp_str, def_newline, def_4blank, def_4blank)
-            if i == (length - 1):
-                tmp_str = "%s%s" % (tmp_str, self.m_nninfo_mask[i])
-            else:
-                tmp_str = "%s%s%s" % (tmp_str, self.m_nninfo_mask[i], ",")
-        tmp_str = "%s%s%s" % (tmp_str, "]", def_newline)
-        tmp_str = "%s%s" % (tmp_str, "    anchors = [")
-        length = len(self.m_nninfo_anchors)
-        for i in range(0, length):
-            if (i % 3) == 0:
-                tmp_str = "%s%s%s%s" % (tmp_str, def_newline, def_4blank, def_4blank)
-            if i == (length - 1):
-                tmp_str = "%s%s" % (tmp_str, self.m_nninfo_anchors[i])
-            else:
-                tmp_str = "%s%s%s" % (tmp_str, self.m_nninfo_anchors[i], ",")
-        tmp_str = "%s%s%s" % (tmp_str, "]", def_newline)
-        tmp_str = "%s%s" % (tmp_str, def_newline)
-
-        tmp_str = "%s%s%s" % (tmp_str, "    boxes, classes, scores = [], [], []",
-                              def_newline)
-        tmp_str = "%s%s%s" % (tmp_str, "    for input, mask in zip(input_data, masks):",
-                              def_newline)
-        tmp_str = "%s%s%s" % (tmp_str, "        b, c, s = process(input, mask, anchors)",
-                              def_newline)
-        tmp_str = "%s%s%s" % (tmp_str, "        b, c, s = filter_boxes(b, c, s)",
-                              def_newline)
-        tmp_str = "%s%s%s" % (tmp_str, "        boxes.append(b)", def_newline)
-        tmp_str = "%s%s%s" % (tmp_str, "        classes.append(c)", def_newline)
-        tmp_str = "%s%s%s" % (tmp_str, "        scores.append(s)", def_newline)
-        tmp_str = "%s%s" % (tmp_str, def_newline)
-        tmp_str = "%s%s%s" % (tmp_str, "    boxes = np.concatenate(boxes)", def_newline)
-        tmp_str = "%s%s%s" % (tmp_str, "    boxes = xywh2xyxy(boxes)", def_newline)
-        tmp_str = "%s%s%s" % (tmp_str, "    classes = np.concatenate(classes)", def_newline)
-        tmp_str = "%s%s%s" % (tmp_str, "    scores = np.concatenate(scores)", def_newline)
-        tmp_str = "%s%s" % (tmp_str, def_newline)
-        tmp_str = "%s%s%s" % (tmp_str, "    nboxes, nclasses, nscores = [], [], []",
-                              def_newline)
-        tmp_str = "%s%s%s" % (tmp_str, "    for c in set(classes):", def_newline)
-        tmp_str = "%s%s%s" % (tmp_str, "        inds = np.where(classes == c)", def_newline)
-        tmp_str = "%s%s%s" % (tmp_str, "        b = boxes[inds]", def_newline)
-        tmp_str = "%s%s%s" % (tmp_str, "        c = classes[inds]", def_newline)
-        tmp_str = "%s%s%s" % (tmp_str, "        s = scores[inds]", def_newline)
-        tmp_str = "%s%s" % (tmp_str, def_newline)
-        tmp_str = "%s%s%s" % (tmp_str, "        keep = nms_boxes(b, s)", def_newline)
-        tmp_str = "%s%s" % (tmp_str, def_newline)
-        tmp_str = "%s%s%s" % (tmp_str, "        nboxes.append(b[keep])", def_newline)
-        tmp_str = "%s%s%s" % (tmp_str, "        nclasses.append(c[keep])", def_newline)
-        tmp_str = "%s%s%s" % (tmp_str, "        nscores.append(s[keep])", def_newline)
-        tmp_str = "%s%s" % (tmp_str, def_newline)
-        tmp_str = "%s%s%s" % (tmp_str, "    if not nclasses and not nscores:", def_newline)
-        tmp_str = "%s%s%s" % (tmp_str, "        return None, None, None", def_newline)
-        tmp_str = "%s%s" % (tmp_str, def_newline)
-        tmp_str = "%s%s%s" % (tmp_str, "    boxes = np.concatenate(nboxes)", def_newline)
-        tmp_str = "%s%s%s" % (tmp_str, "    classes = np.concatenate(nclasses)", def_newline)
-        tmp_str = "%s%s%s" % (tmp_str, "    scores = np.concatenate(nscores)", def_newline)
-        tmp_str = "%s%s" % (tmp_str, def_newline)
-        tmp_str = "%s%s%s" % (tmp_str, "    return boxes, classes, scores", def_newline)
-        tmp_str = "%s%s" % (tmp_str, def_newline)
-        tmp_str = "%s%s" % (tmp_str, def_newline)
-
-        tmp_str = "%s%s%s" % (tmp_str, "def draw(image, boxes, scores, classes):",
-                              def_newline)
-        tmp_str = "%s%s%s" % (tmp_str, '    """Draw the boxes on the image.', def_newline)
-        tmp_str = "%s%s" % (tmp_str, def_newline)
-        tmp_str = "%s%s%s" % (tmp_str, "    # Argument:", def_newline)
-        tmp_str = "%s%s%s" % (tmp_str, "        image: original image.", def_newline)
-        tmp_str = "%s%s%s" % (tmp_str, "        boxes: ndarray, boxes of objects.",
-                              def_newline)
-        tmp_str = "%s%s%s" % (tmp_str, "        classes: ndarray, classes of objects.",
-                              def_newline)
-        tmp_str = "%s%s%s" % (tmp_str, "        scores: ndarray, scores of objects.",
-                              def_newline)
-        tmp_str = "%s%s%s" % (tmp_str, "        all_classes: all classes name.",
-                              def_newline)
-        tmp_str = "%s%s%s" % (tmp_str, '    """', def_newline)
-        tmp_str = "%s%s%s" % (tmp_str,
-                              "    for box, score, cl in zip(boxes, scores, classes):",
-                              def_newline)
-        tmp_str = "%s%s%s" % (tmp_str, "        top, left, right, bottom = box",
-                              def_newline)
-        tmp_str = "%s%s%s" % (tmp_str, "        top = int(top)", def_newline)
-        tmp_str = "%s%s%s" % (tmp_str, "        left = int(left)", def_newline)
-        tmp_str = "%s%s%s" % (tmp_str, "        right = int(right)", def_newline)
-        tmp_str = "%s%s%s" % (tmp_str, "        bottom = int(bottom)", def_newline)
-        tmp_str = "%s%s" % (tmp_str, def_newline)
-        tmp_str = "%s%s%s" % (tmp_str,
-                              "        cv2.rectangle(image, (top, left), (right, bottom), (255, 0, 0), 2)",
-                              def_newline)
-        tmp_str = "%s%s%s" % (tmp_str,
-                              "        cv2.putText(image, '{0} {1:.2f}'.format(CLASSES[cl], score),",
-                              def_newline)
-        tmp_str = "%s%s%s" % (tmp_str, "                    (top, left - 6),", def_newline)
-        tmp_str = "%s%s%s" % (tmp_str, "                    cv2.FONT_HERSHEY_SIMPLEX,",
-                              def_newline)
-        tmp_str = "%s%s%s" % (tmp_str, "                    0.6, (0, 0, 255), 2)",
-                              def_newline)
-        tmp_str = "%s%s" % (tmp_str, def_newline)
-        tmp_str = "%s%s" % (tmp_str, def_newline)
-
-        tmp_str = "%s%s%s" % (tmp_str, "if __name__ == '__main__':", def_newline)
-        # parsing parameter
-        tmp_str = "%s%s%s" % (tmp_str, "    if len(sys.argv) < 2:", def_newline)
-        tmp_str = "%s%s%s" % (tmp_str, "        print('%s%s' % ('input_file = ', input_file))", def_newline)
-        tmp_str = "%s%s%s" % (tmp_str, "    else:", def_newline)
-        tmp_str = "%s%s%s" % (tmp_str, "        input_file = sys.argv[1]", def_newline)
-        tmp_str = "%s%s%s" % (tmp_str, "    rknn_lite = RKNNLite()", def_newline)
-        tmp_str = "%s%s" % (tmp_str, def_newline)
-        tmp_str = "%s%s%s" % (tmp_str, "    # load RKNN model", def_newline)
-        tmp_str = "%s%s%s" % (tmp_str, "    print('--> Load RKNN model')", def_newline)
-        tmp_str = "%s%s%s" % (tmp_str, "    ret = rknn_lite.load_rknn(rknn_model_file)",
-                              def_newline)
-        tmp_str = "%s%s%s" % (tmp_str, "    if ret != 0:", def_newline)
-        tmp_str = "%s%s%s" % (tmp_str, "        print('Load RKNN model failed')",
-                              def_newline)
-        tmp_str = "%s%s%s" % (tmp_str, "        exit(ret)", def_newline)
-        tmp_str = "%s%s%s" % (tmp_str, "    print('done')", def_newline)
-        tmp_str = "%s%s" % (tmp_str, def_newline)
-        tmp_str = "%s%s%s" % (tmp_str,
-                              "    # run on RK356x/RK3588 with Debian OS, do not need specify target.",
-                              def_newline)
-        tmp_str = "%s%s%s" % (tmp_str, "    ret = rknn_lite.init_runtime()", def_newline)
-        tmp_str = "%s%s%s" % (tmp_str, "    if ret != 0:", def_newline)
-        tmp_str = "%s%s%s" % (tmp_str, "        print('Init runtime environment failed')",
-                              def_newline)
-        tmp_str = "%s%s%s" % (tmp_str, "        exit(ret)", def_newline)
-        tmp_str = "%s%s%s" % (tmp_str, "    print('done')", def_newline)
-        tmp_str = "%s%s" % (tmp_str, def_newline)
-        tmp_str = "%s%s%s" % (tmp_str, "    ##############################", def_newline)
-        tmp_str = "%s%s%s" % (tmp_str, "    ### yolov5 inference START ###", def_newline)
-        tmp_str = "%s%s%s" % (tmp_str, "    ##############################", def_newline)
-        tmp_str = "%s%s%s" % (tmp_str, "    cap = cv2.VideoCapture(input_file)", def_newline)
-        tmp_str = "%s%s%s" % (tmp_str, "    cap.set(cv2.CAP_PROP_FRAME_WIDTH, IMG_SIZE)",
-                              def_newline)
-        tmp_str = "%s%s%s" % (tmp_str, "    cap.set(cv2.CAP_PROP_FRAME_HEIGHT, IMG_SIZE)",
-                              def_newline)
-        tmp_str = "%s%s%s" % (tmp_str, "    while True:", def_newline)
-        tmp_str = "%s%s%s" % (tmp_str, "        check, frame = cap.read()", def_newline)
-        tmp_str = "%s%s%s" % (tmp_str, "        # Set inputs", def_newline)
-        tmp_str = "%s%s%s" % (tmp_str,
-                              "        frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)",
-                              def_newline)
-        tmp_str = "%s%s%s" % (tmp_str,
-                              "        frame = cv2.resize(frame, (IMG_SIZE, IMG_SIZE))",
-                              def_newline)
-        tmp_str = "%s%s" % (tmp_str, def_newline)
-        tmp_str = "%s%s%s" % (tmp_str, "        # Inference", def_newline)
-        tmp_str = "%s%s%s" % (tmp_str, "        start_time = time.time()", def_newline)
-        tmp_str = "%s%s%s" % (tmp_str,
-                              "        outputs = rknn_lite.inference(inputs=[frame])",
-                              def_newline)
-        tmp_str = "%s%s%s" % (tmp_str, "        end_time = time.time()", def_newline)
-        tmp_str = "%s%s" % (tmp_str, def_newline)
-
-        tmp_str = "%s%s%s" % (tmp_str, "        # post process", def_newline)
-        cnt = self.m_nninfo_output_number
-        for i in range(0, cnt):
-            tmp_str = "%s%s%s%s%s%s%s" % (tmp_str,
-                                          "        input", i, "_data = ouputs[", i, "]", def_newline)
-        tmp_str = "%s%s" % (tmp_str, def_newline)
-
-        # yaml의 output_size_format에 따라 수정 필요, 
-        # 출력단의 name에 따라 출력 포맷이 달라짐 확인 요망
-        for i in range(0, cnt):
-            tmp_str = "%s%s%s%s%s%s%s%s%s" % (tmp_str,
-                                              "        input", i, "_data = input", i,
-                                              "_data.reshape([3, -1]+list(input", i,
-                                              "_data.shape[-2:]))", def_newline)
-        tmp_str = "%s%s" % (tmp_str, def_newline)
-
-        tmp_str = "%s%s%s" % (tmp_str, "        input_data = list()", def_newline)
-
-        for i in range(0, cnt):
-            tmp_str = "%s%s%s%s%s" % (tmp_str,
-                                      "        input_data.append(np.transpose(input",
-                                      i, "_data, (1, 2, 0, 3)))", def_newline)
-        tmp_str = "%s%s" % (tmp_str, def_newline)
-
-        tmp_str = "%s%s%s" % (tmp_str,
-                              "        boxes, classes, scores = post.yolov5_post_process(input_data)",
-                              def_newline)
-        tmp_str = "%s%s" % (tmp_str, def_newline)
-        tmp_str = "%s%s%s" % (tmp_str,
-                              "        result = cv2.cvtColor(frame, cv2.COLOR_RGB2BGR)", def_newline)
-        tmp_str = "%s%s%s" % (tmp_str, "        if boxes is not None:", def_newline)
-        tmp_str = "%s%s%s" % (tmp_str,
-                              "            post.draw(result, boxes, scores, classes)",
-                              def_newline)
-        tmp_str = "%s%s%s" % (tmp_str, "        # show output", def_newline)
-        tmp_str = "%s%s%s" % (tmp_str, "        fps = 1 / (end_time - start_time)",
-                              def_newline)
-        tmp_str = "%s%s%s%s" % (tmp_str,
-                                '        cv2.putText(result, f"{fps:.3f} FPS", (20, 35),',
-                                'cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 255, 0), 2)', def_newline)
-        tmp_str = "%s%s%s" % (tmp_str, '        cv2.imshow("result", result)', def_newline)
-        tmp_str = "%s%s%s" % (tmp_str, "        ret = cv2.waitKey(1)", def_newline)
-        tmp_str = "%s%s%s" % (tmp_str, "        if (ret >= 0):", def_newline)
-        tmp_str = "%s%s%s" % (tmp_str, "            break;", def_newline)
-        tmp_str = "%s%s" % (tmp_str, def_newline)
-        tmp_str = "%s%s%s" % (tmp_str, "    cap.release()", def_newline)
-        tmp_str = "%s%s%s" % (tmp_str, "    cv2.destroyAllWindows()", def_newline)
-        tmp_str = "%s%s%s" % (tmp_str, "    ############################", def_newline)
-        tmp_str = "%s%s%s" % (tmp_str, "    ### yolov5 inference END ###", def_newline)
-        tmp_str = "%s%s%s" % (tmp_str, "    ############################", def_newline)
-        tmp_str = "%s%s%s" % (tmp_str, "    rknn_lite.release()", def_newline)
-
-        try:
-            outf = open(self.get_code_filepath(self.m_deploy_python_file), "w")
-        except IOError as err:
-            logging.debug("RKNN Deploy File Write Error #1")
-            return -1
-        outf.write(tmp_str)
-        outf.close()
-
-        # manual copy
-        if os.path.isfile(def_m1_manual):
-            shutil.copy(def_m1_manual, self.m_current_code_folder)
-
-        # khlee
-        # onnx file remove
-        os.remove(self.get_real_filepath(self.m_nninfo_weight_onnx_file))
         return 0
 
     ####################################################################
@@ -2206,14 +1591,6 @@ class CodeGen:
         else:
             dep_type = 'native'
 
-        # if self.m_sysinfo_engine_type == 'rknn':
-        #     w_filw = def_rknn_file
-        # elif self.m_sysinfo_engine_type == 'acl':
-        #     w_filw = "yolo_v3_tiny_darknet_fp32.tflite"
-        # #  .pt file
-        # else:
-        #    w_filw = self.m_nninfo_weight_pt_file
-
         my_entry = ['python3', 'deploy_server.py']
         # my_entry = self.m_deploy_entrypoint
 
@@ -2409,11 +1786,7 @@ class CodeGen:
                         f.write("\n")
 
         t_pkg = {"atp": self.m_sysinfo_apt, "pypi": self.m_sysinfo_papi}
-        if self.m_sysinfo_engine_type == 'rknn':
-            w_filw = def_rknn_file
-            t_com = {"engine": "rknn", "libs": self.m_sysinfo_libs,
-                 "custom_packages": t_pkg}
-        elif self.m_sysinfo_engine_type == 'acl':
+        if self.m_sysinfo_engine_type == 'acl':
             w_filw = "yolo_v3_tiny_darknet_fp32.tflite"
             t_com = {"engine": "acl", "libs": self.m_sysinfo_libs,
                  "custom_packages": t_pkg}

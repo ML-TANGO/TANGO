@@ -592,12 +592,12 @@ class Inference:
             for data in transformed_list:
                 print("Examine image %d -> FILE = %s" % ((cnt+1), f_list[cnt]))
                 path = self.args.image_path + '/' + f_list[cnt]
-                myImg = cv2.imread(path, cv2.IMREAD_COLOR)
-                winname = f_list[cnt]
-                cv2.namedWindow(winname)
-                cv2.moveWindow(winname, 1400, 10)
-                cv2.imshow(winname, myImg)
-                cv2.waitKey(1000)
+                # myImg = cv2.imread(path, cv2.IMREAD_COLOR)
+                # winname = f_list[cnt]
+                # cv2.namedWindow(winname)
+                # cv2.moveWindow(winname, 1400, 10)
+                # cv2.imshow(winname, myImg)
+                # cv2.waitKey(1000)
                 
                 cnt = cnt + 1
                 output = self.model(data.unsqueeze(0).float().to(self.device))
@@ -610,7 +610,7 @@ class Inference:
                 print('softmax result : ', _score_p.max())
                 print('\n')
                 r_list.append([pred, _score_p.cpu()])
-                cv2.destroyAllWindows()
+                # cv2.destroyAllWindows()
 
         r_dict = dict(zip(f_list, r_list))
         path = './infer_result.csv'
