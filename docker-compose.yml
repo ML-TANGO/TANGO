@@ -177,7 +177,8 @@ services:
     shm_size: '256M'
     ipc: host
     command: >
-      sh -c "python manage.py makemigrations &&
+      sh -c "python manage.py pretrained_supernet && 
+             python manage.py makemigrations &&
              python manage.py migrate &&
              python manage.py runserver 0.0.0.0:8090"
     # use the below lines commented out if you want to use gpu
