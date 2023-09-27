@@ -267,7 +267,7 @@ def train(hyp, opt, device, tb_writer=None, target=None):
 
     # Process 0
     if rank in [-1, 0]:
-        testloader = create_dataloader(test_path, imgsz_test, batch_size * 2, gs, opt,  # testloader
+        testloader = create_dataloader(test_path, imgsz_test, batch_size, gs, opt,  # testloader
                                        hyp=hyp, cache=opt.cache_images and not opt.notest, rect=True, rank=-1,
                                        world_size=opt.world_size, workers=opt.workers,
                                        pad=0.5, prefix=colorstr('val: '))[0]
@@ -545,6 +545,7 @@ def train(hyp, opt, device, tb_writer=None, target=None):
 def run_yolo(proj_path, dataset_yaml_path, data=None, target=None, train_mode='search', final_arch=None):
     target_acc = target[0]
     target = target[1]
+    torch.cuda.empty_cache()
 
     # check whether model size is large
     with open(str(Path(proj_path) / 'basemodel.yaml')) as f:
@@ -576,9 +577,6 @@ def run_yolo(proj_path, dataset_yaml_path, data=None, target=None, train_mode='s
     opt.global_rank = int(os.environ['RANK']) if 'RANK' in os.environ else -1
     set_logging(opt.global_rank)
 
-    # change fixed total batch size
-    opt.total_batch_size = 24
-
     # Resume
     wandb_run = check_wandb_resume(opt)
     if opt.resume and not wandb_run:  # resume an interrupted run
@@ -601,9 +599,8 @@ def run_yolo(proj_path, dataset_yaml_path, data=None, target=None, train_mode='s
     with open(opt.hyp) as f:
         hyp = yaml.load(f, Loader=yaml.SafeLoader)  # load hyps
 
-    # opt.batch_size = proj_info['batchsize']
-    # set fixed batch size
-    opt.batch_size = 24
+    opt.batch_size = int(proj_info['batchsize'] / 4) ## TODO: Something is wrong. AutoBatch divided by 4 is good for training.
+    print(opt.batch_size)
     device_str = ''
     for i in range(torch.cuda.device_count()):
         device_str = device_str + str(i) + ','

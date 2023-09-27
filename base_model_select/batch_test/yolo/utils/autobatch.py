@@ -4,7 +4,7 @@ import torch
 import gc
 
 from copy import deepcopy
-from utils.general import colorstr
+from .general import colorstr
 
 
 def get_batch_size_for_gpu(model, imgsz, amp):

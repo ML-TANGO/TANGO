@@ -95,6 +95,7 @@ services:
                 - gpu
                 - utility
                 - compute
+                - video
     environment:
       - NVIDIA_VISIBLE_DEVICES=${GPU_NUM:-all}
     hostname: bms
@@ -190,6 +191,7 @@ services:
                 - gpu
                 - utility
                 - compute
+                - video
     environment:
       - NVIDIA_VISIBLE_DEVICES=${GPU_NUM:-all}
     volumes:

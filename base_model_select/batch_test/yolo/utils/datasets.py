@@ -28,9 +28,9 @@ from torchvision.ops import roi_pool, roi_align, ps_roi_pool, ps_roi_align
 
 import sys
 sys.path.append(os.path.dirname(__file__))
-from general import check_requirements, xyxy2xywh, xywh2xyxy, xywhn2xyxy, xyn2xy, segment2box, segments2boxes, \
+from .general import check_requirements, xyxy2xywh, xywh2xyxy, xywhn2xyxy, xyn2xy, segment2box, segments2boxes, \
     resample_segments, clean_str
-from torch_utils import torch_distributed_zero_first
+from .torch_utils import torch_distributed_zero_first
 
 # Parameters
 help_url = 'https://github.com/ultralytics/yolov5/wiki/Train-Custom-Data'
