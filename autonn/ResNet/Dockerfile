@@ -7,6 +7,12 @@ ENV PIP_DEFAULT_TIMEOUT=1000
 RUN apt-get update
 RUN apt-get -y install libgl1-mesa-glx
 
+# GitHub 미러로부터 사전학습 모델 다운로드
+# - https://github.com/ML-TANGO/TANGO/releases/tag/Model_Mirror
+RUN mkdir /pretrained
+WORKDIR /pretrained
+RUN wget https://github.com/ML-TANGO/TANGO/releases/download/Model_Mirror/kagglecxr_resnet152_normalize.pt
+
 WORKDIR /source
 COPY requirements.txt ./
 RUN pip install --upgrade pip
