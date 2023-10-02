@@ -5,9 +5,8 @@ import torch.nn as nn
 
 import os
 import sys
-sys.path.append(os.path.dirname(os.path.dirname(__file__)))  # to run '$ python *.py' files in subdirectories
 from .common import Conv, DWConv
-from .utils.google_utils import attempt_download
+from ..utils.google_utils import attempt_download
 
 
 class CrossConv(nn.Module):

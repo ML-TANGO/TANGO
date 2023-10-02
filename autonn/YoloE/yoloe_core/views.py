@@ -14,9 +14,9 @@ from rest_framework.decorators import api_view
 from pathlib import Path
 from distutils.dir_util import copy_tree
 import argparse
-from onedrivedownloader import download
 
 from .yolov7_utils.train import run_yolo
+from .yolov7_utils.export import export_main
 from . import models
 
 
@@ -208,20 +208,23 @@ def process_yolo(userid, project_id, data_yaml, proj_yaml):
         target_device = proj_info['target_info']
         target_acc = proj_info['acc']   # accelerator
         target_info = [target_acc, target_device]
-        if target_device == 'Galaxy_S22':
-            print(str(common_root / 'yolov7_supernet.pt'))
-            download(url='https://livecauac-my.sharepoint.com/:u:/g/personal/costor_cau_ac_kr/EWqGqKUTPa1FoOioMLZRvtkBR06-nbFiCWLvF5fHnVDu-w?e=hI88Gb',
-                     filename=str(common_root / 'yolov7_supernet.pt'))
 
         final_model = run_yolo(proj_path, str(data_yaml), target=target_info, train_mode='search')
         print('process_yolo: train done')
+        onnx_path = export_main(final_model, proj_info['os'])
 
         best_pt_path = Path(proj_path) / 'yoloe.pt'
+        best_onnx_path = Path(proj_path) / 'yoloe.onnx'
         Path(proj_path).mkdir(parents=True, exist_ok=True)
         print(str(best_pt_path))
+        print(str(best_onnx_path))
+
         shutil.copyfile(final_model, str(best_pt_path))
+        shutil.copyfile(onnx_path, str(best_onnx_path))
         os.remove(final_model)
-        print(f'saved the best model: {str(best_pt_path)}')
+        os.remove(onnx_path)
+        print(f'saved the best pt model: {str(best_pt_path)}')
+        print(f'saved the best onnx model: {str(best_onnx_path)}')
 
         # by jykwak
         src_root = Path('/source/yoloe_core/yolov7_utils/')
@@ -244,7 +247,7 @@ def process_yolo(userid, project_id, data_yaml, proj_yaml):
         src_reqire_file = src_yaml_root / 'yoloe_requirements.txt'
         final_reqire_file = prjct_path / 'yoloe_requirements.txt'
         shutil.copy(src_reqire_file, final_reqire_file)
-        create_nn_info(src_info_path, final_info_path, best_pt_path, input_shape)
+        create_nn_info(src_info_path, final_info_path, best_pt_path, input_shape, target_device)
         # create_nn_info(src_info_path, final_info_path, "", input_shape)
         # print(str(final_info_path))
 
@@ -256,36 +259,39 @@ def process_yolo(userid, project_id, data_yaml, proj_yaml):
     except ValueError as e:
         print(e)
 
-# by jykwak
+
 def create_nn_info(
                 src_info_path,
                 final_info_path,
                 final_pt_path,
-                input_shape):
+                input_shape,
+                target_device,
+                ):
     with open(src_info_path) as f:
         nn_yaml = yaml.load(f, Loader=yaml.FullLoader)
-        # nn_yaml = yaml.safe_load(f)
-    # print(nn_yaml)
 
     final_py_list = str("['models/yolo.py', 'basemodel.yaml', 'models/common.py', 'models/experimental.py', 'utils/autoanchor.py', 'utils/datasets.py', 'utils/general.py', 'utils/torch_utils.py', 'utils/loss.py', 'utils/metrics.py', 'utils/plots.py']")
     nn_info = dict()
     for k in nn_yaml.keys():
-        # print(k)
-        # print(nn_yaml[k])
         if type(nn_yaml[k]) == str:
             nn_info[str(k)] = str(nn_yaml[k])
         else:
             nn_info[str(k)] = nn_yaml[k]
     # nn_info['class_file'] = final_py_list
     nn_info['class_name'] = str("Model(cfg='basemodel.yaml')")
-    nn_info['weight_file']= str("yoloe.pt")
+
+    if target_device=='Galaxy_S22':
+        nn_info['weight_file'] = "yoloe.onnx"
+    else:
+        nn_info['weight_file'] = "yoloe.pt"
     # nn_info['input_tensor_shape'] = [1, 3, 640, 640]
     print(input_shape)
     nn_info['input_tensor_shape'] = [1, 3, input_shape[0], input_shape[1]]
     # print(nn_info)
 
-    with open(final_info_path, 'w') as file:
-        yaml.dump(nn_info, file, default_flow_style=False)
+    with open(final_info_path, 'w') as f:
+        yaml.dump(nn_info, f, default_flow_style=False)
+
 
 def exp_num_check(proj_path):
     current_filelist = os.listdir(proj_path)
