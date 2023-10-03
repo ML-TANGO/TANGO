@@ -15,7 +15,7 @@ from .utils.torch_utils import select_device
 from .utils.add_nms import RegisterNMS
 
 
-def export_main(weight, os):
+def export_main(weight, engine):
     opt = argparse.Namespace()
 
     opt.weights = weight
@@ -23,7 +23,6 @@ def export_main(weight, os):
     opt.dynamic = False
     opt.dynamic_batch = False
     opt.grid = True
-    opt.max_wh = None
     opt.topk_all = 100
     opt.iou_thres = 0.65
     opt.conf_thres = 0.35
@@ -33,12 +32,16 @@ def export_main(weight, os):
     opt.fp16 = False
     opt.int8 = False
 
-    if os.lower() == 'android':
+    if engine.lower() == 'tflite':
         opt.end2end = False
         opt.img_size = [320, 320]
+        opt.max_wh = 320
+        print('onnx export options for tflite')
     else:
         opt.end2end = True
         opt.img_size = [640, 640]
+        opt.max_wh = 640
+        print('onnx export options for standard(not tflite)')
 
     opt.img_size *= 2 if len(opt.img_size) == 1 else 1  # expand
     opt.dynamic = opt.dynamic and not opt.end2end
