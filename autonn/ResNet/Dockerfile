@@ -12,7 +12,7 @@ RUN apt-get -y install libgl1-mesa-glx
 # - https://github.com/ML-TANGO/TANGO/releases/tag/Model_Mirror
 RUN mkdir /pretrained
 WORKDIR /pretrained
-RUN wget https://github.com/ML-TANGO/TANGO/releases/download/Model_Mirror/kagglecxr_resnet152_normalize.pt
+RUN wget https://github.com/ML-TANGO/TANGO/releases/download/Model_Mirror/kagglecxr_resnet152_normalize.pt --retry-connrefused
 
 WORKDIR /source
 COPY requirements.txt ./

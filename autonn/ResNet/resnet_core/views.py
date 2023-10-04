@@ -252,6 +252,15 @@ def autogen_resnet(userid, project_id):
 
     nn_model_path.mkdir(parents=True, exist_ok=True)
     (nn_model_path / "models").mkdir(parents=True, exist_ok=True)
+    if not Path("/pretrained/kagglecxr_resnet152_normalize.pt").exists():
+        print("download kagglecxr_resnet152_normalize.pt")
+        url = "https://github.com/ML-TANGO/TANGO/releases/download/Model_Mirror/kagglecxr_resnet152_normalize.pt"
+        output_path = "/pretrained/kagglecxr_resnet152_normalize.pt"
+        response = requests.get(url, stream=True, timeout=30)  # timeout 옵션을 사용하여 타임아웃을 설정합니다.
+        if response.status_code == 200:
+            with open(output_path, "wb") as f:
+                for chunk in response.iter_content(chunk_size=1024):
+                    f.write(chunk)
     if Path("/pretrained/kagglecxr_resnet152_normalize.pt").exists():
         print("kagglecxr_resnet152_normalize.pt to nn_model")
         model_file = "/pretrained/kagglecxr_resnet152_normalize.pt"
