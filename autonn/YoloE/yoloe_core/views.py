@@ -211,45 +211,47 @@ def process_yolo(userid, project_id, data_yaml, proj_yaml):
 
         final_model = run_yolo(proj_path, str(data_yaml), target=target_info, train_mode='search')
         print('process_yolo: train done')
-        onnx_path = export_main(final_model, proj_info['os'])
 
-        best_pt_path = Path(proj_path) / 'yoloe.pt'
-        best_onnx_path = Path(proj_path) / 'yoloe.onnx'
         Path(proj_path).mkdir(parents=True, exist_ok=True)
-        print(str(best_pt_path))
-        print(str(best_onnx_path))
+        if proj_info['engine']=='pytorch':
+            best_pt_path = Path(proj_path) / 'yoloe.pt'
+            shutil.copyfile(final_model, str(best_pt_path))
+            os.remove(final_model)
+            print(f'saved the best pt model: {str(best_pt_path)}')
 
-        shutil.copyfile(final_model, str(best_pt_path))
-        shutil.copyfile(onnx_path, str(best_onnx_path))
-        os.remove(final_model)
-        os.remove(onnx_path)
-        print(f'saved the best pt model: {str(best_pt_path)}')
-        print(f'saved the best onnx model: {str(best_onnx_path)}')
+        else:
+            best_onnx_path = Path(proj_path) / 'yoloe.onnx'
+            onnx_path = export_main(final_model, proj_info['engine'])
+            shutil.copyfile(onnx_path, str(best_onnx_path))
+            os.remove(final_model)
+            os.remove(onnx_path)
+            print(f'saved the best onnx model: {str(best_onnx_path)}')
 
-        # by jykwak
         src_root = Path('/source/yoloe_core/yolov7_utils/')
         with open(src_root / 'args.yaml', encoding='utf-8') as f:
             opt = argparse.Namespace(**yaml.safe_load(f))
         input_shape = [basemodel_yaml['imgsz'], basemodel_yaml['imgsz']]
+
         src_yaml_root = Path('/source/sample_yaml/')
-        src_info_path = src_yaml_root / 'neural_net_info.yaml'
         from_py_modelfolder_path = src_root / 'models'
         from_py_utilfolder_path = src_root / 'utils'
+
         prjct_path = Path('/shared/common/') / userid / project_id
-        # print(str(prjct_path))
-        final_info_path = prjct_path / 'neural_net_info.yaml'
         to_py_modelfolder_path = prjct_path / 'models'
         to_py_utilfolder_path = prjct_path / 'utils'
-        copy_tree(str(from_py_modelfolder_path), str(to_py_modelfolder_path))
-        copy_tree(str(from_py_utilfolder_path), str(to_py_utilfolder_path))
-        # print(str(to_py_modelfolder_path))
-        # print(str(to_py_utilfolder_path))
+
+        if proj_info['engine']=='pytorch':
+            copy_tree(str(from_py_modelfolder_path), str(to_py_modelfolder_path))
+            copy_tree(str(from_py_utilfolder_path), str(to_py_utilfolder_path))
+            print('copied source files for pytorch')
+
         src_reqire_file = src_yaml_root / 'yoloe_requirements.txt'
         final_reqire_file = prjct_path / 'yoloe_requirements.txt'
         shutil.copy(src_reqire_file, final_reqire_file)
-        create_nn_info(src_info_path, final_info_path, best_pt_path, input_shape, target_device)
-        # create_nn_info(src_info_path, final_info_path, "", input_shape)
-        # print(str(final_info_path))
+
+        src_info_path = src_yaml_root / 'neural_net_info.yaml'
+        final_info_path = prjct_path / 'neural_net_info.yaml'
+        create_nn_info(src_info_path, final_info_path, input_shape, False if proj_info['engine']=='pytorch' else True)
 
         exp_num = exp_num_check(proj_path)
         shutil.copy(proj_yaml, Path(proj_path) / str('exp' + str(exp_num) + '_project_info.yaml'))
@@ -263,9 +265,8 @@ def process_yolo(userid, project_id, data_yaml, proj_yaml):
 def create_nn_info(
                 src_info_path,
                 final_info_path,
-                final_pt_path,
                 input_shape,
-                target_device,
+                onnx,
                 ):
     with open(src_info_path) as f:
         nn_yaml = yaml.load(f, Loader=yaml.FullLoader)
@@ -280,14 +281,15 @@ def create_nn_info(
     # nn_info['class_file'] = final_py_list
     nn_info['class_name'] = str("Model(cfg='basemodel.yaml')")
 
-    if target_device=='Galaxy_S22':
+    if onnx:
         nn_info['weight_file'] = "yoloe.onnx"
+        print('weight file name is changed to yoloe.onnx')
     else:
         nn_info['weight_file'] = "yoloe.pt"
-    # nn_info['input_tensor_shape'] = [1, 3, 640, 640]
+        print('weight file name is changed to yoloe.pt')
+
     print(input_shape)
     nn_info['input_tensor_shape'] = [1, 3, input_shape[0], input_shape[1]]
-    # print(nn_info)
 
     with open(final_info_path, 'w') as f:
         yaml.dump(nn_info, f, default_flow_style=False)
