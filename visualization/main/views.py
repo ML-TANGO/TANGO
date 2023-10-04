@@ -41,6 +41,7 @@ from .models import Status
 
 from .graph import CGraph, CEdge, CNode, CShow2
 from .binder import CPyBinder
+import json
 
 # Create your views here.
 
@@ -151,8 +152,6 @@ def pthlist(request):
 
 
 
-
-
             if serializer.is_valid():
                 print("valid")
                 serializer.save()
@@ -173,7 +172,7 @@ def pthlist(request):
                     'Content-Type': 'text/plain'
                 }
                 payload = {
-                    'container_id': "vis2code",
+                    'container_id': "viz2code",
                     'user_id': user_id,
                     'project_id': project_id,
                     'status': "success"
@@ -199,7 +198,7 @@ def pthlist(request):
                     'Content-Type': 'text/plain'
                 }
                 payload = {
-                    'container_id': "vis2code",
+                    'container_id': "viz2code",
                     'user_id': user_id,
                     'project_id': project_id,
                     'status': "failed"
@@ -290,29 +289,49 @@ def startList(request):
                                                'project_id': project_id})
             if serializer.is_valid():
                 serializer.save()
-                copyfile('/shared/common/'+str(user_id)+'/'+str(project_id)+'/basemodel.json', '/visualization/frontend/src/resnet50.json')
-                #copyfile('./frontend/src/VGG16.json', './frontend/src/resnet50.json')
-                print('start api GET')
-                os.system("cd frontend && npm run build")
+                try:
+                    nodes = Node.objects.all()
+                    nodes.delete()
 
+                    edges = Edge.objects.all()
+                    edges.delete()
 
+                    copyfile('/shared/common/'+str(user_id)+'/'+str(project_id)+'/basemodel.json', '/visualization/frontend/src/resnet50.json')
+                    #copyfile('./frontend/src/resnet50.json', './frontend/src/VGG16.json')
+                    with open("./frontend/src/resnet50.json", "r", encoding="utf-8-sig") as f:
+                        data = json.load(f)
+                        for i in data.get('node'):
+                            serializer = NodeSerializer(data=i)
+                            if serializer.is_valid():
+                                serializer.save()
+                        for j in data.get('edge'):
+                            serializer = EdgeSerializer(data=j)
+                            if serializer.is_valid():
+                                serializer.save()
+
+                    print('start api GET')
+
+                except Exception as ex:
+                    print(ex)
+                return Response("started", status=200, content_type="text/plain")
             else:
-                sleep(3)
-                host_ip = str(request.get_host())[:-5]
-                # pylint: disable =invalid-name,missing-timeout,unused-variable
-                # r = requests.get('http://'+host_ip+':8085/status_report?'
-                #                                    'container_id="vis2code"&'
-                #                                    'user_id=""&project_id=""'
-                #                                    '&status="success"',
-                #                  verify=False)
-
-            return HttpResponse('started',
-                                content_type="text/plain")
-            # return Response(serializer.data)
+                return Response("error", status=200, content_type="text/plain")
         # pylint: disable = broad-except
         except Exception as e:
             # return HttpResponse(e, HttpResponse)
-            return HttpResponse('error', content_type="text/plain")
+            #return HttpResponse('error', content_type="text/plain")
+            return Response("error", status=200, content_type="text/plain")
+
+
+    elif request.method == 'POST':
+        with open("./frontend/src/resnet50.json", "r") as f:
+            data = json.load(f)
+            if (len(data["node"]) > 1) :
+                return True
+            else:
+                return False
+
+
     else:
         print('no request')
 
@@ -333,13 +352,14 @@ def stopList(request):
                                               'project_id': project_id})
             if serializer.is_valid():
                 serializer.save()
-            return HttpResponse(serializer.data['msg'],
-                                content_type="text/plain")
+            #return HttpResponse(serializer.data['msg'],content_type="text/plain")
+            return Response(serializer.data['msg'], status=200, content_type="text/plain")
             # return Response(serializer.data)
         # pylint: disable = broad-except
         except Exception as e:
             # return HttpResponse(e, HttpResponse)
-            return HttpResponse('error', content_type="text/plain")
+            #return HttpResponse('error', content_type="text/plain")
+            return Response("error", status=200, content_type="text/plain")
     else:
         print('no request')
 
@@ -385,24 +405,25 @@ def statusList(request):
                 if serializer.is_valid():
                     serializer.save()
                     print('status request api GET (running)')
-                    return HttpResponse('running',
-                                        content_type="text/plain")
+                    #return HttpResponse('running', content_type="text/plain")
+                    return Response("running", status=200, content_type="text/plain")
                 else:
                     print(serializer.errors)
                     print('status request api GET (ready)')
-                    return HttpResponse('ready',
-                                        content_type="text/plain")
+                    #return HttpResponse('ready', content_type="text/plain")
+                    return Response("ready", status=200, content_type="text/plain")
+
 
             else:
                 print('status request api GET (started)')
-                return HttpResponse('started',
-                                    content_type="text/plain")
+                #return HttpResponse('started', content_type="text/plain")
+                return Response("started", status=200, content_type="text/plain")
 
         # pylint: disable=broad-except
         except Exception as e:
             print('status request api GET (failed). error: ', e)
-            return HttpResponse('failed',
-                                content_type="text/plain")
+            #return HttpResponse('failed', content_type="text/plain")
+            return Response("failed", status=200, content_type="text/plain")
     else:
         print('no request')
 

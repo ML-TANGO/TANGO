@@ -21,7 +21,7 @@ import CrossEntropyLoss from "../layer/CrossEntropyLoss";
 import MSELoss from "../layer/MSELoss";
 import Flatten from "../layer/Flatten";
 import Upsample from "../layer/Upsample";
-import { initialArch } from '../../initialArch';
+import InitialArch from '../../InitialArch';
 import axios from 'axios';
 import ReactFlow, {
   addEdge,
@@ -64,7 +64,7 @@ function InfoList() {
       //       console.log(response)
       //     }).catch(err=>console.log(err));
       //       // Initializate selected architecture
-    var initElement = initialArch();
+    var initElement = InitialArch();
     for (var i=0;i<initElement.length;i++) {
       elements.push(initElement[i]);
       // setElements((es) => es.concat(initElement[i]));
@@ -524,7 +524,7 @@ function InfoList() {
         <div className="reactflow-wrapper" ref={reactFlowWrapper}>
           <ReactFlow
 //            onClick={onRunningStateClick}
-            initElement={initialArch}
+            initElement={InitialArch}
             onConnect={onConnect}
             elements={elements}
             onLoad={onLoad}

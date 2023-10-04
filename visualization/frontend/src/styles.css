@@ -70,11 +70,18 @@
 /*}*/
 
 .reactBtn{
-margin-top: 58%;
+    right: 55px;
+    bottom: 75px
+}
+
+/*@media (min-width:1364px) {
+.reactBtn{
+    margin-top: 58%;
     margin-left: 85%;
     float: left;
     width:300px;
 }
+}*/
 
 .inspect{
     background-color: #4F5057;
@@ -83,18 +90,15 @@ margin-top: 58%;
     text-align: center;
     box-shadow: 2.5px 2.5px 3px 0 rgba(0, 0, 0, 0.51);
 
-
     /*display: inline-block;*/
     /*margin-top: 58%;*/
     /*margin-left: 92%;*/
     /*margin-bottom:10%;*/
 
-
     float: left;
     color: #fff;
     width: 105px;
     height: 35px;
-
 }
 
 .btn_fin{

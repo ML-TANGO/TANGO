@@ -26,7 +26,6 @@ import Upsample from "../layer/Upsample";
 import BasicBlock from "../layer/BasicBlock";
 import Bottleneck from "../layer/Bottleneck";
 import axios from 'axios';
-import { initialArch } from '../../initialArch';
 import ReactFlow, {
 
   addEdge,
@@ -39,6 +38,7 @@ import GenerateButton from "../GenerateButton";
 import Tab from "../sidebar/Tab";
 import LayerToggle from "../sidebar/LayerToggle";
 import NetworkInformation  from "../sidebar/NetworkInformation";
+import InitialArch from "../../InitialArch";
 import arange_icon from "../../img/swap.png";
 import BasicBlockimg from "../../img/basicblock.png";
 import BottleNeckimg from "../../img/bottleneck.png";
@@ -52,18 +52,28 @@ const edgeTypes = {
 let nowp = "";
 var checkFirst = 0;
 let initRunningStateTime = 100;
-//var running_id = 0;
+var running_id = 0;
 var sortCount = 1;
 var sortHeight = 0;
 let sortList = [];
+let clickedNodeList = [];
+let clickedNodeIdList = [];
 function LayerList() {
   const reactFlowWrapper = useRef(null);
   const [reactFlowInstance, setReactFlowInstance] = useState(null);
-  const [elements, setElements] = useState([]);
+  //const [elements, setElements] = useState([]);
   const [modalOpen, setModalOpen] = useState(false);
   const [state, setState] = useState("");
   const [idState, setIdState] = useState("");
   const [paramState, setParam] = useState();
+  const [group, setGroup] = useState(false);
+  const [level, setLevel] = useState(1);
+  const [ungroup, setUngroup] = useState(false);
+  const [isSort, setIsSort] = useState(false);
+  const [elements, setElements, isLoading] = InitialArch(level, group, setGroup, ungroup, setUngroup, isSort, setIsSort);
+  const [rapid, setRapid] = useState([]);
+  const [noMatch, setNoMatch] = useState([]);
+
   var running_id = 0;
 
   useEffect(()=>{
@@ -79,17 +89,55 @@ function LayerList() {
     get_params();
   },[idState]);
 
+  useEffect(()=>{
+    const get_node = async () => {
+      try {
+        return await axios.get('/api/node/');
+      } catch (error) {
+        console.error(error);
+      }
+    };
+  for(var i=0;i<elements.length;i++){
+
+        if (Number(elements[i].id) === rapid[0]){
+            elements[rapid[0]-1].style = {
+      ...elements[rapid[0]-1].style,
+        border: "5px solid #0067  A3",
+
+      }
+      elements[rapid[1]-1].style = {
+        ...elements[rapid[1]-1].style,
+        border: "5px solid #0067A3",
+
+      }
+            setElements([...elements]);
+
+        }
+
+        if (Number(elements[i].id) === noMatch[0]){
+            elements[noMatch[0]-1].style = {
+        ...elements[noMatch[0]-1].style,
+        border: "5px solid #DD636E",
+
+      }
+      elements[noMatch[1]-1].style = {
+        ...elements[noMatch[1]-1].style,
+        border: "5px solid #DD636E",
+
+      }
+            setElements([...elements]);
+        }
+    }
+
+
+  },[rapid, noMatch])
+
 
 
 
 
 const onSortNodes = (sortList) => {
-
-
-
-
     console.log('back code');
-
     sortList = sortList.split(",");
     console.log(sortList);
 
@@ -99,7 +147,36 @@ const onSortNodes = (sortList) => {
   let sort_x_pos = 100 + sortCount;
   let sort_y_pos = 100 + sortCount;
 
-   let isBlock = undefined;
+  var sampleElements = []
+    for (var i = 0; i < sortList.length; i++) {
+      for (var j = 0; j < sortedElements.length; j++) {
+         if (Number(sortedElements[j].id) === Number(sortList[i])) {
+            sampleElements.push(sortedElements[j]);
+         }
+      }
+    }
+
+    for (var i = 0; i < sortList.length; i++) {
+      for (var j = 0; j < sortedElements.length; j++) {
+        if (Number(sortedElements[j].source) === Number(sortList[i])) {
+            sampleElements.push(sortedElements[j]);
+         }
+      }
+    }
+  console.log("sampleElement = ", sampleElements);
+
+    sortedElements = sampleElements;
+    console.log("sortedElement = ", sortedElements)
+
+    sortedElements[0].position = {
+            x: sort_x_pos,
+            y: sort_y_pos,
+    };
+
+    let isBlock = undefined;
+    let isGroup = undefined;
+
+
   if(sortedElements[sortList[0]].sort !== "0"){
       isBlock = true;
   }else{
@@ -160,84 +237,45 @@ const onSortNodes = (sortList) => {
 
   // 정렬한 노드 list 받아오기
   const sortActive=(event)=>{
-    console.log('생성버튼클릭');
-    axios.delete("/api/sort/1/")
-    .then(function(response){
-        console.log(response)
-        })
-        .catch(e => console.log(e))
-    console.log('delete done');
-    axios.post("/api/sort/")
-        .then(function(response){
-        console.log(response)
-        axios.get('/api/sort/1/')
-            .then(function(response2){
-            console.log('정렬된 list: ', response2.data.sorted_ids)
-              onSortNodes(response2.data.sorted_ids);
-
-            })
-        })
-        .catch(e => console.log(e))
-    console.log('post done');
+    setIsSort(true);
+    console.log("isSort", isSort);
   };
 
   const onLoad = (rFInstance) => setReactFlowInstance(rFInstance);
+const notRunningState = setInterval(() => {
+    ////    console.log("[post] 동작 중지");
+    //    running_id += 1;
+    axios
+      .post("/api/status_report/", {
+        timestamp: Date.now(),
+        //      running: 0,
+      })
+      .then(function (response) {
+        //console.log(timestamp)
+      })
+      .catch((e) => console.log(e));
+  }, initRunningStateTime * 1000);
 
+  const onRunningState = () => {
+    //    console.log("[post] 동작 중");
 
-
-
-
-  //
-  if(checkFirst == 0){
-      console.log('실행')
-      console.log('running_id', running_id)
-       axios.post("/api/running/",{     // status_report에 started 저장 (메인페이지 첫 실행시)
-             timestamp: Date.now(),
-             msg: 'started'
-           }).then(function(response){
-             console.log(response)
-           }).catch(err=>console.log(err));
-             // Initializate selected architecture
-    var initElement = initialArch();
-    for (var i=0;i<initElement.length;i++) {
-      elements.push(initElement[i]);
-      // setElements((es) => es.concat(initElement[i]));
-    }
-    checkFirst=1;
-  }
-
-//  const notRunningState = setInterval(()=>{
-////    console.log("[post] 동작 중지");
-//    running_id += 1;
-//    axios.post("/api/status_request/", {
-//
-//      timestamp: Date.now(),
-////      running: 0,
-//    }).then(function(response){
-//        //console.log(timestamp)
-//        })
-//        .catch(e => console.log(e));
-//    }, initRunningStateTime * 1000)
-
-// const onRunningState = (()=>{
-////    console.log("[post] 동작 중");
-//   running_id += 1;
-//   axios.post("/api/running/", {
-//     id : running_id,
-//     running: 1,
-//   }).then(function(response){
-//     console.log(response)
-//     })
-//     .catch(e => console.log(e));
-// })
-
-
+    running_id += 1;
+    axios
+      .post("/api/running/", {
+        id: running_id,
+        running: 1,
+      })
+      .then(function (response) {
+        console.log(response);
+      })
+      .catch((e) => console.log(e));
+  };
   const onRunningStateClick = (e) => {
     e.preventDefault();
-    //clearInterval(notRunningState);
+    clearInterval(notRunningState);
     //onRunningState();
-    //clearInterval(notRunningState);
-    //notRunningState();
+    clearInterval(notRunningState);
+    notRunningState();
   };
 
   const onConnect = async (params) => {
@@ -280,17 +318,6 @@ const onSortNodes = (sortList) => {
 
 
   const openModal = async () => {
-    // const get_params = async () => {
-    //   try {
-    //     await axios.get('/api/node/'.concat(String(idState)).concat('/')).then((response) => {
-    //        setParam(response.data.parameters);
-    //     });
-    //   } catch (error) {
-    //     console.error(error);
-    //   }
-    // };
-    // await get_params();
-    // console.log('get param double click')
     await setModalOpen(true);
     console.log('open modal')
   };
@@ -343,28 +370,37 @@ const onSortNodes = (sortList) => {
     event.dataTransfer.dropEffect = "move";
   };
 
+  const onPaneClick = (event) => {
+    clickedNodeList = [];
+    clickedNodeIdList = [];
+
+
+  };
+
   const onNodeClick = async (event, node) => {
-      // if(modalOpen === true) {
-      //   const get_params = async () => {
-      //     try {
-      //       await axios.get('/api/node/'.concat(String(idState)).concat('/')).then((response) => {
-      //         setParam(response.data.parameters);
-      //       });
-      //     } catch (error) {
-      //       console.error(error);
-      //     }
-      //   };
-      //   await setState(node.data.label);
-      //   await setIdState(node.id);
-      //   await get_params();
-      //   console.log('get param one click');
-      // }
-      // else{
         await setState(node.data.label);
         await setIdState(node.id);
         console.log(node.position);
 
-      // }
+        const isCtrlKey = event.ctrlKey || event.metaKey || event.shiftKey;
+
+      if (isCtrlKey) {
+        node.selected = true;
+        if (node.selected === true && !clickedNodeIdList.includes(node.id)) {
+          clickedNodeList.push(node.data.label);
+          clickedNodeIdList.push(node.id);
+        }
+        console.log(clickedNodeList);
+        console.log(clickedNodeIdList);
+      }
+      else {
+        node.selected = false;
+        clickedNodeList = [];
+        clickedNodeIdList = [];
+        console.log(clickedNodeList);
+        console.log(clickedNodeIdList);
+      }
+
 
   };
 
@@ -378,9 +414,10 @@ const onSortNodes = (sortList) => {
       x: event.clientX - reactFlowBounds.left - 72,
       y: event.clientY - reactFlowBounds.top - 10
     });
+
     const get_node = async () => {
       try {
-        return await axios.get('/api/node/');
+        return await axios.get("/api/node/");
       } catch (error) {
         console.error(error);
       }
@@ -388,17 +425,20 @@ const onSortNodes = (sortList) => {
 
     const cnode = await get_node();
 
+    console.log(`[onDrop]`);
+    console.log(cnode);
+
     // cnode의 order값이 가장 큰 값 탐색
     var maxOrder = 0;
     for (var i = 0; i < cnode.data.length; i++) {
       if (maxOrder < cnode.data[i].order) {
-        maxOrder = cnode.data[i].order
+        maxOrder = cnode.data[i].order;
       }
     }
 
     // 가장 큰 order+1로 id값 설정
     const nid = maxOrder + 1;
-    id = nid
+    id = nid;
 
     //node create **********************
     //const cnode = plusId()
@@ -773,46 +813,9 @@ const tabOnClick = (path) => {
 
 }
 
-// const onSortNodes = () => {
-//     console.log('back code');
-//     sortActive();
-//     console.log(sortList);
-//   console.log(' my code ');
-//   const sortList = [1, 2, 288, 4, 5, 6, 7, 8, 9]; // 정렬된 노드 ID 리스트
-//   const sortedElements = elements.slice(); // elements 배열을 복사하여 새로운 배열을 생성합니다.
-//   let sort_x_pos = 100 + sortCount;
-//   let sort_y_pos = 100 + sortCount;
-//
-//
-//   for(var i = 0; i < sortList.length; i++) {
-//     for (var j = 0; j < sortedElements.length; j++) {
-//       if (sortedElements[j].id === sortList[i]) {
-//         console.log('arrange');
-//         console.log(sortList[i]);
-//         // node = sortedElements[j];
-//
-//         if ((i % 8 === 0) && (i >= 8)){
-//           sort_x_pos += 200;
-//           sort_y_pos = 100;
-//         } else if (i>=1) {
-//           sort_y_pos += 70;
-//         };
-//
-//         sortedElements[j].position = {
-//           x: sort_x_pos,
-//           y: sort_y_pos,
-//         };
-//
-//         console.log(sort_x_pos, sort_y_pos);
-//         console.log(sortedElements[j].position)
-//       }
-//     }
-//   }
-//    setElements(sortedElements);
-//   console.log(elements)
-//   sortCount *= -1;
-//   };
-
+ if (isLoading) {
+    return <div>로딩중...</div>;
+  }
 
   return (
       <div className="FullPage">
@@ -833,7 +836,7 @@ const tabOnClick = (path) => {
         <div className="reactflow-wrapper" ref={reactFlowWrapper}>
           <ReactFlow
 //            onClick={onRunningStateClick}
-            initElement={initialArch}
+            //initElement={initialArch}
             onConnect={onConnect}
             elements={elements}
             onLoad={onLoad}
@@ -846,6 +849,7 @@ const tabOnClick = (path) => {
             onEdgeDoubleClick={onDeleteEdge}
             onElementsRemove={onElementsRemove}
             onElementClick={onNodeClick}
+            onPaneClick={onPaneClick}
 
           >
             <Controls showZoom="" showInteractive="" showFitView="">
