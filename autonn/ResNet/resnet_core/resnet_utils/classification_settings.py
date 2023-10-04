@@ -1,3 +1,6 @@
+"""autonn/ResNet/resnet_core/resnet_utils/cam.py
+This code not used in the project.
+"""
 import albumentations as A
 from albumentations.pytorch import ToTensorV2
 import torchvision.transforms as T

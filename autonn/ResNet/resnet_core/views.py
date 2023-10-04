@@ -1,4 +1,5 @@
 """autonn/ResNet/resnet_core/views.py
+response for Project Manager
 """
 
 import os
@@ -61,6 +62,7 @@ def InfoList(request):
 
 @api_view(["GET"])
 def start(request):
+    """process start"""
     print("_________GET /start_____________")
     params = request.query_params
     userid = params["user_id"]
@@ -102,6 +104,7 @@ def start(request):
 
 @api_view(["GET"])
 def stop(request):
+    """process stop"""
     print("_________GET /stop_____________")
     params = request.query_params
     userid = params["user_id"]
@@ -121,6 +124,7 @@ def stop(request):
 
 @api_view(["GET"])
 def status_request(request):
+    """status request"""
     print("_________GET /status_request_____________")
     params = request.query_params
     userid = params["user_id"]
@@ -159,11 +163,11 @@ def status_request(request):
 
 
 def get_user_requirements(userid, projid):
+    """get requirements(dataset, project) from user/project id"""
     common_root = Path("/shared/common/")
     proj_path = common_root / userid / projid
-    proj_yaml_path = proj_path / "project_info.yaml"  # 'target.yaml'
+    proj_yaml_path = proj_path / "project_info.yaml"
 
-    ##### Changed Code #####
     with open(proj_yaml_path, "r") as f:
         proj_info = yaml.safe_load(f)
     dataset_on_proj = proj_info["dataset"]
@@ -177,6 +181,7 @@ def get_user_requirements(userid, projid):
 
 
 def status_report(userid, project_id, status="success"):
+    """report status to Project Manager"""
     try:
         url = "http://projectmanager:8085/status_report"
         headers = {"Content-Type": "text/plain"}
@@ -197,6 +202,7 @@ def status_report(userid, project_id, status="success"):
 
 
 def process_resnet(userid, project_id, data_yaml, proj_yaml):
+    """process for resnet"""
     try:
         proj_path = Path(proj_yaml).parent
         Path(proj_path).mkdir(parents=True, exist_ok=True)
@@ -207,9 +213,9 @@ def process_resnet(userid, project_id, data_yaml, proj_yaml):
             basemodel_info = yaml.safe_load(f)
 
         final_model = train.run_resnet(proj_path, data_yaml)
-        pretrained_path = Path("/source/pretrained/kagglecxr_resnet152_normalize.pt")
+        pretrained_path = Path("/pretrained/kagglecxr_resnet152_normalize.pt")
         if pretrained_path.exists():
-            final_model = "/source/pretrained/kagglecxr_resnet152_normalize.pt"
+            final_model = "/pretrained/kagglecxr_resnet152_normalize.pt"
         print("process_resnet: train done")
 
         best_pt_path = str(Path(proj_path) / "resnet.pt")
@@ -238,6 +244,7 @@ def process_resnet(userid, project_id, data_yaml, proj_yaml):
 
 
 def autogen_resnet(userid, project_id):
+    """autogen for resnet"""
     print("autogen_resnet: start")
     project_root = Path("/shared/common/") / userid / project_id
     source_root = Path("/source/") / "resnet_core"
@@ -245,11 +252,23 @@ def autogen_resnet(userid, project_id):
 
     nn_model_path.mkdir(parents=True, exist_ok=True)
     (nn_model_path / "models").mkdir(parents=True, exist_ok=True)
-    if Path(source_root / "pretrained/kagglecxr_resnet152_normalize.pt").exists():
-        model_file = source_root / "pretrained/kagglecxr_resnet152_normalize.pt"
+    if not Path("/pretrained/kagglecxr_resnet152_normalize.pt").exists():
+        print("download kagglecxr_resnet152_normalize.pt")
+        url = "https://github.com/ML-TANGO/TANGO/releases/download/Model_Mirror/kagglecxr_resnet152_normalize.pt"
+        output_path = "/pretrained/kagglecxr_resnet152_normalize.pt"
+        response = requests.get(url, stream=True, timeout=30)  # timeout 옵션을 사용하여 타임아웃을 설정합니다.
+        if response.status_code == 200:
+            with open(output_path, "wb") as f:
+                for chunk in response.iter_content(chunk_size=1024):
+                    f.write(chunk)
+    if Path("/pretrained/kagglecxr_resnet152_normalize.pt").exists():
+        print("kagglecxr_resnet152_normalize.pt to nn_model")
+        model_file = "/pretrained/kagglecxr_resnet152_normalize.pt"
     elif Path(project_root / "weights" / "best.pt").exists():
+        print("best.pt to nn_model")
         model_file = project_root / "weights" / "best.pt"
     else:
+        print("last.pt to nn_model")
         model_file = project_root / "weights" / "last.pt"
 
     shutil.copy(model_file, nn_model_path / "resnet.pt")
@@ -262,6 +281,7 @@ def autogen_resnet(userid, project_id):
 
 @api_view(["GET"])
 def get_ready_for_test(request):
+    """get ready for test"""
     try:
         print("_______GET /get_ready_for_test________")
         params = request.query_params
@@ -278,6 +298,7 @@ def get_ready_for_test(request):
 
 
 def create_nn_info(src_info_path: str, final_info_path: str, final_pt_path: str, input_shape: Tuple[int, int]):
+    """create nn info"""
     nn_info = dict()
     with open(src_info_path) as f:
         nn_yaml = yaml.load(f, Loader=yaml.FullLoader)
@@ -295,6 +316,7 @@ def create_nn_info(src_info_path: str, final_info_path: str, final_pt_path: str,
 
 
 def exp_num_check(proj_path):
+    """project number check"""
     current_filelist = os.listdir(proj_path)
     exp_num_list = []
     for filename in current_filelist:
@@ -305,16 +327,8 @@ def exp_num_check(proj_path):
     else:
         return max(exp_num_list) + 1
 
-
-# def make_directory(path_list):
-#     path = Path('')
-#     for path_temp in path_list:
-#         path = path / path_temp
-#         if not os.path.isdir(path):
-#             os.mkdir(path)
-
-
-def get_process_id():  # Assign Blank Process Number
+def get_process_id():
+    """Assign Blank Process Number"""
     while True:
         pr_num = str(random.randint(100000, 999999))
         try:

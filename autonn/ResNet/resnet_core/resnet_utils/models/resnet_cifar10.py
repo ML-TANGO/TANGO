@@ -1,3 +1,6 @@
+"""autonn/ResNet/resnet_core/resnet_utils/models/resnet_cifar10.py
+ResNet CIFAR10 Model Definition 
+"""
 import yaml
 import torch
 from torch import Tensor

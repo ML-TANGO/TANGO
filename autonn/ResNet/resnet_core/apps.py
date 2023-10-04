@@ -1,3 +1,6 @@
+"""autonn/Resnet/resnet_core/apps.py
+This file contains the configuration for the ResNet app.
+"""
 from django.apps import AppConfig
 
 
