@@ -1,3 +1,6 @@
+"""autonn/ResNet/resnet_core/resnet_utils/img_resize.py
+This code not used in the project.
+"""
 import albumentations as A
 import os
 import cv2

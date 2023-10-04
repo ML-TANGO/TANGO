@@ -1,3 +1,6 @@
+"""autonn/ResNet/resnet_core/resnet_utils/trainer.py
+This code not used in the project.
+"""
 import torch
 import torch.nn as nn
 # import torch.nn.functional as F

@@ -1,3 +1,7 @@
+"""autonn/Resnet/resnet_core/models.py
+ResNet Container Information
+"""
+
 from django.db import models
 
 
