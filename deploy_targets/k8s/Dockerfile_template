@@ -1,6 +1,7 @@
 # DOCKERFILE_TEMPLATE_DEFAULT = r"""# syntax = docker/dockerfile:1.0-experimental
 #FROM --platform={{architecture}} ultralytics/yolov5:v6.1
-FROM ultralytics/yolov5:v6.1
+# FROM ultralytics/yolov5:v6.1
+FROM python:3.8
 MAINTAINER Backend.AI Manager
 
 # ENV PYTHONUNBUFFERED=1 \
@@ -82,8 +83,8 @@ RUN python3 -m pip install -U pip setuptools && \
 WORKDIR /
 COPY tango/common/{{userid}}/{{projectid}} /data
 WORKDIR  /data
-RUN python3 -m pip install -r nn_model/fileset-main/yolov5s/requirements.txt
-
+# RUN python3 -m pip install -r nn_model/fileset-main/yolov5s/requirements.txt
+RUN python3 -m pip install -r nn_model/fileset-main/yolov7/requirements.txt
 
 
 # """  # noqa
