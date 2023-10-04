@@ -242,11 +242,14 @@ def autogen_resnet(userid, project_id):
 
     nn_model_path.mkdir(parents=True, exist_ok=True)
     (nn_model_path / "models").mkdir(parents=True, exist_ok=True)
-    if Path(source_root / "pretrained/kagglecxr_resnet152_normalize.pt").exists():
-        model_file = source_root / "pretrained/kagglecxr_resnet152_normalize.pt"
+    if Path("/pretrained/kagglecxr_resnet152_normalize.pt").exists():
+        print("kagglecxr_resnet152_normalize.pt to nn_model")
+        model_file = "/pretrained/kagglecxr_resnet152_normalize.pt"
     elif Path(project_root / "weights" / "best.pt").exists():
+        print("best.pt to nn_model")
         model_file = project_root / "weights" / "best.pt"
     else:
+        print("last.pt to nn_model")
         model_file = project_root / "weights" / "last.pt"
 
     shutil.copy(model_file, nn_model_path / "resnet.pt")
@@ -301,15 +304,6 @@ def exp_num_check(proj_path):
         return 0
     else:
         return max(exp_num_list) + 1
-
-
-# def make_directory(path_list):
-#     path = Path('')
-#     for path_temp in path_list:
-#         path = path / path_temp
-#         if not os.path.isdir(path):
-#             os.mkdir(path)
-
 
 def get_process_id():  # Assign Blank Process Number
     while True:
