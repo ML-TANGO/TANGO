@@ -1,4 +1,5 @@
 """autonn/Resnet/resnet_core/urls.py
+This file contains the url patterns for the ResNet app.
 """
 
 from django.urls import path

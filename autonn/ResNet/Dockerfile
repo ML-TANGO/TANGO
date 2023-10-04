@@ -1,3 +1,4 @@
+# Dockerfile for ResNet(autonn_resnet)
 FROM python:3.10
 FROM msranni/nni
 

@@ -1,3 +1,7 @@
+"""autonn/ResNet/resnet_core/resnet_utils/train.py
+Train ResNet model for autonn project.
+"""
+
 DEFAULT_OPTIONS = {
     "input_size": [256, 256],
     "input_mean": [0.5],
@@ -27,6 +31,7 @@ from typing import Dict, List, Tuple
 
 
 class FocalLoss(nn.Module):
+    """Focal Loss Custom Module"""
     def __init__(self, alpha=0.25, gamma=2, logits=False, reduce=True):
         super(FocalLoss, self).__init__()
         self.alpha = alpha
@@ -46,6 +51,7 @@ class FocalLoss(nn.Module):
 
 
 def get_optimizer(optimizer_name: str, model: nn.Module, lr=0.1, momentum=0.9) -> optim.Optimizer:
+    """Get optimizer from optimizer name"""
     optimizer_case = {
         "SGD": lambda lr, mo: optim.SGD(model.parameters(), lr=lr, momentum=mo, weight_decay=1e-4),
         "Adam": lambda lr, mo: optim.Adam(model.parameters(), lr=lr, weight_decay=1e-4),
@@ -58,6 +64,7 @@ def get_optimizer(optimizer_name: str, model: nn.Module, lr=0.1, momentum=0.9) -
 
 
 def get_loss_function(loss_function_name: str) -> nn.Module:
+    """Get loss function from loss function name"""
     loss_function_case = {
         "CE": nn.CrossEntropyLoss(label_smoothing=0.1),
         "FL": FocalLoss(),
@@ -68,6 +75,7 @@ def get_loss_function(loss_function_name: str) -> nn.Module:
 
 
 def get_transforms(input_size: int, input_mean: float, input_std: float) -> transforms.Compose:
+    """Get transforms from input size, input mean, input std"""
     return transforms.Compose(
         [
             transforms.Grayscale(num_output_channels=1),
@@ -80,6 +88,7 @@ def get_transforms(input_size: int, input_mean: float, input_std: float) -> tran
 
 
 def validate_model(model: nn.Module, val_data_loader: DataLoader, device: torch.device, loss_function: nn.Module) -> Tuple[float, float]:
+    """Validate model"""
     model.to(device).eval()
     val_loss = 0.0
     val_acc = 0.0
@@ -97,6 +106,7 @@ def validate_model(model: nn.Module, val_data_loader: DataLoader, device: torch.
 
 
 def run_resnet(proj_path: str, dataset_yaml_path: str):
+    """Run ResNet model training"""
     proj_path = Path(proj_path)
     data_path = Path(dataset_yaml_path).parent
     last_pt = proj_path / "weights" / "last.pt"
