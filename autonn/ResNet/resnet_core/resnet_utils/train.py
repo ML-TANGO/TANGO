@@ -130,7 +130,11 @@ def run_resnet(proj_path: str, dataset_yaml_path: str):
 
     # 데이터셋 / 데이터 로더 생성
     transform = get_transforms(input_size, input_mean, input_std)
-    dataset = datasets.ImageFolder(data_path, transform=transform)
+    try:
+        dataset = datasets.ImageFolder(data_path, transform=transform)
+    except Exception as e:
+        print("Dataset Load Error:", e)
+        return last_pt
     dataset_size = len(dataset)
     val_size = int(dataset_size * 0.2)
     train_size = dataset_size - val_size
