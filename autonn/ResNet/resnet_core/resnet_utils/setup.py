@@ -1,3 +1,6 @@
+"""autonn/ResNet/resnet_core/resnet_utils/setup.py
+This code not used in the project.
+"""
 from email.policy import strict
 import torch
 import torch.nn as nn

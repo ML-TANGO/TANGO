@@ -1,3 +1,6 @@
+"""autonn/ResNet/resnet_core/resnet_utils/models/densenet_1ch.py
+This code not used in the project.
+"""
 import re
 from collections import OrderedDict
 from typing import Any, List, Tuple

@@ -1,3 +1,6 @@
+"""autonn/ResNet/resnet_core/resnet_utils/main.py
+This code not used in the project.
+"""
 import argparse
 
 from utils.utils import send_alarm_to_slack

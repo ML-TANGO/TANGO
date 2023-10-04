@@ -27,13 +27,13 @@ def send_thr():
             data = 'user_id=""&project_id=""'
         elif x[0] == '1':
             url = "%s%s" % (def_send_url, '/start')
-            data = 'user_id=kpst1234&project_id=13'
+            data = 'user_id=test123&project_id=3'
         elif x[0] == '2':
             url = "%s%s" % (def_send_url, '/stop')
-            data = 'user_id=kpst1234&project_id=13'
+            data = 'user_id=test123&project_id=3'
         elif x[0] == '3':
             url = "%s%s" % (def_send_url, '/status_request')
-            data = 'user_id=kpst1234&project_id=13'
+            data = 'user_id=test123&project_id=3'
         else:
             continue
 

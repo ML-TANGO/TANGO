@@ -1,6 +1,7 @@
 # DOCKERFILE_TEMPLATE_DEFAULT = r"""# syntax = docker/dockerfile:1.0-experimental
 #FROM --platform=linux/amd64 ultralytics/yolov5:v6.1
-FROM ultralytics/yolov5:v6.1
+# FROM ultralytics/yolov5:v6.1
+FROM python:3.8
 MAINTAINER Backend.AI Manager
 
 # ENV PYTHONUNBUFFERED=1 \
@@ -38,8 +39,8 @@ RUN apt-get update && \
 
 # # RUN ln -sf /usr/share/terminfo/x/xterm-color /usr/share/terminfo/x/xterm-256color
 # RUN mkdir /data
-# COPY ./tango/common/test123/1 /data
-# COPY /var/lib/docker/volumes/tango_shared/_data/common/test123/1 /data
+# COPY ./tango/common/test123/3 /data
+# COPY /var/lib/docker/volumes/tango_shared/_data/common/test123/3 /data
 # WORKDIR /data
 
 RUN python3 -m pip install -U pip setuptools && \
@@ -53,10 +54,10 @@ RUN python3 -m pip install -U pip setuptools && \
     python3 -m pip install jupyterlab
 
 WORKDIR /
-COPY tango/common/test123/1 /data
+COPY tango/common/test123/3 /data
 WORKDIR  /data
-RUN python3 -m pip install -r nn_model/requirements.txt
-
+# RUN python3 -m pip install -r nn_model/fileset-main/yolov5s/requirements.txt
+RUN python3 -m pip install -r nn_model/fileset-main/yolov7/requirements.txt
 
 
 # """  # noqa
