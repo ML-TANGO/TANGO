@@ -1,1 +1,1 @@
-sudo docker build --no-cache -t code_gen ../. 
+docker build --no-cache -t code_gen ../. 

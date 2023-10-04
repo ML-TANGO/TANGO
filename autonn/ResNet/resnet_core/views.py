@@ -150,13 +150,16 @@ def status_request(request):
             return Response("running", status=200, content_type="text/plain")
         else:
             print("tracked ResNet process you want, but not running anymore")
-            if nasinfo.status == "running":
+            if nasinfo.status in ["started", "running"]:
                 nasinfo.status = "failed"
                 nasinfo.save()
             print(f"nasinfo.status: {nasinfo.status}")
             return Response(nasinfo.status, status=200, content_type="text/plain")
-    except KeyError:
-        return Response("ready", status=200, content_type="text/plain")
+    except:
+        if nasinfo.status in ["started", "running"]:
+            nasinfo.status = "failed"
+            nasinfo.save()
+        return Response(nasinfo.status, status=200, content_type="text/plain")
 
 
 def get_user_requirements(userid, projid):
