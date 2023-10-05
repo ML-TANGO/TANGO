@@ -172,7 +172,7 @@ def pthlist(request):
                     'Content-Type': 'text/plain'
                 }
                 payload = {
-                    'container_id': "viz2code",
+                    'container_id':"visualization",
                     'user_id': user_id,
                     'project_id': project_id,
                     'status': "success"
@@ -198,7 +198,7 @@ def pthlist(request):
                     'Content-Type': 'text/plain'
                 }
                 payload = {
-                    'container_id': "viz2code",
+                    'container_id':"visualization",
                     'user_id': user_id,
                     'project_id': project_id,
                     'status': "failed"
@@ -385,20 +385,26 @@ def statusList(request):
             # timestamp 값 가져오기
             host_ip = str(request.get_host())[:-5]
             # pylint: disable=missing-timeout
+            print("host_ip:", host_ip)
 
             get_time = requests.get('http://' +
                                     host_ip +
                                     ':8091/api/running/', verify=False)
 
-            time = get_time.text[-16:-3]
-
+            #print("get_time:", get_time)
+            #time = get_time.text[-16:-3]
 
             # 현재 시점의 timestamp와 비교하기
-            saved_time = datetime.fromtimestamp(int(time)/1000)
+            saved_time = datetime.fromtimestamp(int(1696232398148)/1000)
+
             now = datetime.now()
+            print("now: ", now)
+            print(type(now))
             diff = now - saved_time
             diff_sec = diff.seconds
-            #print("diff_sec: ", diff_sec)
+
+            #print(type(diff_sec))
+
 
             if diff_sec > 5:  # 1분 이상이면
                 #started를 running으로 변경

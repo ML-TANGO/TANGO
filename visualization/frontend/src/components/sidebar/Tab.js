@@ -14,11 +14,11 @@ const Tab = ({tabOnClick}) => {
             image: layer_icon,
             alt: "layer icon"
         },
-        {
-            path: "/info",
-            image: info_icon,
-            alt: "info icon"
-        },
+        //{
+        //    path: "/info",
+        //    image: info_icon,
+       //     alt: "info icon"
+       // },
         // {
         //     path: "/abstract",
         //     image: abstract_icon,
