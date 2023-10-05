@@ -3,6 +3,7 @@ high level support for doing this and that.
 """
 import torch
 from torch import nn
+import torchvision.models.resnet as resnet
 # from PyBinderCustom import *
 
 
@@ -20,13 +21,15 @@ class CPyBinder:
         """A dummy docstring."""
         torch.save(model, path)
 
+    def sort_id(self, graph):
+        order, expanded_order = graph.topological_sort()
+        return order
+
     def exportmodel(self, graph):
         # pylint: disable-msg=too-many-locals
         # pylint: disable-msg=too-many-branches, too-many-statements
         """A dummy docstring."""
         order, expanded_order = graph.topological_sort()
-        print(expanded_order)
-        print(graph.nodes)
         net = nn.Sequential()
         index = 0
         for id_ in order:
@@ -104,7 +107,7 @@ class CPyBinder:
             if m__.get('bias'):
                 bias = m__.get('bias')
             else:
-                bias = True
+                bias = False
 
             if m__.get('device'):
                 device = m__.get('device')
@@ -196,6 +199,48 @@ class CPyBinder:
             else:
                 padding = (0, 0)
 
+            if m__.get('inplanes'):
+                inplanes = m__.get('inplanes')
+            else:
+                inplanes = 1
+
+            if m__.get('planes'):
+                planes = m__.get('planes')
+            else:
+                planes = 1
+
+            if m__.get('downsample'):
+                if m__.get('downsample') == 'False':
+                    downsample = None
+                elif m__.get('downsample') == 'True' and name == 'BasicBlock':
+                    downsample = nn.Sequential(
+                        nn.Conv2d(m__.get('inplanes'), m__.get('planes')*1, stride=m__.get('stride'), kernel_size=1, bias=False),
+                        nn.BatchNorm2d(m__.get('planes')*1),
+                    )
+                elif m__.get('downsample') == 'True' and name == 'Bottleneck':
+                    downsample = nn.Sequential(
+                        nn.Conv2d(m__.get('inplanes'), m__.get('planes')*4, stride=m__.get('stride'), kernel_size=1, bias=False),
+                        nn.BatchNorm2d(m__.get('planes')*4),
+                    )
+            else:
+                downsample = None
+
+            if m__.get('groups'):
+                groups = m__.get('groups')
+            else:
+                groups = 1
+
+            if m__.get('base_width'):
+                base_width = m__.get('base_width')
+            else:
+                base_width = 64
+
+            if m__.get('norm_layer'):
+                norm_layer = m__.get('norm_layer')
+            else:
+                norm_layer = None
+
+
             # if m__.get('subgraph'):
             #     subgraph = m__.get('subgraph')
 
@@ -206,7 +251,7 @@ class CPyBinder:
 
             if name == 'Conv2d':
                 n__ = nn.Conv2d(in_channels, out_channels,
-                                kernel_size, stride, padding, bias)
+                                kernel_size, stride=stride, padding=padding, bias=bias)#, stride, padding, bias)
             elif name == 'BatchNorm2d':
                 n__ = nn.BatchNorm2d(num_features)
             elif name == 'ReLU':
@@ -254,6 +299,10 @@ class CPyBinder:
                 n__ = nn.ZeroPad2d(padding)
             elif name == 'ConstantPad2d':
                 n__ = nn.ConstantPad2d(padding, value)
+            elif name == 'Bottleneck':
+                n__ = resnet.Bottleneck(inplanes, planes, stride, downsample, groups, base_width, dilation, norm_layer)
+            elif name == 'BasicBlock':
+                n__ = resnet.BasicBlock(inplanes, planes, stride, downsample, groups, base_width, dilation, norm_layer)
             else:
                 # n__ = NotImplemented(name)
                 print('Not Implement', name)

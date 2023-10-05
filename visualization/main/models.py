@@ -32,6 +32,13 @@ class Architecture(models.Model):
     architecture = models.FileField()
 
 
+class Sort(models.Model):
+    # pylint: disable=too-few-public-methods, missing-class-docstring
+    objects = models.Manager()
+    id = models.IntegerField(primary_key=True)
+    sorted_ids = models.TextField()
+
+
 class Start(models.Model):
     # pylint: disable=too-few-public-methods, missing-class-docstring
     msg = models.CharField(max_length=200, null=True, default='')

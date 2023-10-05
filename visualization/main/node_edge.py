@@ -51,7 +51,11 @@ class CNode:
                     'start_dim': int, 'end_dim': int, 'size': type(None),
                     'scale_factor': type(None), 'mode': str,
                     'align_corners': type(None),
-                    'recompute_scale_factor': type(None)}
+                    'recompute_scale_factor': type(None),
+                    'inplanes': int, 'planes': int,
+                    'downsample': bool, 'base_width': int,
+                    'norm_layer': type(None)
+                    }
 
         for key, value in params.items():
             cast = datatype.get(key)

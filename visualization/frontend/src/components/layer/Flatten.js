@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import "./ModalStyle.css";
 import { EditText, EditTextarea} from 'react-edit-text';
 import 'react-edit-text/dist/index.css';
-import Sidebar from "../sidebar";
+import Sidebar from "../sidebar/LayerToggle";
 import axios from 'axios';
 
 
@@ -63,7 +63,7 @@ const Flatten = (props) => {
 
 //    console.log(text8, "text7");
 //    console.log(text9, "text7");
-
+props.setState("");
     save();
   };
 
@@ -75,9 +75,28 @@ const Flatten = (props) => {
         <section>
           <header>
             {header}
+          </header>
+          <main>
+          <React.Fragment>
 
 
-            <button className="close" onClick={() => {
+          <div>
+              <li>
+                  <label htmlFor="text">start dim:</label>
+                  <EditText name="start_dim" type="number" style={{width: '50px'}} value={text}
+                    onChange={setText} inline/>
+              </li>
+              <li>
+                  <label htmlFor="text">end dim:</label>
+                  <EditText name="end_dim" type="number" style={{width: '50px'}} value={text2}
+                    onChange={setText2} inline/>
+              </li>
+          </div>
+
+          </React.Fragment>
+          </main>
+            <div className="btnDiv">
+                <button className="close" onClick={() => {
               setText('1')
               setText2('-1')}
   }>
@@ -86,22 +105,7 @@ const Flatten = (props) => {
             <button className="save" onClick={bfsave}>
               save
             </button>
-
-          </header>
-          <main>
-          <React.Fragment>
-
-
-          <div><label htmlFor="text">start dim:</label>
-          <EditText name="start_dim" type="number" style={{width: '50px'}} value={text}
-            onChange={setText} inline/></div>
-          <div><label htmlFor="text">end dim:</label>
-          <EditText name="end_dim" type="number" style={{width: '50px'}} value={text2}
-            onChange={setText2} inline/></div>
-
-          </React.Fragment>
-          </main>
-
+            </div>
         </section>
       ) : null}
     </div>

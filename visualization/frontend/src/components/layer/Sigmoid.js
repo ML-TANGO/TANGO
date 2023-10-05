@@ -19,7 +19,18 @@ const Sigmoid = (props) => {
               Save
             </button> } */}
 
-            <button
+
+            {/* <button className="close" onClick={close}>
+              &times;
+            </button> */}
+          </header>
+          <main>
+            <React.Fragment>
+              <div></div>
+            </React.Fragment>
+          </main>
+          <div className="btnDiv">
+          <button
               className="close"
               onClick={() => {
 
@@ -30,19 +41,7 @@ const Sigmoid = (props) => {
             <button className="save" onClick={save}>
               save
             </button>
-            {/* <button className="close" onClick={close}>
-              &times;
-            </button> */}
-          </header>
-          <main>
-            <React.Fragment>
-              <div></div>
-            </React.Fragment>
-          </main>
-          {/* <main>{val}</main> */}
-          {/* <footer>
-            
-          </footer> */}
+            </div>
         </section>
       ) : null}
     </div>

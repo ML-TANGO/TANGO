@@ -44,7 +44,7 @@ const AdaptiveAvgPool2d = (props) => {
       // node update하기 ********************
       axios.put("/api/node/".concat(String(props.layer).concat('/')),{
           order: String(props.layer),
-          layer: "AdaptiveAvgPool2d (ResNet)",
+          layer: "AdaptiveAvgPool2d",
           parameters: send_message
       }).then(function(response){
           console.log(response)
@@ -53,7 +53,7 @@ const AdaptiveAvgPool2d = (props) => {
   
   //    console.log(text8, "text7");
   //    console.log(text9, "text7");
-  
+      props.setState("");
       save();
     };
 
@@ -63,20 +63,6 @@ const AdaptiveAvgPool2d = (props) => {
         <section>
           <header>
             {header}
-
-
-            <button
-              className="close"
-              onClick={() => {
-                setText("1");
-                setText2("1");
-              }}
-            >
-              default
-            </button>
-            <button className="save" onClick={bfsave}>
-              save
-            </button>
             {/* <button className="close" onClick={close}>
               &times;
             </button> */}
@@ -84,30 +70,43 @@ const AdaptiveAvgPool2d = (props) => {
           <main>
             <React.Fragment>
               <div>
-                <label htmlFor="text">output_size:</label>
-                <EditText
-                  name="kernel_size1"
-                  type="number"
-                  style={{ width: "40px" }}
-                  value={text}
-                  onChange={setText}
-                  inline
-                />
-                <label htmlFor="text"> X </label>
-                <EditText
-                  name="kernel_size2"
-                  type="number"
-                  style={{ width: "40px" }}
-                  value={text2}
-                  onChange={setText2}
-                  inline
-                />
+                  <li>
+                      <label htmlFor="text">output_size:</label>
+                        <EditText
+                          name="kernel_size1"
+                          type="number"
+                          style={{ width: "40px" }}
+                          value={text}
+                          onChange={setText}
+                          inline
+                        />
+                          <label htmlFor="text"> X </label>
+                            <EditText
+                              name="kernel_size2"
+                              type="number"
+                              style={{ width: "40px" }}
+                              value={text2}
+                              onChange={setText2}
+                              inline
+                            />
+                  </li>
               </div>
             </React.Fragment>
           </main>
-          {/* <main>{val}</main> */}
-          {/* <footer>
-          </footer> */}
+            <div className="btnDiv">
+                <button
+              className="close"
+              onClick={() => {
+                setText("1");
+                setText2("1");
+              }}
+            >
+              default
+                </button>
+                <button className="save" onClick={bfsave}>
+                    save
+                </button>
+            </div>
         </section>
       ) : null}
     </div>

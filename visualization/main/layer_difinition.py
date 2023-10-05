@@ -60,7 +60,17 @@ class CDefaults:
             'Upsample': {'size': None, 'scale_factor': None,
                          'mode': 'nearest',
                          'align_corners': None,
-                         'recompute_scale_factor': None}
+                         'recompute_scale_factor': None},
+
+            'Bottleneck': {'inplanes': 1, 'planes': 1,
+                           'stride': (1, 1), 'downsample':False,
+                           'groups': 1, 'base_width': 64,
+                           'dilation': 1, 'norm_layer': None},
+
+            'BasicBlock': {'inplanes': 1, 'planes': 1,
+                           'stride': (1, 1), 'downsample':False,
+                           'groups': 1, 'base_width': 64,
+                           'dilation': 1, 'norm_layer': None},
         }
 
         self.pooling_deflist = ['MaxPool2d', 'AvgPool2d', 'AdaptiveAvgPool2d']
@@ -70,7 +80,8 @@ class CDefaults:
         self.norm_deflist = ['BatchNorm2d']
         self.loss_deflist = ['BCELoss', 'CrossEntropyLoss', 'MSELoss']
         self.etc_deflist = ['Sequential', 'Flatten', 'Upsample',
-                            'Dropout', 'Linear', 'Conv2d']
+                            'Dropout', 'Linear', 'Conv2d',
+                            'Bottleneck', 'BasicBlock']
 
     def pooling_layer(self):
         '''

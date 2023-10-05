@@ -18,7 +18,8 @@ function GenerateButton(props){
 
     return(
         <div>
-            <button class="btn_fin" onClick={onShow}> 생성 </button>
+            <button style={{marginRight: 5}} class="btn_fin" onClick={onShow}> Generate </button>
+            <button  className="inspect"  onClick={()=>{console.log('click')}}>Inspect</button>
         </div>
     )
 }

@@ -33,3 +33,4 @@ RUN npm run build
 WORKDIR ../
 CMD ["python3", "./manage.py", "runserver", "react", "0.0.0.0:8091"]
 EXPOSE 8091
+

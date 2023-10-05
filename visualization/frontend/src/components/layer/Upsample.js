@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import "./ModalStyle.css";
 import { EditText, EditTextarea} from 'react-edit-text';
 import 'react-edit-text/dist/index.css';
-import Sidebar from "../sidebar";
+import Sidebar from "../sidebar/LayerToggle";
 import axios from 'axios';
 
 
@@ -76,7 +76,7 @@ const Upsample = (props) => {
 
 //    console.log(text8, "text7");
 //    console.log(text9, "text7");
-
+props.setState("");
     save();
   };
 
@@ -89,48 +89,57 @@ const Upsample = (props) => {
             {header}
 
 
-            <button className="close" onClick={() => {
-              setText('None')
-              setText2('None')
-              setText3('Nearest')
-              setText4('None')
-              setText5('None')}
-  } >
-              default
-            </button>
-            <button className="save" onClick={bfsave}>
-              save
-            </button>
+
 
           </header>
           <main>
           <React.Fragment>
 
+              <div>
+                  <li>
+                      <label htmlFor="text">size:</label>
+                      <EditText name="size" type="text" style={{width: '50px'}} value={text}
+            onChange={setText} inline/>
+                  </li>
+                  <li>
+                      <label htmlFor="text">scale factor:</label>
+                      <EditText name="scale_factor" type="text" style={{width: '50px'}} value={text2}
+            onChange={setText2} inline/>
+                  </li>
+                  <li>
+                      <label htmlFor="text">mode:</label>
+                      <EditText name="mode" type="text" style={{width: '60px'}} value={text3}
+            onChange={setText3} inline/>
+                  </li>
+                  <li>
+                      <label htmlFor="text">align corners:</label>
+                      <EditText name="align_corners" type="text" style={{width: '50px'}} value={text4}
+            onChange={setText4} inline/>
+                  </li>
+                  <li>
+                      <label htmlFor="text">recompute scale factor:</label>
+                      <EditText name="recompute_scale_factor" type="text" style={{width: '40px', height:'15px'}} value={text5}
+            onChange={setText5} inline/>
+                  </li>
+              </div>
 
-          <div><label htmlFor="text">size:</label>
-          <EditText name="size" type="text" style={{width: '50px'}} value={text}
-            onChange={setText} inline/></div>
-          <div><label htmlFor="text">scale factor:</label>
-          <EditText name="scale_factor" type="text" style={{width: '50px'}} value={text2}
-            onChange={setText2} inline/></div>
-
-
-
-
-
-          <div><label htmlFor="text">mode:</label>
-          <EditText name="mode" type="text" style={{width: '60px'}} value={text3}
-            onChange={setText3} inline/></div>
-
-          <div><label htmlFor="text">align corners:</label>
-          <EditText name="align_corners" type="text" style={{width: '50px'}} value={text4}
-            onChange={setText4} inline/></div>
-
-           <div><label htmlFor="text">recompute scale factor:</label>
-          <EditText name="recompute_scale_factor" type="text" style={{width: '50px'}} value={text5}
-            onChange={setText5} inline/></div>
           </React.Fragment>
           </main>
+
+          <div className="btnDiv">
+              <button className="close" onClick={() => {
+              setText('None')
+              setText2('None')
+              setText3('Nearest')
+              setText4('None')
+              setText5('None')}
+              } >
+              default
+            </button>
+            <button className="save" onClick={bfsave}>
+              save
+            </button>
+          </div>
 
         </section>
       ) : null}
