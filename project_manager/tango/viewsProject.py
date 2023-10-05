@@ -121,6 +121,9 @@ def status_request(request):
             response_log += get_log_container_name(container_id) + " 완료\n"
             response['response'] = "completed"
 
+        if response['response'] == 'completed':
+            queryset.container_status = 'completed'
+
         update_project_log_file(user_id, project_id, response_log)
 
         queryset.save()
@@ -150,7 +153,6 @@ def status_report(request):
                 continue
             header = '-'.join([h.capitalize() for h in header[5:].lower().split('_')])
             headers += '{}: {}\n'.format(header, value)
-
         queryset = Project.objects.get(id=project_id, create_user=str(user_id))
         queryset.container = container_id
         log_str =  str(queryset.current_log) 
@@ -166,7 +168,6 @@ def status_report(request):
         log_str += '\nstatus : '+ str(result)
         log_str += '\n----------------------------------------'
         log_str += '\n\n'
-
 
         queryset.current_log = log_str
 

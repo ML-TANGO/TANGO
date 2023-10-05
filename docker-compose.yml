@@ -325,7 +325,7 @@ services:
   # Visualizer
   #---------------------------------
   viz2code:
-    hostname: visualization
+    hostname: viz2code
     build:
       context: ./visualization
     command: >

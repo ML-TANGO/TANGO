@@ -88,8 +88,10 @@ export async function getStatusResult(project_id) {
 export async function postStatusRequest(data) {
   let response = null;
 
+  const timeout = 4900;
+
   try {
-    response = await request.post("/api/status_request", data);
+    response = await request.post("/api/status_request", data, { timeout });
   } catch (error) {
     throw new Error(error);
   }

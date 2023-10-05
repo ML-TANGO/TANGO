@@ -5,8 +5,7 @@ import Cookies from "universal-cookie";
 const baseURL = process.env.NODE_ENV === "production" ? "" : process.env.VUE_APP_ROOT_API;
 
 const axios = Axios.create({
-  baseURL: baseURL,
-  timeout: 120000
+  baseURL: baseURL
 });
 
 axios.interceptors.request.use(refresh, refreshErrorHandle);
