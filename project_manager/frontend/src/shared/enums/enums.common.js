@@ -33,7 +33,7 @@ export const ContainerName = {
   CODE_GEN: "codeGen",
   IMAGE_DEPLOY: "imagedeploy",
   USER_EDITING: "user_edit",
-  VISUALIZATION: "visualization"
+  VISUALIZATION: "viz2code"
 };
 
 export const DisplayName = {
@@ -43,7 +43,7 @@ export const DisplayName = {
   [ContainerName.CODE_GEN]: "Code Gen",
   [ContainerName.IMAGE_DEPLOY]: "Image Deploy",
   [ContainerName.USER_EDITING]: "User Editing",
-  [ContainerName.VISUALIZATION]: "Visualization"
+  [ContainerName.VISUALIZATION]: "VISUALIZATION"
 };
 
 export const EngineValues = {

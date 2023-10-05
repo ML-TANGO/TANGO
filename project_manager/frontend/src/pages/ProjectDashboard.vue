@@ -80,7 +80,7 @@ export default {
       tabItems: [
         { key: "Preparing", allowed: ["", "init"] },
         { key: "BMS", allowed: ["bms"] },
-        { key: "Visualization", allowed: ["visualization"] },
+        { key: "Visualization", allowed: ["visualization", "viz2code"] },
         { key: "Auto NN", allowed: ["autonk", "yoloe", "autobb", "autonn-resnet"] },
         { key: "Code Gen", allowed: ["codeGen"] },
         { key: "Image Deploy", allowed: ["imagedeploy"] }

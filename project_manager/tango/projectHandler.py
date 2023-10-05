@@ -127,7 +127,7 @@ def get_container_info(host_name):
         'yoloe' : "8090",
         'codeGen' : "8888",
         'autonn-resnet': "8092",
-        'visualization': "8091"
+        'viz2code': "8091"
     }
     return host_name, ports_by_container[host_name]
 
@@ -154,7 +154,7 @@ def get_docker_container_name(container):
         containerName = 'tango_k8s'
     elif container == 'ondevice' :
         containerName = 'ondevice_deploy'
-    elif container == 'visualization':
+    elif container == 'viz2code':
         containerName = 'viz2code'
     else :
         containerName = 'bms'
@@ -206,8 +206,8 @@ def get_log_container_name(container):
         return 'Code Gen'
     elif container == 'imagedeploy':
         return 'Image Deploy'
-    elif container == 'visualization':
-        return 'Visualization'
+    elif container == 'viz2code':
+        return 'viz2code'
     
 
 def db_container_name(container):
@@ -215,8 +215,8 @@ def db_container_name(container):
         return 'bms'
     elif container == 'yoloe':
         return 'yoloe'
-    elif container == 'visualization':
-        return 'visualization'
+    elif container == 'viz2code' or container == 'visualization':
+        return 'viz2code'
     elif container == 'autonn-resnet':
         return 'autonn-resnet'
     elif container == 'codeGen' or container == 'code_gen' or container == 'codegen':

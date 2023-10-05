@@ -166,39 +166,41 @@ export default {
 
     startInterval() {
       if (this.interval === null) {
-        this.interval = setInterval(() => {
+        this.interval = setInterval(async () => {
           if (this.projectInfo.id) {
-            postStatusRequest({ user_id: this.projectInfo.create_user, project_id: this.projectInfo.id }).then(res => {
-              if (typeof res !== "string") {
-                this.SET_PROJECT({ container: res.container, container_status: res.container_status });
-                this.projectInfo = this.project;
-                this.$EventBus.$emit("logUpdate", res);
+            await postStatusRequest({ user_id: this.projectInfo.create_user, project_id: this.projectInfo.id }).then(
+              res => {
+                if (typeof res !== "string") {
+                  this.SET_PROJECT({ container: res.container, container_status: res.container_status });
+                  this.projectInfo = this.project;
+                  this.$EventBus.$emit("logUpdate", res);
 
-                if (res.container === ContainerName.VISUALIZATION) {
-                  if (res.container_status !== "running" && res.container_status !== "started") {
-                    // VISUALIZATION 완료 경우
-                    this.$EventBus.$emit("control_Vis2Code", false);
-                  }
-                }
-
-                if (this.projectInfo.project_type !== "auto") {
-                  if (res.container_status !== "running" && res.container_status !== "started") {
-                    this.stopInterval();
-                    if (res.container === ContainerName.IMAGE_DEPLOY) {
-                      this.$EventBus.$emit("nnModelDownload");
+                  if (res.container === ContainerName.VISUALIZATION) {
+                    if (res.container_status !== "running" && res.container_status !== "started") {
+                      // VISUALIZATION 완료 경우
+                      this.$EventBus.$emit("control_Vis2Code", false);
                     }
                   }
-                } else {
-                  // todo auto일경우 구현
-                  if (res.container === ContainerName.IMAGE_DEPLOY) {
+
+                  if (this.projectInfo.project_type !== "auto") {
                     if (res.container_status !== "running" && res.container_status !== "started") {
                       this.stopInterval();
-                      this.$EventBus.$emit("nnModelDownload");
+                      if (res.container === ContainerName.IMAGE_DEPLOY) {
+                        this.$EventBus.$emit("nnModelDownload");
+                      }
+                    }
+                  } else {
+                    // todo auto일경우 구현
+                    if (res.container === ContainerName.IMAGE_DEPLOY) {
+                      if (res.container_status !== "running" && res.container_status !== "started") {
+                        this.stopInterval();
+                        this.$EventBus.$emit("nnModelDownload");
+                      }
                     }
                   }
                 }
               }
-            });
+            );
           }
         }, 5000); // 5s
       }
