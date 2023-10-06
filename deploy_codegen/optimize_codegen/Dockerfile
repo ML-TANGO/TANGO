@@ -27,7 +27,7 @@ COPY db/odroid-m1-manual.txt /app/db
 COPY db/odroid-n2-manual.txt /app/db
 COPY db/yolov3/. /app/db/yolov3
 ADD  https://github.com/giantlkh/git-test/releases/download/yolov7.onnx/yolov7.onnx  /app/db
-ADD  https://github.com/giantlkh/git-test/releases/download/k8syolov5/k8syolov5.db  /app/db
+# ADD  https://github.com/giantlkh/git-test/releases/download/k8syolov5/k8syolov5.db  /app/db
 ADD  https://s3.ap-northeast-2.amazonaws.com/backend.ai/offline-installers/yolov3.pt /app/db/yolov3
 # RUN apt-get install -y python3 python3-dev  gcc libtinfo-dev zlib1g-dev build-essential cmake libedit-dev libxml2-dev
 # RUN apt-get install -y gcc-11 
@@ -162,8 +162,10 @@ RUN unzip ninja-linux.zip
 # down load android project
 WORKDIR /app
 RUN git clone https://github.com/lhy0718/tflite_yolov7_test
-# RUN git clone https://github.com/WongKinYiu/yolov7
 
+WORKDIR /app/db
+RUN wget https://github.com/parkjb12/yoloe/raw/main/yolov7.zip
+RUN mv yolov7.zip k8syolov7.zip
 
 WORKDIR /app
 CMD ["/bin/bash"]

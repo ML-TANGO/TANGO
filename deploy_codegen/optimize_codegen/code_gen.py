@@ -743,7 +743,6 @@ class CodeGen:
             else:
                 print("the inference engine is not support for classification")
             self.m_last_run_state = 0
-            # kkkhhhllleeeeeeeee
             os.system("chmod -Rf 777 %s" % self.m_current_code_folder)
             return
 
@@ -773,8 +772,6 @@ class CodeGen:
                 self.m_nninfo_weight_pt_file = 'yolov3.pt',
                 self.make_requirements_file_for_docker()
             elif self.m_deploy_type == 'k8s':
-                # kkkhhhllleeeeeeeee khlee
-                self.m_nninfo_weight_pt_file = "yolov5s.pt"
                 self.make_requirements_file_for_docker()
             elif self.m_deploy_type == 'pc_server':
                 self.make_requirements_file_for_PCServer()
@@ -860,9 +857,6 @@ class CodeGen:
                 onnx_path = "%s%s" % (self.m_current_file_path, self.m_nninfo_weight_onnx_file)
                 t_folder = "%s/%s" % (self.m_current_code_folder, "yolov7.onnx")
                 shutil.copy(onnx_path, t_folder)
-            # must be deleted 
-            # shutil.copy("./db/yolov7.onnx", t_folder)
-
             self.gen_tensorrt_code(self.m_nninfo_input_tensor_shape[1], 
                     self.m_nninfo_input_tensor_shape[2], 
                     self.m_nninfo_input_data_type) 
@@ -876,64 +870,11 @@ class CodeGen:
             tvm_data_type = def_TVM_data_type 
             # if no onnx file
             if self.m_nninfo_weight_onnx_file == "":
-                # move autonn's pytorch to target folder(like prefix folder)
-                if self.m_nninfo_yolo_base_file_path != ".":  
-                    if isinstance(self.m_nninfo_class_file, list):
-                        m_filelist = self.m_nninfo_class_file
-                    else:
-                        m_filelist = [self.m_nninfo_class_file]
-                    for mfile in m_filelist:
-                        self.copy_subfolderfile(mfile, self.m_nninfo_yolo_base_file_path)
-
-                # convert .py to onnx and copy
-                if isinstance(self.m_nninfo_class_file, list):
-                    t_file = self.m_nninfo_class_file[0]
-                else:
-                    t_file = self.m_nninfo_class_file
-                t_file = "%s%s" % (t_file, "\n")
-                tmp = t_file.split("/")
-                cnt = len(tmp)
-                t_file = tmp[0]
-                for  i in range(cnt-1):
-                    t_file = "%s.%s" % (t_file, tmp[i+1])
-                t_file = t_file.split(".py\n")[0]
-                t_file = t_file.split("\n")[0]
-                t_split = self.m_nninfo_class_name.split("(")
-                t_class_name = t_split[0]
-                tmp_param = t_split[1].split(")")[0]
-                tmp_param = tmp_param.split("=")[1]
-
-                t_list = t_file.split(".")
-                t_list_len = len(t_list)
-                t_fromlist = ""
-                for i in range(t_list_len-1):
-                    t_fromlist = "%s%s" % (t_fromlist, t_list[i])
-                    if i < (t_list_len-2): 
-                        t_fromlist = "%s%s" % (t_fromlist, ".")
-                t_impmod = __import__(t_file, fromlist=[t_fromlist])
-                t_cls = getattr(t_impmod, t_class_name)
-    
-                f_param = self.get_real_filepath(tmp_param[1:-1])
-                pt_model = t_cls(cfg=f_param)
-                pt_path = "%s/%s" % (self.m_current_file_path, self.m_nninfo_weight_pt_file)
-                pt_model.load_state_dict(torch.load(pt_path, map_location=torch.device('cpu')), strict=False)
-                pt_model.eval()
-                # convert and save onnx file 
-                dummy = torch.randn(
-                        self.m_nninfo_input_tensor_shape[0], 
-                        self.m_nninfo_input_tensor_shape[1], 
-                        self.m_nninfo_input_tensor_shape[2], 
-                        self.m_nninfo_input_tensor_shape[3], 
-                        requires_grad=True)
-                torch.onnx.export(pt_model, dummy,
-                        self.get_real_filepath(self.m_nninfo_weight_onnx_file),
-                        opset_version = 11,
-                        export_params=True, 
-                        input_names=['input'],
-                        output_names=['output'])
-
+                print("No ONNX file for TVM")
+                return
             onnx_model = onnx.load(self.get_real_filepath(self.m_nninfo_weight_onnx_file))
             input_name = onnx_model.graph.input[0].name
+            print(input_name)
             tensor_type = onnx_model.graph.input[0].type.tensor_type
             tmp_list = []
             if (tensor_type.HasField("shape")):
@@ -945,6 +886,7 @@ class CodeGen:
                 (x_, y_, self.width, self.height) = i_shape
             else:
                 i_shape = (1, 1, 224, 224)
+            print(i_shape)
 
             dtype = 'object'
             # check elem_type value
@@ -983,6 +925,7 @@ class CodeGen:
                 elif tp == 16: # BFLOAT16
                     dtype = 'bfloat16'
             logging.debug(dtype)
+            print(dtype) 
     
             if tvm_dev_type == 0:
                 target = "llvm"
@@ -1011,8 +954,7 @@ class CodeGen:
                 os.remove(def_TVM_code_path)
             # copy annotaion file 
             annotation_file = "%s/%s" % (def_dataset_path, self.m_nninfo_annotation_file)
-            shutil.copy(annotation_file, 
-                    self.m_current_code_folder)
+            shutil.copy(annotation_file, self.m_current_code_folder)
 
             self.gen_tvm_code(tvm_dev_type, tvm_width, tvm_height, tvm_data_type)
             self.make_requirements_file_for_others()
@@ -1135,9 +1077,37 @@ class CodeGen:
             shutil.copy('./db/yolov3/yolov3.pt', self.m_current_code_folder)
         elif self.m_deploy_type == 'k8s':
             # khlee copy k8s app codes
-            zipfile.ZipFile('./db/k8syolov5.db').extractall(self.m_current_code_folder)
+            os.system("mkdir %s/fileset" % self.m_current_code_folder) 
+            os.system("unzip ./db/k8syolov7.zip -d %s/fileset" % self.m_current_code_folder) 
+            # modify nn_model/fileset/yolov7/output.py
+            tmp_str = 'def_port = %d\n' % (self.m_deploy_network_serviceport)
+            tmp_str += 'def_weight_file = %s\n' % (self.m_nninfo_weight_pt_file)
+            tmp_str += 'def_input_source = %s\n\n' % (self.m_sysinfo_input_method)  
+            # output py file copy
+            try:
+                r_file = open("./db/k8soutput.py", "r")
+            except IOError as err:
+                logging.debug("Python File Read Error")
+                return -1
+            try:
+                w_file = open(("%s/fileset/yolov7/output.py" % (self.m_current_code_folder)), "w+") 
+            except IOError as err:
+                logging.debug("Python File Write Error")
+                return -1
+            # str copy
+            w_file.write(tmp_str)
+            # remain copy from r_file
+            for line1 in r_file:
+                w_file.write(line1)
+            r_file.close()
+            w_file.close()
+            # copy pt file nn_model/fileset/yolov7
+            pt_path = "%s%s" % (self.m_current_file_path, self.m_nninfo_weight_pt_file)
+            print("pt_path= %s" % pt_path)
+            print(self.m_current_code_folder) 
+            os.system("cp  %s  %s/fileset/yolov7" % (pt_path, self.m_current_code_folder)) 
+
             # copy requirement file to code_folder just for testing
-            # khlee
             if os.path.isfile(self.get_real_filepath(self.m_requirement_file)):
                 shutil.copy(self.get_real_filepath(self.m_requirement_file), self.m_current_code_folder)
 
@@ -1236,7 +1206,6 @@ class CodeGen:
             t_file = t_file.split(".py\n")[0]
             t_file = t_file.split("\n")[0]
             if self.m_nninfo_yolo_base_file_path != ".":  
-                #kkkhhhllleee
                 tmp_path = self.m_nninfo_yolo_base_file_path.replace("/", ".")
                 t_file = "%s.%s" % (tmp_path, t_file)
             f.write('import %s as ye\n' % t_file)
@@ -1290,7 +1259,13 @@ class CodeGen:
         # self.m_nninfo_annotation_file
         annotation_file = "%s/%s" % (def_dataset_path, self.m_nninfo_annotation_file)
         if os.path.isfile(annotation_file):
-            shutil.copy(annotation_file, self.m_current_code_folder)
+            if self.m_deploy_type == 'k8s':
+                tmp_path = "%s/fileset/yolov7" % self.m_current_code_folder
+                print("annotation=")
+                print(tmp_path)
+                shutil.copy(annotation_file, tmp_path)
+            else:
+                shutil.copy(annotation_file, self.m_current_code_folder)
 
         return 0
 
@@ -1614,7 +1589,7 @@ class CodeGen:
                        # "target_name": 'yolov3:latest',
                        "components": t_com }
             t_deploy = {"type": dep_type,
-                        "workdir": "/test/test",
+                        "workdir": "fileset/yolov7",
                         "entrypoint": my_entry,
                         "network": {"service_host_ip": self.m_deploy_network_hostip,
                                     "service_host_port": self.m_deploy_network_hostport,
@@ -1632,14 +1607,23 @@ class CodeGen:
                 if not item in req_pkg:
                     req_pkg.append(item)
             req_pkg.append('vim')
-            req_pkg.append('python3.9')
-            t_pkg = {"atp": req_pkg, "pypi": []}
+            req_pkg.append('python3.8')
+            y7_pkgs = [ 'matplotlib>=3.2.2', 'numpy>=1.18.5,<1.24.0', 
+                    'opencv-python>=4.1.1', 'Pillow>=7.1.2', 
+                    'PyYAML>=5.3.1', 'requests>=2.23.0', 
+                    'scipy>=1.4.1', 'torch>=1.7.0,!=1.12.0', 
+                    'torchvision>=0.8.1,!=0.13.0', 'tqdm>=4.41.0', 
+                    'protobuf<4.21.3', 'tensorboard>=2.4.1', 
+                    'pandas>=1.1.4', 'seaborn>=0.11.0', 
+                    'ipython', 'psutil', 'thop']
+
+            t_pkg = {"atp": req_pkg, "pypi": y7_pkgs}
             t_com = {"custom_packages": t_pkg,
                      "engine": 'pytorch' }
             t_build = {'architecture': 'linux/amd64',
                        "accelerator": 'gpu',
                        "os": 'ubuntu',
-                       "target_name": 'ultralytics/yolo5:v6.1',
+                       "target_name": 'python:3.8',
                        "components": t_com
                        }
             t_deploy = {"type": dep_type,
@@ -1657,9 +1641,11 @@ class CodeGen:
                      }
             if self.m_sysinfo_engine_type == 'tensorrt':
                 t_deploy['pre_exec'] = ['tensorrt-converter.py']
-            t_opt = {"nn_file": 'detect.py',
+            a_file = self.m_nninfo_annotation_file.split("/")
+            b_file = a_file[-1]
+            t_opt = {"nn_file": 'output.py',
                      "weight_file": self.m_nninfo_weight_pt_file,
-                     "annotation_file": 'coco128.yaml'}
+                     "annotation_file": b_file } 
             t_total = {"build": t_build, "deploy": t_deploy, "optional": t_opt}
         else:
             t_pkg = {"atp": self.m_sysinfo_apt, "pypi": self.m_sysinfo_papi}
@@ -1680,9 +1666,11 @@ class CodeGen:
                                     "service_container_port": self.m_deploy_network_serviceport}}
             if self.m_sysinfo_engine_type == 'tensorrt':
                 t_deploy['pre_exec'] = ['tensorrt-converter.py']
-            t_opt = {"nn_file": 'yolo.py',
+            a_file = self.m_nninfo_annotation_file.split("/")
+            b_file = a_file[-1]
+            t_opt = {"nn_file": 'output.py',
                      "weight_file": self.m_nninfo_weight_pt_file,
-                     "annotation_file": self.m_nninfo_deploy_annotation_file}
+                     "annotation_file": b_file }
 
             t_total = {"build": t_build, "deploy": t_deploy, "optional": t_opt}
 
@@ -1742,9 +1730,11 @@ class CodeGen:
                     "entrypoint": self.m_deploy_python_file}
         if self.m_sysinfo_engine_type == 'tensorrt':
             t_deploy['pre_exec'] = ['tensorrt-converter.py']
+        a_file = self.m_nninfo_annotation_file.split("/")
+        b_file = a_file[-1]
         t_opt = {"nn_file": self.m_deploy_python_file,
                  "weight_file": w_filw,
-                 "annotation_file": self.m_nninfo_annotation_file}
+                 "annotation_file": b_file}
         t_total = {"build": t_build, "deploy": t_deploy, "optional": t_opt}
 
         try:
@@ -1810,9 +1800,11 @@ class CodeGen:
                     "entrypoint": self.m_deploy_python_file}
         if self.m_sysinfo_engine_type == 'tensorrt':
             t_deploy['pre_exec'] = ['tensorrt-converter.py']
+        a_file = self.m_nninfo_annotation_file.split("/")
+        b_file = a_file[-1]
         t_opt = {"nn_file": self.m_deploy_python_file,
                  "weight_file": w_filw,
-                 "annotation_file": self.m_nninfo_annotation_file}
+                 "annotation_file": b_file }
         t_total = {"build": t_build, "deploy": t_deploy, "optional": t_opt}
 
         try:
