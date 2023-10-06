@@ -31,14 +31,13 @@ def export_main(weight, engine):
     opt.include_nms = False
     opt.fp16 = False
     opt.int8 = False
+    opt.end2end = False
 
     if engine.lower() == 'tflite':
-        opt.end2end = False
         opt.img_size = [320, 320]
         opt.max_wh = 320
         print('onnx export options for tflite')
     else:
-        opt.end2end = True
         opt.img_size = [640, 640]
         opt.max_wh = 640
         print('onnx export options for standard(not tflite)')
