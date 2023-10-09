@@ -50,6 +50,8 @@ async def run_inference(file_path: Path, file_ext: str):
         "--weights", "/model/yolov7-e6e.pt",
         "--conf", "0.25",
         "--img-size", "640",
+        "--project", MEDIA_DIR,
+        "--exist-ok",
         "--source", str(file_path),
     ]
     process = await asyncio.create_subprocess_exec(
@@ -61,7 +63,8 @@ async def run_inference(file_path: Path, file_ext: str):
     stdout, stderr = await process.communicate()
     if process.returncode != 0:
         raise InferenceException(stderr.decode())
-    return file_path.with_suffix(f'_result.{file_ext}')
+    result_path = file_path.parent.joinpath('exp', file_path.name)
+    return result_path
 
 
 @app.post("/image")
