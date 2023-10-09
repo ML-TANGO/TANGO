@@ -18,6 +18,7 @@ ADD https://github.com/WongKinYiu/yolov7/releases/download/v0.1/yolov7-e6e.pt /m
 ADD server /model/server
 RUN pip install --no-cache-dir -r /model/server/requirements.txt
 
+WORKDIR /model/repo
 ENTRYPOINT ["/model/server/entrypoint.sh"]
 
 

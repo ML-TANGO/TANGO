@@ -50,7 +50,7 @@ async def run_inference(file_path: Path, file_ext: str):
         "--weights", "/model/yolo7-e6e.pt",
         "--conf", "0.25",
         "--img-size", "640", "640",
-        str(file_path),
+        "--source", str(file_path),
     ]
     process = await asyncio.create_subprocess_exec(
         *cmd, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE
