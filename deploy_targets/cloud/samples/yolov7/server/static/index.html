@@ -20,33 +20,29 @@
   <div class="flex flex-col md:flex-row gap-4">
     <!-- Image Upload Form -->
     <form hx-post="/image" hx-encoding='multipart/form-data' hx-target="#result"
-        _="on htmx:xhr:progress(loaded, total) set #image-progress.value to (loaded/total)*100"
         class="bg-white shadow-md rounded px-8 pt-6 pb-8 mb-4 flex-1">
-      <h3 class="block text-gray-700 text-sm font-bold mb-2">Upload Image (jpg, 640x640)</h3>
+      <h3 class="block text-gray-700 text-sm font-bold mb-2">Upload Image (jpg)</h3>
       <div class="mb-4">
-          <input type='file' name='file' accept=".jpg" class="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline">
+        <input type='file' name='file' accept=".jpg" class="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline">
       </div>
       <div>
         <button class="bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded focus:outline-none focus:shadow-outline" type="submit">
-            Upload
+          Upload
         </button>
-        <progress id='image-progress' value='0' max='100' class="w-full"></progress>
       </div>
     </form>
 
     <!-- Video Upload Form -->
     <form hx-post="/video" hx-encoding='multipart/form-data' hx-target="#result"
-        _="on htmx:xhr:progress(loaded, total) set #video-progress.value to (loaded/total)*100"
         class="bg-white shadow-md rounded px-8 pt-6 pb-8 mb-4 flex-1">
-      <h3 class="block text-gray-700 text-sm font-bold mb-2">Upload Video (mp4, 640x640)</h3>
+      <h3 class="block text-gray-700 text-sm font-bold mb-2">Upload Video (mp4)</h3>
       <div class="mb-4">
           <input type='file' name='file' accept=".mp4" class="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline">
       </div>
       <div>
         <button class="bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded focus:outline-none focus:shadow-outline" type="submit">
-            Upload
+          Upload
         </button>
-        <progress id='video-progress' value='0' max='100' class="w-full"></progress>
       </div>
     </form>
   </div>
@@ -54,6 +50,18 @@
   <div id="result" class="bg-white p-4 rounded shadow-lg">
     <!-- Result will be displayed here -->
   </div>
+
+  <script>
+    document.body.addEventListener('htmx:afterOnLoad', function(event) {
+      let response = event.detail.xhr.response;
+      if (response.image_url) {
+        var img = document.createElement('img');
+        img.src = response.image_url;
+        document.getElementById('result').innerHTML = '';
+        document.getElementById('result').appendChild(img);
+      }
+    });
+  </script>
 
 </body>
 

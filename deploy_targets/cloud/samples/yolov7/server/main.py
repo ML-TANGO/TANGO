@@ -73,9 +73,10 @@ async def process_image(file: UploadFile):
     try:
         result_path = await run_inference(file_path, "jpg")  # Assuming images are jpg
     except InferenceException as e:
-        err_msg = e.error_message if hasattr(e, e.error_message) else repr(e)
-        raise HTTPException(status_code=500, detail=f"Inference failed: {err_msg}")
-    return FileResponse(result_path)
+        raise HTTPException(status_code=500, detail=f"Inference failed: {e.error_message}")
+    media_url = f"/media/{result_path.name}"
+    html_response = f'<img src="{media_url}" alt="Result media" />'
+    return HTMLResponse(content=html_response)
 
 
 @app.post("/video")
@@ -86,5 +87,16 @@ async def process_video(file: UploadFile):
     except InferenceException as e:
         err_msg = e.error_message if hasattr(e, e.error_message) else repr(e)
         raise HTTPException(status_code=500, detail=f"Inference failed: {err_msg}")
-    return FileResponse(result_path)
+    media_url = f"/media/{result_path.name}"
+    html_response = f"""
+      <video controls autoplay>
+        <source src="{media_url}" type="video/mp4">
+        Your browser does not support the video tag.
+      </video>
+    """
+    return HTMLResponse(content=html_response)
 
+
+@app.get("/media/{filename}")
+async def read_image(filename: str):
+    return FileResponse(MEDIA_DIR / "exp" / filename)

@@ -1,3 +1,11 @@
+# -- First stage: Download the model
+FROM alpine as model-downloader
+RUN apk add --no-cache curl
+WORKDIR /model
+RUN curl -LO https://github.com/WongKinYiu/yolov7/releases/download/v0.1/yolov7-e6e.pt
+
+
+# -- Second stage: Build YOLO v7 inference image
 FROM nvcr.io/nvidia/pytorch:21.08-py3
 
 # Required packages
@@ -11,8 +19,8 @@ RUN pip install --no-cache-dir seaborn thop
 # GitHub repository: https://github.com/WongKinYiu/yolov7.git
 RUN git clone https://github.com/WongKinYiu/yolov7.git /model/repo
 
-# Download model(s)
-ADD https://github.com/WongKinYiu/yolov7/releases/download/v0.1/yolov7-e6e.pt /model/
+# Copy the model from the first stage
+COPY --from=model-downloader /model/yolov7-e6e.pt /model/
 
 # Model server
 ADD server /model/server
@@ -21,11 +29,3 @@ RUN pip install --no-cache-dir -r /model/server/requirements.txt
 WORKDIR /model/repo
 ENTRYPOINT ["/model/server/entrypoint.sh"]
 
-
-# -- Examples
-
-# How to test inference (image)
-# python /model/repo/detect.py --weights /model/yolov7-e6e.pt --conf 0.25 --img-size 640 --source /model/repo/inference/images/horses.jpg
-
-# How to test inference (video)
-# python /model/repo/detect.py --weights /model/yolov7-e6e.pt --conf 0.25 --img-size 640 --source yourvideo.mp4
