@@ -1,0 +1,61 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>YOLO v7 Inference GUI</title>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css">
+  <script src="https://unpkg.com/htmx.org@1.6.1"></script>
+  <script src="https://cdn.jsdelivr.net/gh/alpinejs/alpine@v2.x.x/dist/alpine.min.js"></script>
+</head>
+
+<body class="bg-grey-100 p-6">
+  <div class="container mx-auto">
+    <div class="mb-4">
+      <h1 class="text-2xl font-bold mb-2">YOLO v7 Inference Client</h1>
+      <p>Upload your image (jpg) or video (mp4) and our server will process them with the YOLO v7 model. The resultant image or video will be displayed below.</p>
+    </div>
+
+  <div class="flex flex-col md:flex-row gap-4">
+    <!-- Image Upload Form -->
+    <form hx-post="/image" hx-encoding='multipart/form-data' hx-target="#result"
+        _="on htmx:xhr:progress(loaded, total) set #image-progress.value to (loaded/total)*100"
+        class="bg-white shadow-md rounded px-8 pt-6 pb-8 mb-4 flex-1">
+      <h3 class="block text-gray-700 text-sm font-bold mb-2">Upload Image (jpg, 640x640)</h3>
+      <div class="mb-4">
+          <input type='file' name='file' accept=".jpg" class="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline">
+      </div>
+      <div>
+        <button class="bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded focus:outline-none focus:shadow-outline" type="submit">
+            Upload
+        </button>
+        <progress id='image-progress' value='0' max='100' class="w-full"></progress>
+      </div>
+    </form>
+
+    <!-- Video Upload Form -->
+    <form hx-post="/video" hx-encoding='multipart/form-data' hx-target="#result"
+        _="on htmx:xhr:progress(loaded, total) set #video-progress.value to (loaded/total)*100"
+        class="bg-white shadow-md rounded px-8 pt-6 pb-8 mb-4 flex-1">
+      <h3 class="block text-gray-700 text-sm font-bold mb-2">Upload Video (mp4, 640x640)</h3>
+      <div class="mb-4">
+          <input type='file' name='file' accept=".mp4" class="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline">
+      </div>
+      <div>
+        <button class="bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded focus:outline-none focus:shadow-outline" type="submit">
+            Upload
+        </button>
+        <progress id='video-progress' value='0' max='100' class="w-full"></progress>
+      </div>
+    </form>
+  </div>
+
+  <div id="result" class="bg-white p-4 rounded shadow-lg">
+    <!-- Result will be displayed here -->
+  </div>
+
+</body>
+
+</html>
+
