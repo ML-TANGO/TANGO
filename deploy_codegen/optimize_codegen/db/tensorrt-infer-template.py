@@ -1,5 +1,5 @@
 '''
-def_model = "v7-16.trt"
+def_trt_engine = "v7-16.trt"
 def_label_yaml = "coco.yaml"
 # from user's selection
 # input_location can be  a number = camera device id(defualt 0) or
@@ -14,6 +14,10 @@ def_input_location = "./images" # number=camera, url, or file_path
 def_output_location = 0 # "./result" # 0=screen, 1=text, url,or folder_path
 def_conf_thres = 0.5
 def_iou_thres = 0.4
+def_calib_cache = "calibration.cache"
+def_trt_engine = "v7-16.trt"
+def_trt_precision = "fp16"
+def_trt_max_detection = 100
 '''
 
 """ copyright notice
@@ -35,11 +39,99 @@ import tensorrt as trt
 import pycuda.autoinit
 import pycuda.driver as cuda
 
+
+###############################################################
+class EngineCalibrator(trt.IInt8EntropyCalibrator2):
+    """
+    Implements the INT8 Entropy Calibrator 2.
+    """
+
+    def __init__(self, cache_file):
+        """
+        :param cache_file: The location of the cache file.
+        """
+        super().__init__()
+        self.cache_file = cache_file
+        self.image_batcher = None
+        self.batch_allocation = None
+        self.batch_generator = None
+
+
+    def read_calibration_cache(self):
+        """
+        Overrides from trt.IInt8EntropyCalibrator2.
+        Read the calibration cache file stored on disk, if it exists.
+        :return: The contents of the cache file, if any.
+        """
+        if os.path.exists(self.cache_file):
+            with open(self.cache_file, "rb") as f:
+                return f.read()
+
+class Build_engine:
+    def __init__(self):
+        self.trt_logger = trt.Logger(trt.Logger.INFO)
+        trt.init_libnvinfer_plugins(self.trt_logger, namespace="")
+        self.builder = trt.Builder(self.trt_logger)
+        self.config = self.builder.create_builder_config()
+        self.config.set_memory_pool_limit(trt.MemoryPoolType.WORKSPACE, 
+                8 << 30)
+        self.network = None
+        self.parser = None
+
+    def create_network(self, onnx_model, conf_thres, iou_thres, max_det):
+        self.network = self.builder.create_network(1 << 
+                int(trt.NetworkDefinitionCreationFlag.EXPLICIT_BATCH))
+        self.parser = trt.OnnxParser(self.network, self.trt_logger)
+        onnx_model = os.path.realpath(onnx_model)
+        with open(onnx_model, "rb") as f:
+            self.parser.parse(f.read())
+            
+    def create_engine(self, engine_path, precision):
+        engine_path = os.path.realpath(engine_path)
+        engine_dir = os.path.dirname(engine_path)
+        os.makedirs(engine_dir, exist_ok=True)
+
+        self.config.set_flag(trt.BuilderFlag.STRICT_TYPES)
+
+        if precision == "fp16":
+            if not self.builder.platform_has_fast_fp16:
+                print("FP16 is not supported natively on this platform/device")
+            else:
+                self.config.set_flag(trt.BuilderFlag.FP16)
+        elif precision == "int8":
+            if not self.builder.platform_has_fast_int8:
+                print("INT8 is not supported natively on this platform/device")
+            else:
+                if self.builder.platform_has_fast_fp16:
+                    self.config.set_flag(trt.BuilderFlag.FP16)
+                self.config.set_flag(trt.BuilderFlag.INT8)
+                self.config.int8_calibrator = EngineCalibrator(def_calib_cache)
+
+        with self.builder.build_serialized_network(self.network, self.config) as engine, open(engine_path, "wb") as f:
+            print("Serializing engine to file: {:}".format(engine_path))
+            f.write(engine)  # .serialize()
+
+    def run(self, onnx_model= def_onnx_model, 
+            trt_conf_thres= def_conf_thres,
+            trt_iou_thres=def_iou_thres, 
+            trt_max_detection=def_trt_max_detection, 
+            trt_engine=def_trt_engine, 
+            trt_precision=def_trt_precision):
+        self.create_network(onnx_model, trt_conf_thres, 
+            trt_iou_thres, trt_max_detection)
+        print("TensorRT model is being generated!! It takes time!!")
+        self.create_engine(trt_engine, trt_precision)
+        print("TensorRT engine is created !!!")
+            
+            
+            
+
+
 #############################################
 # Class definition for TensorRT run module  
 #############################################
 class TRTRun():
-    def __init__(self, model_path=def_model, lyaml=def_label_yaml, 
+    def __init__(self, model_path=def_trt_engine, lyaml=def_label_yaml, 
             input_location=def_input_location, confthr=def_conf_thres, 
             iouthr=def_iou_thres, output_location=def_output_location):
         """
@@ -85,6 +177,9 @@ class TRTRun():
         with open(self.label_yaml) as f:
             classes = yaml.safe_load(f)
             self.classes = classes['names']
+        # transform onnx to trt
+        self.builder = Build_engine()
+        self.builder.run()
         return
 
     def load_model(self):
@@ -511,7 +606,7 @@ class TRTRun():
 
 
 if __name__ == "__main__":
-    mytrt = TRTRun(model_path=def_model, 
+    mytrt = TRTRun(model_path=def_trt_engine, 
             input_location= def_input_location, 
             confthr=def_conf_thres, 
             iouthr=def_iou_thres, 
