@@ -1,5 +1,5 @@
 '''
-def_model = "7x-16.trt"
+def_model = "v7-16.trt"
 def_label_yaml = "coco.yaml"
 # from user's selection
 # input_location can be  a number = camera device id(defualt 0) or
@@ -11,9 +11,9 @@ def_label_yaml = "coco.yaml"
 #                        url = stream output or
 #                        directory 
 def_input_location = "./images" # number=camera, url, or file_path
-def_output_location = "./result" # 0=screen, 1=text, url,or folder_path
-def_conf_thres = 0.7
-def_iou_thres = 0.5
+def_output_location = 0 # "./result" # 0=screen, 1=text, url,or folder_path
+def_conf_thres = 0.5
+def_iou_thres = 0.4
 '''
 
 """ copyright notice
@@ -28,35 +28,12 @@ import yaml
 import os
 import sys
 import myutil
+import matplotlib.pyplot as plt
 
 # for inference engine
 import tensorrt as trt
 import pycuda.autoinit
 import pycuda.driver as cuda
-
-#############################################
-# function to convert data type for tensorrt 
-#############################################
-def trttype2nptype(ttype):
-    """
-    To convert tensorrt type to np type  
-
-    Args:
-        ttype : tensorrt type 
-    Returns: np type
-        np.float32, np.float16, etc 
-    """
-    if ttype == trt.DataType.FLOAT:
-        nptype = np.float32
-    elif ttype == trt.DataType.HALF:
-        nptype = np.float16
-    elif ttype == trt.DataType.INT8:
-        nptype = np.int8
-    elif ttype == trt.DataType.INT32:
-        nptype = np.int32
-    elif ttype == trt.DataType.BOOL:
-        nptype = np.bool
-    return nptype
 
 #############################################
 # Class definition for TensorRT run module  
@@ -124,44 +101,23 @@ class TRTRun():
         trt.init_libnvinfer_plugins(None, "") 
         with open(self.model_path, 'rb') as f:
             self.engine = runtime.deserialize_cuda_engine(f.read())
+        self.imgsz = self.engine.get_binding_shape(0)[2:]  
         self.context = self.engine.create_execution_context()
-        for i in range(self.engine.num_bindings):
-            is_input = False
-            name = self.engine.get_tensor_name(i)
-            isBN = self.engine.get_tensor_mode(name)
-            if isBN == trt.TensorIOMode.INPUT:
-                is_input = True
-            tmptype = trttype2nptype(self.engine.get_tensor_dtype(name))
-            dtype = np.dtype(tmptype)
-            shape = self.context.get_tensor_shape(name)
-            if is_input and shape[0] < 0:
-                profile_shape = self.engine.get_profile_shape(0, name)
-                self.context.set_binding_shape(i, profile_shape[2])
-                shape = self.context.get_binding_shape(i)
-            if is_input:
-                self.batch_size = shape[0]
-            size = dtype.itemsize 
-            for s in shape:
-                size *= s 
-            allocation = cuda.mem_alloc(size) 
-            host_allocation = None if is_input else np.zeros(shape, dtype)
-            binding = {
-                "index": i,
-                "shape": list(shape),
-                "allocation": allocation,
-                "host_allocation": host_allocation,
-            }
-            self.allocations.append(allocation)
-            if is_input:
-                self.inputs.append(binding)
-            else: 
-                self.outputs.append(binding)
-        input_size = self.inputs[0]['shape'][-2:] 
-        self.width = input_size[1] 
-        self.height = input_size[0]
+        self.inputs, self.outputs, self.bindings = [], [], []
+        self.stream = cuda.Stream()
+        for binding in self.engine:
+            size = trt.volume(self.engine.get_binding_shape(binding))
+            dtype = trt.nptype(self.engine.get_binding_dtype(binding))
+            host_mem = cuda.pagelocked_empty(size, dtype)
+            device_mem = cuda.mem_alloc(host_mem.nbytes)
+            self.bindings.append(int(device_mem))
+            if self.engine.binding_is_input(binding):
+                self.inputs.append({'host': host_mem, 'device': device_mem})
+            else:
+                self.outputs.append({'host': host_mem, 'device': device_mem})
         return
 
-    def preprocess(self, org_img):
+    def preprocess(self, image):
         """
         To preprocess image for neural network input 
 
@@ -170,33 +126,24 @@ class TRTRun():
         Returns: 
             preprocessed image data
         """
-        org_h, org_w, org_c = org_img.shape
-        image = cv2.cvtColor(org_img, cv2.COLOR_BGR2RGB)
-        input_size = self.inputs[0]['shape'][-2:] 
-        r_w = input_size[1] / org_w
-        r_h = input_size[0] / org_h
-        if r_h > r_w:
-            tx1 = 0
-            tx2 = 0
-            tw = input_size[1]
-            th = int(r_w *  org_h)
-            ty1 = int((input_size[0] - th) / 2)
-            ty2 = input_size[0] - th - ty1
+        swap=(2, 0, 1)
+        if len(image.shape) == 3:
+            padded_img = np.ones((self.imgsz[0], self.imgsz[1], 3)) * 114.0
         else:
-            ty1 = 0
-            ty2 = 0
-            tw = int(r_h * org_w)
-            th = input_size[0]
-            tx1 = int((input_size[1] - tw) / 2)
-            tx2 = input_size[1] - tw - tx1
-        image = cv2.resize(image, (tw, th))
-        image = cv2.copyMakeBorder(
-            image, ty1, ty2, tx1, tx2, cv2.BORDER_CONSTANT, (128, 128, 128))
-        image = image.astype(np.float32)
-        image /= 255.0
-        image = np.expand_dims(image, axis=0)
-        ret_img = np.ascontiguousarray(image)
-        return ret_img
+            padded_img = np.ones(self.imgsz) * 114.0
+        img = np.array(image)
+        r = min(self.imgsz[0] / img.shape[0], self.imgsz[1] / img.shape[1])
+        resized_img = cv2.resize(
+            img,
+            (int(img.shape[1] * r), int(img.shape[0] * r)),
+            interpolation=cv2.INTER_LINEAR,
+        ).astype(np.float32)
+        padded_img[: int(img.shape[0] * r), : int(img.shape[1] * r)] = resized_img
+        padded_img = padded_img[:, :, ::-1]
+        padded_img /= 255.0
+        padded_img = padded_img.transpose(swap)
+        padded_img = np.ascontiguousarray(padded_img, dtype=np.float32)
+        return padded_img, r
 
     def do_camera_infer(self, dev=0, target_folder=""):
         """
@@ -216,21 +163,33 @@ class TRTRun():
             flag, img = self.video.read()
             if flag == False:
                 break
-            preproc_image = self.preprocess(img)
+            preproc_image, ratio  = self.preprocess(img)
             # inference
-            image = preproc_image.transpose(0, 3, 1, 2) 
-            image = np.ascontiguousarray(image)
-            cuda.memcpy_htod(self.inputs[0]['allocation'], image)
-            self.context.execute_v2(self.allocations)
-            for o in range(len(self.outputs)):
-                cuda.memcpy_dtoh(self.outputs[o]['host_allocation'],
-                    self.outputs[o]['allocation'])
-            num_detections = self.outputs[0]['host_allocation']
-            nmsed_boxes = self.outputs[1]['host_allocation']
-            nmsed_scores = self.outputs[2]['host_allocation']
-            nmsed_classes = self.outputs[3]['host_allocation']
-            result = [num_detections, nmsed_boxes, nmsed_scores, nmsed_classes]
-            self.postprocess(preproc_image, result, save_path)
+            self.inputs[0]['host'] = np.ravel(preproc_image)
+            for inp in self.inputs:
+                cuda.memcpy_htod_async(inp['device'], inp['host'], self.stream)
+            # inference
+            self.context.execute_async_v2(
+                bindings = self.bindings,
+                stream_handle = self.stream.handle)
+            for out in self.outputs:
+                cuda.memcpy_dtoh_async(out['host'], out['device'], self.stream)
+            self.stream.synchronize()
+            data = [out['host'] for out in self.outputs]
+
+            predictions = np.reshape(data, (1, -1, int(5+len(self.classes))))[0]
+            boxes = predictions[:, :4]
+            scores = predictions[:, 4:5] * predictions[:, 5:]
+            boxes_xyxy = np.ones_like(boxes)
+            boxes_xyxy[:, 0] = boxes[:, 0] - boxes[:, 2] / 2.
+            boxes_xyxy[:, 1] = boxes[:, 1] - boxes[:, 3] / 2.
+            boxes_xyxy[:, 2] = boxes[:, 0] + boxes[:, 2] / 2.
+            boxes_xyxy[:, 3] = boxes[:, 1] + boxes[:, 3] / 2.
+            boxes_xyxy /= ratio
+            dets = self.multiclass_nms(boxes_xyxy, scores, nms_thr=0.45, score_thr=0.1)
+            final_boxes, final_scores, final_cls_inds = dets[:, :4], dets[:, 4], dets[:, 5]
+            result = [final_boxes, final_scores, final_cls_inds]
+            self.postprocess(img, result, save_path)
             if cv2.waitKey(1) == ord('q'):
                 break
         self.video.release()
@@ -255,21 +214,33 @@ class TRTRun():
             flag, img = self.video.read()
             if flag == False:
                 break
-            preproc_image = self.preprocess(img)
+            preproc_image, ratio  = self.preprocess(img)
             # inference
-            image = preproc_image.transpose(0, 3, 1, 2) 
-            image = np.ascontiguousarray(image)
-            cuda.memcpy_htod(self.inputs[0]['allocation'], image)
-            self.context.execute_v2(self.allocations)
-            for o in range(len(self.outputs)):
-                cuda.memcpy_dtoh(self.outputs[o]['host_allocation'],
-                    self.outputs[o]['allocation'])
-            num_detections = self.outputs[0]['host_allocation']
-            nmsed_boxes = self.outputs[1]['host_allocation']
-            nmsed_scores = self.outputs[2]['host_allocation']
-            nmsed_classes = self.outputs[3]['host_allocation']
-            result = [num_detections, nmsed_boxes, nmsed_scores, nmsed_classes]
-            self.postprocess(preproc_image, result, save_path)
+            self.inputs[0]['host'] = np.ravel(preproc_image)
+            for inp in self.inputs:
+                cuda.memcpy_htod_async(inp['device'], inp['host'], self.stream)
+            # inference
+            self.context.execute_async_v2(
+                bindings = self.bindings,
+                stream_handle = self.stream.handle)
+            for out in self.outputs:
+                cuda.memcpy_dtoh_async(out['host'], out['device'], self.stream)
+            self.stream.synchronize()
+            data = [out['host'] for out in self.outputs]
+
+            predictions = np.reshape(data, (1, -1, int(5+len(self.classes))))[0]
+            boxes = predictions[:, :4]
+            scores = predictions[:, 4:5] * predictions[:, 5:]
+            boxes_xyxy = np.ones_like(boxes)
+            boxes_xyxy[:, 0] = boxes[:, 0] - boxes[:, 2] / 2.
+            boxes_xyxy[:, 1] = boxes[:, 1] - boxes[:, 3] / 2.
+            boxes_xyxy[:, 2] = boxes[:, 0] + boxes[:, 2] / 2.
+            boxes_xyxy[:, 3] = boxes[:, 1] + boxes[:, 3] / 2.
+            boxes_xyxy /= ratio
+            dets = self.multiclass_nms(boxes_xyxy, scores, nms_thr=0.45, score_thr=0.1)
+            final_boxes, final_scores, final_cls_inds = dets[:, :4], dets[:, 4], dets[:, 5]
+            result = [final_boxes, final_scores, final_cls_inds]
+            self.postprocess(img, result, save_path)
             if cv2.waitKey(1) == ord('q'):
                 break
         self.video.release()
@@ -298,21 +269,33 @@ class TRTRun():
             flag, img = self.video.read()
             if flag == False:
                 break
-            preproc_image = self.preprocess(img)
+            preproc_image, ratio  = self.preprocess(img)
             # inference
-            image = preproc_image.transpose(0, 3, 1, 2) 
-            image = np.ascontiguousarray(image)
-            cuda.memcpy_htod(self.inputs[0]['allocation'], image)
-            self.context.execute_v2(self.allocations)
-            for o in range(len(self.outputs)):
-                cuda.memcpy_dtoh(self.outputs[o]['host_allocation'],
-                    self.outputs[o]['allocation'])
-            num_detections = self.outputs[0]['host_allocation']
-            nmsed_boxes = self.outputs[1]['host_allocation']
-            nmsed_scores = self.outputs[2]['host_allocation']
-            nmsed_classes = self.outputs[3]['host_allocation']
-            result = [num_detections, nmsed_boxes, nmsed_scores, nmsed_classes]
-            self.postprocess(preproc_image, result, save_path)
+            self.inputs[0]['host'] = np.ravel(preproc_image)
+            for inp in self.inputs:
+                cuda.memcpy_htod_async(inp['device'], inp['host'], self.stream)
+            # inference
+            self.context.execute_async_v2(
+                bindings = self.bindings,
+                stream_handle = self.stream.handle)
+            for out in self.outputs:
+                cuda.memcpy_dtoh_async(out['host'], out['device'], self.stream)
+            self.stream.synchronize()
+            data = [out['host'] for out in self.outputs]
+
+            predictions = np.reshape(data, (1, -1, int(5+len(self.classes))))[0]
+            boxes = predictions[:, :4]
+            scores = predictions[:, 4:5] * predictions[:, 5:]
+            boxes_xyxy = np.ones_like(boxes)
+            boxes_xyxy[:, 0] = boxes[:, 0] - boxes[:, 2] / 2.
+            boxes_xyxy[:, 1] = boxes[:, 1] - boxes[:, 3] / 2.
+            boxes_xyxy[:, 2] = boxes[:, 0] + boxes[:, 2] / 2.
+            boxes_xyxy[:, 3] = boxes[:, 1] + boxes[:, 3] / 2.
+            boxes_xyxy /= ratio
+            dets = self.multiclass_nms(boxes_xyxy, scores, nms_thr=0.45, score_thr=0.1)
+            final_boxes, final_scores, final_cls_inds = dets[:, :4], dets[:, 4], dets[:, 5]
+            result = [final_boxes, final_scores, final_cls_inds]
+            self.postprocess(img, result, save_path)
             if cv2.waitKey(1) == ord('q'):
                 break
         self.video.release()
@@ -341,22 +324,82 @@ class TRTRun():
         if img is None:
             print("input file open error!!!")
             return
-        preproc_image = self.preprocess(img)
+        preproc_image, ratio  = self.preprocess(img)
         # inference
-        image = preproc_image.transpose(0, 3, 1, 2) 
-        image = np.ascontiguousarray(image)
-        cuda.memcpy_htod(self.inputs[0]['allocation'], image) 
-        self.context.execute_v2(self.allocations)
-        for o in range(len(self.outputs)):
-            cuda.memcpy_dtoh(self.outputs[o]['host_allocation'], 
-                    self.outputs[o]['allocation'])
-        num_detections = self.outputs[0]['host_allocation'] 
-        nmsed_boxes = self.outputs[1]['host_allocation'] 
-        nmsed_scores = self.outputs[2]['host_allocation'] 
-        nmsed_classes = self.outputs[3]['host_allocation'] 
-        result = [num_detections, nmsed_boxes, nmsed_scores, nmsed_classes]
-        self.postprocess(preproc_image, result, save_path, still_image=True)
+        self.inputs[0]['host'] = np.ravel(preproc_image)
+        for inp in self.inputs:
+            cuda.memcpy_htod_async(inp['device'], inp['host'], self.stream)
+        # inference
+        self.context.execute_async_v2(
+            bindings = self.bindings,
+            stream_handle = self.stream.handle)
+        for out in self.outputs:
+            cuda.memcpy_dtoh_async(out['host'], out['device'], self.stream)
+        self.stream.synchronize()
+        data = [out['host'] for out in self.outputs]
+
+        predictions = np.reshape(data, (1, -1, int(5+len(self.classes))))[0]
+        boxes = predictions[:, :4]
+        scores = predictions[:, 4:5] * predictions[:, 5:]
+        boxes_xyxy = np.ones_like(boxes)
+        boxes_xyxy[:, 0] = boxes[:, 0] - boxes[:, 2] / 2.
+        boxes_xyxy[:, 1] = boxes[:, 1] - boxes[:, 3] / 2.
+        boxes_xyxy[:, 2] = boxes[:, 0] + boxes[:, 2] / 2.
+        boxes_xyxy[:, 3] = boxes[:, 1] + boxes[:, 3] / 2.
+        boxes_xyxy /= ratio
+        dets = self.multiclass_nms(boxes_xyxy, scores, nms_thr=0.45, score_thr=0.1)
+        final_boxes, final_scores, final_cls_inds = dets[:, :4], dets[:, 4], dets[:, 5]
+        result = [final_boxes, final_scores, final_cls_inds]
+        self.postprocess(img, result, save_path, still_image=True)
         return
+
+    def nms(self, boxes, scores, nms_thr):
+        x1 = boxes[:, 0]
+        y1 = boxes[:, 1]
+        x2 = boxes[:, 2]
+        y2 = boxes[:, 3]
+        areas = (x2 - x1 + 1) * (y2 - y1 + 1)
+        order = scores.argsort()[::-1]
+        keep = []
+        while order.size > 0:
+            i = order[0]
+            keep.append(i)
+            xx1 = np.maximum(x1[i], x1[order[1:]])
+            yy1 = np.maximum(y1[i], y1[order[1:]])
+            xx2 = np.minimum(x2[i], x2[order[1:]])
+            yy2 = np.minimum(y2[i], y2[order[1:]])
+            w = np.maximum(0.0, xx2 - xx1 + 1)
+            h = np.maximum(0.0, yy2 - yy1 + 1)
+            inter = w * h
+            ovr = inter / (areas[i] + areas[order[1:]] - inter)
+            inds = np.where(ovr <= nms_thr)[0]
+            order = order[inds + 1]
+        return keep
+
+
+    def multiclass_nms(self, boxes, scores, nms_thr=0.45, score_thr=0.1):
+        final_dets = []
+        num_classes = scores.shape[1]
+        for cls_ind in range(num_classes):
+            cls_scores = scores[:, cls_ind]
+            valid_score_mask = cls_scores > score_thr
+            if valid_score_mask.sum() == 0:
+                continue
+            else:
+                valid_scores = cls_scores[valid_score_mask]
+                valid_boxes = boxes[valid_score_mask]
+                keep = self.nms(valid_boxes, valid_scores, nms_thr)
+                if len(keep) > 0:
+                    cls_inds = np.ones((len(keep), 1)) * cls_ind
+                    dets = np.concatenate(
+                        [valid_boxes[keep], valid_scores[keep, None], cls_inds], 1
+                    )
+                    final_dets.append(dets)
+        if len(final_dets) == 0:
+            return None
+
+        return np.concatenate(final_dets, 0)
+
 
     def run(self):
         """
@@ -388,6 +431,14 @@ class TRTRun():
             print("unkown input!! Halt!!!")
         return
 
+    def rainbow_fill(self, size=50):  # simpler way to generate rainbow color
+        cmap = plt.get_cmap('jet')
+        color_list = []
+        for n in range(size):
+            color = cmap(n/size)
+            color_list.append(color[:3])  # might need rounding? (round(x, 3) for x in color)[:3]
+        return np.array(color_list)
+
     def postprocess(self, image, label, save_path, still_image=False):
         """
         To postprocessing after inference  
@@ -403,51 +454,41 @@ class TRTRun():
         Returns: 
             none
         """
-        num_detections, nmsed_boxes, nmsed_scores, nmsed_classes = label
-        # to be modified
-        h, w = image.shape[1:3]
-        image = np.squeeze(image)
-        image *= 255
-        image = image.astype(np.uint8)
-        for i in range(int(num_detections)):
-            if nmsed_scores[0][i] > self.conf_thres:
-                detected = str(self.classes[int(
-                    nmsed_classes[0][i])]).replace('‘', '').replace('’', '')
-                confidence_str = str(nmsed_scores[0][i])
-                x1 = int(nmsed_boxes[0][i][0])
-                y1 = int(nmsed_boxes[0][i][1])
-                x2 = int(nmsed_boxes[0][i][2])
-                y2 = int(nmsed_boxes[0][i][3])
-                color = (139, 139, 139)
-                #color = (81, 81, 81)
-                image = cv2.rectangle(image, (x1, y1), (x2, y2), 
-                        color, 2)
-                text_size, _ = cv2.getTextSize(str(detected), 
-                        cv2.FONT_HERSHEY_SIMPLEX, 0.5, 1)
-                text_w, text_h = text_size
-                image = cv2.rectangle(image, (x1, y1-5-text_h), 
-                        (x1+text_w, y1), color, -1)
-                image = cv2.putText(image, str(detected), 
-                        (x1, y1-5), cv2.FONT_HERSHEY_SIMPLEX, 0.5, 
-                        (255, 255, 255), 1)
-                print("Detect " + str(i+1) + "(" + str(detected) + ")")
-                print("Coordinates : [{:d}, {:d}, {:d}, {:d}]".format(x1, y1, 
-                    x2, y2))
-                print("Confidence : {:.7f}".format(nmsed_scores[0][i]))
+        boxes, scores, cls_ids = label
+        _COLORS = self.rainbow_fill(80).astype(np.float32).reshape(-1, 3)
+        for i in range(len(boxes)):
+            box = boxes[i]
+            cls_id = int(cls_ids[i])
+            score = scores[i]
+            if score < self.conf_thres: 
+                continue
+            x0 = int(box[0])
+            y0 = int(box[1])
+            x1 = int(box[2])
+            y1 = int(box[3])
+            color = (_COLORS[cls_id] * 255).astype(np.uint8).tolist()
+            text = '{}:{:.1f}%'.format(self.classes[cls_id], score * 100)
+            txt_color = (0, 0, 0) if np.mean(_COLORS[cls_id]) > 0.5 else (255, 255, 255)
+            font = cv2.FONT_HERSHEY_SIMPLEX
+            txt_size = cv2.getTextSize(text, font, 0.4, 1)[0]
+            cv2.rectangle(image, (x0, y0), (x1, y1), color, 2)
+            txt_bk_color = (_COLORS[cls_id] * 255 * 0.7).astype(np.uint8).tolist()
+            cv2.rectangle(
+                image,
+                (x0, y0 + 1),
+                (x0 + txt_size[0] + 1, y0 + int(1.5 * txt_size[1])),
+                txt_bk_color,
+                -1
+            )
+            cv2.putText(image, text, (x0, y0 + txt_size[1]), font, 0.4, txt_color, thickness=1)
 
-            if self.text_out:
-                print("Detect " + str(i+1) + "(" + str(detected) + ")")
-                print("Coordinates : [{:d}, {:d}, {:d}, {:d}]".format(x1, y1, 
-                    x2, y2))
-                print("Confidence : {:.7f}".format(nmsed_scores[0][i]))
         if self.view_img:
             cv2.imshow("result", image)
             cv2.waitKey(1)
             time.sleep(1)
         elif self.save_img:
             if still_image:
-                cv2.imwrite(str(save_path), 
-                        cv2.cvtColor(image, cv2.COLOR_BGR2RGB))
+                cv2.imwrite(str(save_path), image)
             else:
                 if self.vid_path != save_path: 
                     self.vid_path = save_path
