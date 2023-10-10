@@ -117,11 +117,15 @@ class Build_engine:
             trt_max_detection=def_trt_max_detection, 
             trt_engine=def_trt_engine, 
             trt_precision=def_trt_precision):
-        self.create_network(onnx_model, trt_conf_thres, 
-            trt_iou_thres, trt_max_detection)
-        print("TensorRT model is being generated!! It takes time!!")
-        self.create_engine(trt_engine, trt_precision)
-        print("TensorRT engine is created !!!")
+        if os.path.exists(trt_engine):
+            print("TensorRT Engine exist. Skip building engine")
+        else:
+            print("Start TensorRT Engine building")
+            self.create_network(onnx_model, trt_conf_thres, 
+                trt_iou_thres, trt_max_detection)
+            print("TensorRT model is being generated!! It takes time!!")
+            self.create_engine(trt_engine, trt_precision)
+            print("TensorRT engine is created !!!")
             
             
             

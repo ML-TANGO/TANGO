@@ -791,6 +791,7 @@ class CodeGen:
             self.gen_acl_code()
             self.make_requirements_file_for_others()
             os.system("chmod -Rf 777 %s" % self.m_current_code_folder)
+            self.m_last_run_state = 0
 
         elif self.m_sysinfo_engine_type == "tensorrt":
             self.m_deploy_entrypoint = [self.m_deploy_python_file]
@@ -870,6 +871,7 @@ class CodeGen:
                     fo.write(item)
                     fo.write("\n")
             os.system("chmod -Rf 777 %s" % self.m_current_code_folder)
+            self.m_last_run_state = 0
         elif self.m_sysinfo_engine_type == "tvm":
             self.m_deploy_entrypoint = [self.m_deploy_python_file]
             tvm_dev_type = def_TVM_dev_type    # 0 llvm ,1 cuda,  
