@@ -65,9 +65,9 @@ def_trt_max_detection = 100
 def_TVM_dev_type = 0   # 0 llvm ,1 cuda,  
 def_TVM_width = 640 
 def_TVM_height = 640 
-def_TVM_data_type = "float16"
-def_TVM_lib_path = "mylib.so"
-def_TVM_code_path = "mycode.bin"
+def_TVM_data_type = "float32"
+def_TVM_mod = "yolov7.mod"
+def_TVM_param = "yolov7.param"
 def_TVM_myutil_file_name = "./db/myutil.py"
 
 
@@ -791,6 +791,7 @@ class CodeGen:
             self.gen_acl_code()
             self.make_requirements_file_for_others()
             os.system("chmod -Rf 777 %s" % self.m_current_code_folder)
+            self.m_last_run_state = 0
 
         elif self.m_sysinfo_engine_type == "tensorrt":
             self.m_deploy_entrypoint = [self.m_deploy_python_file]
@@ -855,13 +856,22 @@ class CodeGen:
                         output_names=['output'])
             else: # get onnx file so copy it
                 onnx_path = "%s%s" % (self.m_current_file_path, self.m_nninfo_weight_onnx_file)
-                t_folder = "%s/%s" % (self.m_current_code_folder, "yolov7.onnx")
+                t_folder = "%s/%s" % (self.m_current_code_folder, self.m_nninfo_weight_onnx_file)
                 shutil.copy(onnx_path, t_folder)
+            self.m_sysinfo_papi = ['opencv-python', 'time', 'pyyaml', 'scipy', 
+                    'psutil', 'attrs', 'pillow', 'numpy', 'matplotlib', 
+                    'tensorrt', 'pycuda' ]
             self.gen_tensorrt_code(self.m_nninfo_input_tensor_shape[1], 
                     self.m_nninfo_input_tensor_shape[2], 
                     self.m_nninfo_input_data_type) 
             self.make_requirements_file_for_others()
+            fo_path = "%s/%s" % (self.m_current_code_folder, "requirements.txt")
+            with open(fo_path, "w") as fo:
+                for item in self.m_sysinfo_papi:  
+                    fo.write(item)
+                    fo.write("\n")
             os.system("chmod -Rf 777 %s" % self.m_current_code_folder)
+            self.m_last_run_state = 0
         elif self.m_sysinfo_engine_type == "tvm":
             self.m_deploy_entrypoint = [self.m_deploy_python_file]
             tvm_dev_type = def_TVM_dev_type    # 0 llvm ,1 cuda,  
@@ -873,94 +883,30 @@ class CodeGen:
                 print("No ONNX file for TVM")
                 return
             onnx_model = onnx.load(self.get_real_filepath(self.m_nninfo_weight_onnx_file))
-            input_name = onnx_model.graph.input[0].name
-            print(input_name)
-            tensor_type = onnx_model.graph.input[0].type.tensor_type
-            tmp_list = []
-            if (tensor_type.HasField("shape")):
-                for d in tensor_type.shape.dim:
-                    if (d.HasField("dim_value")):
-                        tmp_list.append(d.dim_value)
-                i_shape = tuple(tmp_list)
-                logging.debug(i_shape)
-                (x_, y_, self.width, self.height) = i_shape
-            else:
-                i_shape = (1, 1, 224, 224)
-            print(i_shape)
+            input_name = "images"
+            shape_dict = {input_name: [1, 3, def_TVM_width, def_TVM_height]}
+            mod, params = tvm.relay.frontend.from_onnx(onnx_model, shape_dict)
+            fo_path = "%s/%s" % (self.m_current_code_folder, def_TVM_mod)
+            with open(fo_path, "w") as fo:
+                fo.write(tvm.ir.save_json(mod))
+            fo_path = "%s/%s" % (self.m_current_code_folder, def_TVM_param)
+            with open(fo_path, "wb") as fo:
+                fo.write(tvm.runtime.save_param_dict(params))
 
-            dtype = 'object'
-            # check elem_type value
-            if (tensor_type.HasField("elem_type")):
-                tp = tensor_type.elem_type
-                if tp == 1: # FLOAT
-                    dtype = 'float32'
-                elif tp == 2: # UINIT8
-                    dtype = 'uint8'
-                elif tp == 3: # INT8
-                    dtype = 'int8'
-                elif tp == 4: # UINT16
-                    dtype = 'uint16'
-                elif tp == 5: # INT16
-                    dtype = 'int16'
-                elif tp == 6: # INT32
-                    dtype = 'int32'
-                elif tp == 7: # INT64
-                    dtype = 'int64'
-                elif tp == 8: # STRING
-                    dtype = 'unicode'
-                elif tp == 9: # BOOL
-                    dtype = 'bool'
-                elif tp == 10: # FLOAT16
-                    dtype = 'float16'
-                elif tp == 11: # DOUBLE
-                    dtype = 'double'
-                elif tp == 12: # UINT32
-                    dtype = 'uint32'
-                elif tp == 13: # UINT64
-                    dtype = 'uint64'
-                elif tp == 14: # COMPLEX64
-                    dtype = 'complex64'
-                elif tp == 15: # COMPLEX128
-                    dtype = 'complex128'
-                elif tp == 16: # BFLOAT16
-                    dtype = 'bfloat16'
-            logging.debug(dtype)
-            print(dtype) 
-    
-            if tvm_dev_type == 0:
-                target = "llvm"
-            elif tvm_dev_type == 1:
-                target = "cuda"
-            elif tvm_dev_type == 2:
-                target = "llvm -mtriple=aarch64-linux-gnu"
-            else:
-                target = "opencl"
-            logging.debug(target)
-            shape_dict = {input_name: i_shape}
-            logging.debug(shape_dict)
-            mod, params = relay.frontend.from_onnx(onnx_model, shape_dict)
-            executable = relay.vm.compile(mod, target=target, params=params)
-            code, lib = executable.save()
-            lib.export_library(def_TVM_lib_path)
-            with open(def_TVM_code_path, "wb") as outf:
-                outf.write(code)
-            if os.path.isfile(def_TVM_lib_path):
-                shutil.copy(def_TVM_lib_path, self.m_current_code_folder)
-                # after converting and copying, remove temporary converted file 
-                os.remove(def_TVM_lib_path)
-            if os.path.isfile(def_TVM_code_path):
-                shutil.copy(def_TVM_code_path, self.m_current_code_folder)
-                # after converting and copying, remove temporary converted file 
-                os.remove(def_TVM_code_path)
             # copy annotaion file 
             annotation_file = "%s/%s" % (def_dataset_path, self.m_nninfo_annotation_file)
             shutil.copy(annotation_file, self.m_current_code_folder)
 
+            self.m_sysinfo_papi = ['scipy', 'psutil', 'attrs', 'pillow', 
+                    'opencv-python', 'pyyaml', 'numpy', 'matplotlib' ]
             self.gen_tvm_code(tvm_dev_type, tvm_width, tvm_height, tvm_data_type)
             self.make_requirements_file_for_others()
-            os.remove(self.get_real_filepath(self.m_nninfo_weight_onnx_file))
+            fo_path = "%s/%s" % (self.m_current_code_folder, "requirements.txt")
+            with open(fo_path, "w") as fo:
+                for item in self.m_sysinfo_papi:  
+                    fo.write(item)
+                    fo.write("\n")
             os.system("chmod -Rf 777 %s" % self.m_current_code_folder)
-
         self.m_last_run_state = 0
         # modified
         if self.m_nninfo_yolo_base_file_path != "." and self.m_nninfo_yolo_base_file_path != "" :  
@@ -1346,50 +1292,8 @@ class CodeGen:
     def gen_tensorrt_code(self, width, height, data_type):
         if not os.path.exists(self.m_current_code_folder):
             os.makedirs(self.m_current_code_folder)
-        # write tensorrt_converter code from DB
-        tmpstr = ""
-        tmpstr = "%s%s%s" % (tmpstr, "import os", def_newline)
-        tmpstr = "%s%s%s" % (tmpstr, "import numpy as np", def_newline)
-        tmpstr = "%s%s%s" % (tmpstr, "import tensorrt as trt", def_newline)
-        tmpstr = "%s%s%s" % (tmpstr, def_newline, def_newline)
-        tmpstr = "%s%s%s%s%s%s" % (tmpstr, "def_onnx_model = ", '"', 
-                self.m_nninfo_weight_onnx_file, '"', def_newline)
-        tmpstr = "%s%s%s%s%s%s" % (tmpstr, "def_calib_cache = ",'"',  
-                def_trt_calib_cache, '"', def_newline)
-        tmpstr = "%s%s%s%s%s%s" % (tmpstr, "def_trt_engine = ", '"', 
-                def_trt_engine, '"', def_newline)
-        tmpstr = "%s%s%s%s%s%s" % (tmpstr, "def_trt_precision = ", '"',  
-                def_trt_precision, '"', def_newline)
-        tmpstr = "%s%s%f%s" % (tmpstr, "def_trt_conf_thres = ", 
-                self.m_nninfo_postproc_conf_thres, def_newline)
-        tmpstr = "%s%s%f%s" % (tmpstr, "def_trt_iou_thres = ", 
-                self.m_nninfo_postproc_iou_thres, def_newline)
-        tmpstr = "%s%s%s" % (tmpstr, "def_trt_max_detection = 100", def_newline)
-        tmpstr = "%s%s%s" % (tmpstr, def_newline, def_newline)
-
-        try:
-            conv_outf = open(self.get_code_filepath(def_trt_converter_file_name), "w")
-        except IOError as err:
-            logging.debug("TensorRT Converter File Write Error #1")
-            return -1
-        conv_outf.write(tmpstr)
-        try:
-            ft = open("./db/tensorrt-converter.py", 'r')
-        except IOError as err:
-            logging.debug("TensorRT converter  body open error")
-            return -1
-        # body copy
-        for line2 in ft:
-            conv_outf.write(line2)
-        ft.close()
-        conv_outf.close()
-
         # write tensorrt_infer code from DB
         tmpstr = ""
-        tmpstr = "%s%s%s%s%s%s" % (tmpstr, "def_model = ", '"', 
-                def_trt_engine, '"', def_newline)
-        # tmpstr = "%s%s%s%s%s%s" % (tmpstr, "def_label_yaml = ", '"',  
-        #         self.m_nninfo_annotation_file, '"', def_newline)
         a_file = self.m_nninfo_annotation_file.split("/")
         b_file = a_file[-1]
         tmpstr = "%s%s%s%s%s%s" % (tmpstr, "def_label_yaml = ", '"',  
@@ -1410,6 +1314,17 @@ class CodeGen:
                 self.m_nninfo_postproc_conf_thres, def_newline)
         tmpstr = "%s%s%s%s" % (tmpstr, "def_iou_thres = ",  
                 self.m_nninfo_postproc_iou_thres, def_newline)
+        tmpstr = "%s%s%s%s%s%s" % (tmpstr, "def_onnx_model = ", '"', 
+                self.m_nninfo_weight_onnx_file, '"', def_newline)
+        a_file = def_trt_calib_cache.split("/")
+        tmpstr = "%s%s%s%s%s%s" % (tmpstr, "def_calib_cache = ",'"',  
+                a_file[-1], '"', def_newline)
+        tmpstr = "%s%s%s%s%s%s" % (tmpstr, "def_trt_engine = ", '"', 
+                def_trt_engine, '"', def_newline)
+        tmpstr = "%s%s%s%s%s%s" % (tmpstr, "def_trt_precision = ", '"',  
+                def_trt_precision, '"', def_newline)
+        tmpstr = "%s%s%s" % (tmpstr, "def_trt_max_detection = 100", def_newline)
+        tmpstr = "%s%s%s" % (tmpstr, def_newline, def_newline)
         try:
             infer_outf = open(self.get_code_filepath(def_deploy_python_file), "w")
         except IOError as err:
@@ -1419,7 +1334,7 @@ class CodeGen:
         try:
             fi = open("./db/tensorrt-infer-template.py", 'r')
         except IOError as err:
-            logging.debug("TensorRT converter  body open error")
+            logging.debug("TensorRT infer  body open error")
             return -1
         # body copy
         for line2 in fi:
@@ -1434,16 +1349,6 @@ class CodeGen:
         annotation_file = "%s/%s" % (def_dataset_path, self.m_nninfo_annotation_file)
         if os.path.isfile(annotation_file):
             shutil.copy(annotation_file, self.m_current_code_folder)
-        '''
-        # copy model file and related files
-        if isinstance(self.m_nninfo_class_file, list):
-            num_files = len(self.m_nninfo_class_file)
-            if num_files >= 1:
-                for i in range(num_files):
-                    self.copy_subfolderfile(self.m_nninfo_class_file[i], self.m_current_code_folder)
-        else:
-            shutil.copy(self.get_real_filepath(self.m_nninfo_class_file), self.m_current_code_folder)
-        '''
         return
 
 
@@ -1451,14 +1356,30 @@ class CodeGen:
         if not os.path.exists(self.m_current_code_folder):
             os.makedirs(self.m_current_code_folder)
         tmpstr = ""
-        tmpstr = "%s%s%s%s%s%s" % (tmpstr, "def_lib_path = ", '"', 
-            def_TVM_lib_path, '"', def_newline)
-        tmpstr = "%s%s%s%s%s%s" % (tmpstr, "def_code_path = ", '"', 
-            def_TVM_code_path, '"', def_newline)
+        tmpstr = "%s%s%s%s%s%s" % (tmpstr, "def_mod_path = ", '"', 
+            def_TVM_mod, '"', def_newline)
+        tmpstr = "%s%s%s%s%s%s" % (tmpstr, "def_param_path = ", '"', 
+            def_TVM_param, '"', def_newline)
         a_file = self.m_nninfo_annotation_file.split("/")
         b_file = a_file[-1]
         tmpstr = "%s%s%s%s%s%s" % (tmpstr, "def_label_yaml = ",'"',  
             b_file, '"', def_newline)
+        tmpstr = "%s%s%s%s" % (tmpstr, "def_conf_thres = ",  
+                self.m_nninfo_postproc_conf_thres, def_newline)
+        tmpstr = "%s%s%s%s" % (tmpstr, "def_iou_thres = ",  
+                self.m_nninfo_postproc_iou_thres, def_newline)
+        if self.m_sysinfo_acc_type == "cuda": 
+            tmpstr = "%s%s%s%s" % (tmpstr, "def_dev_type = ",  "1", def_newline)
+        else:
+            tmpstr = "%s%s%s%s" % (tmpstr, "def_dev_type = ",  "llvm", def_newline)
+        tmpstr = "%s%s%s%s%s%s" % (tmpstr, "def_data_type = ", '"',  
+                self.m_nninfo_input_data_type, '"', def_newline)
+        tmpstr = "%s%s%s%s" % (tmpstr, "def_width = ",  
+                # self.m_nninfo_input_tensor_shape[1], def_newline)
+                def_TVM_width, def_newline)
+        tmpstr = "%s%s%s%s" % (tmpstr, "def_height = ",  
+                #self.m_nninfo_input_tensor_shape[2], def_newline) 
+                def_TVM_height, def_newline)
         if type(self.m_sysinfo_input_method) is str:
             tmpstr = "%s%s%s%s%s%s" % (tmpstr, "def_input_location = ", '"',   
                     self.m_sysinfo_input_method, '"', def_newline)
@@ -1471,20 +1392,6 @@ class CodeGen:
         else:
             tmpstr = "%s%s%s%s" % (tmpstr, "def_output_location = ",  
                     self.m_sysinfo_output_method, def_newline)  
-        tmpstr = "%s%s%s%s" % (tmpstr, "def_conf_thres = ",  
-                self.m_nninfo_postproc_conf_thres, def_newline)
-        tmpstr = "%s%s%s%s" % (tmpstr, "def_iou_thres = ",  
-                self.m_nninfo_postproc_iou_thres, def_newline)
-        if self.m_sysinfo_acc_type == "cuda": 
-            tmpstr = "%s%s%s%s" % (tmpstr, "def_dev_type = ",  "1", def_newline)
-        else:
-            tmpstr = "%s%s%s%s" % (tmpstr, "def_dev_type = ",  "0", def_newline)
-        tmpstr = "%s%s%s%s%s%s" % (tmpstr, "def_data_type = ", '"',  
-                self.m_nninfo_input_data_type, '"', def_newline)
-        tmpstr = "%s%s%s%s" % (tmpstr, "def_width = ",  
-                self.m_nninfo_input_tensor_shape[1], def_newline)
-        tmpstr = "%s%s%s%s" % (tmpstr, "def_height = ",  
-                self.m_nninfo_input_tensor_shape[2], def_newline) 
         tmpstr = "%s%s%s" % (tmpstr, def_newline, def_newline) 
         try:
             infer_outf = open(self.get_code_filepath(def_deploy_python_file), "w")
@@ -1508,17 +1415,6 @@ class CodeGen:
         annotation_file = "%s/%s" % (def_dataset_path, self.m_nninfo_annotation_file)
         if os.path.isfile(annotation_file):
             shutil.copy(annotation_file, self.m_current_code_folder)
-        '''
-        # copy model file and related files
-        if isinstance(self.m_nninfo_class_file, list):
-            num_files = len(self.m_nninfo_class_file)
-            if num_files >= 1:
-                for i in range(num_files):
-                    self.copy_subfolderfile(self.m_nninfo_class_file[i], self.m_current_code_folder)
-        else:
-            shutil.copy(self.get_real_filepath(self.m_nninfo_class_file), self.m_current_code_folder)
-        '''
-
         return
 
     ####################################################################
@@ -1594,8 +1490,8 @@ class CodeGen:
                         "network": {"service_host_ip": self.m_deploy_network_hostip,
                                     "service_host_port": self.m_deploy_network_hostport,
                                     "service_container_port": self.m_deploy_network_serviceport}}
-            if self.m_sysinfo_engine_type == 'tensorrt':
-                t_deploy['pre_exec'] = ['tensorrt-converter.py']
+            # if self.m_sysinfo_engine_type == 'tensorrt':
+            #    t_deploy['pre_exec'] = ['tensorrt-converter.py']
             t_total = {"build": t_build, 
                     "deploy": t_deploy}
         elif self.m_deploy_type == "k8s":
@@ -1639,8 +1535,8 @@ class CodeGen:
                          "nfs_path": self.m_deploy_nfs_path 
                          }
                      }
-            if self.m_sysinfo_engine_type == 'tensorrt':
-                t_deploy['pre_exec'] = ['tensorrt-converter.py']
+            # if self.m_sysinfo_engine_type == 'tensorrt':
+            #    t_deploy['pre_exec'] = ['tensorrt-converter.py']
             a_file = self.m_nninfo_annotation_file.split("/")
             b_file = a_file[-1]
             t_opt = {"nn_file": 'output.py',
@@ -1664,8 +1560,8 @@ class CodeGen:
                         "network": {"service_host_ip": self.m_deploy_network_hostip,
                                     "service_host_port": self.m_deploy_network_hostport,
                                     "service_container_port": self.m_deploy_network_serviceport}}
-            if self.m_sysinfo_engine_type == 'tensorrt':
-                t_deploy['pre_exec'] = ['tensorrt-converter.py']
+            # if self.m_sysinfo_engine_type == 'tensorrt':
+            #    t_deploy['pre_exec'] = ['tensorrt-converter.py']
             a_file = self.m_nninfo_annotation_file.split("/")
             b_file = a_file[-1]
             t_opt = {"nn_file": 'output.py',
@@ -1728,8 +1624,8 @@ class CodeGen:
                    "os": self.m_sysinfo_os_type, "components": t_com}
         t_deploy = {"type": self.m_deploy_type, "work_dir": self.m_deploy_work_dir,
                     "entrypoint": self.m_deploy_python_file}
-        if self.m_sysinfo_engine_type == 'tensorrt':
-            t_deploy['pre_exec'] = ['tensorrt-converter.py']
+        # if self.m_sysinfo_engine_type == 'tensorrt':
+        #     t_deploy['pre_exec'] = ['tensorrt-converter.py']
         a_file = self.m_nninfo_annotation_file.split("/")
         b_file = a_file[-1]
         t_opt = {"nn_file": self.m_deploy_python_file,
@@ -1785,7 +1681,7 @@ class CodeGen:
             t_com = {"engine": 'tensorrt', "libs": self.m_sysinfo_libs,
                  "custom_packages": t_pkg}
         elif self.m_sysinfo_engine_type == 'tvm':
-            w_filw = [def_TVM_lib_path, def_TVM_code_path]
+            w_filw = [def_TVM_mod, def_TVM_param]
             t_com = {"engine": 'tvm', "libs": self.m_sysinfo_libs,
                  "custom_packages": t_pkg}
         else:  # .pt file
@@ -1798,8 +1694,8 @@ class CodeGen:
                    "os": self.m_sysinfo_os_type, "components": t_com}
         t_deploy = {"type": self.m_deploy_type, "work_dir": self.m_deploy_work_dir,
                     "entrypoint": self.m_deploy_python_file}
-        if self.m_sysinfo_engine_type == 'tensorrt':
-            t_deploy['pre_exec'] = ['tensorrt-converter.py']
+        # if self.m_sysinfo_engine_type == 'tensorrt':
+        #     t_deploy['pre_exec'] = ['tensorrt-converter.py']
         a_file = self.m_nninfo_annotation_file.split("/")
         b_file = a_file[-1]
         t_opt = {"nn_file": self.m_deploy_python_file,
