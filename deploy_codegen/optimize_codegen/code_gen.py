@@ -661,6 +661,9 @@ class CodeGen:
         # if there are files in the target folder, remove them
         self.clear()
 
+        if not os.path.exists(self.m_current_code_folder):
+            os.makedirs(self.m_current_code_folder)
+
         if self.m_sysinfo_task_type == "classification":
             if self.m_sysinfo_engine_type == 'pytorch':
                 self.m_sysinfo_libs = []
@@ -704,6 +707,7 @@ class CodeGen:
                     f1 = open("./db/resnet152.db", 'r')
                 except IOError as err:
                     logging.debug("resnet162 db open error")
+                    self.m_last_run_state = 0
                     return -1
                 for line1 in f1:
                     f.write(line1)
