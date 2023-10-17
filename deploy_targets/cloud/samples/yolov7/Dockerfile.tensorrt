@@ -1,0 +1,16 @@
+# FROM nvcr.io/nvidia/pytorch:21.08-py3
+FROM nvcr.io/nvidia/tensorrt:22.06-py3
+FROM nvcr.io/nvidia/tritonserver:22.06-py3-sdk
+
+# GitHub repository from https://github.com/WongKinYiu/yolov7.git
+ADD ./yolov7 /playground/yolov7
+ADD ./models /playground/models
+
+
+# How to inference (video)
+# cd /playground/yolov7
+# python detect.py --weights ../models/yolov7.pt --conf 0.25 --img-size 640 --source yourvideo.mp4
+
+# How to inference (image)
+# cd /playground/yolov7
+# python detect.py --weights ../models/yolov7.pt --conf 0.25 --img-size 640 --source inference/images/horses.jpg
