@@ -286,11 +286,12 @@ class TRTRun():
             boxes_xyxy[:, 3] = boxes[:, 1] + boxes[:, 3] / 2.
             boxes_xyxy /= ratio
             dets = self.multiclass_nms(boxes_xyxy, scores, nms_thr=0.45, score_thr=0.1)
-            final_boxes, final_scores, final_cls_inds = dets[:, :4], dets[:, 4], dets[:, 5]
-            result = [final_boxes, final_scores, final_cls_inds]
-            self.postprocess(img, result, save_path)
-            if cv2.waitKey(1) == ord('q'):
-                break
+            if (dets != None):
+                final_boxes, final_scores, final_cls_inds = dets[:, :4], dets[:, 4], dets[:, 5]
+                result = [final_boxes, final_scores, final_cls_inds]
+                self.postprocess(img, result, save_path)
+                if cv2.waitKey(1) == ord('q'):
+                    break
         self.video.release()
         if isinstance(self.vid_writer, cv2.VideoWriter):
             self.vid_writer.release()  
@@ -337,11 +338,12 @@ class TRTRun():
             boxes_xyxy[:, 3] = boxes[:, 1] + boxes[:, 3] / 2.
             boxes_xyxy /= ratio
             dets = self.multiclass_nms(boxes_xyxy, scores, nms_thr=0.45, score_thr=0.1)
-            final_boxes, final_scores, final_cls_inds = dets[:, :4], dets[:, 4], dets[:, 5]
-            result = [final_boxes, final_scores, final_cls_inds]
-            self.postprocess(img, result, save_path)
-            if cv2.waitKey(1) == ord('q'):
-                break
+            if (dets != None):
+                final_boxes, final_scores, final_cls_inds = dets[:, :4], dets[:, 4], dets[:, 5]
+                result = [final_boxes, final_scores, final_cls_inds]
+                self.postprocess(img, result, save_path)
+                if cv2.waitKey(1) == ord('q'):
+                    break
         self.video.release()
         if isinstance(self.vid_writer, cv2.VideoWriter):
             self.vid_writer.release()  
@@ -392,11 +394,12 @@ class TRTRun():
             boxes_xyxy[:, 3] = boxes[:, 1] + boxes[:, 3] / 2.
             boxes_xyxy /= ratio
             dets = self.multiclass_nms(boxes_xyxy, scores, nms_thr=0.45, score_thr=0.1)
-            final_boxes, final_scores, final_cls_inds = dets[:, :4], dets[:, 4], dets[:, 5]
-            result = [final_boxes, final_scores, final_cls_inds]
-            self.postprocess(img, result, save_path)
-            if cv2.waitKey(1) == ord('q'):
-                break
+            if (dets != None):
+                final_boxes, final_scores, final_cls_inds = dets[:, :4], dets[:, 4], dets[:, 5]
+                result = [final_boxes, final_scores, final_cls_inds]
+                self.postprocess(img, result, save_path)
+                if cv2.waitKey(1) == ord('q'):
+                    break
         self.video.release()
         if isinstance(self.vid_writer, cv2.VideoWriter):
             self.vid_writer.release()  
@@ -447,9 +450,10 @@ class TRTRun():
         boxes_xyxy[:, 3] = boxes[:, 1] + boxes[:, 3] / 2.
         boxes_xyxy /= ratio
         dets = self.multiclass_nms(boxes_xyxy, scores, nms_thr=0.45, score_thr=0.1)
-        final_boxes, final_scores, final_cls_inds = dets[:, :4], dets[:, 4], dets[:, 5]
-        result = [final_boxes, final_scores, final_cls_inds]
-        self.postprocess(img, result, save_path, still_image=True)
+        if (dets != None):
+            final_boxes, final_scores, final_cls_inds = dets[:, :4], dets[:, 4], dets[:, 5]
+            result = [final_boxes, final_scores, final_cls_inds]
+            self.postprocess(img, result, save_path, still_image=True)
         return
 
     def nms(self, boxes, scores, nms_thr):
