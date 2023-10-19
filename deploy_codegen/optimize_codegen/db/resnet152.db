@@ -1,3 +1,8 @@
+#!/usr/bin/python
+# -*- coding: utf-8 -*-
+# DEF_IMG_PATH = "./test"
+# DEF_ACC = "cpu"
+# DEF_PT_FILE = "resnet152.pt"
 
 ###########################################################################
 # Pytorch - Medical Chest X-ray classification Test
@@ -15,7 +20,6 @@ from torchvision.transforms import Compose, Normalize, ToTensor
 import pprint
 import pandas as pd
 import numpy as np
-import cv2
 
 ###########################################################################
 ###################### for classification setting##########################
@@ -399,6 +403,7 @@ import pandas as pd
 import numpy as np
 import requests
 from torch.utils.data.sampler import SubsetRandomSampler
+import cv2
 
 
 def yml_to_dict(filepath):
@@ -592,25 +597,24 @@ class Inference:
             for data in transformed_list:
                 print("Examine image %d -> FILE = %s" % ((cnt+1), f_list[cnt]))
                 path = self.args.image_path + '/' + f_list[cnt]
-                # myImg = cv2.imread(path, cv2.IMREAD_COLOR)
-                # winname = f_list[cnt]
-                # cv2.namedWindow(winname)
-                # cv2.moveWindow(winname, 1400, 10)
-                # cv2.imshow(winname, myImg)
-                # cv2.waitKey(1000)
-                
-                cnt = cnt + 1
+                myImg = cv2.imread(path, cv2.IMREAD_COLOR)
+                winname = f_list[cnt]
+                cv2.namedWindow(winname)
+                cv2.moveWindow(winname, 1400, 10)
+                cv2.imshow(winname, myImg)
+                cv2.waitKey(1000)
                 output = self.model(data.unsqueeze(0).float().to(self.device))
-
                 _score, predicted = output.max(1)
                 pred = label_tags[predicted.item()]
+                cnt = cnt + 1
 
                 _score_p = torch.softmax(output, dim=1)
                 print('prediction result: %s  Score: %f' %(pred, _score))
                 print('softmax result : ', _score_p.max())
                 print('\n')
                 r_list.append([pred, _score_p.cpu()])
-                # cv2.destroyAllWindows()
+                input('Hit "Enter Key" to proceed....')
+                cv2.destroyAllWindows()
 
         r_dict = dict(zip(f_list, r_list))
         path = './infer_result.csv'

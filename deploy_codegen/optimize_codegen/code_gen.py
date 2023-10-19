@@ -492,10 +492,16 @@ class CodeGen:
             elif key == 'precision_level':
                 self.m_sysinfo_precision_level = int(value)
             elif key == 'input_source':
-                self.m_sysinfo_input_method = value  # url, path, camera ID 
+                if type(value) == str:
+                    self.m_sysinfo_input_method = "'" + value + "'" # url, path, camera ID 
+                else:
+                    self.m_sysinfo_input_method = value  # url, path, camera ID 
             elif key == 'output_method':
                 # 0:graphic, 1:text, path, url
-                self.m_sysinfo_output_method = value  
+                if type(value) == str:
+                    self.m_sysinfo_output_method = "'" + value + "'"  
+                else:
+                    self.m_sysinfo_output_method = value  
             elif key == 'user_editing':
                 self.m_sysinfo_user_editing = value  # yes/no
             elif key == 'confidence_thresh':
@@ -503,7 +509,7 @@ class CodeGen:
             elif key == 'iou_thresh':
                 self.m_sysinfo_iou_thresh = value  
             elif key == 'dataset':
-                myset = "%s/%s.yaml" % (value, value)
+                myset = "%s/dataset.yaml" % (value)
                 self.m_nninfo_annotation_file = myset
         f.close()
         return 0
@@ -668,7 +674,7 @@ class CodeGen:
             if self.m_sysinfo_engine_type == 'pytorch':
                 self.m_sysinfo_libs = []
                 self.m_sysinfo_apt = ['vim', 'python3.9']
-                self.m_sysinfo_papi = ['torch', 'torchvision', 'opencv-python', 'pandas', 'numpy', 'albumentations']
+                self.m_sysinfo_papi = ['torch', 'torchvision', 'opencv-python', 'pandas', 'numpy', 'python-math', 'albumentations']
                 self.m_deploy_entrypoint = self.m_deploy_python_file
                 if not os.path.exists(self.m_current_code_folder):
                     os.makedirs(self.m_current_code_folder)
@@ -680,6 +686,7 @@ class CodeGen:
                         rf = open(req_file, "w") 
                     except IOError as err:
                         logging.debug("requirements file open error")
+                        self.m_last_run_state = 0
                         return -1
                     for i in range(p_len):
                         rf.write(self.m_sysinfo_papi[i])
@@ -700,7 +707,7 @@ class CodeGen:
                 # copy heading 
                 f.write("#!/usr/bin/python\n")
                 f.write("# -*- coding: utf-8 -*-\n")
-                f.write("DEF_IMG_PATH = \"%s\"\n" % self.m_sysinfo_input_method) 
+                f.write("DEF_IMG_PATH = %s\n" % self.m_sysinfo_input_method) 
                 f.write("DEF_ACC = %s\n" % "\"cpu\"") # only for testing self.m_sysinfo_acc_type) 
                 f.write("DEF_PT_FILE = \"%s\"\n\n\n" % self.m_nninfo_weight_pt_file)
                 try:
@@ -869,6 +876,9 @@ class CodeGen:
                     self.m_nninfo_input_tensor_shape[2], 
                     self.m_nninfo_input_data_type) 
             self.make_requirements_file_for_others()
+            # kkkhhhlleeeeeeeee
+            # coco.yaml
+            # myutil
             fo_path = "%s/%s" % (self.m_current_code_folder, "requirements.txt")
             with open(fo_path, "w") as fo:
                 for item in self.m_sysinfo_papi:  
@@ -1029,32 +1039,8 @@ class CodeGen:
             # khlee copy k8s app codes
             os.system("mkdir %s/fileset" % self.m_current_code_folder) 
             os.system("unzip ./db/k8syolov7.zip -d %s/fileset" % self.m_current_code_folder) 
-            # modify nn_model/fileset/yolov7/output.py
-            tmp_str = 'def_port = %d\n' % (self.m_deploy_network_serviceport)
-            tmp_str += 'def_weight_file = %s\n' % (self.m_nninfo_weight_pt_file)
-            tmp_str += 'def_input_source = %s\n\n' % (self.m_sysinfo_input_method)  
-            # output py file copy
-            try:
-                r_file = open("./db/k8soutput.py", "r")
-            except IOError as err:
-                logging.debug("Python File Read Error")
-                return -1
-            try:
-                w_file = open(("%s/fileset/yolov7/output.py" % (self.m_current_code_folder)), "w+") 
-            except IOError as err:
-                logging.debug("Python File Write Error")
-                return -1
-            # str copy
-            w_file.write(tmp_str)
-            # remain copy from r_file
-            for line1 in r_file:
-                w_file.write(line1)
-            r_file.close()
-            w_file.close()
             # copy pt file nn_model/fileset/yolov7
             pt_path = "%s%s" % (self.m_current_file_path, self.m_nninfo_weight_pt_file)
-            print("pt_path= %s" % pt_path)
-            print(self.m_current_code_folder) 
             os.system("cp  %s  %s/fileset/yolov7" % (pt_path, self.m_current_code_folder)) 
 
             # copy requirement file to code_folder just for testing
@@ -1163,16 +1149,10 @@ class CodeGen:
             # remove prefix coco/coco.yaml -> coco.yaml
             a_file = self.m_nninfo_annotation_file.split("/")
             f.write('def_label_yaml = "%s"\n' % a_file[-1])
-            if type(self.m_sysinfo_input_method) is str:
-                f.write('def_input_location = "%s"\n' % self.m_sysinfo_input_method)
-            else:
-                f.write('def_input_location = %d\n' % self.m_sysinfo_input_method)
+            f.write('def_input_location = %s\n' % self.m_sysinfo_input_method)
             f.write('def_conf_thres = %s\n' % self.m_nninfo_postproc_conf_thres)
             f.write('def_iou_thres = %s\n'% self.m_nninfo_postproc_iou_thres)
-            if type(self.m_sysinfo_output_method) is str:
-                f.write('def_output_location = "%s"\n' % self.m_sysinfo_output_method)
-            else:
-                f.write('def_output_location = %d\n' % self.m_sysinfo_output_method)
+            f.write('def_output_location = %s\n' % self.m_sysinfo_output_method)
             if self.m_sysinfo_acc_type == "cuda":
                 f.write('use_cuda = True\n')
             else:
@@ -1302,18 +1282,10 @@ class CodeGen:
         b_file = a_file[-1]
         tmpstr = "%s%s%s%s%s%s" % (tmpstr, "def_label_yaml = ", '"',  
                 b_file, '"', def_newline)
-        if type(self.m_sysinfo_input_method) is str:
-            tmpstr = "%s%s%s%s%s%s" % (tmpstr, "def_input_location = ", '"', 
-                    self.m_sysinfo_input_method, '"', def_newline)
-        else:
-            tmpstr = "%s%s%s%s" % (tmpstr, "def_input_location = ",  
-                    self.m_sysinfo_input_method, def_newline)
-        if type(self.m_sysinfo_output_method) is str:
-            tmpstr = "%s%s%s%s%s%s" % (tmpstr, "def_output_location = ", '"', 
-                    self.m_sysinfo_output_method, '"', def_newline)  
-        else:
-            tmpstr = "%s%s%s%s" % (tmpstr, "def_output_location = ",  
-                    self.m_sysinfo_output_method, def_newline)  
+        tmpstr = "%s%s%s%s" % (tmpstr, "def_input_location = ",  
+                self.m_sysinfo_input_method, def_newline)
+        tmpstr = "%s%s%s%s" % (tmpstr, "def_output_location = ",  
+                self.m_sysinfo_output_method, def_newline)  
         tmpstr = "%s%s%s%s" % (tmpstr, "def_conf_thres = ",  
                 self.m_nninfo_postproc_conf_thres, def_newline)
         tmpstr = "%s%s%s%s" % (tmpstr, "def_iou_thres = ",  
@@ -1384,18 +1356,10 @@ class CodeGen:
         tmpstr = "%s%s%s%s" % (tmpstr, "def_height = ",  
                 #self.m_nninfo_input_tensor_shape[2], def_newline) 
                 def_TVM_height, def_newline)
-        if type(self.m_sysinfo_input_method) is str:
-            tmpstr = "%s%s%s%s%s%s" % (tmpstr, "def_input_location = ", '"',   
-                    self.m_sysinfo_input_method, '"', def_newline)
-        else:
-            tmpstr = "%s%s%s%s" % (tmpstr, "def_input_location = ",   
-                    self.m_sysinfo_input_method, def_newline)
-        if type(self.m_sysinfo_output_method) is str:
-            tmpstr = "%s%s%s%s%s%s" % (tmpstr, "def_output_location = ", '"',  
-                    self.m_sysinfo_output_method, '"', def_newline)  
-        else:
-            tmpstr = "%s%s%s%s" % (tmpstr, "def_output_location = ",  
-                    self.m_sysinfo_output_method, def_newline)  
+        tmpstr = "%s%s%s%s" % (tmpstr, "def_input_location = ",   
+                self.m_sysinfo_input_method, def_newline)
+        tmpstr = "%s%s%s%s" % (tmpstr, "def_output_location = ",  
+                self.m_sysinfo_output_method, def_newline)  
         tmpstr = "%s%s%s" % (tmpstr, def_newline, def_newline) 
         try:
             infer_outf = open(self.get_code_filepath(def_deploy_python_file), "w")
@@ -1919,7 +1883,7 @@ class MyHandler(SimpleHTTPRequestHandler):
                 else:
                     if self.m_flag == 0:
                         buf = '"stopped"'
-                    elif self.m_flag == 1:
+                    else:
                         buf = '"completed"'
             self.send_response(200, 'ok')
             self.send_cors_headers()
