@@ -82,7 +82,7 @@ class KubeJob:
             # args=["cd $(PRJ_PATH) && python3 output.py"])
             # args=["sleep 10000;"])
             # args=["cd /mnt$(PRJ_PATH)/fileset-main/yolov5s/ && python3 output.py"])
-            args=["cd /mnt$(PRJ_PATH)/fileset-main/yolov7 && python3 output.py"])
+            args=["cd /mnt$(PRJ_PATH)/fileset/yolov7 && python3 output.py"])
         volume = client.V1Volume(name=self.job_name, persistent_volume_claim=client.V1PersistentVolumeClaimVolumeSource(claim_name=self.job_name))
 
         template = client.V1PodTemplateSpec(spec=client.V1PodSpec(node_selector={"kubernetes.io/hostip" : self.service_host_ip}, restart_policy="Never", containers=[container], volumes=[volume]))  #,node_selector={"kubernetes.io/hostname" : "etri-3"}
@@ -112,8 +112,8 @@ class KubeJob:
                 selector={"job-name": self.job_name},
                 type="NodePort",
                 ports=[client.V1ServicePort(
-                    port=8901,
-                    target_port=8901,
+                    port=8902,
+                    target_port=8902,
                     node_port=int(self.svc_port)) 
                     ]
             )
