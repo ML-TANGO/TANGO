@@ -492,10 +492,16 @@ class CodeGen:
             elif key == 'precision_level':
                 self.m_sysinfo_precision_level = int(value)
             elif key == 'input_source':
-                self.m_sysinfo_input_method = value  # url, path, camera ID 
+                if type(value) == str:
+                    self.m_sysinfo_input_method = "'" + value + "'" # url, path, camera ID 
+                else:
+                    self.m_sysinfo_input_method = value  # url, path, camera ID 
             elif key == 'output_method':
                 # 0:graphic, 1:text, path, url
-                self.m_sysinfo_output_method = value  
+                if type(value) == str:
+                    self.m_sysinfo_output_method = "'" + value + "'"  
+                else:
+                    self.m_sysinfo_output_method = value  
             elif key == 'user_editing':
                 self.m_sysinfo_user_editing = value  # yes/no
             elif key == 'confidence_thresh':
@@ -503,7 +509,7 @@ class CodeGen:
             elif key == 'iou_thresh':
                 self.m_sysinfo_iou_thresh = value  
             elif key == 'dataset':
-                myset = "%s/%s.yaml" % (value, value)
+                myset = "%s/dataset.yaml" % (value)
                 self.m_nninfo_annotation_file = myset
         f.close()
         return 0
@@ -668,7 +674,7 @@ class CodeGen:
             if self.m_sysinfo_engine_type == 'pytorch':
                 self.m_sysinfo_libs = []
                 self.m_sysinfo_apt = ['vim', 'python3.9']
-                self.m_sysinfo_papi = ['torch', 'torchvision', 'opencv-python', 'pandas', 'numpy', 'albumentations']
+                self.m_sysinfo_papi = ['torch', 'torchvision', 'opencv-python', 'pandas', 'numpy', 'python-math', 'albumentations']
                 self.m_deploy_entrypoint = self.m_deploy_python_file
                 if not os.path.exists(self.m_current_code_folder):
                     os.makedirs(self.m_current_code_folder)
@@ -680,6 +686,7 @@ class CodeGen:
                         rf = open(req_file, "w") 
                     except IOError as err:
                         logging.debug("requirements file open error")
+                        self.m_last_run_state = 0
                         return -1
                     for i in range(p_len):
                         rf.write(self.m_sysinfo_papi[i])
@@ -700,7 +707,7 @@ class CodeGen:
                 # copy heading 
                 f.write("#!/usr/bin/python\n")
                 f.write("# -*- coding: utf-8 -*-\n")
-                f.write("DEF_IMG_PATH = \"%s\"\n" % self.m_sysinfo_input_method) 
+                f.write("DEF_IMG_PATH = %s\n" % self.m_sysinfo_input_method) 
                 f.write("DEF_ACC = %s\n" % "\"cpu\"") # only for testing self.m_sysinfo_acc_type) 
                 f.write("DEF_PT_FILE = \"%s\"\n\n\n" % self.m_nninfo_weight_pt_file)
                 try:
@@ -772,8 +779,6 @@ class CodeGen:
             self.m_deploy_entrypoint = self.m_deploy_python_file
             self.gen_python_code()
             if self.m_deploy_type == 'cloud':
-                # kkkhhhllleeeeeeeee khlee
-                self.m_nninfo_weight_pt_file = 'yolov3.pt',
                 self.make_requirements_file_for_docker()
             elif self.m_deploy_type == 'k8s':
                 self.make_requirements_file_for_docker()
@@ -1011,56 +1016,46 @@ class CodeGen:
             self.m_converted_file = "%s%s%s" % (self.m_current_file_path, "/", self.m_nninfo_weight_pt_file)
 
         if self.m_deploy_type == 'cloud':
-            # if sys.version_info.major == 3 and sys.version_info.minor > 7:
-            #    shutil.copytree('./db/yolov3/', self.m_current_code_folder, dirs_exist_ok=True)
-            # else:
-            #     if os.path.exists('./db/yolov3/'):
-            #         for file in os.scandir('./db/yolov3/'):
-            #            if os.path.isfile(file.path):
-            #                shutil.copy(file.path, self.m_current_code_folder)
-            #            else:
-            #                tname = "%s/%s" % (self.m_current_code_folder, file.name)
-            #                shutil.copytree(file.path, tname)
-            # zip db/yolov3.db into nn_model foler
-            zipfile.ZipFile('./db/yolov3.db').extractall(self.m_current_code_folder)
+            # code copy
+            os.system("cp -r ./db/yolov7 %s" % self.m_current_code_folder)
             # copy db/yolov3/yolov3.pt into nn_model folder
-            shutil.copy('./db/yolov3/yolov3.pt', self.m_current_code_folder)
+            pt_path = "%s%s" % (self.m_current_file_path, self.m_nninfo_weight_pt_file)
+            os.system("cp  %s  %s/yolov7/yolov7-e6e.pt" % (pt_path, self.m_current_code_folder)) 
         elif self.m_deploy_type == 'k8s':
             # khlee copy k8s app codes
             os.system("mkdir %s/fileset" % self.m_current_code_folder) 
             os.system("unzip ./db/k8syolov7.zip -d %s/fileset" % self.m_current_code_folder) 
-            # modify nn_model/fileset/yolov7/output.py
-            tmp_str = 'def_port = %d\n' % (self.m_deploy_network_serviceport)
-            tmp_str += 'def_weight_file = %s\n' % (self.m_nninfo_weight_pt_file)
-            tmp_str += 'def_input_source = %s\n\n' % (self.m_sysinfo_input_method)  
-            # output py file copy
-            try:
-                r_file = open("./db/k8soutput.py", "r")
-            except IOError as err:
-                logging.debug("Python File Read Error")
-                return -1
-            try:
-                w_file = open(("%s/fileset/yolov7/output.py" % (self.m_current_code_folder)), "w+") 
-            except IOError as err:
-                logging.debug("Python File Write Error")
-                return -1
-            # str copy
-            w_file.write(tmp_str)
-            # remain copy from r_file
-            for line1 in r_file:
-                w_file.write(line1)
-            r_file.close()
-            w_file.close()
             # copy pt file nn_model/fileset/yolov7
             pt_path = "%s%s" % (self.m_current_file_path, self.m_nninfo_weight_pt_file)
-            print("pt_path= %s" % pt_path)
-            print(self.m_current_code_folder) 
             os.system("cp  %s  %s/fileset/yolov7" % (pt_path, self.m_current_code_folder)) 
-
             # copy requirement file to code_folder just for testing
             if os.path.isfile(self.get_real_filepath(self.m_requirement_file)):
                 shutil.copy(self.get_real_filepath(self.m_requirement_file), self.m_current_code_folder)
-
+            # change output.py code
+            k8s_str = "def_port = 8902\n"
+            k8s_str += "def_weight_file = '%s'\n" % self.m_nninfo_weight_pt_file
+            k8s_str += "def_input_source = %s\n\n\n" % self.m_sysinfo_input_method 
+            # open output.py and add k8s_str on top of it
+            os.system("mv %s/fileset/yolov7/output.py %s/fileset/yolov7/tmp.py" % (self.m_current_code_folder, self.m_current_code_folder)) 
+            try:
+                outf = open("%s/fileset/yolov7/output.py" % self.m_current_code_folder, "w") 
+            except IOError as err:
+                logging.debug("output.py Write Error #1")
+                return -1
+            outf.write(k8s_str)
+            try:
+                inf = open("%s/fileset/yolov7/tmp.py" % self.m_current_code_folder, "r") 
+            except IOError as err:
+                logging.debug("tmp.py Open Error #1")
+                return -1
+            os.system("/bin/rm -f %s/fileset/yolov7/tmp.py" % (self.m_current_code_folder)) 
+            outf.write(inf.read()) 
+            outf.close()
+            inf.close()
+            # copy annotation file
+            annotation_file = "%s/%s" % (def_dataset_path, self.m_nninfo_annotation_file)
+            t_path = "%s/fileset/yolov7" % self.m_current_code_folder 
+            shutil.copy(annotation_file, t_path) 
         else:
             '''
             # convert  and copy .pt file to nn_model folder
@@ -1163,16 +1158,10 @@ class CodeGen:
             # remove prefix coco/coco.yaml -> coco.yaml
             a_file = self.m_nninfo_annotation_file.split("/")
             f.write('def_label_yaml = "%s"\n' % a_file[-1])
-            if type(self.m_sysinfo_input_method) is str:
-                f.write('def_input_location = "%s"\n' % self.m_sysinfo_input_method)
-            else:
-                f.write('def_input_location = %d\n' % self.m_sysinfo_input_method)
+            f.write('def_input_location = %s\n' % self.m_sysinfo_input_method)
             f.write('def_conf_thres = %s\n' % self.m_nninfo_postproc_conf_thres)
             f.write('def_iou_thres = %s\n'% self.m_nninfo_postproc_iou_thres)
-            if type(self.m_sysinfo_output_method) is str:
-                f.write('def_output_location = "%s"\n' % self.m_sysinfo_output_method)
-            else:
-                f.write('def_output_location = %d\n' % self.m_sysinfo_output_method)
+            f.write('def_output_location = %s\n' % self.m_sysinfo_output_method)
             if self.m_sysinfo_acc_type == "cuda":
                 f.write('use_cuda = True\n')
             else:
@@ -1302,18 +1291,10 @@ class CodeGen:
         b_file = a_file[-1]
         tmpstr = "%s%s%s%s%s%s" % (tmpstr, "def_label_yaml = ", '"',  
                 b_file, '"', def_newline)
-        if type(self.m_sysinfo_input_method) is str:
-            tmpstr = "%s%s%s%s%s%s" % (tmpstr, "def_input_location = ", '"', 
-                    self.m_sysinfo_input_method, '"', def_newline)
-        else:
-            tmpstr = "%s%s%s%s" % (tmpstr, "def_input_location = ",  
-                    self.m_sysinfo_input_method, def_newline)
-        if type(self.m_sysinfo_output_method) is str:
-            tmpstr = "%s%s%s%s%s%s" % (tmpstr, "def_output_location = ", '"', 
-                    self.m_sysinfo_output_method, '"', def_newline)  
-        else:
-            tmpstr = "%s%s%s%s" % (tmpstr, "def_output_location = ",  
-                    self.m_sysinfo_output_method, def_newline)  
+        tmpstr = "%s%s%s%s" % (tmpstr, "def_input_location = ",  
+                self.m_sysinfo_input_method, def_newline)
+        tmpstr = "%s%s%s%s" % (tmpstr, "def_output_location = ",  
+                self.m_sysinfo_output_method, def_newline)  
         tmpstr = "%s%s%s%s" % (tmpstr, "def_conf_thres = ",  
                 self.m_nninfo_postproc_conf_thres, def_newline)
         tmpstr = "%s%s%s%s" % (tmpstr, "def_iou_thres = ",  
@@ -1384,18 +1365,10 @@ class CodeGen:
         tmpstr = "%s%s%s%s" % (tmpstr, "def_height = ",  
                 #self.m_nninfo_input_tensor_shape[2], def_newline) 
                 def_TVM_height, def_newline)
-        if type(self.m_sysinfo_input_method) is str:
-            tmpstr = "%s%s%s%s%s%s" % (tmpstr, "def_input_location = ", '"',   
-                    self.m_sysinfo_input_method, '"', def_newline)
-        else:
-            tmpstr = "%s%s%s%s" % (tmpstr, "def_input_location = ",   
-                    self.m_sysinfo_input_method, def_newline)
-        if type(self.m_sysinfo_output_method) is str:
-            tmpstr = "%s%s%s%s%s%s" % (tmpstr, "def_output_location = ", '"',  
-                    self.m_sysinfo_output_method, '"', def_newline)  
-        else:
-            tmpstr = "%s%s%s%s" % (tmpstr, "def_output_location = ",  
-                    self.m_sysinfo_output_method, def_newline)  
+        tmpstr = "%s%s%s%s" % (tmpstr, "def_input_location = ",   
+                self.m_sysinfo_input_method, def_newline)
+        tmpstr = "%s%s%s%s" % (tmpstr, "def_output_location = ",  
+                self.m_sysinfo_output_method, def_newline)  
         tmpstr = "%s%s%s" % (tmpstr, def_newline, def_newline) 
         try:
             infer_outf = open(self.get_code_filepath(def_deploy_python_file), "w")
@@ -1460,7 +1433,6 @@ class CodeGen:
         """
 
         if self.m_deploy_type == 'cloud' or self.m_deploy_type == 'k8s': 
-            # khlee 
             # self.m_deploy_type == 'PCServer': just for webserver not docker
             dep_type = 'docker'
         else:
@@ -1470,14 +1442,14 @@ class CodeGen:
         # my_entry = self.m_deploy_entrypoint
 
         if self.m_deploy_type == 'cloud':
-            if self.m_sysinfo_engine_type == 'pytorch':
-                req_pkg = self.m_nninfo_yolo_require_packages
-            else:
-                req_pkg = []
-            for item in self.m_nninfo_user_libs:
-                if not item in req_pkg:
-                    req_pkg.append(item)
-            req_pkg.append('vim')
+            # if self.m_sysinfo_engine_type == 'pytorch':
+            #     req_pkg = self.m_nninfo_yolo_require_packages
+            # else:
+            #     req_pkg = []
+            # for item in self.m_nninfo_user_libs:
+            #     if not item in req_pkg:
+            #         req_pkg.append(item)
+            req_pkg = ['vim', 'hello']
             t_pkg = {"atp": req_pkg, "pypi": ['flask==1.2.3']}
             t_com = {"custom_packages": t_pkg,
                      "libs": ['python==3.9', 'torch>=1.1.0'], 
@@ -1486,10 +1458,12 @@ class CodeGen:
             t_build = {'architecture': 'linux/amd64',
                        "accelerator": 'cpu',
                        "os": 'ubuntu',
-                       # "target_name": 'yolov3:latest',
+                       "image_uri": 'us-docker.pkg.dev/cloudrun/container/hello:latest',
                        "components": t_com }
+            my_entry = ['run.sh', '-p', 'opt1', 'arg']
             t_deploy = {"type": dep_type,
-                        "workdir": "fileset/yolov7",
+                        "service_name": "hello",
+                        # "workdir": "/workspace",
                         "entrypoint": my_entry,
                         "network": {"service_host_ip": self.m_deploy_network_hostip,
                                     "service_host_port": self.m_deploy_network_hostport,
@@ -1919,7 +1893,7 @@ class MyHandler(SimpleHTTPRequestHandler):
                 else:
                     if self.m_flag == 0:
                         buf = '"stopped"'
-                    elif self.m_flag == 1:
+                    else:
                         buf = '"completed"'
             self.send_response(200, 'ok')
             self.send_cors_headers()

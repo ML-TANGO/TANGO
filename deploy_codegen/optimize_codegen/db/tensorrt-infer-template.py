@@ -286,7 +286,7 @@ class TRTRun():
             boxes_xyxy[:, 3] = boxes[:, 1] + boxes[:, 3] / 2.
             boxes_xyxy /= ratio
             dets = self.multiclass_nms(boxes_xyxy, scores, nms_thr=0.45, score_thr=0.1)
-            if (dets != None):
+            if (type(dets) == np.ndarray):
                 final_boxes, final_scores, final_cls_inds = dets[:, :4], dets[:, 4], dets[:, 5]
                 result = [final_boxes, final_scores, final_cls_inds]
                 self.postprocess(img, result, save_path)
@@ -338,7 +338,7 @@ class TRTRun():
             boxes_xyxy[:, 3] = boxes[:, 1] + boxes[:, 3] / 2.
             boxes_xyxy /= ratio
             dets = self.multiclass_nms(boxes_xyxy, scores, nms_thr=0.45, score_thr=0.1)
-            if (dets != None):
+            if (type(dets) == np.ndarray):
                 final_boxes, final_scores, final_cls_inds = dets[:, :4], dets[:, 4], dets[:, 5]
                 result = [final_boxes, final_scores, final_cls_inds]
                 self.postprocess(img, result, save_path)
@@ -394,7 +394,7 @@ class TRTRun():
             boxes_xyxy[:, 3] = boxes[:, 1] + boxes[:, 3] / 2.
             boxes_xyxy /= ratio
             dets = self.multiclass_nms(boxes_xyxy, scores, nms_thr=0.45, score_thr=0.1)
-            if (dets != None):
+            if (type(dets) == np.ndarray):
                 final_boxes, final_scores, final_cls_inds = dets[:, :4], dets[:, 4], dets[:, 5]
                 result = [final_boxes, final_scores, final_cls_inds]
                 self.postprocess(img, result, save_path)
@@ -450,7 +450,7 @@ class TRTRun():
         boxes_xyxy[:, 3] = boxes[:, 1] + boxes[:, 3] / 2.
         boxes_xyxy /= ratio
         dets = self.multiclass_nms(boxes_xyxy, scores, nms_thr=0.45, score_thr=0.1)
-        if (dets != None):
+        if (type(dets) == np.ndarray):
             final_boxes, final_scores, final_cls_inds = dets[:, :4], dets[:, 4], dets[:, 5]
             result = [final_boxes, final_scores, final_cls_inds]
             self.postprocess(img, result, save_path, still_image=True)
@@ -622,3 +622,5 @@ if __name__ == "__main__":
             )
     mytrt.load_model()
     mytrt.run()
+
+# end of the file
