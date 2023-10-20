@@ -1,0 +1,1311 @@
+---
+apiVersion: v1
+kind: Service
+metadata:
+  annotations:
+    kompose.cmd: kompose convert -f docker-compose.yml -o kubernetes.yml
+    kompose.version: 1.31.2 (a92241f79)
+  creationTimestamp: null
+  labels:
+    io.kompose.service: autonn-resnet
+  name: autonn-resnet
+spec:
+  ports:
+    - name: "8092"
+      port: 8092
+      targetPort: 8092
+  selector:
+    io.kompose.service: autonn-resnet
+status:
+  loadBalancer: {}
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  annotations:
+    kompose.cmd: kompose convert -f docker-compose.yml -o kubernetes.yml
+    kompose.version: 1.31.2 (a92241f79)
+  creationTimestamp: null
+  labels:
+    io.kompose.service: autonn-yoloe
+  name: autonn-yoloe
+spec:
+  ports:
+    - name: "8090"
+      port: 8090
+      targetPort: 8090
+  selector:
+    io.kompose.service: autonn-yoloe
+status:
+  loadBalancer: {}
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  annotations:
+    kompose.cmd: kompose convert -f docker-compose.yml -o kubernetes.yml
+    kompose.version: 1.31.2 (a92241f79)
+  creationTimestamp: null
+  labels:
+    io.kompose.service: bms
+  name: bms
+spec:
+  ports:
+    - name: "8081"
+      port: 8081
+      targetPort: 8081
+  selector:
+    io.kompose.service: bms
+status:
+  loadBalancer: {}
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  annotations:
+    kompose.cmd: kompose convert -f docker-compose.yml -o kubernetes.yml
+    kompose.version: 1.31.2 (a92241f79)
+  creationTimestamp: null
+  labels:
+    io.kompose.service: cloud-deploy
+  name: cloud-deploy
+spec:
+  ports:
+    - name: "7007"
+      port: 7007
+      targetPort: 7007
+    - name: "8080"
+      port: 8080
+      targetPort: 8080
+    - name: "8890"
+      port: 8890
+      targetPort: 8890
+  selector:
+    io.kompose.service: cloud-deploy
+status:
+  loadBalancer: {}
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  annotations:
+    kompose.cmd: kompose convert -f docker-compose.yml -o kubernetes.yml
+    kompose.version: 1.31.2 (a92241f79)
+  creationTimestamp: null
+  labels:
+    io.kompose.service: code-gen
+  name: code-gen
+spec:
+  ports:
+    - name: "8888"
+      port: 8888
+      targetPort: 8888
+  selector:
+    io.kompose.service: code-gen
+status:
+  loadBalancer: {}
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  annotations:
+    kompose.cmd: kompose convert -f docker-compose.yml -o kubernetes.yml
+    kompose.version: 1.31.2 (a92241f79)
+  creationTimestamp: null
+  labels:
+    io.kompose.service: kube-deploy
+  name: kube-deploy
+spec:
+  ports:
+    - name: "8901"
+      port: 8901
+      targetPort: 8901
+  selector:
+    io.kompose.service: kube-deploy
+status:
+  loadBalancer: {}
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  annotations:
+    kompose.cmd: kompose convert -f docker-compose.yml -o kubernetes.yml
+    kompose.version: 1.31.2 (a92241f79)
+  creationTimestamp: null
+  labels:
+    io.kompose.service: labelling
+  name: labelling
+spec:
+  ports:
+    - name: "8086"
+      port: 8086
+      targetPort: 80
+    - name: "8095"
+      port: 8095
+      targetPort: 10236
+  selector:
+    io.kompose.service: labelling
+status:
+  loadBalancer: {}
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  annotations:
+    kompose.cmd: kompose convert -f docker-compose.yml -o kubernetes.yml
+    kompose.version: 1.31.2 (a92241f79)
+  creationTimestamp: null
+  labels:
+    io.kompose.service: ondevice-deploy
+  name: ondevice-deploy
+spec:
+  ports:
+    - name: "8891"
+      port: 8891
+      targetPort: 8891
+  selector:
+    io.kompose.service: ondevice-deploy
+status:
+  loadBalancer: {}
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  annotations:
+    kompose.cmd: kompose convert -f docker-compose.yml -o kubernetes.yml
+    kompose.version: 1.31.2 (a92241f79)
+  creationTimestamp: null
+  labels:
+    io.kompose.service: project-manager
+  name: project-manager
+spec:
+  ports:
+    - name: "8085"
+      port: 8085
+      targetPort: 8085
+  selector:
+    io.kompose.service: project-manager
+status:
+  loadBalancer: {}
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  annotations:
+    kompose.cmd: kompose convert -f docker-compose.yml -o kubernetes.yml
+    kompose.version: 1.31.2 (a92241f79)
+  creationTimestamp: null
+  labels:
+    io.kompose.service: registry
+  name: registry
+spec:
+  ports:
+    - name: "8903"
+      port: 8903
+      targetPort: 5000
+  selector:
+    io.kompose.service: registry
+status:
+  loadBalancer: {}
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  annotations:
+    kompose.cmd: kompose convert -f docker-compose.yml -o kubernetes.yml
+    kompose.version: 1.31.2 (a92241f79)
+  creationTimestamp: null
+  labels:
+    io.kompose.service: viz2code
+  name: viz2code
+spec:
+  ports:
+    - name: "8091"
+      port: 8091
+      targetPort: 8091
+  selector:
+    io.kompose.service: viz2code
+status:
+  loadBalancer: {}
+
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  annotations:
+    kompose.cmd: kompose convert -f docker-compose.yml -o kubernetes.yml
+    kompose.version: 1.31.2 (a92241f79)
+  creationTimestamp: null
+  labels:
+    io.kompose.service: autonn-resnet
+  name: autonn-resnet
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      io.kompose.service: autonn-resnet
+  strategy:
+    type: Recreate
+  template:
+    metadata:
+      annotations:
+        kompose.cmd: kompose convert -f docker-compose.yml -o kubernetes.yml
+        kompose.version: 1.31.2 (a92241f79)
+      creationTimestamp: null
+      labels:
+        io.kompose.network/tango-default: "true"
+        io.kompose.service: autonn-resnet
+    spec:
+      containers:
+        - args:
+            - sh
+            - -c
+            - |-
+              python manage.py makemigrations &&
+                     python manage.py migrate &&
+                     python manage.py runserver 0.0.0.0:8092
+          env:
+            - name: NVIDIA_VISIBLE_DEVICES
+              value: all
+          image: autonn-resnet
+          imagePullPolicy: IfNotPresent
+          name: autonn-resnet
+          ports:
+            - containerPort: 8092
+              hostPort: 8092
+              protocol: TCP
+          resources: {}
+          volumeMounts:
+            - mountPath: /source
+              name: autonn-resnet-claim0
+            - mountPath: /shared
+              name: shared
+      hostname: autonn-resnet
+      restartPolicy: Always
+      volumes:
+        - name: autonn-resnet-claim0
+          persistentVolumeClaim:
+            claimName: autonn-resnet-claim0
+        - name: shared
+          persistentVolumeClaim:
+            claimName: shared
+status: {}
+
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  creationTimestamp: null
+  labels:
+    io.kompose.service: autonn-resnet-claim0
+  name: autonn-resnet-claim0
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 100Mi
+status: {}
+
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  creationTimestamp: null
+  labels:
+    io.kompose.service: shared
+  name: shared
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 100Mi
+status: {}
+
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  annotations:
+    kompose.cmd: kompose convert -f docker-compose.yml -o kubernetes.yml
+    kompose.version: 1.31.2 (a92241f79)
+  creationTimestamp: null
+  labels:
+    io.kompose.service: autonn-yoloe
+  name: autonn-yoloe
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      io.kompose.service: autonn-yoloe
+  strategy:
+    type: Recreate
+  template:
+    metadata:
+      annotations:
+        kompose.cmd: kompose convert -f docker-compose.yml -o kubernetes.yml
+        kompose.version: 1.31.2 (a92241f79)
+      creationTimestamp: null
+      labels:
+        io.kompose.network/tango-default: "true"
+        io.kompose.service: autonn-yoloe
+    spec:
+      containers:
+        - args:
+            - sh
+            - -c
+            - "python manage.py pretrained_supernet && \n       python manage.py makemigrations &&\n       python manage.py migrate &&\n       python manage.py runserver 0.0.0.0:8090"
+          env:
+            - name: NVIDIA_VISIBLE_DEVICES
+              value: all
+          image: autonn-yoloe
+          imagePullPolicy: IfNotPresent
+          name: autonn-yoloe
+          ports:
+            - containerPort: 8090
+              hostPort: 8090
+              protocol: TCP
+          resources: {}
+          volumeMounts:
+            - mountPath: /source
+              name: autonn-yoloe-claim0
+            - mountPath: /shared
+              name: shared
+            - mountPath: /shared/datasets/coco/dataset.yaml
+              name: autonn-yoloe-claim2
+            - mountPath: /shared/datasets/coco
+              name: autonn-yoloe-claim3
+      hostname: yoloe
+      restartPolicy: Always
+      volumes:
+        - name: autonn-yoloe-claim0
+          persistentVolumeClaim:
+            claimName: autonn-yoloe-claim0
+        - name: shared
+          persistentVolumeClaim:
+            claimName: shared
+        - name: autonn-yoloe-claim2
+          persistentVolumeClaim:
+            claimName: autonn-yoloe-claim2
+        - name: autonn-yoloe-claim3
+          persistentVolumeClaim:
+            claimName: autonn-yoloe-claim3
+status: {}
+
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  creationTimestamp: null
+  labels:
+    io.kompose.service: autonn-yoloe-claim0
+  name: autonn-yoloe-claim0
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 100Mi
+status: {}
+
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  creationTimestamp: null
+  labels:
+    io.kompose.service: autonn-yoloe-claim2
+  name: autonn-yoloe-claim2
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 100Mi
+status: {}
+
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  creationTimestamp: null
+  labels:
+    io.kompose.service: autonn-yoloe-claim3
+  name: autonn-yoloe-claim3
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 100Mi
+status: {}
+
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  annotations:
+    kompose.cmd: kompose convert -f docker-compose.yml -o kubernetes.yml
+    kompose.version: 1.31.2 (a92241f79)
+  creationTimestamp: null
+  labels:
+    io.kompose.service: bms
+  name: bms
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      io.kompose.service: bms
+  strategy:
+    type: Recreate
+  template:
+    metadata:
+      annotations:
+        kompose.cmd: kompose convert -f docker-compose.yml -o kubernetes.yml
+        kompose.version: 1.31.2 (a92241f79)
+      creationTimestamp: null
+      labels:
+        io.kompose.network/tango-default: "true"
+        io.kompose.service: bms
+    spec:
+      containers:
+        - args:
+            - sh
+            - -c
+            - |-
+              python manage.py makemigrations &&
+                     python manage.py migrate --run-syncdb &&
+                     python manage.py runserver 0.0.0.0:8081
+          env:
+            - name: NVIDIA_VISIBLE_DEVICES
+              value: all
+          image: bms
+          imagePullPolicy: IfNotPresent
+          name: bms
+          ports:
+            - containerPort: 8081
+              hostPort: 8081
+              protocol: TCP
+          resources: {}
+          volumeMounts:
+            - mountPath: /source
+              name: bms-claim0
+            - mountPath: /shared
+              name: shared
+      hostname: bms
+      restartPolicy: Always
+      volumes:
+        - name: bms-claim0
+          persistentVolumeClaim:
+            claimName: bms-claim0
+        - name: shared
+          persistentVolumeClaim:
+            claimName: shared
+status: {}
+
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  creationTimestamp: null
+  labels:
+    io.kompose.service: bms-claim0
+  name: bms-claim0
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 100Mi
+status: {}
+
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  annotations:
+    kompose.cmd: kompose convert -f docker-compose.yml -o kubernetes.yml
+    kompose.version: 1.31.2 (a92241f79)
+  creationTimestamp: null
+  labels:
+    io.kompose.service: cloud-deploy
+  name: cloud-deploy
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      io.kompose.service: cloud-deploy
+  strategy:
+    type: Recreate
+  template:
+    metadata:
+      annotations:
+        kompose.cmd: kompose convert -f docker-compose.yml -o kubernetes.yml
+        kompose.version: 1.31.2 (a92241f79)
+      creationTimestamp: null
+      labels:
+        io.kompose.network/tango-default: "true"
+        io.kompose.service: cloud-deploy
+    spec:
+      containers:
+        - env:
+            - name: CLOUD_MANAGER_PORT
+              value: "8088"
+            - name: GCP_PROJECT_ID
+              value: tango-project
+            - name: GCP_REGION
+              value: asia-northeast3
+            - name: GOOGLE_APPLICATION_CREDENTIALS
+              value: /source/cloud_manager/service-account-file.json
+          image: cloud-deploy
+          imagePullPolicy: IfNotPresent
+          name: cloud-deploy
+          ports:
+            - containerPort: 7007
+              hostPort: 7007
+              protocol: TCP
+            - containerPort: 8080
+              hostPort: 8080
+              protocol: TCP
+            - containerPort: 8890
+              hostPort: 8890
+              protocol: TCP
+          resources: {}
+          volumeMounts:
+            - mountPath: /source
+              name: cloud-deploy-claim0
+            - mountPath: /var/run/docker.sock
+              name: cloud-deploy-claim1
+            - mountPath: /shared
+              name: shared
+      hostname: cloud-deploy
+      restartPolicy: Always
+      volumes:
+        - name: cloud-deploy-claim0
+          persistentVolumeClaim:
+            claimName: cloud-deploy-claim0
+        - name: cloud-deploy-claim1
+          persistentVolumeClaim:
+            claimName: cloud-deploy-claim1
+        - name: shared
+          persistentVolumeClaim:
+            claimName: shared
+status: {}
+
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  creationTimestamp: null
+  labels:
+    io.kompose.service: cloud-deploy-claim0
+  name: cloud-deploy-claim0
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 100Mi
+status: {}
+
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  creationTimestamp: null
+  labels:
+    io.kompose.service: cloud-deploy-claim1
+  name: cloud-deploy-claim1
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 100Mi
+status: {}
+
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  annotations:
+    kompose.cmd: kompose convert -f docker-compose.yml -o kubernetes.yml
+    kompose.version: 1.31.2 (a92241f79)
+  creationTimestamp: null
+  labels:
+    io.kompose.service: code-gen
+  name: code-gen
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      io.kompose.service: code-gen
+  strategy:
+    type: Recreate
+  template:
+    metadata:
+      annotations:
+        kompose.cmd: kompose convert -f docker-compose.yml -o kubernetes.yml
+        kompose.version: 1.31.2 (a92241f79)
+      creationTimestamp: null
+      labels:
+        io.kompose.network/tango-default: "true"
+        io.kompose.service: code-gen
+    spec:
+      containers:
+        - args:
+            - sh
+            - -c
+            - cd /app && python3 code_gen.py
+          image: code-gen
+          imagePullPolicy: IfNotPresent
+          name: code-gen
+          ports:
+            - containerPort: 8888
+              hostPort: 8888
+              protocol: TCP
+          resources: {}
+          volumeMounts:
+            - mountPath: /source
+              name: code-gen-claim0
+            - mountPath: /tango
+              name: shared
+      hostname: code-gen
+      restartPolicy: Always
+      volumes:
+        - name: code-gen-claim0
+          persistentVolumeClaim:
+            claimName: code-gen-claim0
+        - name: shared
+          persistentVolumeClaim:
+            claimName: shared
+status: {}
+
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  creationTimestamp: null
+  labels:
+    io.kompose.service: code-gen-claim0
+  name: code-gen-claim0
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 100Mi
+status: {}
+
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  annotations:
+    kompose.cmd: kompose convert -f docker-compose.yml -o kubernetes.yml
+    kompose.version: 1.31.2 (a92241f79)
+  creationTimestamp: null
+  labels:
+    io.kompose.service: kube-deploy
+  name: kube-deploy
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      io.kompose.service: kube-deploy
+  strategy:
+    type: Recreate
+  template:
+    metadata:
+      annotations:
+        kompose.cmd: kompose convert -f docker-compose.yml -o kubernetes.yml
+        kompose.version: 1.31.2 (a92241f79)
+      creationTimestamp: null
+      labels:
+        io.kompose.network/tango-default: "true"
+        io.kompose.service: kube-deploy
+    spec:
+      containers:
+        - args:
+            - bash
+            - -c
+            - cd /app && python3 k8s_deploy.py
+          env:
+            - name: HOME
+              value: /home/root
+          image: kube-deploy
+          imagePullPolicy: IfNotPresent
+          name: tango-k8s
+          ports:
+            - containerPort: 8901
+              hostPort: 8901
+              protocol: TCP
+          resources: {}
+          securityContext:
+            privileged: true
+          volumeMounts:
+            - mountPath: /home/root/.kube
+              name: kube-deploy-claim0
+            - mountPath: /app/tango
+              name: shared
+            - mountPath: /app
+              name: kube-deploy-claim2
+            - mountPath: /var/run/docker.sock
+              name: kube-deploy-claim3
+      hostname: kube-deploy
+      restartPolicy: Always
+      volumes:
+        - name: kube-deploy-claim0
+          persistentVolumeClaim:
+            claimName: kube-deploy-claim0
+        - name: shared
+          persistentVolumeClaim:
+            claimName: shared
+        - name: kube-deploy-claim2
+          persistentVolumeClaim:
+            claimName: kube-deploy-claim2
+        - name: kube-deploy-claim3
+          persistentVolumeClaim:
+            claimName: kube-deploy-claim3
+status: {}
+
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  creationTimestamp: null
+  labels:
+    io.kompose.service: kube-deploy-claim0
+  name: kube-deploy-claim0
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 100Mi
+status: {}
+
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  creationTimestamp: null
+  labels:
+    io.kompose.service: kube-deploy-claim2
+  name: kube-deploy-claim2
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 100Mi
+status: {}
+
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  creationTimestamp: null
+  labels:
+    io.kompose.service: kube-deploy-claim3
+  name: kube-deploy-claim3
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 100Mi
+status: {}
+
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  annotations:
+    kompose.cmd: kompose convert -f docker-compose.yml -o kubernetes.yml
+    kompose.version: 1.31.2 (a92241f79)
+  creationTimestamp: null
+  labels:
+    io.kompose.service: labelling
+  name: labelling
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      io.kompose.service: labelling
+  strategy:
+    type: Recreate
+  template:
+    metadata:
+      annotations:
+        kompose.cmd: kompose convert -f docker-compose.yml -o kubernetes.yml
+        kompose.version: 1.31.2 (a92241f79)
+      creationTimestamp: null
+      labels:
+        io.kompose.network/tango-default: "true"
+        io.kompose.service: labelling
+    spec:
+      containers:
+        - image: labelling
+          imagePullPolicy: IfNotPresent
+          name: labelling
+          ports:
+            - containerPort: 80
+              hostPort: 8086
+              protocol: TCP
+            - containerPort: 10236
+              hostPort: 8095
+              protocol: TCP
+          resources: {}
+          volumeMounts:
+            - mountPath: /var/appdata
+              name: labelling-claim0
+            - mountPath: /var/lib/mysql
+              name: labelling-claim1
+            - mountPath: /shared
+              name: shared
+      restartPolicy: Always
+      volumes:
+        - name: labelling-claim0
+          persistentVolumeClaim:
+            claimName: labelling-claim0
+        - name: labelling-claim1
+          persistentVolumeClaim:
+            claimName: labelling-claim1
+        - name: shared
+          persistentVolumeClaim:
+            claimName: shared
+status: {}
+
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  creationTimestamp: null
+  labels:
+    io.kompose.service: labelling-claim0
+  name: labelling-claim0
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 100Mi
+status: {}
+
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  creationTimestamp: null
+  labels:
+    io.kompose.service: labelling-claim1
+  name: labelling-claim1
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 100Mi
+status: {}
+
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  annotations:
+    kompose.cmd: kompose convert -f docker-compose.yml -o kubernetes.yml
+    kompose.version: 1.31.2 (a92241f79)
+  creationTimestamp: null
+  labels:
+    io.kompose.service: ondevice-deploy
+  name: ondevice-deploy
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      io.kompose.service: ondevice-deploy
+  strategy:
+    type: Recreate
+  template:
+    metadata:
+      annotations:
+        kompose.cmd: kompose convert -f docker-compose.yml -o kubernetes.yml
+        kompose.version: 1.31.2 (a92241f79)
+      creationTimestamp: null
+      labels:
+        io.kompose.network/tango-default: "true"
+        io.kompose.service: ondevice-deploy
+    spec:
+      containers:
+        - args:
+            - sh
+            - -c
+            - cd /app && python3 ondevice_deploy.py
+          image: ondevice-deploy
+          imagePullPolicy: IfNotPresent
+          name: ondevice-deploy
+          ports:
+            - containerPort: 8891
+              hostPort: 8891
+              protocol: TCP
+          resources: {}
+          volumeMounts:
+            - mountPath: /source
+              name: ondevice-deploy-claim0
+            - mountPath: /tango
+              name: shared
+      hostname: ondevice
+      restartPolicy: Always
+      volumes:
+        - name: ondevice-deploy-claim0
+          persistentVolumeClaim:
+            claimName: ondevice-deploy-claim0
+        - name: shared
+          persistentVolumeClaim:
+            claimName: shared
+status: {}
+
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  creationTimestamp: null
+  labels:
+    io.kompose.service: ondevice-deploy-claim0
+  name: ondevice-deploy-claim0
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 100Mi
+status: {}
+
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  annotations:
+    kompose.cmd: kompose convert -f docker-compose.yml -o kubernetes.yml
+    kompose.version: 1.31.2 (a92241f79)
+  creationTimestamp: null
+  labels:
+    io.kompose.service: postgresql
+  name: postgresql
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      io.kompose.service: postgresql
+  strategy:
+    type: Recreate
+  template:
+    metadata:
+      annotations:
+        kompose.cmd: kompose convert -f docker-compose.yml -o kubernetes.yml
+        kompose.version: 1.31.2 (a92241f79)
+      creationTimestamp: null
+      labels:
+        io.kompose.network/tango-default: "true"
+        io.kompose.service: postgresql
+    spec:
+      containers:
+        - env:
+            - name: POSTGRES_NAME
+              value: postgres
+            - name: POSTGRES_PASSWORD
+              value: postgres
+            - name: POSTGRES_USER
+              value: postgres
+          image: postgres:15.4
+          imagePullPolicy: IfNotPresent
+          name: postgresql
+          resources: {}
+          volumeMounts:
+            - mountPath: /var/lib/postgresql/data
+              name: postgresql
+      restartPolicy: Always
+      volumes:
+        - name: postgresql
+          persistentVolumeClaim:
+            claimName: postgresql
+status: {}
+
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  creationTimestamp: null
+  labels:
+    io.kompose.service: postgresql
+  name: postgresql
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 100Mi
+status: {}
+
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  annotations:
+    kompose.cmd: kompose convert -f docker-compose.yml -o kubernetes.yml
+    kompose.version: 1.31.2 (a92241f79)
+  creationTimestamp: null
+  labels:
+    io.kompose.service: project-manager
+  name: project-manager
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      io.kompose.service: project-manager
+  strategy:
+    type: Recreate
+  template:
+    metadata:
+      annotations:
+        kompose.cmd: kompose convert -f docker-compose.yml -o kubernetes.yml
+        kompose.version: 1.31.2 (a92241f79)
+      creationTimestamp: null
+      labels:
+        io.kompose.network/tango-default: "true"
+        io.kompose.service: project-manager
+    spec:
+      containers:
+        - args:
+            - sh
+            - -c
+            - |-
+              chmod 777 ./wait_for_postgres.sh &&
+                     ./wait_for_postgres.sh &&
+                     python manage.py makemigrations tango &&
+                     python manage.py migrate &&
+                     python manage.py collectstatic --no-input &&
+                     python manage.py loaddata base_model_data.json &&
+                     python manage.py runserver 0.0.0.0:8085
+          env:
+            - name: POSTGRES_NAME
+              value: postgres
+            - name: POSTGRES_PASSWORD
+              value: postgres
+            - name: POSTGRES_USER
+              value: postgres
+          image: project-manager
+          imagePullPolicy: IfNotPresent
+          name: project-manager
+          ports:
+            - containerPort: 8085
+              hostPort: 8085
+              protocol: TCP
+          resources: {}
+          volumeMounts:
+            - mountPath: /code
+              name: project-manager-claim0
+            - mountPath: /shared
+              name: shared
+            - mountPath: /var/run/docker.sock
+              name: project-manager-claim2
+      hostname: projectmanager
+      restartPolicy: Always
+      volumes:
+        - name: project-manager-claim0
+          persistentVolumeClaim:
+            claimName: project-manager-claim0
+        - name: shared
+          persistentVolumeClaim:
+            claimName: shared
+        - name: project-manager-claim2
+          persistentVolumeClaim:
+            claimName: project-manager-claim2
+status: {}
+
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  creationTimestamp: null
+  labels:
+    io.kompose.service: project-manager-claim0
+  name: project-manager-claim0
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 100Mi
+status: {}
+
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  creationTimestamp: null
+  labels:
+    io.kompose.service: project-manager-claim2
+  name: project-manager-claim2
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 100Mi
+status: {}
+
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  annotations:
+    kompose.cmd: kompose convert -f docker-compose.yml -o kubernetes.yml
+    kompose.version: 1.31.2 (a92241f79)
+  creationTimestamp: null
+  labels:
+    io.kompose.service: registry
+  name: registry
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      io.kompose.service: registry
+  strategy:
+    type: Recreate
+  template:
+    metadata:
+      annotations:
+        kompose.cmd: kompose convert -f docker-compose.yml -o kubernetes.yml
+        kompose.version: 1.31.2 (a92241f79)
+      creationTimestamp: null
+      labels:
+        io.kompose.network/tango-default: "true"
+        io.kompose.service: registry
+    spec:
+      containers:
+        - image: registry
+          imagePullPolicy: IfNotPresent
+          name: registry
+          ports:
+            - containerPort: 5000
+              hostPort: 8903
+              protocol: TCP
+          resources: {}
+          volumeMounts:
+            - mountPath: /var/lib/registry/docker/registry/v2
+              name: registry-data
+      restartPolicy: Always
+      volumes:
+        - name: registry-data
+          persistentVolumeClaim:
+            claimName: registry-data
+status: {}
+
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  creationTimestamp: null
+  labels:
+    io.kompose.service: registry-data
+  name: registry-data
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 100Mi
+status: {}
+
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  annotations:
+    kompose.cmd: kompose convert -f docker-compose.yml -o kubernetes.yml
+    kompose.version: 1.31.2 (a92241f79)
+  creationTimestamp: null
+  labels:
+    io.kompose.service: viz2code
+  name: viz2code
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      io.kompose.service: viz2code
+  strategy:
+    type: Recreate
+  template:
+    metadata:
+      annotations:
+        kompose.cmd: kompose convert -f docker-compose.yml -o kubernetes.yml
+        kompose.version: 1.31.2 (a92241f79)
+      creationTimestamp: null
+      labels:
+        io.kompose.network/tango-default: "true"
+        io.kompose.service: viz2code
+    spec:
+      containers:
+        - args:
+            - sh
+            - -c
+            - |-
+              cd ./visualization/frontend &&
+                     npm run build &&
+                     cd ..
+                     python manage.py makemigrations &&
+                     python manage.py migrate &&
+                     python manage.py runserver react 0.0.0.0:8091
+          image: viz2code
+          imagePullPolicy: IfNotPresent
+          name: viz2code
+          ports:
+            - containerPort: 8091
+              hostPort: 8091
+              protocol: TCP
+          resources: {}
+          volumeMounts:
+            - mountPath: /source
+              name: viz2code-claim0
+            - mountPath: /shared
+              name: shared
+      hostname: viz2code
+      restartPolicy: Always
+      volumes:
+        - name: viz2code-claim0
+          persistentVolumeClaim:
+            claimName: viz2code-claim0
+        - name: shared
+          persistentVolumeClaim:
+            claimName: shared
+status: {}
+
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  creationTimestamp: null
+  labels:
+    io.kompose.service: viz2code-claim0
+  name: viz2code-claim0
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 100Mi
+status: {}
+
