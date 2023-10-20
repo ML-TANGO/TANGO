@@ -1028,11 +1028,34 @@ class CodeGen:
             # copy pt file nn_model/fileset/yolov7
             pt_path = "%s%s" % (self.m_current_file_path, self.m_nninfo_weight_pt_file)
             os.system("cp  %s  %s/fileset/yolov7" % (pt_path, self.m_current_code_folder)) 
-
             # copy requirement file to code_folder just for testing
             if os.path.isfile(self.get_real_filepath(self.m_requirement_file)):
                 shutil.copy(self.get_real_filepath(self.m_requirement_file), self.m_current_code_folder)
-
+            # change output.py code
+            k8s_str = "def_port = 8902\n"
+            k8s_str += "def_weight_file = '%s'\n" % self.m_nninfo_weight_pt_file
+            k8s_str += "def_input_source = %s\n\n\n" % self.m_sysinfo_input_method 
+            # open output.py and add k8s_str on top of it
+            os.system("mv %s/fileset/yolov7/output.py %s/fileset/yolov7/tmp.py" % (self.m_current_code_folder, self.m_current_code_folder)) 
+            try:
+                outf = open("%s/fileset/yolov7/output.py" % self.m_current_code_folder, "w") 
+            except IOError as err:
+                logging.debug("output.py Write Error #1")
+                return -1
+            outf.write(k8s_str)
+            try:
+                inf = open("%s/fileset/yolov7/tmp.py" % self.m_current_code_folder, "r") 
+            except IOError as err:
+                logging.debug("tmp.py Open Error #1")
+                return -1
+            os.system("/bin/rm -f %s/fileset/yolov7/tmp.py" % (self.m_current_code_folder)) 
+            outf.write(inf.read()) 
+            outf.close()
+            inf.close()
+            # copy annotation file
+            annotation_file = "%s/%s" % (def_dataset_path, self.m_nninfo_annotation_file)
+            t_path = "%s/fileset/yolov7" % self.m_current_code_folder 
+            shutil.copy(annotation_file, t_path) 
         else:
             '''
             # convert  and copy .pt file to nn_model folder

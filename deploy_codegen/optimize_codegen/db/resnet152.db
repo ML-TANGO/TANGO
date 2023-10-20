@@ -405,7 +405,6 @@ import requests
 from torch.utils.data.sampler import SubsetRandomSampler
 import cv2
 
-
 def yml_to_dict(filepath):
     with open(filepath) as f:
         taskdict = yaml.load(f, Loader=yaml.FullLoader)
