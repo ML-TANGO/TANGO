@@ -779,8 +779,6 @@ class CodeGen:
             self.m_deploy_entrypoint = self.m_deploy_python_file
             self.gen_python_code()
             if self.m_deploy_type == 'cloud':
-                # kkkhhhllleeeeeeeee khlee
-                self.m_nninfo_weight_pt_file = 'yolov3.pt',
                 self.make_requirements_file_for_docker()
             elif self.m_deploy_type == 'k8s':
                 self.make_requirements_file_for_docker()
@@ -876,9 +874,6 @@ class CodeGen:
                     self.m_nninfo_input_tensor_shape[2], 
                     self.m_nninfo_input_data_type) 
             self.make_requirements_file_for_others()
-            # kkkhhhlleeeeeeeee
-            # coco.yaml
-            # myutil
             fo_path = "%s/%s" % (self.m_current_code_folder, "requirements.txt")
             with open(fo_path, "w") as fo:
                 for item in self.m_sysinfo_papi:  
@@ -1021,20 +1016,11 @@ class CodeGen:
             self.m_converted_file = "%s%s%s" % (self.m_current_file_path, "/", self.m_nninfo_weight_pt_file)
 
         if self.m_deploy_type == 'cloud':
-            # if sys.version_info.major == 3 and sys.version_info.minor > 7:
-            #    shutil.copytree('./db/yolov3/', self.m_current_code_folder, dirs_exist_ok=True)
-            # else:
-            #     if os.path.exists('./db/yolov3/'):
-            #         for file in os.scandir('./db/yolov3/'):
-            #            if os.path.isfile(file.path):
-            #                shutil.copy(file.path, self.m_current_code_folder)
-            #            else:
-            #                tname = "%s/%s" % (self.m_current_code_folder, file.name)
-            #                shutil.copytree(file.path, tname)
-            # zip db/yolov3.db into nn_model foler
-            zipfile.ZipFile('./db/yolov3.db').extractall(self.m_current_code_folder)
+            # code copy
+            os.system("cp -r ./db/yolov7 %s" % self.m_current_code_folder)
             # copy db/yolov3/yolov3.pt into nn_model folder
-            shutil.copy('./db/yolov3/yolov3.pt', self.m_current_code_folder)
+            pt_path = "%s%s" % (self.m_current_file_path, self.m_nninfo_weight_pt_file)
+            os.system("cp  %s  %s/yolov7/yolov7-e6e.pt" % (pt_path, self.m_current_code_folder)) 
         elif self.m_deploy_type == 'k8s':
             # khlee copy k8s app codes
             os.system("mkdir %s/fileset" % self.m_current_code_folder) 
@@ -1424,7 +1410,6 @@ class CodeGen:
         """
 
         if self.m_deploy_type == 'cloud' or self.m_deploy_type == 'k8s': 
-            # khlee 
             # self.m_deploy_type == 'PCServer': just for webserver not docker
             dep_type = 'docker'
         else:
@@ -1434,14 +1419,14 @@ class CodeGen:
         # my_entry = self.m_deploy_entrypoint
 
         if self.m_deploy_type == 'cloud':
-            if self.m_sysinfo_engine_type == 'pytorch':
-                req_pkg = self.m_nninfo_yolo_require_packages
-            else:
-                req_pkg = []
-            for item in self.m_nninfo_user_libs:
-                if not item in req_pkg:
-                    req_pkg.append(item)
-            req_pkg.append('vim')
+            # if self.m_sysinfo_engine_type == 'pytorch':
+            #     req_pkg = self.m_nninfo_yolo_require_packages
+            # else:
+            #     req_pkg = []
+            # for item in self.m_nninfo_user_libs:
+            #     if not item in req_pkg:
+            #         req_pkg.append(item)
+            req_pkg = ['vim', 'hello']
             t_pkg = {"atp": req_pkg, "pypi": ['flask==1.2.3']}
             t_com = {"custom_packages": t_pkg,
                      "libs": ['python==3.9', 'torch>=1.1.0'], 
@@ -1450,10 +1435,12 @@ class CodeGen:
             t_build = {'architecture': 'linux/amd64',
                        "accelerator": 'cpu',
                        "os": 'ubuntu',
-                       # "target_name": 'yolov3:latest',
+                       "image_uri": 'us-docker.pkg.dev/cloudrun/container/hello:latest',
                        "components": t_com }
+            my_entry = ['run.sh', '-p', 'opt1', 'arg']
             t_deploy = {"type": dep_type,
-                        "workdir": "fileset/yolov7",
+                        "service_name": "hello",
+                        # "workdir": "/workspace",
                         "entrypoint": my_entry,
                         "network": {"service_host_ip": self.m_deploy_network_hostip,
                                     "service_host_port": self.m_deploy_network_hostport,
