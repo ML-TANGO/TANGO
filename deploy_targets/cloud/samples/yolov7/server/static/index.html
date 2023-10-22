@@ -11,58 +11,67 @@
 </head>
 
 <body class="bg-grey-100 p-6">
-  <div class="container mx-auto">
+  <div class="container mx-auto" x-data="{ loading: false }">
+    <!-- Spinner Element -->
+    <div x-show="loading" class="fixed inset-0 flex items-center justify-center z-50">
+      <div class="border-t-4 border-b-4 border-blue-500 w-16 h-16 rounded-full animate-spin"></div>
+    </div>
+
     <div class="mb-4">
       <h1 class="text-2xl font-bold mb-2">YOLO v7 Inference Client</h1>
       <p>Upload your image (jpg) or video (mp4) and our server will process them with the YOLO v7 model. The resultant image or video will be displayed below.</p>
     </div>
 
-  <div class="flex flex-col md:flex-row gap-4">
-    <!-- Image Upload Form -->
-    <form hx-post="/image" hx-encoding='multipart/form-data' hx-target="#result"
-        class="bg-white shadow-md rounded px-8 pt-6 pb-8 mb-4 flex-1">
-      <h3 class="block text-gray-700 text-sm font-bold mb-2">Upload Image (jpg)</h3>
-      <div class="mb-4">
-        <input type='file' name='file' accept=".jpg" class="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline">
-      </div>
-      <div>
-        <button class="bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded focus:outline-none focus:shadow-outline" type="submit">
-          Upload
-        </button>
-      </div>
-    </form>
+    <div class="flex flex-col md:flex-row gap-4">
+      <!-- Image Upload Form -->
+      <form hx-post="/image" hx-encoding='multipart/form-data' hx-target="#result"
+          class="bg-white shadow-md rounded px-8 pt-6 pb-8 mb-4 flex-1"
+          @htmx:configRequest="loading = true" @htmx:afterOnLoad="loading = false">
+        <h3 class="block text-gray-700 text-sm font-bold mb-2">Upload Image (jpg)</h3>
+        <div class="mb-4">
+          <input type='file' name='file' accept=".jpg" class="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline">
+        </div>
+        <div>
+          <button class="bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded focus:outline-none focus:shadow-outline" type="submit">
+            Upload
+          </button>
+        </div>
+      </form>
 
-    <!-- Video Upload Form -->
-    <form hx-post="/video" hx-encoding='multipart/form-data' hx-target="#result"
-        class="bg-white shadow-md rounded px-8 pt-6 pb-8 mb-4 flex-1">
-      <h3 class="block text-gray-700 text-sm font-bold mb-2">Upload Video (mp4)</h3>
-      <div class="mb-4">
-          <input type='file' name='file' accept=".mp4" class="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline">
-      </div>
-      <div>
-        <button class="bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded focus:outline-none focus:shadow-outline" type="submit">
-          Upload
-        </button>
-      </div>
-    </form>
+      <!-- Video Upload Form -->
+      <!--
+      <form hx-post="/video" hx-encoding='multipart/form-data' hx-target="#result"
+          class="bg-white shadow-md rounded px-8 pt-6 pb-8 mb-4 flex-1"
+          @htmx:configRequest="loading = true" @htmx:afterOnLoad="loading = false">
+        <h3 class="block text-gray-700 text-sm font-bold mb-2">Upload Video (mp4)</h3>
+        <div class="mb-4">
+            <input type='file' name='file' accept=".mp4" class="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline">
+        </div>
+        <div>
+          <button class="bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded focus:outline-none focus:shadow-outline" type="submit">
+            Upload
+          </button>
+        </div>
+      </form>
+      -->
+    </div>
+
+    <div id="result" class="bg-white p-4 rounded shadow-lg">
+      <!-- Result will be displayed here -->
+    </div>
+
+    <script>
+      document.body.addEventListener('htmx:afterOnLoad', function(event) {
+        let response = event.detail.xhr.response;
+        if (response.image_url) {
+          var img = document.createElement('img');
+          img.src = response.image_url;
+          document.getElementById('result').innerHTML = '';
+          document.getElementById('result').appendChild(img);
+        }
+      });
+    </script>
   </div>
-
-  <div id="result" class="bg-white p-4 rounded shadow-lg">
-    <!-- Result will be displayed here -->
-  </div>
-
-  <script>
-    document.body.addEventListener('htmx:afterOnLoad', function(event) {
-      let response = event.detail.xhr.response;
-      if (response.image_url) {
-        var img = document.createElement('img');
-        img.src = response.image_url;
-        document.getElementById('result').innerHTML = '';
-        document.getElementById('result').appendChild(img);
-      }
-    });
-  </script>
-
 </body>
 
 </html>
