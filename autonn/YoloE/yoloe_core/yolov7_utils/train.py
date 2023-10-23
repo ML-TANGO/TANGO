@@ -599,8 +599,7 @@ def run_yolo(proj_path, dataset_yaml_path, data=None, target=None, train_mode='s
     with open(opt.hyp) as f:
         hyp = yaml.load(f, Loader=yaml.SafeLoader)  # load hyps
 
-    opt.batch_size = int(proj_info['batchsize'] / 4) ## TODO: Something is wrong. AutoBatch divided by 4 is good for training.
-    print(opt.batch_size)
+    opt.batch_size = proj_info['batchsize']
     device_str = ''
     for i in range(torch.cuda.device_count()):
         device_str = device_str + str(i) + ','

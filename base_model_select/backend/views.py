@@ -182,7 +182,7 @@ def bms_process(yaml_path, userid, project_id):
         basemodel_dict = yaml.load(f, Loader=yaml.FullLoader)
     batch_size = run_batch_test(basemodel_yaml, 
                                 proj_info_dict['task_type'],
-                                basemodel_dict['imgsz'] if proj_info_dict['task_type']=='detction' else 256, 
+                                basemodel_dict['imgsz'] if proj_info_dict['task_type']=='detection' else 256, 
                                 f"hyperparam_yaml/yolov7/hyp.scratch.{basemodel_dict['hyp']}.yaml" if proj_info_dict['task_type']=='detection' else None, 
                                 True if proj_info_dict['target_info']=='Galaxy_S22' else False,
                                 )

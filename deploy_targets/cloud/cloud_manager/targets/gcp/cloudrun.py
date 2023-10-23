@@ -124,6 +124,10 @@ class CloudRun(CloudTargetBase):
                 self.gcp_project_id,
                 "--image",
                 deploy_yaml.build.image_uri,
+                "--cpu",
+                "4",
+                "--memory",
+                "8Gi",
                 "--allow-unauthenticated",
                 "--quiet",
             ]
