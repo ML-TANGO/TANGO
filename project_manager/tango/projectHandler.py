@@ -90,7 +90,7 @@ async def continer_request_api(host, user_id, project_id):
         'user_id' : user_id,
         'project_id' : project_id,
     }
-    response = requests.get(url, headers=headers, params=payload)
+    response = requests.get(url, headers=headers, params=payload, timeout = 5)
     print_roundtrip_text = print_roundtrip(response, "Status Request", host)
 
     # return response.json()
@@ -152,7 +152,7 @@ def get_docker_container_name(container):
         containerName = 'code_gen'
     elif container == 'k8s' :
         containerName = 'tango_k8s'
-    elif container == 'ondevice' :
+    elif container == 'ondevice' or container == 'ondevice_deploy':
         containerName = 'ondevice_deploy'
     elif container == 'viz2code':
         containerName = 'viz2code'
@@ -221,6 +221,8 @@ def db_container_name(container):
         return 'autonn-resnet'
     elif container == 'codeGen' or container == 'code_gen' or container == 'codegen':
         return 'codeGen'
+    elif container == 'ondevice_deploy' or container == 'kube_deploy' or container == 'cloud_deploy':
+        return 'imagedeploy'
 
 def nn_model_zip(user_id, project_id):
     file_path = os.path.join(root_path, "shared/common/{0}/{1}".format(str(user_id), str(project_id)))
