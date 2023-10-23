@@ -145,7 +145,7 @@ class OnDeviceDeploy:
             self.m_last_run_state = 0
         else:
             ret = -1
-            self.m_last_run_state = -1
+            self.m_last_run_state = 0
         return ret
 
     ####################################################################
@@ -287,9 +287,11 @@ class OnDeviceDeploy:
             'vary': 'origin',
             'referrer-policy': 'same-origin'
             }
+        print(prj_url)
+        logging.debug(prj_url)
 
         try:
-            ret = requests.get(url=prj_url, headers=headers, params=prj_data)
+            ret = requests.get(url=prj_url, headers=headers)
         except requests.exceptions.HTTPError as err:
             print("HTTPError:", err)
         except requests.exceptions.ConnectionError as err:
@@ -298,7 +300,6 @@ class OnDeviceDeploy:
             print("Timeout:", err)
         except requests.exceptions.RequestException as err:
             print("RequestException:", err)
-        print(prj_url)
         print("response for report")
         return
 
@@ -363,7 +364,8 @@ class MyHandler(SimpleHTTPRequestHandler):
                 if prjid == '""' or prjid == '%22%22':
                     prjid = ""
                 self.m_deploy_obj.set_folder(userid, prjid)
-        print("cmd =", cmd)
+        print("cmd =%s", cmd)
+        logging.debug("cmd =%s", cmd)
 
         if cmd == "start":
             buf = '"started"'
@@ -417,12 +419,12 @@ class MyHandler(SimpleHTTPRequestHandler):
         elif cmd == 'status_request':
             buf = '"error"'
             if self.m_deploy_obj.m_current_userid == "":
-                buf = "ready"
+                buf = '"ready"'
             else:
                 if self.m_flag == 0:
-                    buf = "stopped"
+                    buf = '"stopped"'
                 elif self.m_flag == 1:
-                    buf = "completed"
+                    buf = '"completed"'
             self.send_response(200, 'ok')
             self.send_cors_headers()
             self.send_header("Content-Type", "text/plain")
