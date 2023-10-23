@@ -28,10 +28,33 @@
           />
         </div>
       </v-card>
+      <v-btn
+        @click="open = !open"
+        v-if="project.task_type === TaskType.CLASSIFICATION && projectInfo?.container !== ContainerName.BMS"
+        style="background-color: #fff"
+        class="ml-1 elevation-0"
+      >
+        <div v-if="!open">
+          <v-icon>mdi-chevron-down</v-icon>
 
-      <v-card v-if="isVis2Code" style="height: 1080px; overflow: none" class="mt-5">
-        <iframe :src="HongIKVis2Code" title="내용" width="100%" height="100%"></iframe>
-      </v-card>
+          Open VISUALIZATION
+        </div>
+
+        <div v-else>
+          <v-icon>mdi-chevron-up</v-icon>
+          Close VISUALIZATION
+        </div>
+      </v-btn>
+      <v-banner
+        v-model="open"
+        style="padding: 0px !important"
+        class="custom"
+        v-if="project.task_type === TaskType.CLASSIFICATION"
+      >
+        <v-card style="height: 1080px; overflow: none" class="mt-5">
+          <iframe :src="HongIKVis2Code" title="내용" width="100%" height="100%"></iframe>
+        </v-card>
+      </v-banner>
     </div>
     <div>
       <div class="d-flex justify-space-between align-center" style="width: 100%">
@@ -72,7 +95,7 @@ import { ProjectNamespace, ProjectMutations } from "@/store/modules/project";
 import ProgressCanvas from "@/modules/project/components/ProgressCanvas.vue";
 
 import { ProjectType } from "@/shared/consts";
-import { DisplayName } from "@/shared/enums";
+import { DisplayName, TaskType, ContainerName } from "@/shared/enums";
 
 import { containerStart, updateProjectType } from "@/api";
 export default {
@@ -89,7 +112,10 @@ export default {
       copyFailed: false,
       copySuccess: false,
       isVis2Code: false,
-      DisplayName
+      open: false,
+      DisplayName,
+      TaskType,
+      ContainerName
     };
   },
 
@@ -115,6 +141,7 @@ export default {
     this.$EventBus.$on("logUpdate", this.updateLog);
     this.$EventBus.$on("control_Vis2Code", status => {
       this.isVis2Code = status;
+      this.open = status;
     });
   },
 
@@ -125,6 +152,7 @@ export default {
 
     showVis2code() {
       this.isVis2Code = true;
+      this.open = true;
     },
 
     updateLog(log) {
@@ -299,5 +327,11 @@ export default {
 <style>
 .log-area textarea {
   min-height: 400px;
+}
+</style>
+
+<style>
+.custom .v-banner__wrapper {
+  padding: 4px !important;
 }
 </style>

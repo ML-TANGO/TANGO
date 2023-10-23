@@ -85,8 +85,10 @@ def status_request(request):
         container_id = queryset.container
         
         res = asyncio.run(request_handler(container_id, user_id, project_id, queryset.target.target_info))
-        response = json.loads(res)
+        if res == None:
+            return HttpResponse(json.dumps({'container': container_id, 'container_status': '', 'message': ''}))
 
+        response = json.loads(res)
         log_str = str(queryset.current_log) + str(container_id) + '- status_request response : ' + str(response['response'])
         # log_str = str(queryset.current_log) 
         # log_str += response['request_info']

@@ -170,6 +170,7 @@ export default {
           if (this.projectInfo.id) {
             await postStatusRequest({ user_id: this.projectInfo.create_user, project_id: this.projectInfo.id }).then(
               res => {
+                if (res === null) return;
                 if (typeof res !== "string") {
                   this.SET_PROJECT({ container: res.container, container_status: res.container_status });
                   this.projectInfo = this.project;

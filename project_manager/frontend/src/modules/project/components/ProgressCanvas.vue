@@ -48,6 +48,9 @@ import DragAndDrop from "@/modules/common/file-upload/DragAndDrop.vue";
 import { DisplayName, ContainerName } from "@/shared/enums";
 
 import { downloadNNModel, uploadNNModel } from "@/api";
+
+import { debounce } from "lodash";
+
 export default {
   components: { ProgressIcon, DragAndDrop },
 
@@ -91,7 +94,7 @@ export default {
   },
 
   mounted() {
-    this.$EventBus.$on("nnModelDownload", this.download);
+    this.$EventBus.$on("nnModelDownload", this.downloadHandler);
   },
 
   methods: {
@@ -125,6 +128,10 @@ export default {
         return "preparing";
       }
     },
+
+    downloadHandler: debounce(function () {
+      this.download();
+    }, 1000),
 
     async download() {
       this.showLoadingPopup();
