@@ -426,7 +426,6 @@ class MyHandler(SimpleHTTPRequestHandler):
             self.end_headers()
             self.wfile.write(buf.encode())
             if self.m_flag == 1:
-                self.m_obj.run()
                 with self.m_obj.lock:
                     self.m_obj.the_cnt = self.m_obj.the_cnt + 1
                 self.m_obj.ev.set()
