@@ -1,10 +1,9 @@
 # TANGO
 
-> **Announcement**  
-> * [2022  Fall TANGO Community Conference](https://github.com/ML-TANGO/TANGO/discussions/31)
-> * [2022  Fall TANGO Pre-Release](https://github.com/ML-TANGO/TANGO/releases/tag/tango-22.11-pre1)
-> * [2022  Fall TANGO Release](https://github.com/ML-TANGO/TANGO/releases/tag/tango-22.11)
-> * [2023  June TANGO Release](https://github.com/ML-TANGO/TANGO/releases/tag/tango-23.06) 
+> **Announcement**
+> * [2023  Fall TANGO Release](https://github.com/ML-TANGO/TANGO/releases/tag/tango-23.11) 
+> * [2023 TANGO Community Conference](http://tangoai.or.kr/)
+
 ----
 
 ## Introduction to TANGO <a name="intro"></a>
