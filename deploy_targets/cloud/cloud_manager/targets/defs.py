@@ -1,12 +1,12 @@
 from typing import List, Union, Optional
 from pydantic import BaseModel
 
-# from cloud_manager.targets.local.docker import LocalDocker
+from cloud_manager.targets.local.docker import LocalDocker
 from cloud_manager.targets.gcp.cloudrun import CloudRun
 
 # Mapping between deployment target strings and their respective classes.
 TARGET_CLASS_MAP = {
-    # "docker": LocalDocker,
+    "docker": LocalDocker,
     "gcp-cloudrun": CloudRun,
 }
 
@@ -33,11 +33,17 @@ class Deploy(BaseModel):
         service_host_ip: str
         service_host_port: int
 
+    class K8s(BaseModel):
+        nfsip: str
+        nfspath: str
+
     type: str = "gcp-cloudrun"
+    name: Optional[str]
     work_dir: Optional[str] = "/workspace"
     pre_exec: Optional[List[List[Union[str, int]]]]
     entrypoint: List[str]
     network: Network
+    k8s: K8s
 
     class Config:
         extra = "allow"
