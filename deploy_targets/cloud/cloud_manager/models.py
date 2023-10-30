@@ -1,9 +1,8 @@
 import enum
-import json
 from typing import Optional
 
 from sqlalchemy import Column
-from sqlmodel import Column, Field, JSON, SQLModel
+from sqlmodel import Field, JSON, SQLModel
 
 # from cloud_manager.targets.defs import DeployYaml
 

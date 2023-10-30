@@ -1,6 +1,5 @@
 from yarl import URL
 from cloud_manager.targets.abc import CloudTargetBase
-from cloud_manager.targets.defs import DeployYaml
 from fastapi import Response, HTTPException
 from aiodocker import Docker
 from aiodocker.exceptions import DockerError
@@ -16,8 +15,12 @@ class LocalDocker(CloudTargetBase):
     def __init__(self, user_id: str, project_id: str):
         self.user_id = user_id
         self.project_id = project_id
+        self.docker = Docker()
 
-    async def build_image(self, deploy_yaml: DeployYaml):
+    async def aclose(self):
+        await self.docker.close()
+
+    async def build_image(self, deploy_yaml):
         try:
             image_builder_url = IMAGE_BUILDER_URL
             data = {
@@ -73,28 +76,67 @@ class LocalDocker(CloudTargetBase):
         except aiohttp.ClientError as e:
             print(e)
 
-    async def start_service(self):
-        # start deploy container
-        pass
-
-    async def stop_service(self):
-        # stop deploy container
-        pass
-
-    async def get_service_status(self):
-        # container status
-        pass
-
-    async def push_image(self, deploy_yaml: DeployYaml, is_public: bool = True):
-        docker = Docker()
+    async def start_service(self, deploy_yaml):
         try:
+            config = {
+                "Cmd": deploy_yaml.deploy.entrypoint,
+                "Image": deploy_yaml.build.image_uri,
+                "AttachStdin": False,
+                "AttachStdout": False,
+                "AttachStderr": False,
+                "Tty": False,
+                "OpenStdin": False,
+                "ExposedPorts": {
+                    f'{deploy_yaml.deploy.network.service_host_port}/tcp': {
+                    }
+                },
+                "HostConfig": {
+                    "PortBindings": {  # Where is service_container_port?
+                        f'{deploy_yaml.deploy.network.service_host_port}/tcp': [
+                            {
+                                "HostPort": f'{deploy_yaml.deploy.network.service_host_port}',
+                            }
+                        ],
+                    },
+                },
+            }
+            container_name = deploy_yaml.deploy.name
+            container = await self.docker.containers.run(config=config, name=container_name)
+            return container.id
+        except Exception as e:
+            raise e
+        finally:
+            await self.aclose()
+
+    async def stop_service(self, service_name: str):
+        try:
+            container = self.docker.containers.get(service_name)
+            await container.stop()
+        except Exception as e:
+            raise e
+        finally:
+            await self.aclose()
+
+    async def get_service_status(self, service_name: str):
+        try:
+            container = await self.docker.containers.get(service_name)
+            service_status = await container.status()
+            return service_status["State"]["Status"]
+        except Exception as e:
+            raise e
+        finally:
+            self.aclose()
+
+    async def push_image(self, deploy_yaml, is_public: bool = True):
+        try:
+            self.docker = Docker()
             target_uri = deploy_yaml.build.image_uri
             if is_public:
-                docker.images.push(target_uri)
+                self.docker.images.push(target_uri)
             else:
                 print("Private registry is not supported yet.")
                 raise
         except DockerError as e:
             raise e
         finally:
-            docker.close()
+            self.aclose()

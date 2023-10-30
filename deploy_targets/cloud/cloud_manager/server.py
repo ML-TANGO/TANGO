@@ -83,9 +83,14 @@ async def stop_service(user_id: str, project_id: str):
     service = await get_service(user_id, project_id)
     if not service:
         raise HTTPException(status_code=404, detail="Service not found")
+    deploy_yaml_path = Path(
+        f"/shared/common/{service.user_id}/{service.project_id}/deployment.yaml"
+    )
+    deploy_yaml = await read_and_validate_deploy_yaml(deploy_yaml_path)
+    service.deploy_yaml = deploy_yaml
     target_class = TARGET_CLASS_MAP[service.deploy_yaml.deploy.type]
     target = target_class(service.user_id, service.project_id)
-    await target.stop_service(service.deploy_yaml.deploy.service_name)
+    await target.stop_service(service.deploy_yaml.deploy.name)
     service.status = ServiceStatus.STOPPED
     await save_service(service)
     return Response(content="finished", status_code=200, media_type="text/plain")
@@ -100,9 +105,14 @@ async def status_request(user_id: str, project_id: str):
     service = await get_service(user_id, project_id)
     if not service:
         raise HTTPException(status_code=404, detail="Service not found")
+    deploy_yaml_path = Path(
+        f"/shared/common/{service.user_id}/{service.project_id}/deployment.yaml"
+    )
+    deploy_yaml = await read_and_validate_deploy_yaml(deploy_yaml_path)
+    service.deploy_yaml = deploy_yaml
     target_class = TARGET_CLASS_MAP[service.deploy_yaml.deploy.type]
     target = target_class(service.user_id, service.project_id)
-    resp = await target.get_service_status(service.deploy_yaml.deploy.service_name)
+    resp = await target.get_service_status(service.deploy_yaml.deploy.name)
     # if service.target_info.get("service_url"):
     #     # TANGO manager does not receive JSON response, so just print it here.
     #     print(f"Service URL: {service.target_info['service_url']}")
