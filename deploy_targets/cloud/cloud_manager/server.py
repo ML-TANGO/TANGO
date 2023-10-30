@@ -62,8 +62,11 @@ async def start_service(user_id: str, project_id: str, bg_tasks: BackgroundTasks
     #       and other files needed to deploy services. This is not a good design
     #       for cloud deployment, where the folder cannot be shared or mounted
     #       across the public network.
+    # deploy_yaml_path = Path(
+    #     f"/shared/common/{service.user_id}/{service.project_id}/deployment.yaml"
+    # )
     deploy_yaml_path = Path(
-        f"/shared/common/{service.user_id}/{service.project_id}/deployment.yaml"
+        "/Users/kangmin/TANGO/deploy_targets/cloud/samples/deployment_localdocker.yaml"
     )
     deploy_yaml = await read_and_validate_deploy_yaml(deploy_yaml_path)
 
@@ -83,8 +86,11 @@ async def stop_service(user_id: str, project_id: str):
     service = await get_service(user_id, project_id)
     if not service:
         raise HTTPException(status_code=404, detail="Service not found")
+    # deploy_yaml_path = Path(
+    #     f"/shared/common/{service.user_id}/{service.project_id}/deployment.yaml"
+    # )
     deploy_yaml_path = Path(
-        f"/shared/common/{service.user_id}/{service.project_id}/deployment.yaml"
+        "/Users/kangmin/TANGO/deploy_targets/cloud/samples/deployment_localdocker.yaml"
     )
     deploy_yaml = await read_and_validate_deploy_yaml(deploy_yaml_path)
     service.deploy_yaml = deploy_yaml
@@ -105,8 +111,11 @@ async def status_request(user_id: str, project_id: str):
     service = await get_service(user_id, project_id)
     if not service:
         raise HTTPException(status_code=404, detail="Service not found")
+    # deploy_yaml_path = Path(
+    #     f"/shared/common/{service.user_id}/{service.project_id}/deployment.yaml"
+    # )
     deploy_yaml_path = Path(
-        f"/shared/common/{service.user_id}/{service.project_id}/deployment.yaml"
+        "/Users/kangmin/TANGO/deploy_targets/cloud/samples/deployment_localdocker.yaml"
     )
     deploy_yaml = await read_and_validate_deploy_yaml(deploy_yaml_path)
     service.deploy_yaml = deploy_yaml
