@@ -4,7 +4,8 @@ import sqlmodel
 from sqlmodel import SQLModel, create_engine  # noqa to load SQLModel
 
 
-sqlite_file_name = "/source/cmgr_sql.db"
+# sqlite_file_name = "/source/cmgr_sql.db"
+sqlite_file_name = "./cmgr_sql.db"
 sqlite_url = f"sqlite:///{sqlite_file_name}"
 
 engine = create_engine(sqlite_url)

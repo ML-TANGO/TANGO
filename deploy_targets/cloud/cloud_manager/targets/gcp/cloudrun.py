@@ -65,26 +65,26 @@ async def run_command(command: List[str]):
     return stdout.decode(), stderr.decode()
 
 
-# TODO: Run this only once not in a module-level.
-def run_command_sync(command: List[str]):
-    """
-    Run a command in a subprocess (sync version).
-    """
-    process = subprocess.run(command, capture_output=True)
-    return process.stdout.decode(), process.stderr.decode()
+# # TODO: Run this only once not in a module-level.
+# def run_command_sync(command: List[str]):
+#     """
+#     Run a command in a subprocess (sync version).
+#     """
+#     process = subprocess.run(command, capture_output=True)
+#     return process.stdout.decode(), process.stderr.decode()
 
 
-# Authenticate with Google Cloud only once in a module level.
-run_command_sync(
-    [
-        "gcloud",
-        "auth",
-        "activate-service-account",
-        "--key-file",
-        GOOGLE_APPLICATION_CREDENTIALS,
-    ]
-)
-print("Google Cloud authentication activated")
+# # Authenticate with Google Cloud only once in a module level.
+# run_command_sync(
+#     [
+#         "gcloud",
+#         "auth",
+#         "activate-service-account",
+#         "--key-file",
+#         GOOGLE_APPLICATION_CREDENTIALS,
+#     ]
+# )
+# print("Google Cloud authentication activated")
 
 
 class CloudRun(CloudTargetBase):
