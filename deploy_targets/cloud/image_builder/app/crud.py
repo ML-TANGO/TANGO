@@ -137,11 +137,11 @@ def create_task(db: Session, user_input, dockerfile_contents, current_user_id):
             pushing_at=None,  # 레지스트리에 Push 한 시간
             finished_at=None,  # 빌드가 끝난 시간
             requested_info=user_input,
-            requested_image=user_input["build"]["os"],
-            requested_target_img=user_input["build"]["target_name"],
+            requested_image=user_input["build"]["image_os"],
+            requested_target_img=user_input["build"]["image_uri"],
             requested_labels=None,
             # requested_env_commands=user_input["deployment"]["build"]["components"]["custom_packages"]["environments"],
-            requested_custom_pkg_commands=user_input["build"]["components"]["custom_packages"],
+            requested_custom_pkg_commands=user_input["build"]["image_custom_packages"],
             requested_dockerfile_contents=dockerfile_contents,
             requested_auto_push=False,
             user_id=current_user_id,

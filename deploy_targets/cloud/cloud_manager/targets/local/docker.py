@@ -62,7 +62,7 @@ class LocalDocker(CloudTargetBase):
                 detail="failed",
             )
 
-    async def _build_image(url: URL, data: dict):
+    async def _build_image(self, url: URL, data: dict):
         try:
             async with aiohttp.ClientSession() as session:
                 async with session.post(

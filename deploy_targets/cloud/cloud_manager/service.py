@@ -71,11 +71,10 @@ async def launch_service(
         service = await get_service(user_id, project_id)
         if not service:
             raise HTTPException(status_code=404, detail="Service not found")
-
         service.status = ServiceStatus.BUILDING
         await save_service(service)
         # TODO: Generalize the build process to actually build the image per spec.
-        await target.build_image(deploy_yaml.build)
+        await target.build_image(deploy_yaml)
         service = await get_service(user_id, project_id)
         with get_db_session() as db:
             db.refresh(service)

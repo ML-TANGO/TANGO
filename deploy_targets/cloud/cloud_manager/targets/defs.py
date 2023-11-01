@@ -13,7 +13,7 @@ TARGET_CLASS_MAP = {
 
 class Build(BaseModel):
     class Components(BaseModel):
-        class CustomPackages(BaseModel):
+        class CustomPackages(dict):
             apt: Optional[List[str]]
             pypi: Optional[List[str]]
 

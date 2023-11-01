@@ -1,5 +1,4 @@
 import asyncio
-import ast
 import json
 from collections import deque
 from datetime import timedelta
@@ -135,7 +134,7 @@ async def build_preset_image(
                 status_code=400,
                 detail="Image is already in building status. Please retry after complete the current image build.",
             )
-        user_input_data = ast.literal_eval(jsonable_encoder(await user_input.body()))
+        user_input_data = json.loads(jsonable_encoder(await user_input.body()))
         current_user = user_input_data["user"]
         prepared_data = await handle_request(
             db, current_user, user_input_data

@@ -42,13 +42,17 @@ class Forklift:
         dockerfile_template = DOCKERFILE_TEMPLATE_DEFAULT
         tpl = jinja2.Template(dockerfile_template)
         try:
-            for k, v in info["build"]["components"]["custom_packages"].items():
-                info["build"]["components"]["custom_packages"][k] = [
+            for k, v in info["build"]["image_custom_packages"].items():
+                info["build"]["image_custom_packages"][k] = [
                     package.strip() for package in v
                 ]
+            if info["build"]["image_arch"] == "x86":
+                info["build"]["image_arch"] = "linux/amd64"
+            if info["build"]["image_os"] == "ubuntu20.04":
+                info["build"]["image_os"] = "ubuntu:20.04"
             dockerfile_content = tpl.render(
                 {
-                    "src": info["build"]["os"],
+                    "src": info["build"]["image_os"],
                     # "runtime_type": info["runtime_type"],
                     # "runtime_path": Path(info["runtime_path"]),
                     # "base_distro": info["labels"]["base_distro"],
@@ -57,11 +61,11 @@ class Forklift:
                     # "min_mem": info["labels"]["min_mem"],
                     # "accelerators": info["labels"]["accelerators"],
                     # "allow_root": info["allow_root"],
-                    "architecture": info["build"]["architecture"],
+                    "architecture": info["build"]["image_arch"],
                     # "envs": yaml_contents["build"]["components"]["environments"],
-                    "packages": info["build"]["components"]["custom_packages"],
+                    "packages": info["build"]["image_custom_packages"],
                     "copy_path": "nn_model",
-                    "workdir": info["build"]["workdir"],
+                    "workdir": info["deploy"]["deploy_work_dir"],
                 }
             )
             log.info("==Dockerfile created!==")
@@ -113,7 +117,7 @@ class Forklift:
                 fileobj=tar_obj,
                 encoding="identity",
                 path_dockerfile="Dockerfile",
-                tag=task["requested_info"]["build"]["target_name"],
+                tag=task["requested_info"]["build"]["image_uri"],
                 quiet=False,
                 stream=True,
             )
@@ -332,7 +336,7 @@ class Forklift:
         f = tempfile.NamedTemporaryFile()
         with tarfile.open(mode="w:gz", fileobj=f) as t:
             # current_path = Path(os.getcwd())  # TODO Path could be change
-            path = f"/TANGO/shared/common/{user_info['user_id']}/nn_model"
+            # path = f"/TANGO/shared/common/{user_info['user_id']}/nn_model"
             if isinstance(dockerfile, BytesIO):
                 dfinfo = tarfile.TarInfo("Dockerfile")
                 dfinfo.size = len(dockerfile.getvalue())
@@ -340,11 +344,9 @@ class Forklift:
             else:
                 dfinfo = t.gettarinfo(fileobj=dockerfile, arcname="Dockerfile")
             t.addfile(dfinfo, dockerfile)
-            t.add(
-                name=f"{path}", arcname="nn_model"
-            )
-            # COPY를 할때마다 여기서 t.add로 추가해줘야함
-            # TODO: COPY 명령어가 추가되었을 때, 그걸 받아서 for문으로 처리해주는게 바람직함.
+            # t.add(
+            #     name=f"{path}", arcname="nn_model"
+            # )
             log.debug(t.getnames())
         f.seek(0)
         return f
