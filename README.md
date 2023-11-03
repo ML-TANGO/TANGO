@@ -3,6 +3,7 @@
 > **Announcement**
 > * [2023  Fall TANGO Release](https://github.com/ML-TANGO/TANGO/releases/tag/tango-23.11) 
 > * [2023 TANGO Community Conference](http://tangoai.or.kr/)
+>   * [Presentation Material](https://github.com/ML-TANGO/TANGO/tree/main/docs/2023_Fall_Community_Conference)
 
 ----
 
