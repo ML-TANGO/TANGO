@@ -52,12 +52,6 @@ export default {
     ...mapState(ProjectNamespace, ["project"])
   },
 
-  watch: {
-    interval() {
-      console.log("this.interval", this.interval);
-    }
-  },
-
   async mounted() {
     const cookie_info = new Cookies();
     const user_info = cookie_info.get("userinfo");
@@ -109,15 +103,12 @@ export default {
         }
 
         const res = await setWorkflow(info.id, workflow);
-        console.log("res", res);
 
         this.projectInfo = {
           ...this.projectInfo,
           workflow: res.workflow
         };
         this.SET_PROJECT(this.projectInfo);
-
-        console.log("this.projectInfo", this.projectInfo);
       }
     } catch {
       this.$swal("잘못된접근입니다.");

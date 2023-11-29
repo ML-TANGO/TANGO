@@ -45,6 +45,17 @@ root_path = os.path.dirname(os.path.dirname(BASE_DIR))
 @api_view(['POST'])
 @permission_classes([AllowAny])   # 토큰 확인
 def container_start(request):
+    """
+    Request to start another container
+
+    Args:
+        user_id (string): user_id
+        project_id (string): project_id
+        container_id (string): Container to be requested to start
+
+    Returns:
+        status, log
+    """
 
     try:
         print("----------container_start----------")
@@ -73,6 +84,16 @@ def container_start(request):
 @api_view(['POST'])
 @permission_classes([AllowAny])   # 토큰 확인
 def status_request(request):
+    """
+    Container Task Status Request
+
+    Args:
+        user_id (string): user_id
+        project_id (string): project_id
+
+    Returns:
+        status, log
+    """
 
     try:
         print("----------status_request----------")
@@ -141,7 +162,18 @@ def status_request(request):
 @api_view(['GET'])
 @permission_classes([AllowAny])   # 토큰 확인
 def status_report(request):
+    """
+    API to receive task status reports from other containers
 
+    Args:
+        user_id (string): user_id
+        project_id (string): project_id
+        container_id (string): container_id
+        status (string): task status
+
+    Returns:
+        status
+    """
     try:
         print("@@@@@@@@@@@@@@@@@@@@@@@ status report @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@")
         user_id = request.GET['user_id']
@@ -239,6 +271,17 @@ def status_result(request):
 @api_view(['GET'])
 @permission_classes([AllowAny])   # 토큰 확인
 def download_nn_model(request):
+    """
+    Download nn_model to zip file
+
+
+    Args:
+        user_id (string): user_id
+        project_id (string): project_id
+
+    Returns:
+        nn_model.zip file
+    """
 
     try:
         user_id = request.GET['user_id']
@@ -255,7 +298,17 @@ def download_nn_model(request):
 @api_view(['POST'])
 @permission_classes([AllowAny])   # 토큰 확인
 def upload_nn_model(request):
+    """
+    upload nn_model to zip file
 
+    Args:
+        user_id (string): user_id
+        project_id (string): project_id
+        nn_model (zio file)
+
+    Returns:
+        status
+    """
     try:
         user_id = request.data['user_id']
         project_id = request.data['project_id']
@@ -1089,6 +1142,14 @@ def create_dataset_yaml(r_data_set_path, r_yaml_path):
 @permission_classes([AllowAny])   # 토큰 확인
 def set_workflow(request):
     """
+    Modifying Workflows for a Project
+
+    Args:
+        project_id (string): project_id
+        workflow : workflow
+
+    Returns:
+        status, workflow
     """
     try:
         project_id = request.data["project_id"]

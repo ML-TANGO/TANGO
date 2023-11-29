@@ -28,6 +28,16 @@ BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 root_path = os.path.dirname(os.path.dirname(BASE_DIR))
 
 def get_folder_info(folder_path):
+    """
+    Returns the folder info
+
+    Args:
+        folder_path (string): folder_path
+
+    Returns:
+        folder name, folder path, folder size, folder creation_time, 
+        folder last_modified_time, file_count, thumbnail
+    """
     folder_info = {}
 
     # 폴더 경로가 유효한지 확인합니다.
@@ -45,6 +55,15 @@ def get_folder_info(folder_path):
     return folder_info
 
 def get_folder_size(folder_path):
+    """
+    Returns the folder size
+
+    Args:
+        folder_path (string): folder_path
+
+    Returns:
+        folder size
+    """
     total_size = 0
     for path, dirs, files in os.walk(folder_path):
         for f in files:
@@ -53,16 +72,43 @@ def get_folder_size(folder_path):
     return total_size
 
 def get_folder_creation_date(folder_path):
+    """
+    Returns the creation date
+
+    Args:
+        folder_path (string): folder_path
+
+    Returns:
+        creation date
+    """
     creation_time = os.path.getctime(folder_path)
     formatted_creation_time = time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(creation_time))
     return formatted_creation_time
 
 def get_folder_last_modified_date(folder_path):
+    """
+    Returns the last modification date
+
+    Args:
+        folder_path (string): folder_path
+
+    Returns:
+        last modification date
+    """
     modified_time = os.path.getmtime(folder_path)
     formatted_modified_time = time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(modified_time))
     return formatted_modified_time
 
 def get_file_count(folder_path):
+    """
+    Returns the number of files
+
+    Args:
+        folder_path (string): folder_path
+
+    Returns:
+        int : file count
+    """
     file_count = 0
     for path, dirs, files in os.walk(folder_path):
         file_count += len(files)
@@ -71,6 +117,12 @@ def get_file_count(folder_path):
 def get_folder_thumbnail(folder_path):
     """
     Create thumbnails after randomly extracting 4 images from a folder
+
+    Args:
+        folder_path (string): Image folder path
+
+    Returns:
+        Returns Thumbnails to base64
     """
 
     file_list = []
@@ -95,9 +147,15 @@ def get_folder_thumbnail(folder_path):
         return None
 
 def make_image_thumbnail(path):
-    # img = Image.open(path)
-    # img.thumbnail((128, 128))
-    # thumbnail = img.copy()
+    """
+    Create Thumbnails
+
+    Args:
+        path (string): File path to create thumbnails
+
+    Returns:
+        Thumbnails
+    """
     maxsize = (128, 128) 
     img = cv2.imread(path, 1);
     thumbnail = cv2.resize(img, maxsize, interpolation=cv2.INTER_AREA)

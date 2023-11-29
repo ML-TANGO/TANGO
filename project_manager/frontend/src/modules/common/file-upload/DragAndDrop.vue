@@ -151,14 +151,7 @@ export default {
       const fileExt = file.type.split("/")[1];
       const type = this.fileType;
       this.isDragged = false;
-      console.log("this.fileType", this.fileType);
-      console.log("fileExt", fileExt);
-      console.log("file.type", file.type);
-      console.log("file.name", file.name);
-      console.log(
-        "type.some(q => fileExt.toLowerCase().includes(q.toLowerCase()))",
-        type.some(q => fileExt.toLowerCase().includes(q.toLowerCase()))
-      );
+
       if (type.length > 0 && !type.some(q => fileExt.toLowerCase().includes(q.toLowerCase()))) {
         this.$swal("업로드 실패", this.errorMsg, "error");
         return false;
