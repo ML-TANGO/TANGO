@@ -37,7 +37,3 @@ thop  # FLOPs computation
 albumentations>=1.0.3
 pycocotools>=2.0  # COCO mAP
 roboflow
-Django==3.2
-django-cors-headers==3.11.0
-django-rest-framework==0.1.0
-djangorestframework==3.13.1

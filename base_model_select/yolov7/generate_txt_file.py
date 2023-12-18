@@ -1,9 +1,11 @@
+
+# %%
 import linecache as lc
 import numpy as np
 from pathlib import Path
 
 txt_file_size = 5000
-target_size = 200
+target_size = 800
 
 
 randidx = np.random.randint(txt_file_size, size=target_size)
@@ -29,3 +31,4 @@ with open(generatefile, 'w+') as genfile:
 
     
     
+# %%
