@@ -34,18 +34,20 @@ def entropy(path, x=3, y=3):
 class SVMPredictor():
     def __init__(self, input_size=None, output_size=None, pt=""):
         super(SVMPredictor, self).__init__()
+        
+        self._device = "cuda" if torch.cuda.is_available() else "cpu"
+        
         if pt == "":
             self._model = nn.Linear(input_size, output_size)
         else:
             # pt 
             self._model = nn.Linear(input_size, output_size)
-            self._model.load_state_dict(torch.load(pt))
+            self._model.load_state_dict(torch.load(pt, map_location=self._device))
             
         self.sizes = (input_size, output_size)
 
         self.stats = [0 for x in range(output_size)]
         
-        self._device = "cuda" if torch.cuda.is_available() else "cpu"
         self._model.to(self._device)
 
         self._best_acc = 0

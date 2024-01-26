@@ -35,7 +35,8 @@ def attempt_download(file, repo='WongKinYiu/yolov7'):
             msg = f'{file} missing, try downloading from https://github.com/{repo}/releases/'
             redundant = False  # second download option
             try:  # GitHub
-                url = f'https://github.com/{repo}/releases/download/{tag}/{name}'
+                url = f'https://github.com/{repo}/releases/download/v0.1/{name}'
+                # https://github.com/WongKinYiu/yolov7/releases/download/v0.1/yolov7.pt
                 print(f'Downloading {url} to {file}...')
                 torch.hub.download_url_to_file(url, file)
                 assert file.exists() and file.stat().st_size > 1E6  # check

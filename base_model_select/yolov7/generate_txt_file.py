@@ -12,7 +12,7 @@ randidx = np.random.randint(txt_file_size, size=target_size)
 
 # changed to global dataset location
 # print(Path().absolute())
-filename = "coco/val2017.txt"
+filename = "/Data/coco/val2017.txt"
 generatefile = 'evaluate2017.txt'
 
 # assert Path(generatefile).exists()
