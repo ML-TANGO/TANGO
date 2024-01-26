@@ -1,29 +1,16 @@
-FROM python:3.9
+FROM python:3.10
 
-# creating a working directory
-WORKDIR /home
+ENV TF_ENABLE_ONEDNN_OPTS=0
+ENV PIP_DEFAULT_TIMEOUT=1000
 
-# copy src [dest]
-COPY requirements.txt ./
-RUN pip install -r requirements.txt
 RUN apt-get update
-RUN apt-get install libgl1 -y
+RUN apt-get -y install libgl1-mesa-glx
 
-# copying all the required materials
+WORKDIR /source
+COPY requirements.txt ./
+RUN pip install -U pip
+RUN pip install -r requirements.txt
 COPY . ./
-RUN ls yolov7/ -la
-
-# RUN echo $(tree -1)
-# RUN echo $(ls -1)
-
-# download the coco dataset (val only)
-RUN wget -q https://ultralytics.com/assets/coco2017val.zip
-RUN unzip -o -q coco2017val.zip -d /home/yolov7 && rm coco2017val.zip 
-
-# python yolov5/predict.py --task evaluate --data coco.yaml --img 640 --iou 0.65 --half
-
-# DOCKER run command
-CMD ["./run_predict.sh"]
 
 # docker build -t yolo_docker . --progress=plain
 # docker run --rm --ipc=host yolo_docker 

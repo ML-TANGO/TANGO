@@ -21,6 +21,11 @@
         <TabView v-if="isData(this.projectsByTab['BMS'])" :items="this.projectsByTab['BMS']" />
         <NoResultTab v-else />
       </v-tab-item>
+      <!-- Visualization -->
+      <v-tab-item>
+        <TabView v-if="isData(this.projectsByTab['Visualization'])" :items="this.projectsByTab['Visualization']" />
+        <NoResultTab v-else />
+      </v-tab-item>
       <!-- AUTO NN -->
       <v-tab-item>
         <TabView v-if="isData(this.projectsByTab['Auto NN'])" :items="this.projectsByTab['Auto NN']" />
@@ -31,32 +36,16 @@
         <TabView v-if="isData(this.projectsByTab['Code Gen'])" :items="this.projectsByTab['Code Gen']" />
         <NoResultTab v-else />
       </v-tab-item>
-      <!-- IMAGE DEPOLY -->
+      <!-- IMAGE deploy -->
       <v-tab-item>
         <TabView v-if="isData(this.projectsByTab['Image Deploy'])" :items="this.projectsByTab['Image Deploy']" />
         <NoResultTab v-else />
       </v-tab-item>
-      <!-- RUN IMAGE -->
-      <!-- <v-tab-item>
-        <TabView v-if="isData(this.projectsByTab['Run Image'])" :items="this.projectsByTab['Run Image']" />
-        <NoResultTab v-else />
-      </v-tab-item> -->
     </v-tabs-items>
 
     <ProjectCreateDialog :step="step" @stepChange="onStepChange" @close="close">
       <template v-slot:btn>
-        <v-btn
-          class="elevation-23"
-          color="tango"
-          dark
-          absolute
-          bottom
-          right
-          style="bottom: 60px; right: 60px"
-          height="50"
-          width="180"
-          rounded
-        >
+        <v-btn color="tango" dark absolute style="top: 4px; right: 30px" height="40" width="180">
           NEW PROJECT&nbsp;<v-icon :size="20">mdi-plus</v-icon>
         </v-btn>
       </template>
@@ -85,16 +74,17 @@ export default {
     return {
       tab: null,
       step: 1,
-      items: ["All Status", "Preparing", "BMS", "Auto NN", "Code Gen", "Image Deploy"],
-      defaultValue: { Preparing: [], BMS: [], "Auto NN": [], "Code Gen": [], "Image Deploy": [] },
+      items: ["All Status", "Preparing", "BMS", "Visualization", "Auto NN", "Code Gen", "Image Deploy"],
+      defaultValue: { Preparing: [], BMS: [], Visualization: [], "Auto NN": [], "Code Gen": [], "Image Deploy": [] },
       projectsByTab: {},
       tabItems: [
         { key: "Preparing", allowed: ["", "init"] },
         { key: "BMS", allowed: ["bms"] },
-        { key: "Auto NN", allowed: ["autonk", "yoloe", "autobb"] },
-        { key: "Code Gen", allowed: ["code_gen"] },
-        { key: "Image Deploy", allowed: ["image_depoly"] },
-        { key: "Run Image", allowed: ["run_image"] }
+        { key: "Visualization", allowed: ["visualization", "viz2code"] },
+        { key: "Auto NN", allowed: ["autonk", "yoloe", "autobb", "autonn-resnet"] },
+        { key: "Code Gen", allowed: ["codeGen"] },
+        { key: "Image Deploy", allowed: ["imagedeploy"] }
+        // { key: "Run Image", allowed: ["run_image"] }
       ]
     };
   },
@@ -134,6 +124,8 @@ export default {
           return acc;
         }, {})
       };
+
+      console.log("this.projectsByTab", this.projectsByTab);
     },
     onStepChange(step) {
       this.step = step;

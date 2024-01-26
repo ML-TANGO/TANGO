@@ -1,0 +1,29 @@
+# This file is for development only!
+# To expedite cloud deploy development, launch only the services related to
+# cloud deployment, excluding all others.
+version: "3"
+
+services:
+  cloud_deploy:
+    build:
+      context: .
+    # -- command is not requred in favor of s6-overlay supervisor
+    # command: >
+    #   ./entrypoint.sh
+    environment:
+      - CLOUD_MANAGER_DEBUG=1
+      - CLOUD_MANAGER_PORT=8890
+      # Google Cloud configurartion
+      - GOOGLE_APPLICATION_CREDENTIALS=/source/cloud_manager/service-account-file.json
+      - GCP_REGION=asia-northeast3
+      - GCP_PROJECT_ID=backendai-testbed
+    volumes:
+      - .:/source
+      # - shared:/shared
+      - ./shared:/shared  # shared files for testing
+      - /var/run/docker.sock:/var/run/docker.sock
+    ports:
+      - "7007:7007"  # image builder (API)
+      - "8080:8080"  # image builder (GUI)
+      - "8890:8890"  # cloud manager
+

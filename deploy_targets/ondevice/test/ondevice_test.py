@@ -4,11 +4,11 @@ import requests
 import time
 
 # prj_mng port
-def_send_port = 8085
+def_send_port = 8891
 def_send_url = "%s%4d" % ("http://0.0.0.0:", def_send_port)
 
 # my port
-def_recv_port = 8891
+def_recv_port = 8085
 my_url = "%s%4d" % ("http://0.0.0.0:", def_recv_port)
 
 
@@ -110,7 +110,7 @@ class MyHandler(SimpleHTTPRequestHandler):
                     userid = ctmp[i].split('=')[1]
                 elif tval == 'project_id':
                     prjid = ctmp[i].split('=')[1]
-                elif tval == 'result':
+                elif tval == 'status':
                     res = ctmp[i].split('=')[1]
                 else:
                     print('unkown path')
@@ -119,7 +119,7 @@ class MyHandler(SimpleHTTPRequestHandler):
         print("conid =", conid)
         print("userid =", userid)
         print("prjid =", prjid)
-        print("result =", res)
+        print("status =", res)
         buf = "OK"
         self.send_response(200, 'ok')
         self.send_cors_headers()

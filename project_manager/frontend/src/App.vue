@@ -78,6 +78,10 @@ body {
 *::-webkit-scrollbar-track {
   background-color: transparent; /* 배경 색상 */
 }
+
+.swal2-shown {
+  padding-right: 0px !important;
+}
 </style>
 
 <style lang="scss" scoped>

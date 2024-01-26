@@ -8,6 +8,10 @@ from time import sleep
 from datetime import datetime
 import torch
 import requests
+from django.core import serializers
+import json
+from collections import OrderedDict
+from shutil import copyfile
 
 from rest_framework.decorators import api_view
 from rest_framework import viewsets
@@ -24,6 +28,7 @@ from .serializers import StartSerializer
 from .serializers import StatusSerializer
 from .serializers import RunningSerializer
 from .serializers import StopSerializer
+from .serializers import SortSerializer
 
 from .models import Node
 from .models import Edge
@@ -31,9 +36,12 @@ from .models import Pth
 from .models import Architecture
 from .models import Start
 from .models import Running
+from .models import Sort
+from .models import Status
 
-from .graph import CGraph, CEdge, CNode
+from .graph import CGraph, CEdge, CNode, CShow2
 from .binder import CPyBinder
+import json
 
 # Create your views here.
 
@@ -82,25 +90,158 @@ def pthlist(request):
         return Response(serializer.data)
     if request.method == 'POST':
         print("post")
+        #CShow2()
         host_ip = str(request.get_host())[:-5]
-        print(host_ip)
-        # pylint: disable = invalid-name, missing-timeout, unused-variable
-        r = requests.get(
-            'http://' + host_ip + ':8085/status_report?container_id="vis2code"'
-                                  '&user_id=""&project_id=""&status="success"',
-            verify=False)
+        #print(host_ip)
+
         edges = Edge.objects.all()
         nodes = Node.objects.all()
+
+        #name = random_char(8)
+        name = 'resnet50'
+
         if nodes and edges:
-            created_model = test_branches(nodes, edges)
+            created_model = make_branches(nodes, edges)
             file_path = (os.getcwd() + '/model_' +
-                         random_char(8) + '.pth').replace("\\", '/')
+                         name + '.pt').replace("\\", '/')
 
             torch.save(created_model, file_path)
             serializer = PthSerializer(data={'model_output': file_path})
+
+
+            node_layer_list = []
+            node_order_list = []
+            node_parameters_list = []
+
+            edge_id_list = []
+            edge_prior_list = []
+            edge_next_list = []
+
+            for node in nodes:
+                node_order_list.append(node.order)
+                node_layer_list.append(node.layer)
+                node_parameters_list.append(node.parameters)
+
+            for edge in edges:
+                edge_id_list.append(edge.id)
+                edge_prior_list.append(edge.prior)
+                edge_next_list.append(edge.next)
+
+
+            #json_data = serializers.serialize('json', nodes)
+            json_data = OrderedDict()
+            json_data['node'] = []
+            json_data['edge'] = []
+
+            for c in range(len(node_order_list)):
+                json_data['node'].append({
+                    "order": node_order_list[c],
+                    "layer": node_layer_list[c],
+                    "parameters": node_parameters_list[c]
+                })
+
+            for a in range(len(edge_id_list)):
+                json_data['edge'].append({
+                    "id": edge_id_list[a],
+                    "prior": edge_prior_list[a],
+                    "next": edge_next_list[a]
+                })
+
+
+            print(json.dumps(json_data, ensure_ascii=False, indent="\t"))
+
+
+
             if serializer.is_valid():
                 print("valid")
                 serializer.save()
+                # pylint: disable = invalid-name, missing-timeout, unused-variable
+
+                # get user_id & project_id from status_request
+                get_status = Status.objects.all()
+                user_id = get_status[len(get_status)-1].user_id
+                project_id = get_status[len(get_status)-1].project_id
+
+                json_path = ('/shared/common/'+str(user_id)+'/'+str(project_id)+'/basemodel.json').replace("\\", '/')
+                with open(json_path, 'w', encoding="utf-8") as make_file:
+                    json.dump(json_data, make_file, ensure_ascii=False, indent='\t')
+
+                url = 'http://projectmanager:8085/status_report'
+                #url = 'http://' + host_ip + ':8091/status_report'
+                headers = {
+                    'Content-Type': 'text/plain'
+                }
+                payload = {
+                    'container_id':"visualization",
+                    'user_id': user_id,
+                    'project_id': project_id,
+                    'status': "success"
+                }
+                r = requests.get(url, headers=headers, params=payload)
+
+                return Response(serializer.data,
+                                status=status.HTTP_201_CREATED)
+
+            if not serializer.is_valid():
+                print("invalid")
+                print(serializer.errors)
+                #serializer.save()
+
+                # get user_id & project_id from status_request
+                get_status = Status.objects.all()
+                user_id = get_status[len(get_status)-1].user_id
+                project_id = get_status[len(get_status)-1].project_id
+
+                url = 'http://projectmanager:8085/status_report'  ##
+                #url = 'http://' + host_ip + ':8091/status_report'
+                headers = {
+                    'Content-Type': 'text/plain'
+                }
+                payload = {
+                    'container_id':"visualization",
+                    'user_id': user_id,
+                    'project_id': project_id,
+                    'status': "failed"
+                }
+                r = requests.get(url, headers=headers, params=payload)
+
+                return Response("invalid pth",
+                                status=status.HTTP_400_BAD_REQUEST)
+        return Response("invalid node or edge",
+                        status=status.HTTP_400_BAD_REQUEST)
+
+
+    return None
+
+
+@api_view(['GET', 'POST', 'DELETE', 'UPDATE'])
+def sortlist(request):
+    '''
+    pth list
+    '''
+    print("sort")
+    if request.method == 'GET':
+        sort = Sort.objects.all()
+        serializer = SortSerializer(sort, many=True)
+        return Response(serializer.data)
+    if request.method == 'POST':
+        print("post")
+        #CShow2()
+        host_ip = str(request.get_host())[:-5]
+        print(host_ip)
+        edges = Edge.objects.all()
+        nodes = Node.objects.all()
+        if nodes and edges:
+            sorted_ids = post_sorted_id(nodes, edges)
+            sorted_ids_str = ''
+            for id in sorted_ids:
+                sorted_ids_str = sorted_ids_str+id+','
+            serializer = SortSerializer(data={'id': 1, 'sorted_ids': sorted_ids_str[:-1]})
+            print()
+            if serializer.is_valid():
+                print("valid")
+                serializer.save()
+                # pylint: disable = invalid-name, missing-timeout, unused-variable
                 return Response(serializer.data,
                                 status=status.HTTP_201_CREATED)
 
@@ -108,12 +249,29 @@ def pthlist(request):
                 print("invalid")
                 print(serializer.errors)
                 serializer.save()
-                return Response("invalid pth",
+                return Response("invalid sort",
                                 status=status.HTTP_400_BAD_REQUEST)
         return Response("invalid node or edge",
                         status=status.HTTP_400_BAD_REQUEST)
     return None
 
+@api_view(['GET', 'POST', 'DELETE', 'UPDATE'])
+def sortlist_detail(request, pk):
+    '''
+    pth list
+    '''
+    try:
+        pev_sorted_ids = Sort.objects.get(pk=pk)
+    except Sort.DoesNotExist:
+        print('sort detail 안 됨 ~~~')
+        return Response(status=status.HTTP_404_NOT_FOUND)
+    print("sort")
+    if request.method == 'GET':
+        serializer = SortSerializer(pev_sorted_ids)
+        return Response(serializer.data)
+    if request.method == 'DELETE':
+        pev_sorted_ids.delete()
+        return Response(status=status.HTTP_204_NO_CONTENT)
 
 @api_view(['GET', 'POST', 'DELETE', 'UPDATE'])
 # pylint: disable = invalid-name, inconsistent-return-statements
@@ -131,21 +289,49 @@ def startList(request):
                                                'project_id': project_id})
             if serializer.is_valid():
                 serializer.save()
+                try:
+                    nodes = Node.objects.all()
+                    nodes.delete()
+
+                    edges = Edge.objects.all()
+                    edges.delete()
+
+                    copyfile('/shared/common/'+str(user_id)+'/'+str(project_id)+'/basemodel.json', '/visualization/frontend/src/resnet50.json')
+                    #copyfile('./frontend/src/resnet50.json', './frontend/src/VGG16.json')
+                    with open("./frontend/src/resnet50.json", "r", encoding="utf-8-sig") as f:
+                        data = json.load(f)
+                        for i in data.get('node'):
+                            serializer = NodeSerializer(data=i)
+                            if serializer.is_valid():
+                                serializer.save()
+                        for j in data.get('edge'):
+                            serializer = EdgeSerializer(data=j)
+                            if serializer.is_valid():
+                                serializer.save()
+
+                    print('start api GET')
+
+                except Exception as ex:
+                    print(ex)
+                return Response("started", status=200, content_type="text/plain")
             else:
-                sleep(3)
-                host_ip = str(request.get_host())[:-5]
-                # pylint: disable =invalid-name,missing-timeout,unused-variable
-                r = requests.get('http://'+host_ip+':8085/status_report?'
-                                                   'container_id="vis2code"&'
-                                                   'user_id=""&project_id=""'
-                                                   '&status="success"',
-                                 verify=False)
-            return HttpResponse('started',
-                                content_type="text/plain")
-            # return Response(serializer.data)
+                return Response("error", status=200, content_type="text/plain")
         # pylint: disable = broad-except
         except Exception as e:
-            return HttpResponse(e, HttpResponse)
+            # return HttpResponse(e, HttpResponse)
+            #return HttpResponse('error', content_type="text/plain")
+            return Response("error", status=200, content_type="text/plain")
+
+
+    elif request.method == 'POST':
+        with open("./frontend/src/resnet50.json", "r") as f:
+            data = json.load(f)
+            if (len(data["node"]) > 1) :
+                return True
+            else:
+                return False
+
+
     else:
         print('no request')
 
@@ -161,17 +347,19 @@ def stopList(request):
         try:
             user_id = request.GET['user_id']
             project_id = request.GET['project_id']
-            serializer = StopSerializer(data={'msg': 'stopped',
+            serializer = StopSerializer(data={'msg': 'finished',
                                               'user_id': user_id,
                                               'project_id': project_id})
             if serializer.is_valid():
                 serializer.save()
-            return HttpResponse(serializer.data['msg'],
-                                content_type="text/plain")
+            #return HttpResponse(serializer.data['msg'],content_type="text/plain")
+            return Response(serializer.data['msg'], status=200, content_type="text/plain")
             # return Response(serializer.data)
         # pylint: disable = broad-except
         except Exception as e:
-            return HttpResponse(e, HttpResponse)
+            # return HttpResponse(e, HttpResponse)
+            #return HttpResponse('error', content_type="text/plain")
+            return Response("error", status=200, content_type="text/plain")
     else:
         print('no request')
 
@@ -193,38 +381,55 @@ def statusList(request):
                                                 'project_id': project_id
                                                 })
 
+
             # timestamp 값 가져오기
             host_ip = str(request.get_host())[:-5]
             # pylint: disable=missing-timeout
+            print("host_ip:", host_ip)
+
             get_time = requests.get('http://' +
                                     host_ip +
                                     ':8091/api/running/', verify=False)
-            time = get_time.text[-16:-3]
+
+            #print("get_time:", get_time)
+            #time = get_time.text[-16:-3]
+
             # 현재 시점의 timestamp와 비교하기
-            saved_time = datetime.fromtimestamp(int(time)/1000)
+            saved_time = datetime.fromtimestamp(int(1696232398148)/1000)
+
             now = datetime.now()
+            print("now: ", now)
+            print(type(now))
             diff = now - saved_time
             diff_sec = diff.seconds
-            print("diff_sec: ", diff_sec)
 
-            if diff_sec > 60:  # 1분 이상이면
-                # started를 running으로 변경
+            #print(type(diff_sec))
+
+
+            if diff_sec > 5:  # 1분 이상이면
+                #started를 running으로 변경
                 if serializer.is_valid():
                     serializer.save()
-                    return HttpResponse('running',
-                                        content_type="text/plain")
+                    print('status request api GET (running)')
+                    #return HttpResponse('running', content_type="text/plain")
+                    return Response("running", status=200, content_type="text/plain")
                 else:
                     print(serializer.errors)
-                    return HttpResponse('is_not_valid',
-                                        content_type="text/plain")
+                    print('status request api GET (ready)')
+                    #return HttpResponse('ready', content_type="text/plain")
+                    return Response("ready", status=200, content_type="text/plain")
+
+
             else:
-                return HttpResponse('started',
-                                    content_type="text/plain")
+                print('status request api GET (started)')
+                #return HttpResponse('started', content_type="text/plain")
+                return Response("started", status=200, content_type="text/plain")
 
         # pylint: disable=broad-except
-        except Exception:
-            return HttpResponse('failed',
-                                content_type="text/plain")
+        except Exception as e:
+            print('status request api GET (failed). error: ', e)
+            #return HttpResponse('failed', content_type="text/plain")
+            return Response("failed", status=200, content_type="text/plain")
     else:
         print('no request')
 
@@ -326,6 +531,27 @@ class PthView(viewsets.ModelViewSet):
         print("Pth objects")
 
 
+class SortView(viewsets.ModelViewSet):
+    # pylint: disable=too-many-ancestors
+    '''
+    Pth View
+    '''
+    serializer_class = SortSerializer
+    queryset = Sort.objects.all()
+
+    def print_serializer(self):
+        '''
+        print serializer class
+        '''
+        print("Sort serializer")
+
+    def print_objects(self):
+        '''
+        print objects
+        '''
+        print("Sort objects")
+
+
 class ArchitectureView(viewsets.ModelViewSet):
     # pylint: disable=too-many-ancestors
     '''
@@ -417,7 +643,7 @@ class RunningView(viewsets.ModelViewSet):
 #         print("Stop queryset")
 
 
-def test_branches(get_node, get_edge):
+def make_branches(get_node, get_edge):
     '''
     test branches
     '''
@@ -438,6 +664,27 @@ def test_branches(get_node, get_edge):
     net = CPyBinder.exportmodel(self_binder, graph)
     print(net)
     return net
+
+def post_sorted_id(get_node, get_edge):
+    '''
+    test branches
+    '''
+    graph = CGraph()
+    self_binder = CPyBinder()
+    for node in get_node:
+        # pylint: disable-msg=bad-option-value, consider-using-f-string
+        params_string = "{parameters}". \
+            format(**node.__dict__).replace("\n", ',')
+        # pylint: disable-msg=bad-option-value, eval-used
+        graph.addnode(CNode("{order}".format(**node.__dict__),
+                            type_="{layer}".format(**node.__dict__),
+                            params=eval("{" + params_string + "}")))
+    for edge in get_edge:
+        # pylint: disable-msg=bad-option-value, consider-using-f-string
+        graph.addedge(CEdge("{prior}".format(**edge.__dict__),
+                            "{next}".format(**edge.__dict__)))
+    sorted_ids = CPyBinder.sort_id(self_binder, graph)
+    return sorted_ids
 
 
 def random_char(number):

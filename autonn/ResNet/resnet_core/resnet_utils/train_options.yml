@@ -1,0 +1,15 @@
+options:
+  batch_size:
+    - 64
+  epochs:
+    - 600
+  dataset:
+    - custom
+  net:
+    - densenet121
+  optimizer:
+    - Adam
+  initial_lr:
+    - 0.000005
+  lossfunction:
+    - CE

@@ -33,7 +33,7 @@ services:
   # DB for Project Manager
   #---------------------------------
   postgresql:
-    image: postgres:latest
+    image: postgres:15.4
     restart: always
     volumes:
       - postgreSQL:/var/lib/postgresql/data
@@ -45,24 +45,24 @@ services:
   #---------------------------------
   # DB for labelling tool
   #---------------------------------
-  mariadb:
-    container_name: "mariadb"
-    image: mariadb:10
-    ports:
-      - 3306:3306
-    volumes:
-      - "./labelling/Deployment/db/my.cnf:/etc/mysql/my.cnf"
-      - "./labelling/data:/var/lib/mysql"
-      - "./labelling/Deployment/test/:/docker-entrypoint-initdb.d/"
-    environment:
-      MARIADB_DATABASE: labelling
-      MARIADB_USER: username
-      MARIADB_PASSWORD: password
-      MARIADB_ROOT_PASSWORD: password
-    restart: always
+  # mariadb:
+  #   container_name: "mariadb"
+  #   image: mariadb:10
+  #   ports:
+  #     - 3306:3306
+  #   volumes:
+  #     - "./labelling/Deployment/db/my.cnf:/etc/mysql/my.cnf"
+  #     - "./labelling/data:/var/lib/mysql"
+  #     - "./labelling/Deployment/test/:/docker-entrypoint-initdb.d/"
+  #   environment:
+  #     MARIADB_DATABASE: labelling
+  #     MARIADB_USER: username
+  #     MARIADB_PASSWORD: password
+  #     MARIADB_ROOT_PASSWORD: password
+  #   restart: always
 
   #---------------------------------
-  # Labelling tool 
+  # Labelling tool
   #---------------------------------
   labelling:
     build:
@@ -70,9 +70,10 @@ services:
     volumes:
       - ./labelling/dataset:/var/appdata
       - ./labelling/datadb:/var/lib/mysql
+      - shared:/shared
     ports:
       - "8086:80" # for Web UI
-      - "8095:10236" # for Rest API 
+      - "8095:10236" # for Rest API
 
   #---------------------------------
   # Base Model Selector
@@ -85,14 +86,19 @@ services:
       sh -c "python manage.py makemigrations &&
              python manage.py migrate --run-syncdb &&
              python manage.py runserver 0.0.0.0:8081"
-    # deploy:
-    #   resources:
-    #     reservations:
-    #       devices:
-    #         - driver: nvidia
-    #           capabilities: [gpu]
-    # environment:
-    #   - NVIDIA_VISIBLE_DEVICES=all
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              capabilities:
+                - gpu
+                - utility
+                - compute
+                - video
+    environment:
+      - NVIDIA_VISIBLE_DEVICES=${GPU_NUM:-all}
+    hostname: bms
     volumes:
       - ./base_model_select:/source
       - shared:/shared
@@ -171,7 +177,8 @@ services:
     shm_size: '256M'
     ipc: host
     command: >
-      sh -c "python manage.py makemigrations &&
+      sh -c "python manage.py pretrained_supernet && 
+             python manage.py makemigrations &&
              python manage.py migrate &&
              python manage.py runserver 0.0.0.0:8090"
     # use the below lines commented out if you want to use gpu
@@ -186,7 +193,7 @@ services:
                 - compute
                 - video
     environment:
-      - NVIDIA_VISIBLE_DEVICES=all
+      - NVIDIA_VISIBLE_DEVICES=${GPU_NUM:-all}
     volumes:
       - ./autonn/YoloE:/source
       - shared:/shared
@@ -197,11 +204,44 @@ services:
       - "8090:8090"
 
   #---------------------------------
-  # code_gen Build 
+  # AutoNN: ResNet
+  #---------------------------------
+  autonn_resnet:
+    build:
+      context: ./autonn/ResNet
+    shm_size: '256M'
+    ipc: host
+    command: >
+      sh -c "python manage.py makemigrations &&
+             python manage.py migrate &&
+             python manage.py runserver 0.0.0.0:8092"
+    # use the below lines commented out if you want to use gpu
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              capabilities:
+                - gpu
+                - utility
+                - compute
+                - video
+    environment:
+      - NVIDIA_VISIBLE_DEVICES=all
+    volumes:
+      - ./autonn/ResNet:/source
+      - shared:/shared
+    hostname: autonn-resnet
+    ports:
+      - "8092:8092"
+
+  #---------------------------------
+  # code_gen Build
   #---------------------------------
   code_gen:
     build:
       context: ./deploy_codegen/optimize_codegen
+    hostname: codeGen
     volumes:
       - ./deploy_codegen/optimize_codegen:/source
       - shared:/tango
@@ -211,40 +251,67 @@ services:
       - 8888:8888
 
   #---------------------------------
-  # Target Image Build 
+  # Cloud deploy (with target image build)
   #---------------------------------
-  target_image_build:
+  cloud_deploy:
+    hostname: cloud-deploy
     build:
-      context: ./deploy_targets/cloud/target_image_build
-    command: >
-      sh -c "python main.py"
+      context: ./deploy_targets/cloud
+    # -- command is not requred in favor of s6-overlay supervisor
+    # command: >
+    #   sh -c "python main.py"
+    environment:
+      - CLOUD_MANAGER_PORT=8088
+      # GCP auth settings
+      - GOOGLE_APPLICATION_CREDENTIALS=/source/cloud_manager/service-account-file.json
+      - GCP_REGION=asia-northeast3
+      - GCP_PROJECT_ID=tango-project
     volumes:
-      - ./deploy_targets/cloud/target_image_build:/source
+      - ./deploy_targets/cloud:/source
       - /var/run/docker.sock:/var/run/docker.sock
+      - shared:/shared
     ports:
-      - "8088:8088"
+      - "7007:7007" # image builder (API)
+      - "8080:8080" # image builder (GUI)
+      - "8890:8890" # cloud manager
 
   #---------------------------------
   # K8S deploy
   #---------------------------------
   kube_deploy:
+    hostname: kube-deploy
     build:
       context: ./deploy_targets/k8s
     container_name: "tango_k8s"
+    privileged: true
     command: bash -c "cd /app && python3 k8s_deploy.py"
     volumes:
       - $HOME/.kube:/home/root/.kube
-      - shared:/tango
+      - shared:/app/tango
       - ./deploy_targets/k8s:/app
+      - /var/run/docker.sock:/var/run/docker.sock
     environment:
       - "HOME=/home/root"
     ports:
-      - "8902:8902"
+      - "8901:8901"
 
   #---------------------------------
-  # ondevice_deploy Build 
-  #---------------------------------    
+  # K8S docker registry(image manager)
+  #---------------------------------
+
+  registry:
+    image: registry
+    container_name: registry
+    volumes:
+      - registry_data:/var/lib/registry/docker/registry/v2
+    ports:
+      - "8903:5000"
+
+  #---------------------------------
+  # ondevice_deploy Build
+  #---------------------------------
   ondevice_deploy:
+    hostname: ondevice
     build:
       context: ./deploy_targets/ondevice
     volumes:
@@ -254,29 +321,32 @@ services:
       sh -c "cd /app && python3 ondevice_deploy.py"
     ports:
       - 8891:8891
-  # #---------------------------------
-  # # Visualizer 
-  # #---------------------------------
-  # viz2code:
-  #   build:
-  #     context: ./visualization
-  #   command: >
-  #     sh -c "cd ./visualization/frontend &&
-  #            npm run build &&
-  #            cd ..
-  #            python manage.py makemigrations &&
-  #            python manage.py migrate &&
-  #            python manage.py runserver react 0.0.0.0:8091"
-  #   volumes:
-  #     - ./viz2code:/source
-  #   ports:
-  #     - "8091:8091"
-  # #   depends_on:
-  # #     - postgresql
+  #---------------------------------
+  # Visualizer
+  #---------------------------------
+  viz2code:
+    hostname: viz2code
+    build:
+      context: ./visualization
+    command: >
+      sh -c "cd ./visualization/frontend &&
+             npm run build &&
+             cd ..
+             python manage.py makemigrations &&
+             python manage.py migrate &&
+             python manage.py runserver react 0.0.0.0:8091"
+    volumes:
+      - ./visualization:/source
+      - shared:/shared
+    ports:
+      - "8091:8091"
+  #   depends_on:
+  #     - postgresql
 
   #---------------------------------
-  # Volumes 
+  # Volumes
   #---------------------------------
 volumes:
+  registry_data: {}
   postgreSQL: # for Proejct Manager
   shared: # shared Directory

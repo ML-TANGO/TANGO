@@ -47,7 +47,9 @@ import SecondStepper from "./stepper/SecondStepper.vue";
 import ThirdStepper from "./stepper/ThirdStepper.vue";
 import FourthStepper from "./stepper/FourthStepper.vue";
 
-import { updateProjectInfo } from "@/api";
+import { TaskType, ContainerName } from "@/shared/enums";
+
+import { updateProjectInfo, setWorkflow } from "@/api";
 
 export default {
   components: { FirstStepper, SecondStepper, ThirdStepper, FourthStepper },
@@ -104,10 +106,12 @@ export default {
           deploy_weight_level: this.project.deploy_weight_level || "",
           deploy_precision_level: this.project.deploy_precision_level || "",
           deploy_processing_lib: this.project.deploy_processing_lib || "",
-          deploy_user_edit: this.project.deploy_user_edit || "",
+          deploy_user_edit: this.project.deploy_user_edit || "no",
           deploy_input_method: this.project.deploy_input_method || "",
           deploy_input_data_path: this.project.deploy_input_data_path || "",
-          deploy_output_method: this.project.deploy_output_method || ""
+          deploy_output_method: this.project.deploy_output_method || "0",
+
+          deploy_input_source: this.project.deploy_input_source || "0"
         };
 
         await updateProjectInfo(param);
@@ -134,15 +138,32 @@ export default {
         deploy_weight_level: this.project.deploy_weight_level,
         deploy_precision_level: this.project.deploy_precision_level,
         deploy_processing_lib: this.project.deploy_processing_lib,
-        deploy_user_edit: this.project.deploy_user_edit,
+        deploy_user_edit: this.project.deploy_user_edit || "no",
         deploy_input_method: this.project.deploy_input_method,
         deploy_input_data_path: this.project.deploy_input_data_path,
-        deploy_output_method: this.project.deploy_output_method
+        deploy_output_method: this.project.deploy_output_method || "0",
+
+        deploy_input_source: this.project.deploy_input_source || "0"
       };
 
       await updateProjectInfo(param);
-      console.log("this.$route.params", this.$route.params);
 
+      const workflow =
+        this.project.task_type === TaskType.DETECTION
+          ? [ContainerName.BMS, ContainerName.AUTO_NN, ContainerName.CODE_GEN, ContainerName.IMAGE_DEPLOY]
+          : [
+              ContainerName.BMS,
+              ContainerName.VISUALIZATION,
+              ContainerName.AUTO_NN_RESNET,
+              ContainerName.CODE_GEN,
+              ContainerName.IMAGE_DEPLOY
+            ];
+
+      if (this.project.deploy_user_edit === "yes") {
+        workflow.splice(workflow.length - 1, 0, ContainerName.USER_EDITING);
+      }
+
+      await setWorkflow(this.project.id, workflow);
       if (this.$route.params?.id) {
         this.$router.go();
       } else {

@@ -1,5 +1,5 @@
 <template lang="">
-  <div style="width: 100%; height: 60px" class="top-layout">
+  <div style="width: 100%; height: 60px; min-height: 60px" class="top-layout">
     <h3
       style="grid-column: 1; margin-left: 43px; color: #0000008a; letter-spacing: 3px"
       v-if="$route.name !== 'ProjectDetail'"

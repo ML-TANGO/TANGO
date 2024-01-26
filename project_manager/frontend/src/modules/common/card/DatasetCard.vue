@@ -20,6 +20,8 @@
         <p style="color: #4a80ff; letter-spacing: 1px; font-size: 18px; font-weight: bold" class="pa-0 ma-0">
           {{ item?.name }}
         </p>
+        <v-img v-if="item?.thumbnail" :src="item?.thumbnail" max-height="50" max-width="215" contain></v-img>
+
         <!-- <v-chip
           style="font-size: 8px; height: 20px; color: white"
           :style="{ backgroundColor: isSelected ? '#25c0dc' : '#25c0dc' }"
@@ -34,6 +36,10 @@
         </v-chip> -->
       </div>
       <div class="d-flex align-center mt-3" style="gap: 10px">
+        <!-- <small style="color: #aaa; font-size: 11px">폴더 명 </small>
+        <p style="color: #4a80ff; letter-spacing: 1px; font-size: 18px; font-weight: bold" class="pa-0 ma-0">
+          {{ item?.name }}
+        </p> -->
         <small style="color: #aaa; font-size: 11px">폴더 생성일</small>
         <small style="color: #000; font-size: 11px">{{ item?.creation_time }}</small>
         <!-- <small style="color: #aaa; font-size: 11px">마지막 수정 날짜</small>

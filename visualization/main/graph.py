@@ -250,7 +250,7 @@ class CNode:
     """A dummy docstring."""
     # status : 클릭했는가? (setactive/setinactive)
     def __init__(self, id_,  # pylint: disable-msg=too-many-arguments
-                 type_, params=None, learned_params=None, status=True):
+                 type_, params={}, learned_params={}, status=True):
         self.id_ = id_
         self.type_ = type_
         self.status = status
@@ -259,13 +259,14 @@ class CNode:
 
     def setparams(self, params):
         '''setparams'''
-        # assert type(params) == type(dict())
-        assert isinstance(params, type({}))
+        assert type(params) == type(dict())
+        # assert isinstance(params, type({}))
         self.params = self.typecast(params)
 
     def setlearnedparams(self, learned_params):
         '''setlearnedparams'''
-        assert isinstance(learned_params, type({}))
+        assert type(learned_params) == type(dict())
+        # assert isinstance(learned_params, type({}))
         self.learned_params = learned_params
 
     def typecast(self, params):
@@ -309,18 +310,24 @@ class CNode:
                     'scale_factor': type(None),
                     'mode': str,
                     'align_corners': type(None),
-                    'recompute_scale_factor': type(None)}
+                    'recompute_scale_factor': type(None),
+                    'inplanes': int,
+                    'planes': int,
+                    'downsample': str,
+                    'base_width': int,
+                    'norm_layer': type(None)
+                    }
 
         for key, value in params.items():
             cast = datatype.get(key)
-            if isinstance(value, type(None)):
+            if type(value) == type(None):
                 # use the None as is or use default
                 params[key] = value
-            elif isinstance(value, type(tuple)):
+            elif type(value) == tuple:
                 params[key] = tuple(map(cast, value))
-            elif isinstance(value, type(list)):
+            elif type(value) == list:
                 params[key] = tuple(map(cast, value))
-            elif isinstance(value, type(dict)):
+            elif type(value) == dict:
                 if key == "subgraph":
                     for _nodeid, param in value.items():
                         param = self.typecast(param)
@@ -350,21 +357,21 @@ class CTest():  # pylint: disable-msg=too-few-public-methods
     def test_branches(self):
         """A dummy docstring."""
         graph = CGraph()
-        graph.addnode(CNode("conv1", type_="Conv2D"))
-        graph.addnode(CNode("maxpool1", type_="MaxPool2D"))
-        graph.addnode(CNode("bn1", type_="BatchNorm2D"))
-        graph.addnode(CNode("conv2a", type_="Conv2D"))
-        graph.addnode(CNode("conv2b", type_="Conv2D"))
-        graph.addnode(CNode("relu", type_="ReLU"))
-        graph.addnode(CNode("maxpool2", type_="MaxPool2D"))
-
-        graph.addedge(CEdge("conv1", "maxpool1"))
-        graph.addedge(CEdge("maxpool1", "bn1"))
-        graph.addedge(CEdge("bn1", "conv2a"))
-        graph.addedge(CEdge("bn1", "conv2b"))
-        graph.addedge(CEdge("conv2a", "relu"))
-        graph.addedge(CEdge("conv2b", "relu"))
-        graph.addedge(CEdge("relu", "maxpool2"))
+        # graph.addnode(CNode("conv1", type_="Conv2D"))
+        # graph.addnode(CNode("maxpool1", type_="MaxPool2D"))
+        # graph.addnode(CNode("bn1", type_="BatchNorm2D"))
+        # graph.addnode(CNode("conv2a", type_="Conv2D"))
+        # graph.addnode(CNode("conv2b", type_="Conv2D"))
+        # graph.addnode(CNode("relu", type_="ReLU"))
+        # graph.addnode(CNode("maxpool2", type_="MaxPool2D"))
+        #
+        # graph.addedge(CEdge("conv1", "maxpool1"))
+        # graph.addedge(CEdge("maxpool1", "bn1"))
+        # graph.addedge(CEdge("bn1", "conv2a"))
+        # graph.addedge(CEdge("bn1", "conv2b"))
+        # graph.addedge(CEdge("conv2a", "relu"))
+        # graph.addedge(CEdge("conv2b", "relu"))
+        # graph.addedge(CEdge("relu", "maxpool2"))
         graph_obj = CGraph(graph).normalize()
         order = graph_obj.topological_sort()
 
@@ -374,11 +381,12 @@ class CTest():  # pylint: disable-msg=too-few-public-methods
 
 class CShow2():
     """A dummy docstring."""
-    def __str__(self):
+    def __init__(self):
+        print("shsshshshshshow")
         self.test_branches()
         print("order")
         return str(0)
-
+    '''
     def test_branches(self):
         """A dummy docstring."""
         graph = CGraph()
@@ -399,6 +407,24 @@ class CShow2():
         graph.addedge(CEdge("conv2a", "relu"))
         graph.addedge(CEdge("conv2b", "relu"))
         graph.addedge(CEdge("relu", "maxpool2"))
+        order = graph.topological_sort()
+        print(order)
+        return order
+    '''
+
+    def test_branches(self):
+        """A dummy docstring."""
+        graph = CGraph()
+        print("shsshshshshshow")
+        graph.addnode(CNode("Bottleneck1", type_="Bottleneck",
+                            params={'inplanes': 28*28, 'planes': 10, 'stride': (1, 1), 'downsample': None,
+                                    'groups': 1, 'base_width': 64, 'dilation': 1, 'norm_layer': None}))
+        graph.addnode(CNode("BasicBlock1", type_="BasicBlock",
+                            params={'inplanes': 28 * 28, 'planes': 10, 'stride': (1, 1), 'downsample': None,
+                                    'groups': 1, 'base_width': 64, 'dilation': 1, 'norm_layer': None}))
+
+        graph.addedge(CEdge("Bottleneck1", "BasicBlock1"))
+
         order = graph.topological_sort()
         print(order)
         return order

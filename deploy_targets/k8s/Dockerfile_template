@@ -1,0 +1,90 @@
+# DOCKERFILE_TEMPLATE_DEFAULT = r"""# syntax = docker/dockerfile:1.0-experimental
+#FROM --platform={{architecture}} ultralytics/yolov5:v6.1
+# FROM ultralytics/yolov5:v6.1
+FROM python:3.8
+MAINTAINER Backend.AI Manager
+
+# ENV PYTHONUNBUFFERED=1 \
+# {%- if envs|length == 0 %}
+#     LANG=C.UTF-8
+# {%- else %}
+#     LANG=C.UTF-8 \
+# {%- endif %}
+# {%- for env in envs %}
+#     {%- if loop.index0 == (loop.length)-1 %}
+#     {{ env }}
+#     {%- else %}
+#     {{ env }} \
+#     {%- endif %}
+# {%- endfor %}
+
+
+ENV LANG C.UTF-8
+ENV LC_ALL C.UTF-8
+ARG DEBIAN_FRONTEND=noninteractive
+ENV TZ=Asia/Seoul
+
+
+# RUN useradd --user-group --create-home --no-log-init --shell /bin/bash work
+
+RUN apt-get update && \
+    apt-get install -y \
+        ca-certificates \
+        wget curl git-core \
+        vim-tiny zip unzip \
+        python3 python3-pip \
+        libssl-dev libgl1-mesa-glx \
+        proj-bin libproj-dev \
+        libgeos-dev libgeos++-dev libglib2.0-0 \
+        mime-support ncurses-term \
+        {% for package in apt %}
+
+        {% if package=="" %}
+   
+        {% else %}
+        {{ package }}\
+        {% endif %}    
+
+        {% endfor %}     
+        gcc g++ &&\
+
+    apt-get clean && \
+    rm -rf /var/lib/apt/lists/ && \
+    rm -rf /root/.cache && \
+    rm -rf /tmp/*
+
+# {% if allow_root %} 
+# RUN echo "work ALL=(ALL:ALL) NOPASSWD:ALL" >> /etc/sudoers 
+# {% endif -%}
+# RUN ln -sf /usr/share/terminfo/x/xterm-color /usr/share/terminfo/x/xterm-256color
+# RUN mkdir /data
+# COPY ./tango/common/{{userid}}/{{projectid}} /data
+# COPY /var/lib/docker/volumes/tango_shared/_data/common/{{userid}}/{{projectid}} /data
+# WORKDIR /data
+
+RUN python3 -m pip install -U pip setuptools && \
+
+    python3 -m pip install Pillow && \
+    python3 -m pip install h5py && \
+    python3 -m pip install ipython && \
+    python3 -m pip install jupyter && \
+    {% for pip in pypi %}
+    {% if pip=="" %}
+   
+    {% else %}
+    python3 -m pip install {{ pip }}
+    {% endif %}
+ 
+ 
+    {% endfor %}     
+
+    python3 -m pip install jupyterlab
+
+WORKDIR /
+COPY tango/common/{{userid}}/{{projectid}} /data
+WORKDIR  /data
+# RUN python3 -m pip install -r nn_model/fileset-main/yolov5s/requirements.txt
+RUN python3 -m pip install -r nn_model/fileset/yolov7/requirements.txt
+
+
+# """  # noqa

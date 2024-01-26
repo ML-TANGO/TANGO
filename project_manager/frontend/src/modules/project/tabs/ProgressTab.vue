@@ -13,30 +13,78 @@
         </div>
       </div>
       <h4 class="ml-3 mb-3">
-        Progress - {{ showContainerName(projectInfo?.container) }} {{ projectInfo?.container_status }}
+        Progress - {{ DisplayName[projectInfo?.container] }} {{ projectInfo?.container_status }}
       </h4>
-      <v-card color="#DFDFDF" class="" style="border-radius: 4px" height="180">
-        <div>
-          <ProgressCanvas :running="projectInfo?.container" :status="projectInfo?.container_status" @start="start" />
+      <v-card color="#DFDFDF" class="ma-1" style="border-radius: 4px" height="180">
+        <div style="height: 100%">
+          <ProgressCanvas
+            :running="projectInfo?.container"
+            :status="projectInfo?.container_status"
+            :userEdit="project.deploy_user_edit === 'yes'"
+            :workflow="project?.workflow"
+            @start="start"
+            @showVis2code="showVis2code"
+            @immediateLaunch="immediateLaunch"
+          />
         </div>
       </v-card>
+      <v-btn
+        @click="open = !open"
+        v-if="project.task_type === TaskType.CLASSIFICATION && projectInfo?.container !== ContainerName.BMS"
+        style="background-color: #fff"
+        class="ml-1 elevation-0"
+      >
+        <div v-if="!open">
+          <v-icon>mdi-chevron-down</v-icon>
+
+          Open VISUALIZATION
+        </div>
+
+        <div v-else>
+          <v-icon>mdi-chevron-up</v-icon>
+          Close VISUALIZATION
+        </div>
+      </v-btn>
+      <v-banner
+        v-model="open"
+        style="padding: 0px !important"
+        class="custom"
+        v-if="project.task_type === TaskType.CLASSIFICATION"
+      >
+        <v-card style="height: 1080px; overflow: none" class="mt-5">
+          <iframe :src="HongIKVis2Code" title="내용" width="100%" height="100%"></iframe>
+        </v-card>
+      </v-banner>
     </div>
     <div>
-      <h4 class="ml-3 mb-3">Log</h4>
-      <v-card color="#000" class="ml-3" style="border-radius: 4px" height="200">
-        <v-textarea
-          ref="logs"
-          id="log"
-          dark
-          filled
-          no-resize
-          :value="vale"
-          height="200"
-          style="font-size: 12px"
-          readonly
-          autofocus
-        ></v-textarea>
-      </v-card>
+      <div class="d-flex justify-space-between align-center" style="width: 100%">
+        <h4 class="ml-3 mb-3">Log</h4>
+
+        <v-tooltip left>
+          <template v-slot:activator="{ on, attrs }">
+            <v-btn icon v-bind="attrs" v-on="on">
+              <v-icon v-if="copySuccess">mdi-clipboard-check-multiple</v-icon>
+              <v-icon v-else-if="copyFailed">mdi-clipboard-off</v-icon>
+              <v-icon v-else @click="clipboardCopy">mdi-clipboard-text</v-icon>
+            </v-btn>
+          </template>
+          <span v-if="copySuccess" style="font-size: 10px">Copied</span>
+          <span v-else-if="copyFailed" style="font-size: 10px">Can not copy</span>
+          <span v-else style="font-size: 10px">Copy Log</span>
+        </v-tooltip>
+      </div>
+      <v-textarea
+        ref="logs"
+        id="log"
+        class="mb-5 ma-1 log-area"
+        dark
+        filled
+        :value="vale"
+        background-color="#000"
+        style="font-size: 12px"
+        readonly
+        hide-details
+      ></v-textarea>
     </div>
   </div>
 </template>
@@ -47,8 +95,9 @@ import { ProjectNamespace, ProjectMutations } from "@/store/modules/project";
 import ProgressCanvas from "@/modules/project/components/ProgressCanvas.vue";
 
 import { ProjectType } from "@/shared/consts";
+import { DisplayName, TaskType, ContainerName } from "@/shared/enums";
 
-import { containerStart /* startContainer , stopContainer, getStatusResult*/, updateProjectType } from "@/api";
+import { containerStart, updateProjectType } from "@/api";
 export default {
   components: { ProgressCanvas },
   props: {
@@ -59,12 +108,28 @@ export default {
   data() {
     return {
       vale: ``,
-      running: ""
+      running: "",
+      copyFailed: false,
+      copySuccess: false,
+      isVis2Code: false,
+      open: false,
+      DisplayName,
+      TaskType,
+      ContainerName
     };
   },
 
   computed: {
-    ...mapState(ProjectNamespace, ["project"])
+    ...mapState(ProjectNamespace, ["project"]),
+
+    HongIKVis2Code() {
+      if (process.env.NODE_ENV === "production") {
+        const host = window.location.hostname;
+        return `http://${host}:8091`;
+      } else {
+        return `${process.env.VUE_APP_ROOT_HOST}:8091`;
+      }
+    }
   },
 
   mounted() {
@@ -74,6 +139,10 @@ export default {
     });
 
     this.$EventBus.$on("logUpdate", this.updateLog);
+    this.$EventBus.$on("control_Vis2Code", status => {
+      this.isVis2Code = status;
+      this.open = status;
+    });
   },
 
   methods: {
@@ -81,9 +150,16 @@ export default {
       SET_PROJECT: ProjectMutations.SET_PROJECT
     }),
 
+    showVis2code() {
+      this.isVis2Code = true;
+      this.open = true;
+    },
+
     updateLog(log) {
-      if (log.message !== "\n") {
-        this.vale += log.message;
+      if (log?.message !== "\n") {
+        if (log?.message?.trim()) {
+          this.vale += log.message;
+        }
       }
       this.$nextTick(() => {
         const element = document.getElementById("log");
@@ -92,11 +168,11 @@ export default {
     },
 
     start(container) {
-      console.log("projectInfo", this.projectInfo);
+      const containerName = DisplayName[container];
 
       this.$swal
         .fire({
-          title: `${container}를 실행하시겠습니까?`,
+          title: `${containerName}를 실행하시겠습니까?`,
           text: "",
           icon: "warning",
           showCancelButton: true,
@@ -109,18 +185,22 @@ export default {
           if (result.isConfirmed) {
             this.$emit("restart", container);
             await updateProjectType(this.projectInfo.id, ProjectType.MANUAL);
-            const res = await containerStart(container, this.projectInfo.create_user, this.projectInfo.id);
-            this.vale += res.message;
-
-            this.SET_PROJECT({
-              project_type: ProjectType.MANUAL
-            });
+            await this.containerStartRequest(container);
+            this.SET_PROJECT({ project_type: ProjectType.MANUAL });
           }
         });
 
       this.SET_PROJECT({
         container: container
       });
+    },
+
+    async immediateLaunch(container) {
+      console.log("immediateLaunch", container);
+      this.$emit("restart", container);
+      await updateProjectType(this.projectInfo.id, ProjectType.MANUAL);
+      await this.containerStartRequest(container);
+      this.SET_PROJECT({ project_type: ProjectType.MANUAL, container: container });
     },
 
     async autoCreate() {
@@ -140,21 +220,19 @@ export default {
           .then(async result => {
             if (result.isConfirmed) {
               await updateProjectType(this.projectInfo.id, ProjectType.AUTO);
-              const res = await containerStart("bms", this.projectInfo.create_user, this.projectInfo.id);
-              this.vale += res.message;
+              await this.containerStartRequest("bms");
+              this.$emit("restart", "bms");
             }
           });
       } else {
         await updateProjectType(this.projectInfo.id, ProjectType.AUTO);
-        const res = await containerStart("bms", this.projectInfo.create_user, this.projectInfo.id);
-        this.vale += res.message;
+        await this.containerStartRequest("bms");
+        this.$emit("restart", "bms");
       }
 
       this.SET_PROJECT({
         project_type: ProjectType.AUTO
       });
-
-      this.$emit("start");
     },
 
     async menualCreate() {
@@ -185,22 +263,45 @@ export default {
       });
     },
 
-    showContainerName(container) {
-      if (container) {
-        if (container.toLowerCase() === "bms") {
-          return "BMS";
-        } else if (container.toLowerCase() === "yoloe") {
-          return "Auto NN";
-        } else if (container.toLowerCase() === "codegen") {
-          return "Code Gen";
-        } else if (container.toLowerCase() === "imagedepoly") {
-          return "Image Depoly";
-        } else {
-          return "";
+    // showContainerName(container) {
+    //   if (container) {
+    //     if (container.toLowerCase() === "bms") {
+    //       return "BMS";
+    //     } else if (container.toLowerCase() === "yoloe") {
+    //       return "Auto NN";
+    //     } else if (container.toLowerCase() === "codegen") {
+    //       return "Code Gen";
+    //     } else if (container.toLowerCase() === "imagedeploy") {
+    //       return "Image Deploy";
+    //     } else {
+    //       return "";
+    //     }
+    //   } else {
+    //     return "";
+    //   }
+    // },
+
+    clipboardCopy() {
+      this.$copyText(this.vale).then(
+        () => {
+          this.copySuccess = true;
+          setTimeout(() => {
+            this.copySuccess = false;
+          }, 1000);
+        },
+        () => {
+          this.copyFailed = true;
+          setTimeout(() => {
+            this.copyFailed = false;
+          }, 1000);
         }
-      } else {
-        return "";
-      }
+      );
+    },
+
+    async containerStartRequest(container) {
+      const res = await containerStart(container, this.projectInfo.create_user, this.projectInfo.id);
+      this.updateLog({ message: res.message });
+      this.updateLog({ message: res.response });
     }
   }
 };
@@ -220,5 +321,17 @@ export default {
 
 .btn {
   z-index: 15;
+}
+</style>
+
+<style>
+.log-area textarea {
+  min-height: 400px;
+}
+</style>
+
+<style>
+.custom .v-banner__wrapper {
+  padding: 4px !important;
 }
 </style>

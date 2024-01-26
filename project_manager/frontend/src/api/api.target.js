@@ -28,12 +28,14 @@ export async function createTarget(param) {
   formData.append("cpu", param.cpu);
   formData.append("acc", param.acc);
   formData.append("memory", param.memory);
+  formData.append("nfs_ip", param.nfs_ip || "");
+  formData.append("nfs_path", param.nfs_path || "");
   formData.append("host_ip", param.host_ip);
   formData.append("host_port", param.host_port);
   formData.append("host_service_port", param.host_service_port);
 
   try {
-    response = await axios.post("/api/target_create", formData);
+    response = await axios.post("/api/target_create", formData, { headers: { "Content-Type": "multipart/form-data" } });
   } catch (error) {
     throw new Error(error);
   }
@@ -58,12 +60,14 @@ export async function updateTarget(param) {
   formData.append("cpu", param.cpu);
   formData.append("acc", param.acc);
   formData.append("memory", param.memory);
+  formData.append("nfs_ip", param.nfs_ip || "");
+  formData.append("nfs_path", param.nfs_path || "");
   formData.append("host_ip", param.host_ip);
   formData.append("host_port", param.host_port);
   formData.append("host_service_port", param.host_service_port);
 
   try {
-    response = await axios.post("/api/target_update", formData);
+    response = await axios.post("/api/target_update", formData, { headers: { "Content-Type": "multipart/form-data" } });
   } catch (error) {
     throw new Error(error);
   }

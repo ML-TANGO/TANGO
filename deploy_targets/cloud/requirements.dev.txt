@@ -1,0 +1,3 @@
+-r cloud_manager/requirements.txt
+-r cloud_manager/requirements.dev.txt
+# -r image_builder/requirements.txt

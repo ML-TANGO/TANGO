@@ -76,9 +76,15 @@ class Project(models.Model):
     deploy_input_data_path = models.CharField(blank=True, null=True, max_length=50, default='')
     deploy_output_method = models.CharField(blank=True, null=True, max_length=50, default='')
 
+    deploy_input_source = models.CharField(blank=True, null=True, max_length=50, default='') # 20230710
+
     container = models.CharField(blank=True, null=True, max_length=50, default='')               # 신경망 생성 단계
     container_status = models.CharField(blank=True, null=True, max_length=50, default='')        # 신경망 생성 상태
 
+
+    last_logs_timestamp = models.FloatField(blank=True, null=True, default=0)               # 마지막 로그 출력 시간
+    last_log_container = models.CharField(blank=True, null=True, max_length=50, default='') # 마지막 로그를 불러온 컨테이너
+    current_log = models.TextField(blank=True, null=True, default='')                       # last_logs_timestamp 이후로 찍힌 로그
 
     class Meta:
         """Project Meta class
@@ -110,6 +116,8 @@ class Target(models.Model):
     target_cpu = models.CharField(blank=True, null=True, max_length=50)                 # 타겟 정보 - cpu
     target_acc = models.CharField(blank=True, null=True, max_length=50)                 # 타겟 정보 - acc
     target_memory = models.CharField(blank=True, null=True, max_length=50)              # 타겟 정보 - memory
+    nfs_ip = models.CharField(blank=True, null=True, max_length=50)                     # 타겟 정보 - nfs_ip (for k8s)
+    nfs_path = models.CharField(blank=True, null=True, max_length=50)                   # 타겟 정보 - nfs_path (for k8s)
     target_host_ip = models.CharField(blank=True, null=True, max_length=50)             # 타겟 정보 - host_ip
     target_host_port = models.CharField(blank=True, null=True, max_length=50)           # 타겟 정보 - host_port
     target_host_service_port = models.CharField(blank=True, null=True, max_length=30)   # 타겟 정보 - host_service_port
@@ -250,3 +258,27 @@ class Oauth2ProviderRefreshtoken(models.Model):
         db_table = 'oauth2_provider_refreshtoken'
         unique_together = (('token', 'revoked'),)
 
+
+class WorkflowOrder(models.Model):
+    """WorkflowOrder class
+    Note:
+    Args:
+        models.Model
+    Attributes:
+    """
+    id = models.AutoField(primary_key=True)                                 # order 아이디 : 기본키
+    workflow_name = models.CharField(blank=True, null=True, max_length=30)  # workflow 이름 : (BMS, yoloe 등등..)
+    order = models.IntegerField(blank=True, null=True)                      # 워크플로우 순서
+    project_id = models.IntegerField(blank=True, null=True)                 # workflow가 속한 프로젝트 아이디
+
+    class Meta:
+        """Target Meta class
+        Note:
+        Args:
+          None
+        Attributes:
+        """
+        # managed = False
+
+        # DB 테이블 이름
+        db_table = 'workflow_order'

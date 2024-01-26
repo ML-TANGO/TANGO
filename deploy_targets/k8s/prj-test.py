@@ -4,7 +4,7 @@ import requests
 import time
 
 # my port
-def_send_port = 8902
+def_send_port = 8901
 def_send_url = "%s%4d" % ("http://0.0.0.0:", def_send_port)
 
 # prj_mng port
@@ -27,13 +27,13 @@ def send_thr():
             data = 'user_id=""&project_id=""'
         elif x[0] == '1':
             url = "%s%s" % (def_send_url, '/start')
-            data = 'user_id=make8388&project_id=1'
+            data = 'user_id=test123&project_id=3'
         elif x[0] == '2':
             url = "%s%s" % (def_send_url, '/stop')
-            data = 'user_id=make8388&project_id=1'
+            data = 'user_id=test123&project_id=3'
         elif x[0] == '3':
             url = "%s%s" % (def_send_url, '/status_request')
-            data = 'user_id=make8388&project_id=1'
+            data = 'user_id=test123&project_id=3'
         else:
             continue
 

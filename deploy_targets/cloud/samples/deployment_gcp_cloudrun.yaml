@@ -1,0 +1,32 @@
+build:
+  architecture: x86
+  accelerator: cpu
+  os: ubuntu20.04
+  image_uri: us-docker.pkg.dev/cloudrun/container/hello:latest
+  components:
+    engine: pytorch
+    libs: [python==3.9, torch>=1.1.0]
+    custom_packages:
+      apt:
+        - vim
+        - hello
+      pypi:
+        - flask==1.2.3
+
+deploy:
+  type: gcp-cloudrun
+  service_name: hello
+  # work_dir: /workspace
+  # pre_exec: [['tensorrt-converter.py', param1, param2], ['hello.py']]
+  entrypoint: [run.sh, -p, "opt1", "arg"]
+  network:
+    service_host_ip: 1.2.3.4  # for cloud
+    service_host_port: 8890   # for cloud
+  k8s:
+    nfsip: 192.168.0.189      # for k8s, NFS-server IP
+    nfspath: /var/lib/docker/volumes/tango_shared/_data # for k8s, NFS-server path
+
+optional:
+  nn_file: abc.py
+  weight_file: abc.pt
+  annotation_file: coco.dat

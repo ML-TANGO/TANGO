@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import "./ModalStyle.css";
 import { EditText } from 'react-edit-text';
 import 'react-edit-text/dist/index.css';
-import Sidebar from "../sidebar";
+import Sidebar from "../sidebar/LayerToggle";
 import axios from 'axios';
 
 
@@ -97,7 +97,7 @@ const CrossEntropyLoss = (props) => {
 
 //    console.log(text8, "text7");
 //    console.log(text9, "text7");
-
+props.setState("");
     save();
   };
 
@@ -109,8 +109,47 @@ const CrossEntropyLoss = (props) => {
           <header>
             {header}
 
+          </header>
+          <main>
+          <React.Fragment>
 
-            <button className="close" onClick={() => {
+
+          <div>
+              <li>
+                  <label htmlFor="text">weight:</label>
+                  <EditText name="weight" type="text" style={{width: '50px'}} value={text}
+                    onChange={setText} inline/>
+              </li>
+              <li>
+                  <label htmlFor="text">size_average:</label>
+                  <label> <input type="radio" name="radio1" value="True" onChange={handleClickRadioButton1} checked={radio1.includes("T")===true ? true : false}/>True </label>
+                  <label> <input type="radio" name="radio1" value="False" onChange={handleClickRadioButton1} checked={radio1.includes("F")===true ? true : false}/>False </label>
+              </li>
+              <li>
+                  <label htmlFor="text">ignore_index:</label>
+                  <EditText name="ignore_index" type="text" style={{width: '50px'}} value={text2}
+                    onChange={setText2} inline/>
+              </li>
+              <li>
+                  <label htmlFor="text">reduce:</label>
+                  <label> <input type="radio" name="radio2" value="True" onChange={handleClickRadioButton2} checked={radio2.includes("T")===true ? true : false}/>True </label>
+                  <label> <input type="radio" name="radio2" value="False" onChange={handleClickRadioButton2} checked={radio2.includes("F")===true ? true : false}/>False </label>
+              </li>
+              <li>
+                  <label htmlFor="text">reduction:</label>
+                  <EditText name="reduction" type="text" style={{width: '50px'}} value={text3}
+                    onChange={setText3} inline/>
+              </li>
+              <li>
+                  <label htmlFor="text">label_smoothing:</label>
+                  <EditText name="label_smoothing" type="text" style={{width: '50px'}} value={text4}
+                    onChange={setText4} inline/>
+              </li>
+              </div>
+          </React.Fragment>
+          </main>
+            <div className="btnDiv">
+                <button className="close" onClick={() => {
               setText('None')
               setRadio1('True')
               setText2('None')
@@ -123,47 +162,7 @@ const CrossEntropyLoss = (props) => {
             <button className="save" onClick={bfsave}>
               save
             </button>
-
-          </header>
-          <main>
-          <React.Fragment>
-
-
-          <div><label htmlFor="text">weight:</label>
-          <EditText name="weight" type="text" style={{width: '50px'}} value={text}
-            onChange={setText} inline/></div>
-
-
-          <div><label htmlFor="text">size_average:</label>
-          <label> <input type="radio" name="radio1" value="True" onChange={handleClickRadioButton1} checked={radio1.includes("T")===true ? true : false}/>True </label>
-          <label> <input type="radio" name="radio1" value="False" onChange={handleClickRadioButton1} checked={radio1.includes("F")===true ? true : false}/>False </label>
-          </div>
-
-
-          <div><label htmlFor="text">ignore_index:</label>
-          <EditText name="ignore_index" type="text" style={{width: '50px'}} value={text2}
-            onChange={setText2} inline/></div>
-
-
-          <div><label htmlFor="text">reduce:</label>
-          <label> <input type="radio" name="radio2" value="True" onChange={handleClickRadioButton2} checked={radio2.includes("T")===true ? true : false}/>True </label>
-          <label> <input type="radio" name="radio2" value="False" onChange={handleClickRadioButton2} checked={radio2.includes("F")===true ? true : false}/>False </label>
-          </div>
-
-
-
-
-
-          <div><label htmlFor="text">reduction:</label>
-          <EditText name="reduction" type="text" style={{width: '50px'}} value={text3}
-            onChange={setText3} inline/></div>
-
-          <div><label htmlFor="text">label_smoothing:</label>
-          <EditText name="label_smoothing" type="text" style={{width: '50px'}} value={text4}
-            onChange={setText4} inline/></div>
-          </React.Fragment>
-          </main>
-
+            </div>
         </section>
       ) : null}
     </div>

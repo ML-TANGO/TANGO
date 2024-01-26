@@ -15,13 +15,15 @@
     <div class="d-flex justify-center align-center pa-3">
       <v-img :src="item?.image" width="60" max-width="60" contain></v-img>
     </div>
-    <div class="ml-3 d-flex flex-column justify-center" style="width: 300px">
+    <div class="ml-3 d-flex flex-column justify-center" style="min-width: 115px">
       <div class="d-flex align-center" style="gap: 10px">
         <p style="color: #000000ff; letter-spacing: 1px; font-size: 14px" class="pa-0 ma-0">{{ item?.name }}</p>
       </div>
-      <div class="d-flex align-center mt-3" style="gap: 10px">
-        <small style="color: #aaa; font-size: 11px; min-width: 70px">{{ item?.create_date?.slice(0, 10) }}</small>
-        <small style="color: #aaa; font-size: 11px; min-width: 110px">
+      <div class="d-flex justify-center mt-3 flex-column">
+        <small style="color: #aaa; font-size: 10px; min-width: 70px; line-height: 1">
+          {{ item?.create_date?.slice(0, 10) }}
+        </small>
+        <small style="color: #aaa; font-size: 10px; min-width: 110px; line-height: 1">
           created by
           <span style="color: #4a80ff">{{ item?.create_user }}</span>
         </small>
@@ -31,11 +33,10 @@
     <v-hover v-slot="{ hover }">
       <div style="width: 100%; height: 100%">
         <v-slide-y-transition leave-absolute hide-on-leave>
-          <!-- v-if="index % 2 === 0 ? true : !hover" -->
           <div
             class="d-flex align-center"
-            style="gap: 8px; height: 100%; transition-duration: 0.5s !important"
-            v-if="item?.info === 'ondevice' ? true : !hover"
+            style="gap: 15px; height: 100%; transition-duration: 0.5s !important"
+            v-if="!isMoreInfo ? true : !hover"
           >
             <div class="d-flex flex-column text-center" style="width: 70px">
               <small class="mb-2" style="letter-spacing: 1px; color: #aaa; font-size: 10px">Info</small>
@@ -67,20 +68,38 @@
           <!--  v-if="index % 2 === 0 ? false : hover" -->
           <div
             class="d-flex align-center"
-            style="gap: 23px; height: 100%; transition-duration: 0.5s !important"
-            v-if="item?.info === 'ondevice' ? false : hover"
+            style="height: 100%; transition-duration: 0.5s !important; flex-flow: wrap"
+            v-if="!isMoreInfo ? false : hover"
           >
-            <div class="d-flex flex-column text-center" style="width: 105px">
-              <small class="mb-2" style="letter-spacing: 1px; color: #aaa; font-size: 10px">IP Address</small>
+            <div v-if="item?.host_ip" class="d-flex flex-column text-center mr-3" style="width: 125px">
+              <small class="mb-0" style="letter-spacing: 1px; color: #aaa; font-size: 10px">IP Address</small>
               <p class="ma-0" style="font-size: 13px">{{ item?.host_ip }}</p>
             </div>
-            <div class="d-flex flex-column text-center" style="width: 50px">
-              <small class="mb-2" style="letter-spacing: 1px; color: #aaa; font-size: 10px">Port</small>
+
+            <div v-if="item?.host_port" class="d-flex flex-column text-center mr-3" style="width: 50px">
+              <small class="mb-0" style="letter-spacing: 1px; color: #aaa; font-size: 10px">Port</small>
               <p class="ma-0" style="font-size: 13px">{{ item?.host_port }}</p>
             </div>
-            <div class="d-flex flex-column text-center" style="width: 80px">
-              <small class="mb-2" style="letter-spacing: 1px; color: #aaa; font-size: 10px">Service Port</small>
+
+            <div v-if="item?.host_service_port" class="d-flex flex-column text-center mr-3" style="width: 80px">
+              <small class="mb-0" style="letter-spacing: 1px; color: #aaa; font-size: 10px">Service Port</small>
               <p class="ma-0" style="font-size: 13px">{{ item?.host_service_port }}</p>
+            </div>
+
+            <div
+              v-if="item?.info === 'k8s' && item?.nfs_ip"
+              class="d-flex flex-column text-center mr-3"
+              style="max-width: 120px"
+            >
+              <small class="mb-0" style="letter-spacing: 1px; color: #aaa; font-size: 10px">NFS IP</small>
+              <p class="ma-0" style="font-size: 13px">{{ item?.nfs_ip }}</p>
+            </div>
+
+            <div v-if="item?.info === 'k8s' && item?.nfs_path" class="d-flex flex-column text-center mr-3">
+              <small class="mb-0" style="letter-spacing: 1px; color: #aaa; font-size: 10px">NFS Path</small>
+              <p class="ma-0" style="font-size: 13px">
+                {{ item?.nfs_path }}
+              </p>
             </div>
           </div>
         </v-slide-y-reverse-transition>
@@ -105,8 +124,21 @@ export default {
       default: () => ({})
     }
   },
+
   data() {
     return { prettyBytes };
+  },
+
+  computed: {
+    isMoreInfo() {
+      return (
+        this.isValid(this.item?.host_ip) ||
+        this.isValid(this.item?.host_port) ||
+        this.isValid(this.item?.host_service_port) ||
+        this.isValid(this.item?.nfs_ip) ||
+        this.isValid(this.item?.nfs_path)
+      );
+    }
   },
 
   methods: {
@@ -120,6 +152,14 @@ export default {
 
     onSelected() {
       this.$emit("click");
+    },
+
+    isValid(data) {
+      if (data !== "" && data !== undefined && data !== null) {
+        return true;
+      } else {
+        return false;
+      }
     }
   }
 };

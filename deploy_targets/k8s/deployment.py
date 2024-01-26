@@ -35,7 +35,7 @@ except Exception as err:
    #job_name=self.m_acc_type, input_data=self.m_current_file_path, output_data=self.m_current_code_folder, weight_file=self.m_weight_file, anotation_file=self.m_annotation_file
 class KubeJob:
     def __init__(self, job_name, input_data, output_data, weight_file, annotation_file, prj_path, 
-                model_file, nfs_path, nfs_ip, nn_file, image_name, svc_port):
+                model_file, nfs_path, nfs_ip, nn_file, image_name, svc_port, service_host_ip):
         self.job_name = job_name
         self.input_data = input_data
         self.output_data = output_data
@@ -48,26 +48,29 @@ class KubeJob:
         self.nfs_ip = nfs_ip
         self.image_name = image_name
         self.svc_port = svc_port
+        self.service_host_ip=service_host_ip
     
 
     def create_job_object(self):
         #output_data=self.output_data.split('./')
        # self.output_data=output_data[1]
         #if 'train' in str(self.nn_file):
+        prj_path_split=str(self.prj_path).split('/tango')
             
         container = client.V1Container(
             name= self.job_name,
             image= self.image_name,   # for test
-            image_pull_policy= 'IfNotPresent',
+            # image_pull_policy= 'IfNotPresent',
+            image_pull_policy= 'Always',
             command=["bash", "-c"],
-            volume_mounts=[client.V1VolumeMount(name=self.job_name, mount_path='/tango')],
+            volume_mounts=[client.V1VolumeMount(name=self.job_name, mount_path='/mnt')],
             env=[
             client.V1EnvVar(name="NAME", value=str(self.job_name)),
             client.V1EnvVar(name="INPUT_DATA", value=str(self.input_data)),
             client.V1EnvVar(name="OUTPUT_DATA", value=str(self.output_data)),
             client.V1EnvVar(name="WEIGHT", value=str(self.weight_file)),
             client.V1EnvVar(name="CLASSES", value=str(self.output_data)),
-            client.V1EnvVar(name="PRJ_PATH", value=str(self.prj_path)),
+            client.V1EnvVar(name="PRJ_PATH", value=str(prj_path_split[1])),
             client.V1EnvVar(name="ANN", value=str(self.annotation_file)),
             client.V1EnvVar(name="MODEL", value=str(self.model_file)),
             client.V1EnvVar(name="NN_FILE", value=str(self.nn_file))
@@ -76,10 +79,13 @@ class KubeJob:
             #    args=["cd /app/ && cd $(PRJ_PATH) && python3 $(NN_FILE) --cfg   --weights $(MODEL) --data models/$(ANN) --name $(NAME)"]
             
             #args=["cd /app/ && cd $(PRJ_PATH) && python3 $(NN_FILE)  --weights $(MODEL) --data data/$(ANN) "]) # --source $(INPUT_DATA) -w $(WEIGHT) -c $(ANN) --device cpu
-            args=["cd $(PRJ_PATH) && python3 output.py"])
+            # args=["cd $(PRJ_PATH) && python3 output.py"])
+            # args=["sleep 10000;"])
+            # args=["cd /mnt$(PRJ_PATH)/fileset-main/yolov5s/ && python3 output.py"])
+            args=["cd /mnt$(PRJ_PATH)/fileset/yolov7 && python3 output.py"])
         volume = client.V1Volume(name=self.job_name, persistent_volume_claim=client.V1PersistentVolumeClaimVolumeSource(claim_name=self.job_name))
 
-        template = client.V1PodTemplateSpec(spec=client.V1PodSpec(restart_policy="Never", containers=[container], volumes=[volume]))  #,node_selector={"kubernetes.io/hostname" : "etri-3"}
+        template = client.V1PodTemplateSpec(spec=client.V1PodSpec(node_selector={"kubernetes.io/hostip" : self.service_host_ip}, restart_policy="Never", containers=[container], volumes=[volume]))  #,node_selector={"kubernetes.io/hostname" : "etri-3"}
 
         spec = client.V1JobSpec(
             template=template,
@@ -106,8 +112,8 @@ class KubeJob:
                 selector={"job-name": self.job_name},
                 type="NodePort",
                 ports=[client.V1ServicePort(
-                    port=8901,
-                    target_port=8901,
+                    port=8902,
+                    target_port=8902,
                     node_port=int(self.svc_port)) 
                     ]
             )

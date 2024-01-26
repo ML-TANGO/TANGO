@@ -22,10 +22,12 @@ seaborn==0.11.2
 setuptools==59.5.0
 sqlparse==0.4.2
 tensorboardX==2.6
-torch==1.10.2
-torchvision==0.11.3
+torch==1.13.1
+torchvision==0.14.1
 tqdm==4.62.3
 typing_extensions==4.1.1
 urllib3==1.26.7
 pyyaml==6.0
 protobuf==3.20.1
+onnx==1.12.0
+onnxsim==0.4.33

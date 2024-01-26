@@ -1,0 +1,14 @@
+# hyp params for evolution search
+pop_size: 1
+num_generations: 500
+parent_ratio: 1.
+mutate_prob: 0.1
+mutation_ratio: 0.5
+# hyp params for search type
+constraint_type: "galaxy22"
+efficiency_constraint: 3000
+efficiency_predictor: None
+# hyp parmas for accuracy predictor
+accuracy_predictor: None
+weights: 'yolov7_supernet.pt'
+fintune_epochs: 1

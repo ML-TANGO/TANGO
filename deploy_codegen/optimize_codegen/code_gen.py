@@ -6,6 +6,16 @@ copyright notice
 code_gen.py
 This module generates template code for RKNN, PyTorch, and ArmNN based on AutoNN's output.
 """
+# khlee To Do List
+'''
+web app template gen.
+nms code gen.
+deployment.yaml location change : under nn_model
+deployment.yaml user editing -> user can be add papy app libs 
+tflite code gen.
+input source mp4 + jpg in same folder
+'''
+
 import os
 import socket
 import shutil
@@ -18,7 +28,6 @@ import sys
 import logging
 import threading
 import time
-import time
 import yaml
 # for web service
 from http.server import HTTPServer, SimpleHTTPRequestHandler
@@ -28,6 +37,7 @@ import requests
 # code_gen.py
 import      torch
 import      torch.onnx
+import tensorflow as tf
 # from        torchvision import  models
 # from        onnxruntime.quantization import  quantize_dynamic
 # from        onnxruntime.quantization import  QuantType
@@ -39,11 +49,6 @@ logging.basicConfig(level=logging.DEBUG, format="(%(threadName)s) %(message)s")
 def_top_folder = "/tango/common"    # for docker
 def_top_data_folder = "/tango/datasets"    # for docker
 def_code_folder_name = "nn_model"
-
-# for rknn
-from rknn.api import RKNN
-def_rknn_file = "yolov5.rknn"
-def_rknn_template = "yolov5.template"
 
 # for TensorRT
 def_trt_converter_file_name = "tensorrt-converter.py"
@@ -60,9 +65,9 @@ def_trt_max_detection = 100
 def_TVM_dev_type = 0   # 0 llvm ,1 cuda,  
 def_TVM_width = 640 
 def_TVM_height = 640 
-def_TVM_data_type = "float16"
-def_TVM_lib_path = "mylib.so"
-def_TVM_code_path = "mycode.bin"
+def_TVM_data_type = "float32"
+def_TVM_mod = "yolov7.mod"
+def_TVM_param = "yolov7.param"
 def_TVM_myutil_file_name = "./db/myutil.py"
 
 
@@ -76,7 +81,7 @@ def_memory_size = 1
 def_cpu_type = ""  # 'x86'  # arm
 def_acc_type = ""  # 'cpu'  # cpu/cuda/opencl
 def_os_type = ""  # ubuntu'  # linux/windows
-def_engine_type = ""  # pytorch'  # acl/rknn/tvm/tensorrt
+def_engine_type = ""  # pytorch'  # acl/tvm/tensorrt
 def_libs = [] # ["python==3.9", "torch>=1.1.0"]
 def_apt = [] # ["vim", "python3.9"]
 def_papi = [] # ["flask==1.2.3", "torch>=1.1.0"]
@@ -93,7 +98,7 @@ def_deploy_nfs_path = "/tango/common/model"
 def_class_file = ""  # 'input.py'
 def_model_definition_file = ""
 def_weight_pt_file = ""  # 'input.pt'
-def_weight_onnx_file = "tango.onnx"  # ' input.onnx'
+def_weight_onnx_file = ""  # ' input.onnx'
 def_dataset_path = "/tango/datasets"  
 def_annotation_file = "dataset.yaml"  # 'coco.dat'
 def_ondevice_python_requirements = "requirements.txt"  
@@ -110,6 +115,51 @@ def_tvm_manual = './db/odroid-m1-manual.txt'
 
 def_yolo_base_file_path = "."
 def_yolo_requirements = "yoloe_requirements.txt"
+
+
+# for android
+os.environ['TF_CPP_MIN_LOG_LEVEL']='2'
+
+def tf2tflite(input_size = 640, pb_file="model_float32.pb", output_file="mymodel.tflite"):
+    input_arrays = ['inputs']
+    output_arrays = ['Identity', 'Identity_1', 'Identity_2']
+    converter = tf.compat.v1.lite.TFLiteConverter.from_frozen_graph(pb_file, input_arrays, output_arrays)
+    converter.experimental_new_quantizer = False
+    # converter.inference_input_type = tf.uint8
+    converter.inference_output_type = tf.float32
+    converter.optimizations = [tf.lite.Optimize.DEFAULT]
+    converter.target_spec.supported_types = [tf.float16]
+    tflite_model = converter.convert()
+    with open(output_file, 'wb') as w:
+        w.write(tflite_model)
+    return
+
+def onnx2tflite(onnx_filename = "./yolov7-tiny.onnx"):
+    # onnx2openvino
+    mycmd = "python3 /opt/intel/openvino_2021/deployment_tools/model_optimizer/mo.py "
+    mycmd = mycmd + " --input_model %s" % onnx_filename
+    mycmd = mycmd + " --input_shape [1,3,640,640] "
+    mycmd = mycmd + " --output_dir .  "
+    mycmd = mycmd + " --data_type FP32 "
+    mycmd = mycmd + " --output Conv_134,Conv_149,Conv_164"
+    os.system(mycmd)
+
+    # openvino2tflite
+    os.system("openvino2tensorflow --model_path ./yolov7-tiny.xml  --model_output_path .  --output_no_quant_float32_tflite")
+
+    #move the tflite file to the place
+    os.system("cp model_float32.tflite ./tflite_yolov7_test/app/src/main/assets/yolov7-tiny_fp32_640.tflite")
+    os.system("rm -f ./tflite_yolov7_test/app/build/intermediates/assets/debug/yolov7-tiny_fp32_640.tflite")
+
+    #apk build
+    os.system("./tflite_yolov7_test/gradlew init < /app/enter.txt  && cd ./tflite_yolov7_test && ./gradlew assembleDebug")
+    os.system("cp ./tflite_yolov7_test/app/build/outputs/apk/debug/app-debug.apk /app")
+
+    # remove temp file & dirs
+    os.system("sudo /bin/rm -rf yolov7-tiny.xml tflite *.onnx *.mapping *.bin *.ptl *.tflite")
+    ret = "app-debug.apk"
+    return ret
+
 
 
 ####################################################################
@@ -189,7 +239,7 @@ class CodeGen:
     m_py = ""
     m_pt_model = ""
 
-    m_converted_file = def_rknn_file
+    m_converted_file = ""
     m_deploy_python_file = def_deploy_python_file
     m_requirement_file = def_requirement_file
 
@@ -417,7 +467,8 @@ class CodeGen:
             elif key == 'memory':
                 self.m_sysinfo_memory = int(value)
             elif key == 'target_info':
-                self.m_deploy_type = value
+                lower = value.lower()
+                self.m_deploy_type = lower
             elif key == 'cpu':
                 self.m_sysinfo_cpu_type = value
             elif key == 'acc':
@@ -441,10 +492,16 @@ class CodeGen:
             elif key == 'precision_level':
                 self.m_sysinfo_precision_level = int(value)
             elif key == 'input_source':
-                self.m_sysinfo_input_method = value  # url, path, camera ID 
+                if type(value) == str:
+                    self.m_sysinfo_input_method = "'" + value + "'" # url, path, camera ID 
+                else:
+                    self.m_sysinfo_input_method = value  # url, path, camera ID 
             elif key == 'output_method':
                 # 0:graphic, 1:text, path, url
-                self.m_sysinfo_output_method = value  
+                if type(value) == str:
+                    self.m_sysinfo_output_method = "'" + value + "'"  
+                else:
+                    self.m_sysinfo_output_method = value  
             elif key == 'user_editing':
                 self.m_sysinfo_user_editing = value  # yes/no
             elif key == 'confidence_thresh':
@@ -452,7 +509,7 @@ class CodeGen:
             elif key == 'iou_thresh':
                 self.m_sysinfo_iou_thresh = value  
             elif key == 'dataset':
-                myset = "%s/%s.yaml" % (value, value)
+                myset = "%s/dataset.yaml" % (value)
                 self.m_nninfo_annotation_file = myset
         f.close()
         return 0
@@ -504,8 +561,11 @@ class CodeGen:
                         else:
                             self.m_nninfo_weight_onnx_file = tmp_str  # .onnx
                 else:
-                    self.m_nninfo_weight_pt_file = value
-                    # self.m_nninfo_weight_onnx_file = value
+                    val = ".pt" in value 
+                    if val:
+                        self.m_nninfo_weight_pt_file = value
+                    else:
+                        self.m_nninfo_weight_onnx_file = value
             elif key == 'label_info_file':
                 self.m_nninfo_annotation_file = value
                 # parsing  labelmap
@@ -572,13 +632,17 @@ class CodeGen:
                 self.m_nninfo_postproc_iou_thres = float(value)
             elif key == 'need_nms':
                 self.m_nninfo_postproc_need_nms = value
-            self.m_nninfo_yolo_require_packages = []
-            with open(self.get_real_filepath(def_yolo_requirements)) as f:
-                while True:
-                    line = f.readline()
-                    if not line:
-                        break
-                    self.m_nninfo_yolo_require_packages.append(line.replace("\n", ""))
+        self.m_nninfo_yolo_require_packages = []
+        try:
+            f = open(self.get_real_filepath(def_yolo_requirements)) 
+            while True:
+                line = f.readline()
+                if not line:
+                    break
+                self.m_nninfo_yolo_require_packages.append(line.replace("\n", ""))
+            f.close()
+        except IOError as err:
+            print("yolo requirement file not found")
         return 0
 
     ####################################################################
@@ -596,45 +660,119 @@ class CodeGen:
         self.m_sysinfo_apt = def_apt
         self.m_sysinfo_papi = def_papi
         self.m_nninfo_user_libs = []
+        self.m_nninfo_weight_onnx_file = ""
         self.parse_nninfo_file()
         self.parse_sysinfo_file()
 
         # if there are files in the target folder, remove them
         self.clear()
 
-        # code gen
-        if self.m_sysinfo_engine_type == 'rknn':
-            self.m_sysinfo_libs = ['libprotobuf.so.10', 'x86_64-linux-gnu']
-            self.m_sysinfo_apt = ['python3==3.6', 'python3-dev', 'python3-pip',
-                                  'libxslt1-dev', 'zlib1g-dev', 'libglib2.0',
-                                  'libsm6', 'libgl1-mesa-glx', 'libprotobuf-dev', 'gcc']
-            self.m_sysinfo_papi = [
-                'rknn_toolkit2-1.2.0_f7bb160f-cp36-cp36m-linux_x86_64.whl',
-                'numpy==1.16.6',
-                'onnx==1.7.0',
-                'onnxoptimizer==0.1.0',
-                'onnxruntime==1.6.0',
-                'tensorflow =1.14.0',
-                'tensorboard==1.14.0',
-                'protobuf==3.12.0',
-                'torch==1.6.0',
-                'torchvision==0.7.0',
-                'psutil==5.6.2',
-                'ruamel.yaml==0.15.81',
-                'scipy=1.2.1',
-                'tqdm==4.27.0',
-                'requests==2.21.0',
-                'opencv-python==4.4.0.46',
-                'PuLP==2.4',
-                'scikit_image==0.17.2',
-                'flatbuffers==1.12'
-            ]
-            self.m_deploy_entrypoint = [self.m_deploy_python_file]
-            self.gen_rknn_python_code()
-            self.make_requirements_file_for_others()
+        if not os.path.exists(self.m_current_code_folder):
+            os.makedirs(self.m_current_code_folder)
+
+        if self.m_sysinfo_task_type == "classification":
+            if self.m_sysinfo_engine_type == 'pytorch':
+                self.m_sysinfo_libs = []
+                self.m_sysinfo_apt = ['vim', 'python3.9']
+                self.m_sysinfo_papi = ['torch', 'torchvision', 'opencv-python', 'pandas', 'numpy', 'python-math', 'albumentations']
+                self.m_deploy_entrypoint = self.m_deploy_python_file
+                if not os.path.exists(self.m_current_code_folder):
+                    os.makedirs(self.m_current_code_folder)
+                # copy requirements.txt file
+                req_file  = "%s%s%s" % (self.m_current_code_folder, "/", "requirements.txt")
+                p_len = len(self.m_sysinfo_papi)
+                if p_len >= 0:
+                    try:
+                        rf = open(req_file, "w") 
+                    except IOError as err:
+                        logging.debug("requirements file open error")
+                        self.m_last_run_state = 0
+                        return -1
+                    for i in range(p_len):
+                        rf.write(self.m_sysinfo_papi[i])
+                        rf.write("\n")
+                    rf.close()
+
+                # copy pt file
+                # code gen for classificaaion
+                # make nn_model folder
+                if not os.path.exists(self.m_current_code_folder):
+                    os.makedirs(self.m_current_code_folder)
+                # copy pt file
+                pt_path = "%s%s" % (self.m_current_file_path, self.m_nninfo_weight_pt_file)
+                shutil.copy(pt_path, self.m_current_code_folder)
+                # copy template code
+                codefile_path = "%s%s%s" % (self.m_current_code_folder, "/", self.m_deploy_python_file)
+                f = open(codefile_path, "w")
+                # copy heading 
+                f.write("#!/usr/bin/python\n")
+                f.write("# -*- coding: utf-8 -*-\n")
+                f.write("DEF_IMG_PATH = %s\n" % self.m_sysinfo_input_method) 
+                f.write("DEF_ACC = %s\n" % "\"cpu\"") # only for testing self.m_sysinfo_acc_type) 
+                f.write("DEF_PT_FILE = \"%s\"\n\n\n" % self.m_nninfo_weight_pt_file)
+                try:
+                    f1 = open("./db/resnet152.db", 'r')
+                except IOError as err:
+                    logging.debug("resnet162 db open error")
+                    self.m_last_run_state = 0
+                    return -1
+                for line1 in f1:
+                    f.write(line1)
+                f1.close()
+                f.close()
+
+                if self.m_deploy_type == 'cloud':
+                    self.make_requirements_file_for_docker()
+                elif self.m_deploy_type == 'k8s':
+                    self.make_requirements_file_for_docker()
+                elif self.m_deploy_type == 'pc_server':
+                    self.make_requirements_file_for_PCServer()
+                elif self.m_deploy_type == 'pc_web':
+                    self.make_requirements_file_for_PCServer()
+                else:
+                    self.make_requirements_file_for_others()
+            elif self.m_sysinfo_engine_type == 'tensorrt':
+                # add code for tensorrt
+                if not os.path.exists(self.m_current_code_folder):
+                    os.makedirs(self.m_current_code_folder)
+                # read model file
+                # convert the model file to onnx file
+                # convert the onnx file to tensorrt file
+                # copy tensorrt file to the nn_model folder
+                # copy template code file to the nn_model folder
+
+                if self.m_deploy_type == 'cloud':
+                    self.make_requirements_file_for_docker()
+                elif self.m_deploy_type == 'k8s':
+                    self.make_requirements_file_for_docker()
+                elif self.m_deploy_type == 'pc_server':
+                    self.make_requirements_file_for_PCServer()
+                elif self.m_deploy_type == 'pc_web':
+                    self.make_requirements_file_for_PCServer()
+                else:
+                    self.make_requirements_file_for_others()
+            else:
+                print("the inference engine is not support for classification")
+            self.m_last_run_state = 0
+            os.system("chmod -Rf 777 %s" % self.m_current_code_folder)
+            return
+
+        # tflite for galaxy 
+        if self.m_sysinfo_engine_type == 'tflite':   
+            if not os.path.exists(self.m_current_code_folder):
+                os.makedirs(self.m_current_code_folder)
+            # read  onnx file
+            my_onnx = "%s%s" % (self.m_current_file_path, self.m_nninfo_weight_onnx_file)
+            # onnx2tflitefile
+            ret = onnx2tflite(onnx_filename = my_onnx)
+            # copy apk to nn_model folder
+            shutil.copy(ret, self.m_current_code_folder)
+            self.m_last_run_state = 0
+            os.system("chmod -Rf 777 %s" % self.m_current_code_folder)
+            return
 
         # python
-        elif self.m_sysinfo_engine_type == 'pytorch':
+        if self.m_sysinfo_engine_type == 'pytorch':
             self.m_sysinfo_libs = []
             self.m_sysinfo_apt = ['vim', 'python3.9']
             self.m_sysinfo_papi = []
@@ -642,10 +780,15 @@ class CodeGen:
             self.gen_python_code()
             if self.m_deploy_type == 'cloud':
                 self.make_requirements_file_for_docker()
-            elif self.m_deploy_type == 'PCServer':
+            elif self.m_deploy_type == 'k8s':
+                self.make_requirements_file_for_docker()
+            elif self.m_deploy_type == 'pc_server':
+                self.make_requirements_file_for_PCServer()
+            elif self.m_deploy_type == 'pc_web':
                 self.make_requirements_file_for_PCServer()
             else:
                 self.make_requirements_file_for_others()
+            os.system("chmod -Rf 777 %s" % self.m_current_code_folder)
 
         # acl
         elif self.m_sysinfo_engine_type == 'acl':
@@ -656,224 +799,123 @@ class CodeGen:
             self.m_sysinfo_papi = []
             self.gen_acl_code()
             self.make_requirements_file_for_others()
+            os.system("chmod -Rf 777 %s" % self.m_current_code_folder)
+            self.m_last_run_state = 0
+
         elif self.m_sysinfo_engine_type == "tensorrt":
             self.m_deploy_entrypoint = [self.m_deploy_python_file]
-            # move autonn's pytorch to target folder(like prefix folder)
-            if self.m_nninfo_yolo_base_file_path != ".":  
+            
+            # if no onnx file
+            if self.m_nninfo_weight_onnx_file == "":
+                # move autonn's pytorch to target folder(like prefix folder)
+                if self.m_nninfo_yolo_base_file_path != ".":  
+                    if isinstance(self.m_nninfo_class_file, list):
+                        m_filelist = self.m_nninfo_class_file
+                    else:
+                        m_filelist = [self.m_nninfo_class_file]
+                    for mfile in m_filelist:
+                        self.copy_subfolderfile(mfile, self.m_nninfo_yolo_base_file_path)
+
+                # convert .py to onnx and copy
                 if isinstance(self.m_nninfo_class_file, list):
-                    m_filelist = self.m_nninfo_class_file
+                    t_file = self.m_nninfo_class_file[0]
                 else:
-                    m_filelist = [self.m_nninfo_class_file]
-                for mfile in m_filelist:
-                    self.copy_subfolderfile(mfile, self.m_nninfo_yolo_base_file_path)
-
-            # convert .py to onnx and copy
-            if isinstance(self.m_nninfo_class_file, list):
-                t_file = self.m_nninfo_class_file[0]
-            else:
-                t_file = self.m_nninfo_class_file
-            t_file = "%s%s" % (t_file, "\n")
-            tmp = t_file.split("/")
-            cnt = len(tmp)
-            t_file = tmp[0]
-            for  i in range(cnt-1):
-                t_file = "%s.%s" % (t_file, tmp[i+1])
-            t_file = t_file.split(".py\n")[0]
-            t_file = t_file.split("\n")[0]
-            t_split = self.m_nninfo_class_name.split("(")
-            t_class_name = t_split[0]
-            tmp_param = t_split[1].split(")")[0]
-            tmp_param = tmp_param.split("=")[1]
-
-            t_list = t_file.split(".")
-            t_list_len = len(t_list)
-            t_fromlist = ""
-            for i in range(t_list_len-1):
-                t_fromlist = "%s%s" % (t_fromlist, t_list[i])
-                if i < (t_list_len-2): 
-                    t_fromlist = "%s%s" % (t_fromlist, ".")
-            t_impmod = __import__(t_file, fromlist=[t_fromlist])
-            t_cls = getattr(t_impmod, t_class_name)
-
-            f_param = self.get_real_filepath(tmp_param[1:-1])
-            pt_model = t_cls(cfg=f_param)
-            pt_path = "%s%s" % (self.m_current_file_path, self.m_nninfo_weight_pt_file)
-            pt_model.load_state_dict(torch.load(pt_path, map_location=torch.device('cpu')), strict=False)
-            pt_model.eval()
-            # convert and save onnx file 
-            dummy = torch.randn(
-                    self.m_nninfo_input_tensor_shape[0], 
-                    self.m_nninfo_input_tensor_shape[1], 
-                    self.m_nninfo_input_tensor_shape[2], 
-                    self.m_nninfo_input_tensor_shape[3], 
-                    requires_grad=True)
-            t_folder = "%s/%s" % (self.m_current_code_folder, self.m_nninfo_weight_onnx_file)
-            torch.onnx.export(pt_model, dummy,
-                    t_folder,
-                    opset_version = 11,
-                    export_params=True, 
-                    input_names=['input'],
-                    output_names=['output'])
-            # khlee only for test copy yolov.onnx to tango.onnx
-            # must be deleted 
-            shutil.copy("./db/yolov7.onnx", t_folder)
-
+                    t_file = self.m_nninfo_class_file
+                t_file = "%s%s" % (t_file, "\n")
+                tmp = t_file.split("/")
+                cnt = len(tmp)
+                t_file = tmp[0]
+                for  i in range(cnt-1):
+                    t_file = "%s.%s" % (t_file, tmp[i+1])
+                t_file = t_file.split(".py\n")[0]
+                t_file = t_file.split("\n")[0]
+                t_split = self.m_nninfo_class_name.split("(")
+                t_class_name = t_split[0]
+                tmp_param = t_split[1].split(")")[0]
+                tmp_param = tmp_param.split("=")[1]
+    
+                t_list = t_file.split(".")
+                t_list_len = len(t_list)
+                t_fromlist = ""
+                for i in range(t_list_len-1):
+                    t_fromlist = "%s%s" % (t_fromlist, t_list[i])
+                    if i < (t_list_len-2): 
+                        t_fromlist = "%s%s" % (t_fromlist, ".")
+                t_impmod = __import__(t_file, fromlist=[t_fromlist])
+                t_cls = getattr(t_impmod, t_class_name)
+    
+                f_param = self.get_real_filepath(tmp_param[1:-1])
+                pt_model = t_cls(cfg=f_param)
+                pt_path = "%s%s" % (self.m_current_file_path, self.m_nninfo_weight_pt_file)
+                pt_model.load_state_dict(torch.load(pt_path, map_location=torch.device('cpu')), strict=False)
+                pt_model.eval()
+                # convert and save onnx file 
+                dummy = torch.randn(
+                        self.m_nninfo_input_tensor_shape[0], 
+                        self.m_nninfo_input_tensor_shape[1], 
+                        self.m_nninfo_input_tensor_shape[2], 
+                        self.m_nninfo_input_tensor_shape[3], 
+                        requires_grad=True)
+                t_folder = "%s/%s" % (self.m_current_code_folder, self.m_nninfo_weight_onnx_file)
+                torch.onnx.export(pt_model, dummy,
+                        t_folder,
+                        opset_version = 11,
+                        export_params=True, 
+                        input_names=['input'],
+                        output_names=['output'])
+            else: # get onnx file so copy it
+                onnx_path = "%s%s" % (self.m_current_file_path, self.m_nninfo_weight_onnx_file)
+                t_folder = "%s/%s" % (self.m_current_code_folder, self.m_nninfo_weight_onnx_file)
+                shutil.copy(onnx_path, t_folder)
+            self.m_sysinfo_papi = ['opencv-python', 'time', 'pyyaml', 'scipy', 
+                    'psutil', 'attrs', 'pillow', 'numpy', 'matplotlib', 
+                    'tensorrt', 'pycuda' ]
             self.gen_tensorrt_code(self.m_nninfo_input_tensor_shape[1], 
                     self.m_nninfo_input_tensor_shape[2], 
                     self.m_nninfo_input_data_type) 
             self.make_requirements_file_for_others()
+            fo_path = "%s/%s" % (self.m_current_code_folder, "requirements.txt")
+            with open(fo_path, "w") as fo:
+                for item in self.m_sysinfo_papi:  
+                    fo.write(item)
+                    fo.write("\n")
+            os.system("chmod -Rf 777 %s" % self.m_current_code_folder)
+            self.m_last_run_state = 0
         elif self.m_sysinfo_engine_type == "tvm":
             self.m_deploy_entrypoint = [self.m_deploy_python_file]
             tvm_dev_type = def_TVM_dev_type    # 0 llvm ,1 cuda,  
             tvm_width = def_TVM_width  
             tvm_height = def_TVM_height  
             tvm_data_type = def_TVM_data_type 
-            # move autonn's pytorch to target folder(like prefix folder)
-            if self.m_nninfo_yolo_base_file_path != ".":  
-                if isinstance(self.m_nninfo_class_file, list):
-                    m_filelist = self.m_nninfo_class_file
-                else:
-                    m_filelist = [self.m_nninfo_class_file]
-                for mfile in m_filelist:
-                    self.copy_subfolderfile(mfile, self.m_nninfo_yolo_base_file_path)
-
-            # convert .py to onnx and copy
-            if isinstance(self.m_nninfo_class_file, list):
-                t_file = self.m_nninfo_class_file[0]
-            else:
-                t_file = self.m_nninfo_class_file
-            t_file = "%s%s" % (t_file, "\n")
-            tmp = t_file.split("/")
-            cnt = len(tmp)
-            t_file = tmp[0]
-            for  i in range(cnt-1):
-                t_file = "%s.%s" % (t_file, tmp[i+1])
-            t_file = t_file.split(".py\n")[0]
-            t_file = t_file.split("\n")[0]
-            t_split = self.m_nninfo_class_name.split("(")
-            t_class_name = t_split[0]
-            tmp_param = t_split[1].split(")")[0]
-            tmp_param = tmp_param.split("=")[1]
-
-            t_list = t_file.split(".")
-            t_list_len = len(t_list)
-            t_fromlist = ""
-            for i in range(t_list_len-1):
-                t_fromlist = "%s%s" % (t_fromlist, t_list[i])
-                if i < (t_list_len-2): 
-                    t_fromlist = "%s%s" % (t_fromlist, ".")
-            t_impmod = __import__(t_file, fromlist=[t_fromlist])
-            t_cls = getattr(t_impmod, t_class_name)
-
-            f_param = self.get_real_filepath(tmp_param[1:-1])
-            pt_model = t_cls(cfg=f_param)
-            pt_path = "%s/%s" % (self.m_current_file_path, self.m_nninfo_weight_pt_file)
-            pt_model.load_state_dict(torch.load(pt_path, map_location=torch.device('cpu')), strict=False)
-            pt_model.eval()
-            # convert and save onnx file 
-            dummy = torch.randn(
-                    self.m_nninfo_input_tensor_shape[0], 
-                    self.m_nninfo_input_tensor_shape[1], 
-                    self.m_nninfo_input_tensor_shape[2], 
-                    self.m_nninfo_input_tensor_shape[3], 
-                    requires_grad=True)
-            torch.onnx.export(pt_model, dummy,
-                    self.get_real_filepath(self.m_nninfo_weight_onnx_file),
-                    opset_version = 11,
-                    export_params=True, 
-                    input_names=['input'],
-                    output_names=['output'])
-            # khlee only for test copy yolov.onnx to tango.onnx
-            # must be deleted
-            shutil.copy("./db/yolov7.onnx", self.get_real_filepath(self.m_nninfo_weight_onnx_file))
-
-
+            # if no onnx file
+            if self.m_nninfo_weight_onnx_file == "":
+                print("No ONNX file for TVM")
+                return
             onnx_model = onnx.load(self.get_real_filepath(self.m_nninfo_weight_onnx_file))
-            input_name = onnx_model.graph.input[0].name
-            tensor_type = onnx_model.graph.input[0].type.tensor_type
-            tmp_list = []
-            if (tensor_type.HasField("shape")):
-                for d in tensor_type.shape.dim:
-                    if (d.HasField("dim_value")):
-                        tmp_list.append(d.dim_value)
-                i_shape = tuple(tmp_list)
-                logging.debug(i_shape)
-                (x_, y_, self.width, self.height) = i_shape
-            else:
-                i_shape = (1, 1, 224, 224)
+            input_name = "images"
+            shape_dict = {input_name: [1, 3, def_TVM_width, def_TVM_height]}
+            mod, params = tvm.relay.frontend.from_onnx(onnx_model, shape_dict)
+            fo_path = "%s/%s" % (self.m_current_code_folder, def_TVM_mod)
+            with open(fo_path, "w") as fo:
+                fo.write(tvm.ir.save_json(mod))
+            fo_path = "%s/%s" % (self.m_current_code_folder, def_TVM_param)
+            with open(fo_path, "wb") as fo:
+                fo.write(tvm.runtime.save_param_dict(params))
 
-            dtype = 'object'
-            # check elem_type value
-            if (tensor_type.HasField("elem_type")):
-                tp = tensor_type.elem_type
-                if tp == 1: # FLOAT
-                    dtype = 'float32'
-                elif tp == 2: # UINIT8
-                    dtype = 'uint8'
-                elif tp == 3: # INT8
-                    dtype = 'int8'
-                elif tp == 4: # UINT16
-                    dtype = 'uint16'
-                elif tp == 5: # INT16
-                    dtype = 'int16'
-                elif tp == 6: # INT32
-                    dtype = 'int32'
-                elif tp == 7: # INT64
-                    dtype = 'int64'
-                elif tp == 8: # STRING
-                    dtype = 'unicode'
-                elif tp == 9: # BOOL
-                    dtype = 'bool'
-                elif tp == 10: # FLOAT16
-                    dtype = 'float16'
-                elif tp == 11: # DOUBLE
-                    dtype = 'double'
-                elif tp == 12: # UINT32
-                    dtype = 'uint32'
-                elif tp == 13: # UINT64
-                    dtype = 'uint64'
-                elif tp == 14: # COMPLEX64
-                    dtype = 'complex64'
-                elif tp == 15: # COMPLEX128
-                    dtype = 'complex128'
-                elif tp == 16: # BFLOAT16
-                    dtype = 'bfloat16'
-            logging.debug(dtype)
-    
-            if tvm_dev_type == 0:
-                target = "llvm"
-            elif tvm_dev_type == 1:
-                target = "cuda"
-            elif tvm_dev_type == 2:
-                target = "llvm -mtriple=aarch64-linux-gnu"
-            else:
-                target = "opencl"
-            logging.debug(target)
-            shape_dict = {input_name: i_shape}
-            logging.debug(shape_dict)
-            mod, params = relay.frontend.from_onnx(onnx_model, shape_dict)
-            executable = relay.vm.compile(mod, target=target, params=params)
-            code, lib = executable.save()
-            lib.export_library(def_TVM_lib_path)
-            with open(def_TVM_code_path, "wb") as outf:
-                outf.write(code)
-            if os.path.isfile(def_TVM_lib_path):
-                shutil.copy(def_TVM_lib_path, self.m_current_code_folder)
-                # after converting and copying, remove temporary converted file 
-                os.remove(def_TVM_lib_path)
-            if os.path.isfile(def_TVM_code_path):
-                shutil.copy(def_TVM_code_path, self.m_current_code_folder)
-                # after converting and copying, remove temporary converted file 
-                os.remove(def_TVM_code_path)
             # copy annotaion file 
             annotation_file = "%s/%s" % (def_dataset_path, self.m_nninfo_annotation_file)
-            shutil.copy(annotation_file, 
-                    self.m_current_code_folder)
+            shutil.copy(annotation_file, self.m_current_code_folder)
 
+            self.m_sysinfo_papi = ['scipy', 'psutil', 'attrs', 'pillow', 
+                    'opencv-python', 'pyyaml', 'numpy', 'matplotlib' ]
             self.gen_tvm_code(tvm_dev_type, tvm_width, tvm_height, tvm_data_type)
             self.make_requirements_file_for_others()
-            os.remove(self.get_real_filepath(self.m_nninfo_weight_onnx_file))
-
+            fo_path = "%s/%s" % (self.m_current_code_folder, "requirements.txt")
+            with open(fo_path, "w") as fo:
+                for item in self.m_sysinfo_papi:  
+                    fo.write(item)
+                    fo.write("\n")
+            os.system("chmod -Rf 777 %s" % self.m_current_code_folder)
         self.m_last_run_state = 0
         # modified
         if self.m_nninfo_yolo_base_file_path != "." and self.m_nninfo_yolo_base_file_path != "" :  
@@ -957,566 +999,6 @@ class CodeGen:
         return 0
 
     ####################################################################
-    # rknn변환 test
-    def gen_rknn_python_code(self):
-        """
-        Generate python code for RKNN device
-
-        Args: None
-        Returns: int
-            0 : success
-            -1 : error
-        """
-        if not os.path.exists(self.m_current_code_folder):
-            os.makedirs(self.m_current_code_folder)
-        # copy autonn's pytorch to target folder(like prefix folder)
-        if self.m_nninfo_yolo_base_file_path != ".":  
-            if isinstance(self.m_nninfo_class_file, list):
-                m_filelist = self.m_nninfo_class_file
-            else:
-                m_filelist = [self.m_nninfo_class_file]
-            for mfile in m_filelist:
-                self.copy_subfolderfile(mfile, self.m_nninfo_yolo_base_file_path)
-        # onnx conversion
-        # convert .py to onnx and copy
-        if isinstance(self.m_nninfo_class_file, list):
-            t_file = self.m_nninfo_class_file[0]
-        else:
-            t_file = self.m_nninfo_class_file
-        t_file = "%s%s" % (t_file, "\n")
-        tmp = t_file.split("/")
-        cnt = len(tmp)
-        t_file = tmp[0]
-        for  i in range(cnt-1):
-            t_file = "%s.%s" % (t_file, tmp[i+1])
-        t_file = t_file.split(".py\n")[0]
-        t_file = t_file.split("\n")[0]
-        t_split = self.m_nninfo_class_name.split("(")
-        t_class_name = t_split[0]
-        tmp_param = t_split[1].split(")")[0]
-        tmp_param = tmp_param.split("=")[1]
-
-        t_list = t_file.split(".")
-        t_list_len = len(t_list)
-        t_fromlist = ""
-        for i in range(t_list_len-1):
-            t_fromlist = "%s%s" % (t_fromlist, t_list[i])
-            if i < (t_list_len-2): 
-                t_fromlist = "%s%s" % (t_fromlist, ".")
-        t_impmod = __import__(t_file, fromlist=[t_fromlist])
-        t_cls = getattr(t_impmod, t_class_name)
-
-        f_param = self.get_real_filepath(tmp_param[1:-1])
-        pt_model = t_cls(cfg=f_param)
-        pt_path = "%s%s" % (self.m_current_file_path, self.m_nninfo_weight_pt_file)
-        pt_model.load_state_dict(torch.load(pt_path, map_location=torch.device('cpu')), strict=False)
-        pt_model.eval()
-        # convert and save onnx file 
-        # the followings must be uncomment, commented out just for testing 
-        # khlee
-        '''
-        dummy = torch.randn(
-                self.m_nninfo_input_tensor_shape[0], 
-                self.m_nninfo_input_tensor_shape[1], 
-                self.m_nninfo_input_tensor_shape[2], 
-                self.m_nninfo_input_tensor_shape[3], 
-                requires_grad=True)
-        torch.onnx.export(pt_model, dummy,
-                self.get_real_filepath(self.m_nninfo_weight_onnx_file),
-                opset_version = 11,
-                export_params = True, # default True  
-                # khlee
-                # the following  line makes RKNN builder make 'unsupported" Expand --> build time error
-                # if the following line is deleted, ONNXruntimeError ShapeInferenceError Incompatible dimensions  -> rknn load time  error
-                do_constant_folding = False, # default=True 
-                # training=False, aten=False, export_raw_ir=False, operator_export_type=None, enable_onnx_checker=True,
-                # verbose=True,
-                input_names=['input'],
-                output_names=['output'])
-        '''
-        # khlee only for test copy yolov.onnx to tango.onnx
-        # must be deleted 
-        o_file = "./db/yolov7.onnx"
-        shutil.copy(o_file, self.get_real_filepath(self.m_nninfo_weight_onnx_file))
-
-        # tmp_om = onnx.load(self.get_real_filepath(self.m_nninfo_weight_onnx_file))
-        # onnx_out = tmp_om.graph.output
-        # o_outputs = [] 
-        # for i in range(len(onnx_out)):
-        #     tmp = onnx_out[i].name
-        #     print(tmp)
-        #     o_outputs.append(tmp) 
-
-        self.m_converted_file = "%s%s" % (self.m_current_file_path, def_rknn_file)
-        # comment out for test only -> uncomment needed
-        # Create RKNN object
-        rknn = RKNN(verbose=True)
-        
-        # pre-process config
-        logging.debug('--> Config model')
-        rknn.config(mean_values=[[0, 0, 0]], std_values=[[255, 255, 255]],
-                    output_tensor_type='int8')
-
-        # Load ONNX model
-        ret = rknn.load_onnx(self.get_real_filepath(self.m_nninfo_weight_onnx_file), outputs=['output'])
-        if ret != 0:
-            logging.debug('Load model failed!')
-            return -1
-        logging.debug('--> Loading model')
-
-        # Build model
-        ret = rknn.build(do_quantization=True)
-        if ret != 0:
-            logging.debug('Build model failed!')
-            return -1
-        logging.debug('--> Building model')
-
-        # Export RKNN model
-        ret = rknn.export_rknn(self.m_converted_file)
-        if ret != 0:
-            return -1
-        logging.debug('--> Export rknn model')
-
-        # convert  and copy .pt file to nn_model folder  
-        if os.path.isfile(self.m_converted_file):
-            shutil.copy(self.m_converted_file, self.m_current_code_folder)
-            # after converting and copying, remove temporary converted file 
-            os.remove(self.m_converted_file)
-
-        # rknn code generation
-        tmp_str = "%s%s%s%s" % ("", "import ", self.m_sysinfo_vision_lib, def_newline)
-        tmp_str = "%s%s%s" % (tmp_str, "import numpy an np", def_newline)
-        tmp_str = "%s%s%s" % (tmp_str, "from rknnlite.api import RKNNLite", def_newline)
-        tmp_str = "%s%s%s" % (tmp_str, "import time", def_newline)
-        tmp_str = "%s%s" % (tmp_str, def_newline)
-
-        tmp_str = "%s%s%s%s" % (tmp_str, "rknn_model_file = ", def_rknn_file, def_newline)
-        # for test change the file name
-        tmp_str = "%s%s%s" % (tmp_str, "input_file = '480.mp4'", def_newline)
-        tmp_str = "%s%s%s%s" % (tmp_str, def_newline, def_newline, def_newline)
-
-        tmp_str = "%s%s%s%s" % (tmp_str, "IMG_SIZE = ", self.m_nninfo_input_tensor_shape[2],
-                                def_newline)
-        tmp_str = "%s%s%s%s" % (tmp_str, "BOX_THESH =  ", self.m_nninfo_postproc_iou_thres,
-                                def_newline)
-        tmp_str = "%s%s%s%s" % (tmp_str, "NMS_THRESH =", self.m_nninfo_postproc_conf_thres,
-                                def_newline)
-        tmp_str = "%s%s" % (tmp_str, def_newline)
-
-        tmp_str = "%s%s" % (tmp_str, "CLASSES = (")
-        for cnt in range(0, self.m_nninfo_number_of_labels):
-            if (cnt % 5) == 0:
-                tmp_str = "%s%s%s%s" % (tmp_str, def_newline, def_4blank, def_4blank)
-            if cnt == (self.m_nninfo_number_of_labels - 1):
-                tmp_str = "%s%s%s%s" % (tmp_str, "'", self.m_nninfo_labelmap_info[cnt], "'")
-            else:
-                tmp_str = "%s%s%s%s%s" % (tmp_str, "'", self.m_nninfo_labelmap_info[cnt],
-                                          "'", ', ')
-        tmp_str = "%s%s%s" % (tmp_str, ")", def_newline)
-        tmp_str = "%s%s" % (tmp_str, def_newline)
-        tmp_str = "%s%s" % (tmp_str, def_newline)
-
-        tmp_str = "%s%s%s" % (tmp_str, 'def sigmoid(x):', def_newline)
-        tmp_str = "%s%s%s" % (tmp_str, '    return 1 / (1 + np.exp(-x))', def_newline)
-        tmp_str = "%s%s" % (tmp_str, def_newline)
-        tmp_str = "%s%s" % (tmp_str, def_newline)
-
-        tmp_str = "%s%s%s" % (tmp_str, "def xywh2xyxy(x):", def_newline)
-        tmp_str = "%s%s%s" % (tmp_str, "    # Convert [x, y, w, h] to [x1, y1, x2, y2]",
-                              def_newline)
-        tmp_str = "%s%s%s" % (tmp_str, "    y = np.copy(x)", def_newline)
-        tmp_str = '%s%s%s' % (tmp_str, '    y[:, 0] = x[:, 0] - x[:, 2] / 2  # top left x',
-                              def_newline)
-        tmp_str = "%s%s%s" % (tmp_str, '    y[:, 1] = x[:, 1] - x[:, 3] / 2  # top left y',
-                              def_newline)
-        tmp_str = "%s%s%s" % (tmp_str,
-                              '    y[:, 2] = x[:, 0] + x[:, 2] / 2  # bottom right x',
-                              def_newline)
-        tmp_str = "%s%s%s" % (tmp_str,
-                              '    y[:, 3] = x[:, 1] + x[:, 3] / 2  # bottom right y',
-                              def_newline)
-        tmp_str = "%s%s%s" % (tmp_str, '    return y', def_newline)
-        tmp_str = "%s%s" % (tmp_str, def_newline)
-        tmp_str = "%s%s" % (tmp_str, def_newline)
-
-        tmp_str = "%s%s%s" % (tmp_str, "def process(input, mask, anchors):", def_newline)
-        tmp_str = "%s%s%s" % (tmp_str, "    anchors = [anchors[i] for i in mask]",
-                              def_newline)
-        tmp_str = "%s%s%s" % (tmp_str, "    grid_h, grid_w = map(int, input.shape[0:2])",
-                              def_newline)
-        tmp_str = "%s%s" % (tmp_str, def_newline)
-        tmp_str = "%s%s%s" % (tmp_str, "    box_confidence = sigmoid(input[..., 4])",
-                              def_newline)
-        tmp_str = "%s%s%s" % (tmp_str,
-                              "    box_confidence = np.expand_dims(box_confidence, axis=-1)",
-                              def_newline)
-        tmp_str = "%s%s" % (tmp_str, def_newline)
-        tmp_str = "%s%s%s" % (tmp_str, "    box_class_probs = sigmoid(input[..., 5:])",
-                              def_newline)
-        tmp_str = "%s%s" % (tmp_str, def_newline)
-        tmp_str = "%s%s%s" % (tmp_str, "    box_xy = sigmoid(input[..., :2]) * 2 - 0.5",
-                              def_newline)
-        tmp_str = "%s%s" % (tmp_str, def_newline)
-        tmp_str = "%s%s%s" % (tmp_str,
-                              "    col = np.tile(np.arange(0, grid_w), grid_w).reshape(-1, grid_w)",
-                              def_newline)
-        tmp_str = "%s%s%s" % (tmp_str,
-                              "    row = np.tile(np.arange(0, grid_h).reshape(-1, 1), grid_h)",
-                              def_newline)
-        tmp_str = "%s%s%s" % (tmp_str,
-                              "    col = col.reshape(grid_h, grid_w, 1, 1).repeat(3, axis=-2)",
-                              def_newline)
-        tmp_str = "%s%s%s" % (tmp_str,
-                              "    row = row.reshape(grid_h, grid_w, 1, 1).repeat(3, axis=-2)",
-                              def_newline)
-        tmp_str = "%s%s%s" % (tmp_str, "    grid = np.concatenate((col, row), axis=-1)",
-                              def_newline)
-        tmp_str = "%s%s%s" % (tmp_str, "    box_xy += grid", def_newline)
-        tmp_str = "%s%s%s" % (tmp_str, "    box_xy *= int(IMG_SIZE / grid_h)", def_newline)
-        tmp_str = "%s%s" % (tmp_str, def_newline)
-        tmp_str = "%s%s%s" % (tmp_str, "    box_wh = pow(sigmoid(input[..., 2:4]) * 2, 2)",
-                              def_newline)
-        tmp_str = "%s%s%s" % (tmp_str, "    box_wh = box_wh * anchors", def_newline)
-        tmp_str = "%s%s" % (tmp_str, def_newline)
-        tmp_str = "%s%s%s" % (tmp_str, "    box = np.concatenate((box_xy, box_wh), axis=-1)",
-                              def_newline)
-        tmp_str = "%s%s" % (tmp_str, def_newline)
-        tmp_str = "%s%s%s" % (tmp_str, "    return box, box_confidence, box_class_probs",
-                              def_newline)
-        tmp_str = "%s%s" % (tmp_str, def_newline)
-        tmp_str = "%s%s" % (tmp_str, def_newline)
-
-        tmp_str = "%s%s%s" % (tmp_str,
-                              "def filter_boxes(boxes, box_confidences, box_class_probs):",
-                              def_newline)
-        tmp_str = "%s%s%s%s" % (tmp_str,
-                                '    """Filter boxes with box threshold. It\'s a bit different with ',
-                                'origin yolov5 post process!',
-                                def_newline)
-        tmp_str = "%s%s" % (tmp_str, def_newline)
-        tmp_str = "%s%s%s" % (tmp_str, "    # Arguments", def_newline)
-        tmp_str = "%s%s%s" % (tmp_str, "        boxes: ndarray, boxes of objects.",
-                              def_newline)
-        tmp_str = "%s%s%s" % (tmp_str,
-                              "        box_confidences: ndarray, confidences of objects.",
-                              def_newline)
-        tmp_str = "%s%s%s" % (tmp_str,
-                              "        box_class_probs: ndarray, class_probs of objects.",
-                              def_newline)
-        tmp_str = "%s%s" % (tmp_str, def_newline)
-        tmp_str = "%s%s%s" % (tmp_str, "    # Returns", def_newline)
-        tmp_str = "%s%s%s" % (tmp_str, "        boxes: ndarray, filtered boxes.",
-                              def_newline)
-        tmp_str = "%s%s%s" % (tmp_str, "        classes: ndarray, classes for boxes.",
-                              def_newline)
-        tmp_str = "%s%s%s" % (tmp_str, "        scores: ndarray, scores for boxes.",
-                              def_newline)
-        tmp_str = "%s%s%s" % (tmp_str, '    """', def_newline)
-        tmp_str = "%s%s%s" % (tmp_str,
-                              "    box_classes = np.argmax(box_class_probs, axis=-1)",
-                              def_newline)
-        tmp_str = "%s%s%s" % (tmp_str,
-                              "    box_class_scores = np.max(box_class_probs, axis=-1)",
-                              def_newline)
-        tmp_str = "%s%s%s" % (tmp_str,
-                              "    pos = np.where(box_confidences[..., 0] >= BOX_THESH)",
-                              def_newline)
-        tmp_str = "%s%s" % (tmp_str, def_newline)
-        tmp_str = "%s%s%s" % (tmp_str, "    boxes = boxes[pos]", def_newline)
-        tmp_str = "%s%s%s" % (tmp_str, "    classes = box_classes[pos]", def_newline)
-        tmp_str = "%s%s%s" % (tmp_str, "    scores = box_class_scores[pos]", def_newline)
-        tmp_str = "%s%s" % (tmp_str, def_newline)
-        tmp_str = "%s%s%s" % (tmp_str, "    return boxes, classes, scores", def_newline)
-        tmp_str = "%s%s" % (tmp_str, def_newline)
-        tmp_str = "%s%s" % (tmp_str, def_newline)
-
-        tmp_str = "%s%s%s" % (tmp_str, "def nms_boxes(boxes, scores):", def_newline)
-        tmp_str = "%s%s%s" % (tmp_str, '    """Suppress non-maximal boxes.', def_newline)
-        tmp_str = "%s%s" % (tmp_str, def_newline)
-        tmp_str = "%s%s%s" % (tmp_str, "    # Arguments", def_newline)
-        tmp_str = "%s%s%s" % (tmp_str, "        boxes: ndarray, boxes of objects.",
-                              def_newline)
-        tmp_str = "%s%s%s" % (tmp_str, "        scores: ndarray, scores of objects.",
-                              def_newline)
-        tmp_str = "%s%s" % (tmp_str, def_newline)
-        tmp_str = "%s%s%s" % (tmp_str, "    # Returns", def_newline)
-        tmp_str = "%s%s%s" % (tmp_str, "        keep: ndarray, index of effective boxes.",
-                              def_newline)
-        tmp_str = "%s%s%s" % (tmp_str, '    """', def_newline)
-        tmp_str = "%s%s%s" % (tmp_str, "    x = boxes[:, 0]", def_newline)
-        tmp_str = "%s%s%s" % (tmp_str, "    y = boxes[:, 1]", def_newline)
-        tmp_str = "%s%s%s" % (tmp_str, "    w = boxes[:, 2] - boxes[:, 0]", def_newline)
-        tmp_str = "%s%s%s" % (tmp_str, "    h = boxes[:, 3] - boxes[:, 1]", def_newline)
-        tmp_str = "%s%s" % (tmp_str, def_newline)
-        tmp_str = "%s%s%s" % (tmp_str, "    areas = w * h", def_newline)
-        tmp_str = "%s%s%s" % (tmp_str, "    order = scores.argsort()[::-1]", def_newline)
-        tmp_str = "%s%s" % (tmp_str, def_newline)
-        tmp_str = "%s%s%s" % (tmp_str, "    keep = []", def_newline)
-        tmp_str = "%s%s%s" % (tmp_str, "    while order.size > 0:", def_newline)
-        tmp_str = "%s%s%s" % (tmp_str, "        i = order[0]", def_newline)
-        tmp_str = "%s%s%s" % (tmp_str, "        keep.append(i)", def_newline)
-        tmp_str = "%s%s" % (tmp_str, def_newline)
-        tmp_str = "%s%s%s" % (tmp_str, "        xx1 = np.maximum(x[i], x[order[1:]])",
-                              def_newline)
-        tmp_str = "%s%s%s" % (tmp_str, "        yy1 = np.maximum(y[i], y[order[1:]])",
-                              def_newline)
-        tmp_str = "%s%s%s" % (tmp_str,
-                              "        xx2 = np.minimum(x[i] + w[i], x[order[1:]] + w[order[1:]])",
-                              def_newline)
-        tmp_str = "%s%s%s" % (tmp_str,
-                              "        yy2 = np.minimum(y[i] + h[i], y[order[1:]] + h[order[1:]])",
-                              def_newline)
-        tmp_str = "%s%s" % (tmp_str, def_newline)
-        tmp_str = "%s%s%s" % (tmp_str,
-                              "        w1 = np.maximum(0.0, xx2 - xx1 + 0.00001)",
-                              def_newline)
-        tmp_str = "%s%s%s" % (tmp_str,
-                              "        h1 = np.maximum(0.0, yy2 - yy1 + 0.00001)",
-                              def_newline)
-        tmp_str = "%s%s%s" % (tmp_str, "        inter = w1 * h1", def_newline)
-        tmp_str = "%s%s" % (tmp_str, def_newline)
-        tmp_str = "%s%s%s" % (tmp_str,
-                              "        ovr = inter / (areas[i] + areas[order[1:]] - inter)",
-                              def_newline)
-        tmp_str = "%s%s%s" % (tmp_str,
-                              "        inds = np.where(ovr <= NMS_THRESH)[0]",
-                              def_newline)
-        tmp_str = "%s%s%s" % (tmp_str, "        order = order[inds + 1]",
-                              def_newline)
-        tmp_str = "%s%s%s" % (tmp_str, "    keep = np.array(keep)", def_newline)
-        tmp_str = "%s%s%s" % (tmp_str, "    return keep", def_newline)
-        tmp_str = "%s%s" % (tmp_str, def_newline)
-        tmp_str = "%s%s" % (tmp_str, def_newline)
-
-        tmp_str = "%s%s%s" % (tmp_str, "def yolov5_post_process(input_data):",
-                              def_newline)
-        length = len(self.m_nninfo_mask)
-        tmp_str = "%s%s" % (tmp_str, "    masks = [")
-        for i in range(0, length):
-            if (i % 3) == 0:
-                tmp_str = "%s%s%s%s" % (tmp_str, def_newline, def_4blank, def_4blank)
-            if i == (length - 1):
-                tmp_str = "%s%s" % (tmp_str, self.m_nninfo_mask[i])
-            else:
-                tmp_str = "%s%s%s" % (tmp_str, self.m_nninfo_mask[i], ",")
-        tmp_str = "%s%s%s" % (tmp_str, "]", def_newline)
-        tmp_str = "%s%s" % (tmp_str, "    anchors = [")
-        length = len(self.m_nninfo_anchors)
-        for i in range(0, length):
-            if (i % 3) == 0:
-                tmp_str = "%s%s%s%s" % (tmp_str, def_newline, def_4blank, def_4blank)
-            if i == (length - 1):
-                tmp_str = "%s%s" % (tmp_str, self.m_nninfo_anchors[i])
-            else:
-                tmp_str = "%s%s%s" % (tmp_str, self.m_nninfo_anchors[i], ",")
-        tmp_str = "%s%s%s" % (tmp_str, "]", def_newline)
-        tmp_str = "%s%s" % (tmp_str, def_newline)
-
-        tmp_str = "%s%s%s" % (tmp_str, "    boxes, classes, scores = [], [], []",
-                              def_newline)
-        tmp_str = "%s%s%s" % (tmp_str, "    for input, mask in zip(input_data, masks):",
-                              def_newline)
-        tmp_str = "%s%s%s" % (tmp_str, "        b, c, s = process(input, mask, anchors)",
-                              def_newline)
-        tmp_str = "%s%s%s" % (tmp_str, "        b, c, s = filter_boxes(b, c, s)",
-                              def_newline)
-        tmp_str = "%s%s%s" % (tmp_str, "        boxes.append(b)", def_newline)
-        tmp_str = "%s%s%s" % (tmp_str, "        classes.append(c)", def_newline)
-        tmp_str = "%s%s%s" % (tmp_str, "        scores.append(s)", def_newline)
-        tmp_str = "%s%s" % (tmp_str, def_newline)
-        tmp_str = "%s%s%s" % (tmp_str, "    boxes = np.concatenate(boxes)", def_newline)
-        tmp_str = "%s%s%s" % (tmp_str, "    boxes = xywh2xyxy(boxes)", def_newline)
-        tmp_str = "%s%s%s" % (tmp_str, "    classes = np.concatenate(classes)", def_newline)
-        tmp_str = "%s%s%s" % (tmp_str, "    scores = np.concatenate(scores)", def_newline)
-        tmp_str = "%s%s" % (tmp_str, def_newline)
-        tmp_str = "%s%s%s" % (tmp_str, "    nboxes, nclasses, nscores = [], [], []",
-                              def_newline)
-        tmp_str = "%s%s%s" % (tmp_str, "    for c in set(classes):", def_newline)
-        tmp_str = "%s%s%s" % (tmp_str, "        inds = np.where(classes == c)", def_newline)
-        tmp_str = "%s%s%s" % (tmp_str, "        b = boxes[inds]", def_newline)
-        tmp_str = "%s%s%s" % (tmp_str, "        c = classes[inds]", def_newline)
-        tmp_str = "%s%s%s" % (tmp_str, "        s = scores[inds]", def_newline)
-        tmp_str = "%s%s" % (tmp_str, def_newline)
-        tmp_str = "%s%s%s" % (tmp_str, "        keep = nms_boxes(b, s)", def_newline)
-        tmp_str = "%s%s" % (tmp_str, def_newline)
-        tmp_str = "%s%s%s" % (tmp_str, "        nboxes.append(b[keep])", def_newline)
-        tmp_str = "%s%s%s" % (tmp_str, "        nclasses.append(c[keep])", def_newline)
-        tmp_str = "%s%s%s" % (tmp_str, "        nscores.append(s[keep])", def_newline)
-        tmp_str = "%s%s" % (tmp_str, def_newline)
-        tmp_str = "%s%s%s" % (tmp_str, "    if not nclasses and not nscores:", def_newline)
-        tmp_str = "%s%s%s" % (tmp_str, "        return None, None, None", def_newline)
-        tmp_str = "%s%s" % (tmp_str, def_newline)
-        tmp_str = "%s%s%s" % (tmp_str, "    boxes = np.concatenate(nboxes)", def_newline)
-        tmp_str = "%s%s%s" % (tmp_str, "    classes = np.concatenate(nclasses)", def_newline)
-        tmp_str = "%s%s%s" % (tmp_str, "    scores = np.concatenate(nscores)", def_newline)
-        tmp_str = "%s%s" % (tmp_str, def_newline)
-        tmp_str = "%s%s%s" % (tmp_str, "    return boxes, classes, scores", def_newline)
-        tmp_str = "%s%s" % (tmp_str, def_newline)
-        tmp_str = "%s%s" % (tmp_str, def_newline)
-
-        tmp_str = "%s%s%s" % (tmp_str, "def draw(image, boxes, scores, classes):",
-                              def_newline)
-        tmp_str = "%s%s%s" % (tmp_str, '    """Draw the boxes on the image.', def_newline)
-        tmp_str = "%s%s" % (tmp_str, def_newline)
-        tmp_str = "%s%s%s" % (tmp_str, "    # Argument:", def_newline)
-        tmp_str = "%s%s%s" % (tmp_str, "        image: original image.", def_newline)
-        tmp_str = "%s%s%s" % (tmp_str, "        boxes: ndarray, boxes of objects.",
-                              def_newline)
-        tmp_str = "%s%s%s" % (tmp_str, "        classes: ndarray, classes of objects.",
-                              def_newline)
-        tmp_str = "%s%s%s" % (tmp_str, "        scores: ndarray, scores of objects.",
-                              def_newline)
-        tmp_str = "%s%s%s" % (tmp_str, "        all_classes: all classes name.",
-                              def_newline)
-        tmp_str = "%s%s%s" % (tmp_str, '    """', def_newline)
-        tmp_str = "%s%s%s" % (tmp_str,
-                              "    for box, score, cl in zip(boxes, scores, classes):",
-                              def_newline)
-        tmp_str = "%s%s%s" % (tmp_str, "        top, left, right, bottom = box",
-                              def_newline)
-        tmp_str = "%s%s%s" % (tmp_str, "        top = int(top)", def_newline)
-        tmp_str = "%s%s%s" % (tmp_str, "        left = int(left)", def_newline)
-        tmp_str = "%s%s%s" % (tmp_str, "        right = int(right)", def_newline)
-        tmp_str = "%s%s%s" % (tmp_str, "        bottom = int(bottom)", def_newline)
-        tmp_str = "%s%s" % (tmp_str, def_newline)
-        tmp_str = "%s%s%s" % (tmp_str,
-                              "        cv2.rectangle(image, (top, left), (right, bottom), (255, 0, 0), 2)",
-                              def_newline)
-        tmp_str = "%s%s%s" % (tmp_str,
-                              "        cv2.putText(image, '{0} {1:.2f}'.format(CLASSES[cl], score),",
-                              def_newline)
-        tmp_str = "%s%s%s" % (tmp_str, "                    (top, left - 6),", def_newline)
-        tmp_str = "%s%s%s" % (tmp_str, "                    cv2.FONT_HERSHEY_SIMPLEX,",
-                              def_newline)
-        tmp_str = "%s%s%s" % (tmp_str, "                    0.6, (0, 0, 255), 2)",
-                              def_newline)
-        tmp_str = "%s%s" % (tmp_str, def_newline)
-        tmp_str = "%s%s" % (tmp_str, def_newline)
-
-        tmp_str = "%s%s%s" % (tmp_str, "if __name__ == '__main__':", def_newline)
-        # parsing parameter
-        tmp_str = "%s%s%s" % (tmp_str, "    if len(sys.argv) < 2:", def_newline)
-        tmp_str = "%s%s%s" % (tmp_str, "        print('%s%s' % ('input_file = ', input_file))", def_newline)
-        tmp_str = "%s%s%s" % (tmp_str, "    else:", def_newline)
-        tmp_str = "%s%s%s" % (tmp_str, "        input_file = sys.argv[1]", def_newline)
-        tmp_str = "%s%s%s" % (tmp_str, "    rknn_lite = RKNNLite()", def_newline)
-        tmp_str = "%s%s" % (tmp_str, def_newline)
-        tmp_str = "%s%s%s" % (tmp_str, "    # load RKNN model", def_newline)
-        tmp_str = "%s%s%s" % (tmp_str, "    print('--> Load RKNN model')", def_newline)
-        tmp_str = "%s%s%s" % (tmp_str, "    ret = rknn_lite.load_rknn(rknn_model_file)",
-                              def_newline)
-        tmp_str = "%s%s%s" % (tmp_str, "    if ret != 0:", def_newline)
-        tmp_str = "%s%s%s" % (tmp_str, "        print('Load RKNN model failed')",
-                              def_newline)
-        tmp_str = "%s%s%s" % (tmp_str, "        exit(ret)", def_newline)
-        tmp_str = "%s%s%s" % (tmp_str, "    print('done')", def_newline)
-        tmp_str = "%s%s" % (tmp_str, def_newline)
-        tmp_str = "%s%s%s" % (tmp_str,
-                              "    # run on RK356x/RK3588 with Debian OS, do not need specify target.",
-                              def_newline)
-        tmp_str = "%s%s%s" % (tmp_str, "    ret = rknn_lite.init_runtime()", def_newline)
-        tmp_str = "%s%s%s" % (tmp_str, "    if ret != 0:", def_newline)
-        tmp_str = "%s%s%s" % (tmp_str, "        print('Init runtime environment failed')",
-                              def_newline)
-        tmp_str = "%s%s%s" % (tmp_str, "        exit(ret)", def_newline)
-        tmp_str = "%s%s%s" % (tmp_str, "    print('done')", def_newline)
-        tmp_str = "%s%s" % (tmp_str, def_newline)
-        tmp_str = "%s%s%s" % (tmp_str, "    ##############################", def_newline)
-        tmp_str = "%s%s%s" % (tmp_str, "    ### yolov5 inference START ###", def_newline)
-        tmp_str = "%s%s%s" % (tmp_str, "    ##############################", def_newline)
-        tmp_str = "%s%s%s" % (tmp_str, "    cap = cv2.VideoCapture(input_file)", def_newline)
-        tmp_str = "%s%s%s" % (tmp_str, "    cap.set(cv2.CAP_PROP_FRAME_WIDTH, IMG_SIZE)",
-                              def_newline)
-        tmp_str = "%s%s%s" % (tmp_str, "    cap.set(cv2.CAP_PROP_FRAME_HEIGHT, IMG_SIZE)",
-                              def_newline)
-        tmp_str = "%s%s%s" % (tmp_str, "    while True:", def_newline)
-        tmp_str = "%s%s%s" % (tmp_str, "        check, frame = cap.read()", def_newline)
-        tmp_str = "%s%s%s" % (tmp_str, "        # Set inputs", def_newline)
-        tmp_str = "%s%s%s" % (tmp_str,
-                              "        frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)",
-                              def_newline)
-        tmp_str = "%s%s%s" % (tmp_str,
-                              "        frame = cv2.resize(frame, (IMG_SIZE, IMG_SIZE))",
-                              def_newline)
-        tmp_str = "%s%s" % (tmp_str, def_newline)
-        tmp_str = "%s%s%s" % (tmp_str, "        # Inference", def_newline)
-        tmp_str = "%s%s%s" % (tmp_str, "        start_time = time.time()", def_newline)
-        tmp_str = "%s%s%s" % (tmp_str,
-                              "        outputs = rknn_lite.inference(inputs=[frame])",
-                              def_newline)
-        tmp_str = "%s%s%s" % (tmp_str, "        end_time = time.time()", def_newline)
-        tmp_str = "%s%s" % (tmp_str, def_newline)
-
-        tmp_str = "%s%s%s" % (tmp_str, "        # post process", def_newline)
-        cnt = self.m_nninfo_output_number
-        for i in range(0, cnt):
-            tmp_str = "%s%s%s%s%s%s%s" % (tmp_str,
-                                          "        input", i, "_data = ouputs[", i, "]", def_newline)
-        tmp_str = "%s%s" % (tmp_str, def_newline)
-
-        # yaml의 output_size_format에 따라 수정 필요, 
-        # 출력단의 name에 따라 출력 포맷이 달라짐 확인 요망
-        for i in range(0, cnt):
-            tmp_str = "%s%s%s%s%s%s%s%s%s" % (tmp_str,
-                                              "        input", i, "_data = input", i,
-                                              "_data.reshape([3, -1]+list(input", i,
-                                              "_data.shape[-2:]))", def_newline)
-        tmp_str = "%s%s" % (tmp_str, def_newline)
-
-        tmp_str = "%s%s%s" % (tmp_str, "        input_data = list()", def_newline)
-
-        for i in range(0, cnt):
-            tmp_str = "%s%s%s%s%s" % (tmp_str,
-                                      "        input_data.append(np.transpose(input",
-                                      i, "_data, (1, 2, 0, 3)))", def_newline)
-        tmp_str = "%s%s" % (tmp_str, def_newline)
-
-        tmp_str = "%s%s%s" % (tmp_str,
-                              "        boxes, classes, scores = post.yolov5_post_process(input_data)",
-                              def_newline)
-        tmp_str = "%s%s" % (tmp_str, def_newline)
-        tmp_str = "%s%s%s" % (tmp_str,
-                              "        result = cv2.cvtColor(frame, cv2.COLOR_RGB2BGR)", def_newline)
-        tmp_str = "%s%s%s" % (tmp_str, "        if boxes is not None:", def_newline)
-        tmp_str = "%s%s%s" % (tmp_str,
-                              "            post.draw(result, boxes, scores, classes)",
-                              def_newline)
-        tmp_str = "%s%s%s" % (tmp_str, "        # show output", def_newline)
-        tmp_str = "%s%s%s" % (tmp_str, "        fps = 1 / (end_time - start_time)",
-                              def_newline)
-        tmp_str = "%s%s%s%s" % (tmp_str,
-                                '        cv2.putText(result, f"{fps:.3f} FPS", (20, 35),',
-                                'cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 255, 0), 2)', def_newline)
-        tmp_str = "%s%s%s" % (tmp_str, '        cv2.imshow("result", result)', def_newline)
-        tmp_str = "%s%s%s" % (tmp_str, "        ret = cv2.waitKey(1)", def_newline)
-        tmp_str = "%s%s%s" % (tmp_str, "        if (ret >= 0):", def_newline)
-        tmp_str = "%s%s%s" % (tmp_str, "            break;", def_newline)
-        tmp_str = "%s%s" % (tmp_str, def_newline)
-        tmp_str = "%s%s%s" % (tmp_str, "    cap.release()", def_newline)
-        tmp_str = "%s%s%s" % (tmp_str, "    cv2.destroyAllWindows()", def_newline)
-        tmp_str = "%s%s%s" % (tmp_str, "    ############################", def_newline)
-        tmp_str = "%s%s%s" % (tmp_str, "    ### yolov5 inference END ###", def_newline)
-        tmp_str = "%s%s%s" % (tmp_str, "    ############################", def_newline)
-        tmp_str = "%s%s%s" % (tmp_str, "    rknn_lite.release()", def_newline)
-
-        try:
-            outf = open(self.get_code_filepath(self.m_deploy_python_file), "w")
-        except IOError as err:
-            logging.debug("RKNN Deploy File Write Error #1")
-            return -1
-        outf.write(tmp_str)
-        outf.close()
-
-        # manual copy
-        if os.path.isfile(def_m1_manual):
-            shutil.copy(def_m1_manual, self.m_current_code_folder)
-
-        # khlee
-        # onnx file remove
-        os.remove(self.get_real_filepath(self.m_nninfo_weight_onnx_file))
-        return 0
-
-    ####################################################################
     def gen_python_code(self):
         """
         convert pytorch template code
@@ -1534,20 +1016,46 @@ class CodeGen:
             self.m_converted_file = "%s%s%s" % (self.m_current_file_path, "/", self.m_nninfo_weight_pt_file)
 
         if self.m_deploy_type == 'cloud':
-            # if sys.version_info.major == 3 and sys.version_info.minor > 7:
-            #    shutil.copytree('./db/yolov3/', self.m_current_code_folder, dirs_exist_ok=True)
-            # else:
-            #     if os.path.exists('./db/yolov3/'):
-            #         for file in os.scandir('./db/yolov3/'):
-            #            if os.path.isfile(file.path):
-            #                shutil.copy(file.path, self.m_current_code_folder)
-            #            else:
-            #                tname = "%s/%s" % (self.m_current_code_folder, file.name)
-            #                shutil.copytree(file.path, tname)
-            # zip db/yolov3.db into nn_model foler
-            zipfile.ZipFile('./db/yolov3.db').extractall(self.m_current_code_folder)
+            # code copy
+            os.system("cp -r ./db/yolov7 %s" % self.m_current_code_folder)
             # copy db/yolov3/yolov3.pt into nn_model folder
-            shutil.copy('./db/yolov3.pt', self.m_current_code_folder)
+            pt_path = "%s%s" % (self.m_current_file_path, self.m_nninfo_weight_pt_file)
+            os.system("cp  %s  %s/yolov7/yolov7-e6e.pt" % (pt_path, self.m_current_code_folder)) 
+        elif self.m_deploy_type == 'k8s':
+            # khlee copy k8s app codes
+            os.system("mkdir %s/fileset" % self.m_current_code_folder) 
+            os.system("unzip ./db/k8syolov7.zip -d %s/fileset" % self.m_current_code_folder) 
+            # copy pt file nn_model/fileset/yolov7
+            pt_path = "%s%s" % (self.m_current_file_path, self.m_nninfo_weight_pt_file)
+            os.system("cp  %s  %s/fileset/yolov7" % (pt_path, self.m_current_code_folder)) 
+            # copy requirement file to code_folder just for testing
+            if os.path.isfile(self.get_real_filepath(self.m_requirement_file)):
+                shutil.copy(self.get_real_filepath(self.m_requirement_file), self.m_current_code_folder)
+            # change output.py code
+            k8s_str = "def_port = 8902\n"
+            k8s_str += "def_weight_file = '%s'\n" % self.m_nninfo_weight_pt_file
+            k8s_str += "def_input_source = %s\n\n\n" % self.m_sysinfo_input_method 
+            # open output.py and add k8s_str on top of it
+            os.system("mv %s/fileset/yolov7/output.py %s/fileset/yolov7/tmp.py" % (self.m_current_code_folder, self.m_current_code_folder)) 
+            try:
+                outf = open("%s/fileset/yolov7/output.py" % self.m_current_code_folder, "w") 
+            except IOError as err:
+                logging.debug("output.py Write Error #1")
+                return -1
+            outf.write(k8s_str)
+            try:
+                inf = open("%s/fileset/yolov7/tmp.py" % self.m_current_code_folder, "r") 
+            except IOError as err:
+                logging.debug("tmp.py Open Error #1")
+                return -1
+            os.system("/bin/rm -f %s/fileset/yolov7/tmp.py" % (self.m_current_code_folder)) 
+            outf.write(inf.read()) 
+            outf.close()
+            inf.close()
+            # copy annotation file
+            annotation_file = "%s/%s" % (def_dataset_path, self.m_nninfo_annotation_file)
+            t_path = "%s/fileset/yolov7" % self.m_current_code_folder 
+            shutil.copy(annotation_file, t_path) 
         else:
             '''
             # convert  and copy .pt file to nn_model folder
@@ -1643,22 +1151,17 @@ class CodeGen:
             t_file = t_file.split(".py\n")[0]
             t_file = t_file.split("\n")[0]
             if self.m_nninfo_yolo_base_file_path != ".":  
-                t_file = "%s.%s" % (self.m_nninfo_yolo_base_file_path, t_file)
+                tmp_path = self.m_nninfo_yolo_base_file_path.replace("/", ".")
+                t_file = "%s.%s" % (tmp_path, t_file)
             f.write('import %s as ye\n' % t_file)
             f.write('def_pt_file = "%s"\n' % self.m_nninfo_weight_pt_file)
             # remove prefix coco/coco.yaml -> coco.yaml
             a_file = self.m_nninfo_annotation_file.split("/")
             f.write('def_label_yaml = "%s"\n' % a_file[-1])
-            if type(self.m_sysinfo_input_method) is str:
-                f.write('def_input_location = "%s"\n' % self.m_sysinfo_input_method)
-            else:
-                f.write('def_input_location = %d\n' % self.m_sysinfo_input_method)
+            f.write('def_input_location = %s\n' % self.m_sysinfo_input_method)
             f.write('def_conf_thres = %s\n' % self.m_nninfo_postproc_conf_thres)
             f.write('def_iou_thres = %s\n'% self.m_nninfo_postproc_iou_thres)
-            if type(self.m_sysinfo_output_method) is str:
-                f.write('def_output_location = "%s"\n' % self.m_sysinfo_output_method)
-            else:
-                f.write('def_output_location = %d\n' % self.m_sysinfo_output_method)
+            f.write('def_output_location = %s\n' % self.m_sysinfo_output_method)
             if self.m_sysinfo_acc_type == "cuda":
                 f.write('use_cuda = True\n')
             else:
@@ -1695,7 +1198,13 @@ class CodeGen:
         # self.m_nninfo_annotation_file
         annotation_file = "%s/%s" % (def_dataset_path, self.m_nninfo_annotation_file)
         if os.path.isfile(annotation_file):
-            shutil.copy(annotation_file, self.m_current_code_folder)
+            if self.m_deploy_type == 'k8s':
+                tmp_path = "%s/fileset/yolov7" % self.m_current_code_folder
+                print("annotation=")
+                print(tmp_path)
+                shutil.copy(annotation_file, tmp_path)
+            else:
+                shutil.copy(annotation_file, self.m_current_code_folder)
 
         return 0
 
@@ -1776,70 +1285,31 @@ class CodeGen:
     def gen_tensorrt_code(self, width, height, data_type):
         if not os.path.exists(self.m_current_code_folder):
             os.makedirs(self.m_current_code_folder)
-        # write tensorrt_converter code from DB
-        tmpstr = ""
-        tmpstr = "%s%s%s" % (tmpstr, "import os", def_newline)
-        tmpstr = "%s%s%s" % (tmpstr, "import numpy as np", def_newline)
-        tmpstr = "%s%s%s" % (tmpstr, "import tensorrt as trt", def_newline)
-        tmpstr = "%s%s%s" % (tmpstr, def_newline, def_newline)
-        tmpstr = "%s%s%s%s%s%s" % (tmpstr, "def_onnx_model = ", '"', 
-                self.m_nninfo_weight_onnx_file, '"', def_newline)
-        tmpstr = "%s%s%s%s%s%s" % (tmpstr, "def_calib_cache = ",'"',  
-                def_trt_calib_cache, '"', def_newline)
-        tmpstr = "%s%s%s%s%s%s" % (tmpstr, "def_trt_engine = ", '"', 
-                def_trt_engine, '"', def_newline)
-        tmpstr = "%s%s%s%s%s%s" % (tmpstr, "def_trt_precision = ", '"',  
-                def_trt_precision, '"', def_newline)
-        tmpstr = "%s%s%f%s" % (tmpstr, "def_trt_conf_thres = ", 
-                self.m_nninfo_postproc_conf_thres, def_newline)
-        tmpstr = "%s%s%f%s" % (tmpstr, "def_trt_iou_thres = ", 
-                self.m_nninfo_postproc_iou_thres, def_newline)
-        tmpstr = "%s%s%s" % (tmpstr, "def_trt_max_detection = 100", def_newline)
-        tmpstr = "%s%s%s" % (tmpstr, def_newline, def_newline)
-
-        try:
-            conv_outf = open(self.get_code_filepath(def_trt_converter_file_name), "w")
-        except IOError as err:
-            logging.debug("TensorRT Converter File Write Error #1")
-            return -1
-        conv_outf.write(tmpstr)
-        try:
-            ft = open("./db/tensorrt-converter.py", 'r')
-        except IOError as err:
-            logging.debug("TensorRT converter  body open error")
-            return -1
-        # body copy
-        for line2 in ft:
-            conv_outf.write(line2)
-        ft.close()
-        conv_outf.close()
-
         # write tensorrt_infer code from DB
         tmpstr = ""
-        tmpstr = "%s%s%s%s%s%s" % (tmpstr, "def_model = ", '"', 
-                def_trt_engine, '"', def_newline)
-        # tmpstr = "%s%s%s%s%s%s" % (tmpstr, "def_label_yaml = ", '"',  
-        #         self.m_nninfo_annotation_file, '"', def_newline)
         a_file = self.m_nninfo_annotation_file.split("/")
         b_file = a_file[-1]
         tmpstr = "%s%s%s%s%s%s" % (tmpstr, "def_label_yaml = ", '"',  
                 b_file, '"', def_newline)
-        if type(self.m_sysinfo_input_method) is str:
-            tmpstr = "%s%s%s%s%s%s" % (tmpstr, "def_input_location = ", '"', 
-                    self.m_sysinfo_input_method, '"', def_newline)
-        else:
-            tmpstr = "%s%s%s%s" % (tmpstr, "def_input_location = ",  
-                    self.m_sysinfo_input_method, def_newline)
-        if type(self.m_sysinfo_output_method) is str:
-            tmpstr = "%s%s%s%s%s%s" % (tmpstr, "def_output_location = ", '"', 
-                    self.m_sysinfo_output_method, '"', def_newline)  
-        else:
-            tmpstr = "%s%s%s%s" % (tmpstr, "def_output_location = ",  
-                    self.m_sysinfo_output_method, def_newline)  
+        tmpstr = "%s%s%s%s" % (tmpstr, "def_input_location = ",  
+                self.m_sysinfo_input_method, def_newline)
+        tmpstr = "%s%s%s%s" % (tmpstr, "def_output_location = ",  
+                self.m_sysinfo_output_method, def_newline)  
         tmpstr = "%s%s%s%s" % (tmpstr, "def_conf_thres = ",  
                 self.m_nninfo_postproc_conf_thres, def_newline)
         tmpstr = "%s%s%s%s" % (tmpstr, "def_iou_thres = ",  
                 self.m_nninfo_postproc_iou_thres, def_newline)
+        tmpstr = "%s%s%s%s%s%s" % (tmpstr, "def_onnx_model = ", '"', 
+                self.m_nninfo_weight_onnx_file, '"', def_newline)
+        a_file = def_trt_calib_cache.split("/")
+        tmpstr = "%s%s%s%s%s%s" % (tmpstr, "def_calib_cache = ",'"',  
+                a_file[-1], '"', def_newline)
+        tmpstr = "%s%s%s%s%s%s" % (tmpstr, "def_trt_engine = ", '"', 
+                def_trt_engine, '"', def_newline)
+        tmpstr = "%s%s%s%s%s%s" % (tmpstr, "def_trt_precision = ", '"',  
+                def_trt_precision, '"', def_newline)
+        tmpstr = "%s%s%s" % (tmpstr, "def_trt_max_detection = 100", def_newline)
+        tmpstr = "%s%s%s" % (tmpstr, def_newline, def_newline)
         try:
             infer_outf = open(self.get_code_filepath(def_deploy_python_file), "w")
         except IOError as err:
@@ -1849,7 +1319,7 @@ class CodeGen:
         try:
             fi = open("./db/tensorrt-infer-template.py", 'r')
         except IOError as err:
-            logging.debug("TensorRT converter  body open error")
+            logging.debug("TensorRT infer  body open error")
             return -1
         # body copy
         for line2 in fi:
@@ -1864,16 +1334,6 @@ class CodeGen:
         annotation_file = "%s/%s" % (def_dataset_path, self.m_nninfo_annotation_file)
         if os.path.isfile(annotation_file):
             shutil.copy(annotation_file, self.m_current_code_folder)
-        '''
-        # copy model file and related files
-        if isinstance(self.m_nninfo_class_file, list):
-            num_files = len(self.m_nninfo_class_file)
-            if num_files >= 1:
-                for i in range(num_files):
-                    self.copy_subfolderfile(self.m_nninfo_class_file[i], self.m_current_code_folder)
-        else:
-            shutil.copy(self.get_real_filepath(self.m_nninfo_class_file), self.m_current_code_folder)
-        '''
         return
 
 
@@ -1881,26 +1341,14 @@ class CodeGen:
         if not os.path.exists(self.m_current_code_folder):
             os.makedirs(self.m_current_code_folder)
         tmpstr = ""
-        tmpstr = "%s%s%s%s%s%s" % (tmpstr, "def_lib_path = ", '"', 
-            def_TVM_lib_path, '"', def_newline)
-        tmpstr = "%s%s%s%s%s%s" % (tmpstr, "def_code_path = ", '"', 
-            def_TVM_code_path, '"', def_newline)
+        tmpstr = "%s%s%s%s%s%s" % (tmpstr, "def_mod_path = ", '"', 
+            def_TVM_mod, '"', def_newline)
+        tmpstr = "%s%s%s%s%s%s" % (tmpstr, "def_param_path = ", '"', 
+            def_TVM_param, '"', def_newline)
         a_file = self.m_nninfo_annotation_file.split("/")
         b_file = a_file[-1]
         tmpstr = "%s%s%s%s%s%s" % (tmpstr, "def_label_yaml = ",'"',  
             b_file, '"', def_newline)
-        if type(self.m_sysinfo_input_method) is str:
-            tmpstr = "%s%s%s%s%s%s" % (tmpstr, "def_input_location = ", '"',   
-                    self.m_sysinfo_input_method, '"', def_newline)
-        else:
-            tmpstr = "%s%s%s%s" % (tmpstr, "def_input_location = ",   
-                    self.m_sysinfo_input_method, def_newline)
-        if type(self.m_sysinfo_output_method) is str:
-            tmpstr = "%s%s%s%s%s%s" % (tmpstr, "def_output_location = ", '"',  
-                    self.m_sysinfo_output_method, '"', def_newline)  
-        else:
-            tmpstr = "%s%s%s%s" % (tmpstr, "def_output_location = ",  
-                    self.m_sysinfo_output_method, def_newline)  
         tmpstr = "%s%s%s%s" % (tmpstr, "def_conf_thres = ",  
                 self.m_nninfo_postproc_conf_thres, def_newline)
         tmpstr = "%s%s%s%s" % (tmpstr, "def_iou_thres = ",  
@@ -1908,13 +1356,19 @@ class CodeGen:
         if self.m_sysinfo_acc_type == "cuda": 
             tmpstr = "%s%s%s%s" % (tmpstr, "def_dev_type = ",  "1", def_newline)
         else:
-            tmpstr = "%s%s%s%s" % (tmpstr, "def_dev_type = ",  "0", def_newline)
+            tmpstr = "%s%s%s%s" % (tmpstr, "def_dev_type = ",  "llvm", def_newline)
         tmpstr = "%s%s%s%s%s%s" % (tmpstr, "def_data_type = ", '"',  
                 self.m_nninfo_input_data_type, '"', def_newline)
         tmpstr = "%s%s%s%s" % (tmpstr, "def_width = ",  
-                self.m_nninfo_input_tensor_shape[1], def_newline)
+                # self.m_nninfo_input_tensor_shape[1], def_newline)
+                def_TVM_width, def_newline)
         tmpstr = "%s%s%s%s" % (tmpstr, "def_height = ",  
-                self.m_nninfo_input_tensor_shape[2], def_newline) 
+                #self.m_nninfo_input_tensor_shape[2], def_newline) 
+                def_TVM_height, def_newline)
+        tmpstr = "%s%s%s%s" % (tmpstr, "def_input_location = ",   
+                self.m_sysinfo_input_method, def_newline)
+        tmpstr = "%s%s%s%s" % (tmpstr, "def_output_location = ",  
+                self.m_sysinfo_output_method, def_newline)  
         tmpstr = "%s%s%s" % (tmpstr, def_newline, def_newline) 
         try:
             infer_outf = open(self.get_code_filepath(def_deploy_python_file), "w")
@@ -1938,17 +1392,6 @@ class CodeGen:
         annotation_file = "%s/%s" % (def_dataset_path, self.m_nninfo_annotation_file)
         if os.path.isfile(annotation_file):
             shutil.copy(annotation_file, self.m_current_code_folder)
-        '''
-        # copy model file and related files
-        if isinstance(self.m_nninfo_class_file, list):
-            num_files = len(self.m_nninfo_class_file)
-            if num_files >= 1:
-                for i in range(num_files):
-                    self.copy_subfolderfile(self.m_nninfo_class_file[i], self.m_current_code_folder)
-        else:
-            shutil.copy(self.get_real_filepath(self.m_nninfo_class_file), self.m_current_code_folder)
-        '''
-
         return
 
     ####################################################################
@@ -1990,32 +1433,23 @@ class CodeGen:
         """
 
         if self.m_deploy_type == 'cloud' or self.m_deploy_type == 'k8s': 
-            # khlee 
             # self.m_deploy_type == 'PCServer': just for webserver not docker
             dep_type = 'docker'
         else:
             dep_type = 'native'
 
-        # if self.m_sysinfo_engine_type == 'rknn':
-        #     w_filw = def_rknn_file
-        # elif self.m_sysinfo_engine_type == 'acl':
-        #     w_filw = "yolo_v3_tiny_darknet_fp32.tflite"
-        # #  .pt file
-        # else:
-        #    w_filw = self.m_nninfo_weight_pt_file
-
         my_entry = ['python3', 'deploy_server.py']
         # my_entry = self.m_deploy_entrypoint
 
         if self.m_deploy_type == 'cloud':
-            if self.m_sysinfo_engine_type == 'pytorch':
-                req_pkg = self.m_nninfo_yolo_require_packages
-            else:
-                req_pkg = []
-            for item in self.m_nnino_user_libs:
-                if not item in req_pkg:
-                    req_pkg.append(item)
-            req_pkg.append('vim')
+            # if self.m_sysinfo_engine_type == 'pytorch':
+            #     req_pkg = self.m_nninfo_yolo_require_packages
+            # else:
+            #     req_pkg = []
+            # for item in self.m_nninfo_user_libs:
+            #     if not item in req_pkg:
+            #         req_pkg.append(item)
+            req_pkg = ['vim', 'hello']
             t_pkg = {"atp": req_pkg, "pypi": ['flask==1.2.3']}
             t_com = {"custom_packages": t_pkg,
                      "libs": ['python==3.9', 'torch>=1.1.0'], 
@@ -2024,16 +1458,18 @@ class CodeGen:
             t_build = {'architecture': 'linux/amd64',
                        "accelerator": 'cpu',
                        "os": 'ubuntu',
-                       # "target_name": 'yolov3:latest',
+                       "image_uri": 'us-docker.pkg.dev/cloudrun/container/hello:latest',
                        "components": t_com }
+            my_entry = ['run.sh', '-p', 'opt1', 'arg']
             t_deploy = {"type": dep_type,
-                        "workdir": "/test/test",
+                        "service_name": "hello",
+                        # "workdir": "/workspace",
                         "entrypoint": my_entry,
                         "network": {"service_host_ip": self.m_deploy_network_hostip,
                                     "service_host_port": self.m_deploy_network_hostport,
                                     "service_container_port": self.m_deploy_network_serviceport}}
-            if self.m_sysinfo_engine_type == 'tensorrt':
-                t_deploy['pre_exec'] = ['tensorrt-converter.py']
+            # if self.m_sysinfo_engine_type == 'tensorrt':
+            #    t_deploy['pre_exec'] = ['tensorrt-converter.py']
             t_total = {"build": t_build, 
                     "deploy": t_deploy}
         elif self.m_deploy_type == "k8s":
@@ -2041,24 +1477,32 @@ class CodeGen:
                 req_pkg = self.m_nninfo_yolo_require_packages
             else:
                 req_pkg = []
-            for item in self.m_nnino_user_libs:
+            for item in self.m_nninfo_user_libs:
                 if not item in req_pkg:
                     req_pkg.append(item)
             req_pkg.append('vim')
-            req_pkg.append('python3.9')
-            t_pkg = {"atp": req_pkg, "pypi": []}
+            req_pkg.append('python3.8')
+            y7_pkgs = [ 'matplotlib>=3.2.2', 'numpy>=1.18.5,<1.24.0', 
+                    'opencv-python>=4.1.1', 'Pillow>=7.1.2', 
+                    'PyYAML>=5.3.1', 'requests>=2.23.0', 
+                    'scipy>=1.4.1', 'torch>=1.7.0,!=1.12.0', 
+                    'torchvision>=0.8.1,!=0.13.0', 'tqdm>=4.41.0', 
+                    'protobuf<4.21.3', 'tensorboard>=2.4.1', 
+                    'pandas>=1.1.4', 'seaborn>=0.11.0', 
+                    'ipython', 'psutil', 'thop']
+
+            t_pkg = {"atp": req_pkg, "pypi": y7_pkgs}
             t_com = {"custom_packages": t_pkg,
-                     "libs": ['python==3.9', 'torch>=1.1.0'], 
-                     "engine": self.m_sysinfo_engine_type }
+                     "engine": 'pytorch' }
             t_build = {'architecture': 'linux/amd64',
-                       "accelerator": 'cpu',
+                       "accelerator": 'gpu',
                        "os": 'ubuntu',
-                       # "target_name": 'yolov3:latest',
+                       "target_name": 'python:3.8',
                        "components": t_com
                        }
             t_deploy = {"type": dep_type,
                      "workdir": "/test/test",
-                     'entrypoint': my_entry,
+                     'entrypoint': [ '/bin/bash', '-c'], # my_entry,
                      "network": {
                          'service_host_ip': self.m_deploy_network_hostip,
                          "service_host_port": self.m_deploy_network_hostport,
@@ -2069,9 +1513,14 @@ class CodeGen:
                          "nfs_path": self.m_deploy_nfs_path 
                          }
                      }
-            if self.m_sysinfo_engine_type == 'tensorrt':
-                t_deploy['pre_exec'] = ['tensorrt-converter.py']
-            t_total = {"build": t_build, "deploy": t_deploy}
+            # if self.m_sysinfo_engine_type == 'tensorrt':
+            #    t_deploy['pre_exec'] = ['tensorrt-converter.py']
+            a_file = self.m_nninfo_annotation_file.split("/")
+            b_file = a_file[-1]
+            t_opt = {"nn_file": 'output.py',
+                     "weight_file": self.m_nninfo_weight_pt_file,
+                     "annotation_file": b_file } 
+            t_total = {"build": t_build, "deploy": t_deploy, "optional": t_opt}
         else:
             t_pkg = {"atp": self.m_sysinfo_apt, "pypi": self.m_sysinfo_papi}
             t_com = {"engine": "pytorch",
@@ -2089,11 +1538,13 @@ class CodeGen:
                         "network": {"service_host_ip": self.m_deploy_network_hostip,
                                     "service_host_port": self.m_deploy_network_hostport,
                                     "service_container_port": self.m_deploy_network_serviceport}}
-            if self.m_sysinfo_engine_type == 'tensorrt':
-                t_deploy['pre_exec'] = ['tensorrt-converter.py']
-            t_opt = {"nn_file": 'yolo.py',
-                     "weight_file": 'yolov3.pt',
-                     "annotation_file": self.m_nninfo_annotation_file}
+            # if self.m_sysinfo_engine_type == 'tensorrt':
+            #    t_deploy['pre_exec'] = ['tensorrt-converter.py']
+            a_file = self.m_nninfo_annotation_file.split("/")
+            b_file = a_file[-1]
+            t_opt = {"nn_file": 'output.py',
+                     "weight_file": self.m_nninfo_weight_pt_file,
+                     "annotation_file": b_file }
 
             t_total = {"build": t_build, "deploy": t_deploy, "optional": t_opt}
 
@@ -2105,6 +1556,9 @@ class CodeGen:
             return -1
         yaml.dump(t_total, f)
         f.close()
+        # khlee 
+        # copy deployment.yaml to m_current_filepath
+        shutil.copy(r_file, self.m_current_file_path)
         return 0
         
         
@@ -2148,11 +1602,13 @@ class CodeGen:
                    "os": self.m_sysinfo_os_type, "components": t_com}
         t_deploy = {"type": self.m_deploy_type, "work_dir": self.m_deploy_work_dir,
                     "entrypoint": self.m_deploy_python_file}
-        if self.m_sysinfo_engine_type == 'tensorrt':
-            t_deploy['pre_exec'] = ['tensorrt-converter.py']
+        # if self.m_sysinfo_engine_type == 'tensorrt':
+        #     t_deploy['pre_exec'] = ['tensorrt-converter.py']
+        a_file = self.m_nninfo_annotation_file.split("/")
+        b_file = a_file[-1]
         t_opt = {"nn_file": self.m_deploy_python_file,
                  "weight_file": w_filw,
-                 "annotation_file": self.m_nninfo_annotation_file}
+                 "annotation_file": b_file}
         t_total = {"build": t_build, "deploy": t_deploy, "optional": t_opt}
 
         try:
@@ -2163,6 +1619,9 @@ class CodeGen:
             return -1
         yaml.dump(t_total, f)
         f.close()
+        # khlee 
+        # copy deployment.yaml to m_current_filepath
+        shutil.copy(r_file, self.m_current_file_path)
         return
         
 
@@ -2191,11 +1650,7 @@ class CodeGen:
                         f.write("\n")
 
         t_pkg = {"atp": self.m_sysinfo_apt, "pypi": self.m_sysinfo_papi}
-        if self.m_sysinfo_engine_type == 'rknn':
-            w_filw = def_rknn_file
-            t_com = {"engine": "rknn", "libs": self.m_sysinfo_libs,
-                 "custom_packages": t_pkg}
-        elif self.m_sysinfo_engine_type == 'acl':
+        if self.m_sysinfo_engine_type == 'acl':
             w_filw = "yolo_v3_tiny_darknet_fp32.tflite"
             t_com = {"engine": "acl", "libs": self.m_sysinfo_libs,
                  "custom_packages": t_pkg}
@@ -2204,7 +1659,7 @@ class CodeGen:
             t_com = {"engine": 'tensorrt', "libs": self.m_sysinfo_libs,
                  "custom_packages": t_pkg}
         elif self.m_sysinfo_engine_type == 'tvm':
-            w_filw = [def_TVM_lib_path, def_TVM_code_path]
+            w_filw = [def_TVM_mod, def_TVM_param]
             t_com = {"engine": 'tvm', "libs": self.m_sysinfo_libs,
                  "custom_packages": t_pkg}
         else:  # .pt file
@@ -2217,11 +1672,13 @@ class CodeGen:
                    "os": self.m_sysinfo_os_type, "components": t_com}
         t_deploy = {"type": self.m_deploy_type, "work_dir": self.m_deploy_work_dir,
                     "entrypoint": self.m_deploy_python_file}
-        if self.m_sysinfo_engine_type == 'tensorrt':
-            t_deploy['pre_exec'] = ['tensorrt-converter.py']
+        # if self.m_sysinfo_engine_type == 'tensorrt':
+        #     t_deploy['pre_exec'] = ['tensorrt-converter.py']
+        a_file = self.m_nninfo_annotation_file.split("/")
+        b_file = a_file[-1]
         t_opt = {"nn_file": self.m_deploy_python_file,
                  "weight_file": w_filw,
-                 "annotation_file": self.m_nninfo_annotation_file}
+                 "annotation_file": b_file }
         t_total = {"build": t_build, "deploy": t_deploy, "optional": t_opt}
 
         try:
@@ -2232,6 +1689,9 @@ class CodeGen:
             return -1
         yaml.dump(t_total, f)
         f.close()
+        # khlee 
+        # copy deployment.yaml to m_current_filepath
+        shutil.copy(r_file, self.m_current_file_path)
         return
 
     ####################################################################
@@ -2433,7 +1893,7 @@ class MyHandler(SimpleHTTPRequestHandler):
                 else:
                     if self.m_flag == 0:
                         buf = '"stopped"'
-                    elif self.m_flag == 1:
+                    else:
                         buf = '"completed"'
             self.send_response(200, 'ok')
             self.send_cors_headers()
@@ -2510,9 +1970,10 @@ if __name__ == '__main__':
         logging.debug("wait for thread done")
         m_obj.wait_for_done()
 
-'''
+
 #스트링으로 함수 호출하기 #1
 #file name이 user.py class가 User라 가정
+'''
 user.py의 내용
 class User():
     name = 'abc'

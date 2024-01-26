@@ -1,7 +1,7 @@
 <ondevice_deploy>
 
 □ Functionality of this folder
-   o Delivers application code for ondevice to users
+   o Delivers application codes for ondevice to users
 
 □ Operation Flow of this container
    o Receives a yaml file and program code for inference
@@ -11,16 +11,17 @@
 
 □ Supported Targets
 ------------------------------------------------------------------------------------------------------------------------------
-|  Type          |   CPU   |  Accelerator   |   OS           |  Neural Network Engine   |   Chip/Board/System Name  |
+|  Type          |   CPU   |  Accelerator   |   OS             |  Neural Network Engine            |  Chip/Board/System Name  |
 ------------------------------------------------------------------------------------------------------------------------------
-|  OnDevice    |  ARM   |   Mali GPU     |   Linux       |   ACL/ARMNN/PyARMNN  |  ODROID-N2+                  | 
-|                  |           |                    |                 |                                    |  (Mali-G52 GPU)                |
-|                  --------------------------------------------------------------------------------------------------------------|
-|                  |   ARM  |   RKNN NPU  |   Linux        |  RKNN                          |  ODROID-M1                    | 
-|                  |           |                    |                 |                                    |  Firefly-RK3399PRO            | 
-|                  |           |                    |                 |                                    |  Firefly-RK3399                 |  
-------------------------------------------------------------------------------------------------------------------------------|
-* Jetson Nano, Anroid Smartphone will be added in the next release version.
-
+|  OnDevice      |   ARM   |   Mali GPU     |   Linux          |   ACL/ARMNN/PyARMNN               |  ODROID-N2+              | 
+|                |         |                |                  |                                   |  (Mali-G52 GPU)          |
+|                 ------------------------------------------------------------------------------------------------------------|
+|                |   ARM   |   CUDA         |   Linux          |   TensorRT/TVM/PyTorch            |  Jetson AGX Orin         | 
+|                |         |                |                  |                                   |                          | 
+|                 ------------------------------------------------------------------------------------------------------------|
+|                |   ARM   |   NPU          |   Linux          |   TensorflowLite                  |  Galaxy S22              | 
+|                 -------------------------------------------------------------------------------------------------------------
+|                |   x64   |   CUDA         |   Linux          |   PyTorch                         |   PCs                    |
+------------------------------------------------------------------------------------------------------------------------------
 
 

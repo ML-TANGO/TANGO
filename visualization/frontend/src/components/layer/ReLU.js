@@ -52,7 +52,7 @@ const ReLU = (props) => {
     }).catch(err=>console.log(err));
     // node update하기 ********************
 
-
+props.setState("");
     save();
   };
 
@@ -66,7 +66,25 @@ const ReLU = (props) => {
               Save
             </button> } */}
 
-            <button className="close" onClick={() => {
+
+            {/* <button className="close" onClick={close}>
+              &times;
+            </button> */}
+          </header>
+          <main>
+            <React.Fragment>
+          <div>
+              <li>
+                  <label htmlFor="text">inplace:</label>
+                  <label> <input type="radio" name="radio1" value="True" onChange={handleClickRadioButton1} checked={radio1.includes("T")===true ? true : false}/>True </label>
+                  <label> <input type="radio" name="radio1" value="False" onChange={handleClickRadioButton1} checked={radio1.includes("F")===true ? true : false}/>False </label>
+              </li>
+
+          </div>
+            </React.Fragment>
+          </main>
+            <div className="btnDiv">
+          <button className="close" onClick={() => {
                 setRadio1('False')
             }}>
               default
@@ -74,22 +92,7 @@ const ReLU = (props) => {
             <button className="save" onClick={bfsave}>
               save
             </button>
-            {/* <button className="close" onClick={close}>
-              &times;
-            </button> */}
-          </header>
-          <main>
-            <React.Fragment>
-          <div><label htmlFor="text">inplace:</label>
-          <label> <input type="radio" name="radio1" value="True" onChange={handleClickRadioButton1} checked={radio1.includes("T")===true ? true : false}/>True </label>
-          <label> <input type="radio" name="radio1" value="False" onChange={handleClickRadioButton1} checked={radio1.includes("F")===true ? true : false}/>False </label>
-          </div>
-            </React.Fragment>
-          </main>
-          {/* <main>{val}</main> */}
-          {/* <footer>
-            
-          </footer> */}
+                </div>
         </section>
       ) : null}
     </div>

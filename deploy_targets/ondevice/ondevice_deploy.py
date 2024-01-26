@@ -13,7 +13,7 @@ import time
 # for system calls
 import os
 import socket
-# import subprocess
+import threading
 # import importlib
 
 
@@ -39,7 +39,7 @@ def_deploy_port = 8891
 
 
 ####################################################################
-# class for code generationpython cors header request origin
+# class for  cors header request origin
 ####################################################################
 class OnDeviceDeploy:
     """Class Definition for OnDeviceDeploy """
@@ -68,6 +68,13 @@ class OnDeviceDeploy:
     m_weight_file = 'test.pt'
     m_annotation_file = "coco.dat"
 
+    ev = threading.Event()
+    lock = threading.Lock()
+    the_cnt = 0
+    thread_run_flag = 1
+    thread_done = 0
+    m_at_work = 0
+
     ####################################################################
     def __init__(self):
         """
@@ -79,6 +86,44 @@ class OnDeviceDeploy:
         self.m_target_zipfile = def_zip_file
         self.m_last_run_state = 0
         return
+
+    ####################################################################
+    def thread_for_run(self):
+        while self.thread_run_flag > 0:
+            if self.the_cnt > 0:
+                logging.debug("Call Run()")
+                if self.thread_run_flag > 0:
+                    self.m_atwork = 1
+                    self.run()
+                    self.m_atwork = 0
+                    self.response()
+                    logging.debug("ondev_depl: send_status_report to manager")
+                    with self.lock:
+                        self.the_cnt = self.the_cnt - 1
+            else:
+                event = self.ev.wait(20)
+                if event:
+                    self.ev.clear()
+                    logging.debug("Recv Event")
+        self.thread_done = 1
+        logging.debug("Thread Done")
+        return
+
+    ####################################################################
+    def wait_for_done(self):
+        self.thread_run_flag = 0
+        with self.lock:
+            self.the_cnt = 0
+        self.ev.set()
+        for j in range(3):
+            if self.thread_done != 0:
+                break
+            else:
+                time.sleep(1)
+        logging.debug("ondev_depl Module End")
+        return
+
+
 
     ####################################################################
     def set_folder(self, uid, pid):
@@ -145,7 +190,7 @@ class OnDeviceDeploy:
             self.m_last_run_state = 0
         else:
             ret = -1
-            self.m_last_run_state = -1
+            self.m_last_run_state = 0
         return ret
 
     ####################################################################
@@ -287,9 +332,11 @@ class OnDeviceDeploy:
             'vary': 'origin',
             'referrer-policy': 'same-origin'
             }
+        print(prj_url)
+        logging.debug(prj_url)
 
         try:
-            ret = requests.get(url=prj_url, headers=headers, params=prj_data)
+            ret = requests.get(url=prj_url, headers=headers)
         except requests.exceptions.HTTPError as err:
             print("HTTPError:", err)
         except requests.exceptions.ConnectionError as err:
@@ -298,7 +345,6 @@ class OnDeviceDeploy:
             print("Timeout:", err)
         except requests.exceptions.RequestException as err:
             print("RequestException:", err)
-        print(prj_url)
         print("response for report")
         return
 
@@ -308,10 +354,15 @@ class OnDeviceDeploy:
 ####################################################################
 class MyHandler(SimpleHTTPRequestHandler):
     """Web Server definition """
-    m_deploy_obj = OnDeviceDeploy()
     m_flag = 1
     m_stop = 0
-    allowed_list = ('0,0,0,0', '127.0.0.1')
+    m_obj = 0
+    # allowed_list = ('0,0,0,0', '127.0.0.1')
+
+    @staticmethod
+    def set_obj(cobj):
+        MyHandler.m_obj = cobj
+        return
     
     def send_cors_headers(self):
         """
@@ -351,9 +402,9 @@ class MyHandler(SimpleHTTPRequestHandler):
                 cmd = pathlist[0]
                 userid = ctmp[0].split('user_id')[1].split('=')[1]
                 if userid == '""' or userid == '%22%22':
-                    self.m_deploy_obj.set_folder("", "")
+                    self.m_obj.set_folder("", "")
                 else:
-                    self.m_deploy_obj.set_folder(userid, "")
+                    self.m_obj.set_folder(userid, "")
             else:  # mycnt == 2:
                 cmd = pathlist[0]
                 userid = ctmp[0].split('user_id')[1].split('=')[1]
@@ -362,8 +413,9 @@ class MyHandler(SimpleHTTPRequestHandler):
                     userid = ""
                 if prjid == '""' or prjid == '%22%22':
                     prjid = ""
-                self.m_deploy_obj.set_folder(userid, prjid)
-        print("cmd =", cmd)
+                self.m_obj.set_folder(userid, prjid)
+        print("cmd =%s" % cmd)
+        logging.debug("cmd =%s" %  cmd)
 
         if cmd == "start":
             buf = '"started"'
@@ -374,9 +426,12 @@ class MyHandler(SimpleHTTPRequestHandler):
             self.end_headers()
             self.wfile.write(buf.encode())
             if self.m_flag == 1:
-                self.m_deploy_obj.run()
+                with self.m_obj.lock:
+                    self.m_obj.the_cnt = self.m_obj.the_cnt + 1
+                self.m_obj.ev.set()
+                logging.debug("event sent")
             # send notice to project manager
-            self.m_deploy_obj.response()
+            # self.m_obj.response()
         elif cmd == 'stop':
             buf = '"finished"'
             self.send_response(200, 'ok')
@@ -385,10 +440,10 @@ class MyHandler(SimpleHTTPRequestHandler):
             self.send_header("Content-Length", "%d" % len(buf))
             self.end_headers()
             self.wfile.write(buf.encode())
-            self.m_deploy_obj.clear()
+            self.m_obj.clear()
             self.m_stop = 1
         elif cmd == "clear":
-            self.m_deploy_obj.clear()
+            self.m_obj.clear()
             buf = '"OK"'
             self.send_response(200, 'ok')
             self.send_cors_headers()
@@ -415,20 +470,24 @@ class MyHandler(SimpleHTTPRequestHandler):
             self.wfile.write(buf.encode())
 
         elif cmd == 'status_request':
-            buf = '"error"'
-            if self.m_deploy_obj.m_current_userid == "":
-                buf = "ready"
+            buf = '"failed"'
+            if self.m_obj.m_current_userid == "":
+                buf = '"ready"'
             else:
-                if self.m_flag == 0:
-                    buf = "stopped"
-                elif self.m_flag == 1:
-                    buf = "completed"
+                if self.m_obj.m_atwork == 1:
+                    buf = '"running"'
+                else: 
+                    if self.m_flag == 0:
+                        buf = '"stopped"'
+                    else:
+                        buf = '"completed"'
             self.send_response(200, 'ok')
             self.send_cors_headers()
             self.send_header("Content-Type", "text/plain")
             self.send_header("Content-Length", "%d" % len(buf))
             self.end_headers()
             self.wfile.write(buf.encode())
+            logging.debug("ondevdepl status_request response = %s" % buf)
         else:
             buf = '""'
             self.send_response(200, 'ok')
@@ -472,9 +531,15 @@ class MyHandler(SimpleHTTPRequestHandler):
 ####################################################################
 ####################################################################
 if __name__ == '__main__':
+    m_obj = OnDeviceDeploy()
+    mythr = threading.Thread(target=m_obj.thread_for_run, daemon=True, name="OnDeviceThread")
+    mythr.start()
+
+    MyHandler.set_obj(m_obj)
+
     server = HTTPServer(('', def_deploy_port), MyHandler)
-    print("Started OnBoard Deployment Server....")
-    print("Press ^C to quit WebServer")
+    logging.debug("Started OnBoard Deployment Server....")
+    logging.debug("Press ^C to quit WebServer")
 
     try:
         server.serve_forever()
@@ -482,6 +547,7 @@ if __name__ == '__main__':
         time.sleep(1)
         server.socket.close()
         print("OnDevice Deploy Module End", e)
+        m_obj.wait_for_done()
 
 '''
 # 스트링으로 함수 호출하기 #1
