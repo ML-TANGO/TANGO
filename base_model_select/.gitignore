@@ -1,3 +1,4 @@
 VOCdevkit/**
 checkpoint/**
 # *.tar
+datasets/**
