@@ -4,7 +4,8 @@ ENV CMAKE_ARGS="-DONNX_USE_PROTOBUF_SHARED_LIBS=ON"
 
 RUN apt-get update
 RUN pip3 install --upgrade pip
-RUN apt-get install -y build-essential cmake git libprotoc-dev protobuf-compiler 
+# RUN apt-get install -y build-essential cmake git libprotoc-dev protobuf-compiler 
+# RUN apt-get install -y build-essential git libprotoc-dev protobuf-compiler 
 RUN git init
 RUN git update-ref -d HEAD
 RUN pip3 install "pybind11[golbal]"
@@ -34,6 +35,7 @@ RUN pip3 install seaborn pandas torchvision
 RUN pip3 install --upgrade attrs psutil
 RUN apt-get install -y libgl1-mesa-glx 
 RUN apt-get install -y vim sed 
+RUN pip3 install cmake==3.22.1
 WORKDIR /app
 RUN git init
 RUN git clone --recursive https://github.com/apache/tvm tvm
