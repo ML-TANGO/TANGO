@@ -12,6 +12,8 @@ from .yolo.nas.supernet.supernet_yolov7 import YOLOSuperNet
 from .resnet.resnet_cifar10 import ResNet as resnet_model
 from .resnet.resnet_cifar10 import BasicBlock
 
+from .binary_search import TestFuncGen, binary_search
+
 
 def run_batch_test(basemodel_yaml, task, imgsz, hyp_yaml=None, nas=None):
     prefix = '[ AutoBatch ]'
@@ -73,14 +75,21 @@ def autobatch(model, ch, imgsz, batch_size=4):
         img = torch.zeros(batch_size, ch, imgsz, imgsz).float()
         img = img.to(device)
         try:
-            model(img)
+            y = model(img)
+            y = y[1] if isinstance(y, list) else y
+            loss = y.mean()
+            loss.backward() # need to free the variables of the graph
             print(f'{prefix} success: ', batch_size)
             batch_size = batch_size * 2
+            del img
         except RuntimeError as e:
-            print(e)
             print(f'{prefix} fail: ', batch_size)
             final_batch_size = int(batch_size / 2.)
             del img
             break
+
+    torch.cuda.empty_cache()
+    test_func = TestFuncGen(model, ch, imgsz)
+    final_batch_size = binary_search(final_batch_size, batch_size, test_func, want_to_get=True)
 
     return final_batch_size
