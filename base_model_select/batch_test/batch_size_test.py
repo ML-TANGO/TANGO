@@ -15,32 +15,36 @@ from .resnet.resnet_cifar10 import BasicBlock
 from .binary_search import TestFuncGen, binary_search
 
 
+PREFIX = '[ BMS - AutoBatch ]'
+DEBUG = False
+
+
 def run_batch_test(basemodel_yaml, task, imgsz, hyp_yaml=None, nas=None):
-    prefix = '[ AutoBatch ]'
+    print(f'{PREFIX} Start AutoBatch')
     if task=='detection':
         with open(hyp_yaml, 'r') as f:
             hyp = yaml.load(f, Loader=yaml.SafeLoader)  # load hyps
         if nas:
             model = YOLOSuperNet(str(Path(os.path.dirname(__file__))/'yolo'/'nas'/'supernet'/'yolov7_supernet.yml'), ch=3, nc=80, anchors=hyp.get('anchors'))
             model.set_max_net()
-            print(f'{prefix} YOLOSuperNet is used for AutoBatch.')
+            if DEBUG: print(f'{PREFIX} YOLOSuperNet is used for AutoBatch.')
         else:
             model = yolo_model(basemodel_yaml, ch=3, nc=80, anchors=hyp.get('anchors'))
-            print(f'YOLO is used for AutoBatch.')
+            if DEBUG: print(f'{PREFIX} YOLO is used for AutoBatch.')
 
     elif task=='classification':
         with open(basemodel_yaml, 'r') as f:
             basemodel_dict = yaml.load(f, Loader=yaml.SafeLoader)
-        model = resnet_model(BasicBlock, 
-                             basemodel_dict.get('layers', [3,3,3]), 
+        model = resnet_model(BasicBlock,
+                             basemodel_dict.get('layers', [3,3,3]),
                              basemodel_dict.get('num_classes', 2))
-        print(f'{prefix} {task} model is used for AutoBatch.')
+        if DEBUG: print(f'{PREFIX} {task} model is used for AutoBatch.')
 
     else:
-        print(f'{prefix} task is unknown ({task})')
+        if DEBUG: print(f'{PREFIX} task is unknown ({task})')
         return None
 
-    batch_size = int(get_batch_size_for_gpu(model, 3 if task=='detection' else 1, imgsz, amp=True) * 0.8)
+    batch_size = int(get_batch_size_for_gpu(model, 3 if task=='detection' else 1, imgsz, amp=True) * 0.9)
     # It assumes that the memory sizes of all gpus in a machine are same.
     # 0.8 is multiplied by batch size to prevent cuda memory error due to a memory leak of yolov7
 
@@ -49,7 +53,7 @@ def run_batch_test(basemodel_yaml, task, imgsz, hyp_yaml=None, nas=None):
     gc.collect()
 
     batch_size = False if batch_size < 2 else batch_size * torch.cuda.device_count()
-    print(f'{prefix} Selcted Batch Size - {batch_size} (0.8 * batch size for a gpu * gpu_num)')
+    print(f'{PREFIX} Selcted Batch Size - {batch_size} (0.9 * batch size for a gpu * gpu_num)')
 
     return batch_size
 
@@ -60,11 +64,10 @@ def get_batch_size_for_gpu(model, ch, imgsz, amp):
 
 
 def autobatch(model, ch, imgsz, batch_size=4):
-    prefix = '[ AutoBatch ]'
     if torch.cuda.is_available():
-       num_dev = torch.cuda.device_count() 
+       num_dev = torch.cuda.device_count()
     else:
-       print(f'{prefix} CUDA not detected, using default CPU batch size {batch_size}')
+       print(f'{PREFIX} CUDA not detected, using default CPU batch size {batch_size}')
        return batch_size
 
     device = torch.device(f'cuda:0')
@@ -79,11 +82,11 @@ def autobatch(model, ch, imgsz, batch_size=4):
             y = y[1] if isinstance(y, list) else y
             loss = y.mean()
             loss.backward() # need to free the variables of the graph
-            print(f'{prefix} success: ', batch_size)
+            if DEBUG: print(f'{PREFIX} success: ', batch_size)
             batch_size = batch_size * 2
             del img
         except RuntimeError as e:
-            print(f'{prefix} fail: ', batch_size)
+            if DEBUG: print(f'{PREFIX} fail: ', batch_size)
             final_batch_size = int(batch_size / 2.)
             del img
             break
