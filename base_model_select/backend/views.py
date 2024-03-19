@@ -19,6 +19,7 @@ from . import models
 from batch_test.batch_size_test import run_batch_test
 
 
+PREFIX = '[ BMS ]'
 PROCESSES = {}
 
 task_to_model_table = {"detection": "yolov7", "classification": "resnet"}
@@ -165,13 +166,13 @@ def status_report(userid, project_id, status="success"):
         bmsinfo.status = "completed"
         bmsinfo.save()
 
-        print(f"[ STATUS REPORT ] USER ID: {userid}, PROJECT ID: {project_id}")
+        print(f"[ BMS - STATUS REPORT ] USER ID: {userid}, PROJECT ID: {project_id}")
 
     except Exception as e:
         print("An error occurs when BMS reports a project status")
         print(e)
 
-   
+
 def bms_process(yaml_path, userid, project_id):
     with open(yaml_path, 'r') as f:
         proj_info_dict = yaml.load(f, Loader=yaml.FullLoader)
@@ -180,10 +181,10 @@ def bms_process(yaml_path, userid, project_id):
 
     with open(basemodel_yaml, 'r') as f:
         basemodel_dict = yaml.load(f, Loader=yaml.FullLoader)
-    batch_size = run_batch_test(basemodel_yaml, 
+    batch_size = run_batch_test(basemodel_yaml,
                                 proj_info_dict['task_type'],
-                                basemodel_dict['imgsz'] if proj_info_dict['task_type']=='detection' else 256, 
-                                f"hyperparam_yaml/yolov7/hyp.scratch.{basemodel_dict['hyp']}.yaml" if proj_info_dict['task_type']=='detection' else None, 
+                                basemodel_dict['imgsz'] if proj_info_dict['task_type']=='detection' else 256,
+                                f"hyperparam_yaml/yolov7/hyp.scratch.{basemodel_dict['hyp']}.yaml" if proj_info_dict['task_type']=='detection' else None,
                                 True if proj_info_dict['target_info']=='Galaxy_S22' else False,
                                 )
 
@@ -191,7 +192,7 @@ def bms_process(yaml_path, userid, project_id):
         bmsinfo = models.Info.objects.get(userid=userid, project_id=project_id)
         bmsinfo.status = "failed"
         bmsinfo.save()
-        print(f'[ BMS ] Memory resource is not enough for training. Please shrink Model Size')
+        print(f'{PREFIX} Memory resource is not enough for training. Please shrink Model Size')
     else:
         with open(yaml_path, 'r') as f:
             project_info_dict = yaml.load(f, Loader=yaml.FullLoader)
@@ -214,14 +215,17 @@ def create_basemodel_yaml(yaml_path, userid, project_id):
     source_path = f'basemodel_yaml/{model}/{model}{model_size}.yaml'
     target_path = f'/shared/common/{userid}/{project_id}/basemodel.yaml'
     shutil.copy(source_path, target_path)
-    
+    model_p = model.upper()
+    model_size_p = model_size.replace('-', '').replace('_', '').upper()
+    print(f'{PREFIX} SELECTED MODEL: {model_p}, MODEL SIZE: {model_size_p}')
+
     if task == 'classification':
         source_path = f'basemodel_yaml/{model}/resnet50.json'
         target_path = f'/shared/common/{userid}/{project_id}/basemodel.json'
         shutil.copy(source_path, target_path)
-        print('[ BMS ] JSON file is also created in addition to yaml file.')
+        print(f'{PREFIX} JSON file is also created in addition to yaml file.')
     else:
-        print('[ BMS ] The type of task is not classification. JSON file will not be created.')
+        pass
 
     return target_path
 
