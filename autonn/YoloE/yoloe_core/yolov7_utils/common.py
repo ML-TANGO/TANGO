@@ -1036,7 +1036,7 @@ def transI_fusebn(kernel, bn):
     gamma = bn.weight
     std = (bn.running_var + bn.eps).sqrt()
     return kernel * ((gamma / std).reshape(-1, 1, 1, 1)), bn.bias - bn.running_mean * gamma / std
-    
+
     
 class ConvBN(nn.Module):
     def __init__(self, in_channels, out_channels, kernel_size,
@@ -1071,6 +1071,7 @@ class ConvBN(nn.Module):
         self.__delattr__('conv')
         self.__delattr__('bn')
         self.conv = conv    
+
 
 class OREPA_3x3_RepConv(nn.Module):
 
@@ -1223,6 +1224,7 @@ class OREPA_3x3_RepConv(nn.Module):
         out = F.conv2d(inputs, weight, bias=None, stride=self.stride, padding=self.padding, dilation=self.dilation, groups=self.groups)
 
         return self.nonlinear(self.bn(out))
+
 
 class RepConv_OREPA(nn.Module):
 
@@ -1781,7 +1783,8 @@ class WindowAttention_v2(nn.Module):
         # x = self.proj(x)
         flops += N * self.dim * self.dim
         return flops
-    
+
+
 class Mlp_v2(nn.Module):
     def __init__(self, in_features, hidden_features=None, out_features=None, act_layer=nn.SiLU, drop=0.):
         super().__init__()
@@ -2023,7 +2026,7 @@ class ST2CSPC(nn.Module):
 ##### end of swin transformer v2 #####   
 
 
-##### swin yolov9 #####
+##### yolov9 #####
 
 class Silence(nn.Module):
     def __init__(self):
@@ -2235,5 +2238,20 @@ class CBFuse(nn.Module):
         res = [F.interpolate(x[self.idx[i]], size=target_size, mode='nearest') for i, x in enumerate(xs[:-1])]
         out = torch.sum(torch.stack(res + xs[-1:]), dim=0)
         return out
+
+
+class DFL(nn.Module):
+    # DFL module
+    def __init__(self, c1=17):
+        super().__init__()
+        self.conv = nn.Conv2d(c1, 1, 1, bias=False).requires_grad_(False)
+        self.conv.weight.data[:] = nn.Parameter(torch.arange(c1, dtype=torch.float).view(1, c1, 1, 1)) # / 120.0
+        self.c1 = c1
+        # self.bn = nn.BatchNorm2d(4)
+
+    def forward(self, x):
+        b, c, a = x.shape  # batch, channels, anchors
+        return self.conv(x.view(b, 4, self.c1, a).transpose(2, 1).softmax(1)).view(b, 4, a)
+        # return self.conv(x.view(b, self.c1, 4, a).softmax(1)).view(b, 4, a)
 
 ##### end of yolov9 ##### 

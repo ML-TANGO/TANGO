@@ -156,8 +156,18 @@ def get_user_requirements(userid, projid):
     # dataset_yaml_path = Path('/shared/datasets/') / 'dataset.yaml'
 
     ##### Changed Code #####
+    
+    ### for unit-test only ###
+    if not os.path.exists(proj_yaml_path):
+        print(f'There is no {proj_yaml_path}. Instead default information will be used.')
+        if not os.path.exists(proj_path):
+            os.makedirs(proj_path)
+        shutil.copy('/source/sample_yaml/project_info_v9.yaml', proj_yaml_path)
+    ###
+        
     with open(proj_yaml_path, 'r') as f:
         proj_info = yaml.safe_load(f)
+        
     dataset_on_proj = proj_info['dataset']
     if os.path.isdir('/shared/datasets/' + dataset_on_proj):
         dataset_yaml_path = Path('/shared/datasets/') / dataset_on_proj / 'dataset.yaml'
@@ -201,10 +211,16 @@ def process_yolo(userid, project_id, data_yaml, proj_yaml):
 
         with open(proj_yaml, 'r') as f:
             proj_info = yaml.safe_load(f)
-        print(proj_info)
+
+        ### for unit-test only ###
+        basemodel_yaml_path = Path(proj_path) / 'basemodel.yaml'
+        if not os.path.exists(basemodel_yaml_path):
+            default_basemodel = Path('/source/sample_yaml') / proj_info['basemodel']
+            shutil.copy(Path(default_basemodel), Path(proj_path) / 'basemodel.yaml')
+        ###
+            
         with open(Path(proj_path) / 'basemodel.yaml', 'r') as f:
             basemodel_yaml = yaml.safe_load(f)
-
         target_device = proj_info['target_info']
         target_acc = proj_info['acc']   # accelerator
         target_info = [target_acc, target_device]

@@ -558,7 +558,7 @@ def run_yolo(proj_path, dataset_yaml_path, data=None, target=None, train_mode='s
         opt = argparse.Namespace(**yaml.safe_load(f))
     with open(Path(proj_path) / 'project_info.yaml', encoding='utf-8') as f:
         proj_info = yaml.safe_load(f)
-    print(proj_info)
+    print(yaml.dump(proj_info, default_flow_style=False))
 
     opt.data = str(dataset_yaml_path)
     if target == 'Galaxy_S22':
@@ -599,7 +599,14 @@ def run_yolo(proj_path, dataset_yaml_path, data=None, target=None, train_mode='s
     with open(opt.hyp) as f:
         hyp = yaml.load(f, Loader=yaml.SafeLoader)  # load hyps
 
-    opt.batch_size = proj_info['batchsize']
+    if 'batchsize' in proj_info:
+        opt.batch_size = proj_info['batchsize']
+    else:
+        ### when unit test only (w/o BMS)
+        print(f'There is no batch size in project information. Instead default batch size = 16 will be used.')
+        opt.batch_size = 16
+        ###
+
     device_str = ''
     for i in range(torch.cuda.device_count()):
         device_str = device_str + str(i) + ','
