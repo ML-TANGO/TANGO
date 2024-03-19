@@ -8,7 +8,7 @@ services:
     build:
       context: ./project_manager
     command: >
-      sh -c "chmod 777 ./wait_for_postgres.sh &&
+      sh -c "echo 'chmod 777 ./wait_for_postgres.sh' &&
              ./wait_for_postgres.sh &&
              python manage.py makemigrations tango &&
              python manage.py migrate &&

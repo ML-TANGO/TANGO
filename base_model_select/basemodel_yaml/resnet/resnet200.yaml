@@ -1,6 +1,0 @@
-# ResNet200 Params
-layers:
-  - 33
-  - 33
-  - 33
-num_classes: 2

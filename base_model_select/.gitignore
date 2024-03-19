@@ -1,0 +1,4 @@
+VOCdevkit/**
+checkpoint/**
+# *.tar
+datasets/**

@@ -12,4 +12,8 @@ RUN pip install -U pip
 RUN pip install -r requirements.txt
 COPY . ./
 
+# docker build -t yolo_docker . --progress=plain
+# docker run --rm --ipc=host yolo_docker 
+
+
 EXPOSE 8081

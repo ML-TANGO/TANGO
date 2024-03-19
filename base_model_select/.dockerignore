@@ -1,0 +1,6 @@
+yolov7/coco/*
+datasets/*
+**/*.cache
+**/*.pt
+yolov7/runs/*
+sample_data/*

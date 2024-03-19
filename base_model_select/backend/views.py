@@ -1,6 +1,6 @@
 import requests
 import shutil
-import os
+import os 
 import sys
 import django
 django.setup()
@@ -57,12 +57,12 @@ def start(request):
     params = request.query_params
     userid = params['user_id']
     project_id = params['project_id']
-    print(userid, project_id)
-
+    print(userid, project_id) 
+    
     try:
         bmsinfo = models.Info.objects.get(userid=userid, project_id=project_id)
     except models.Info.DoesNotExist:
-        bmsinfo = models.Info(userid=userid, project_id=project_id)
+        bmsinfo = models.Info(userid=userid, project_id=project_id)  
         print("new user or project")
 
     try:
@@ -254,18 +254,18 @@ def get_ready_for_test(request):
     params = request.query_params
     userid = params['user_id']
     project_id = params['project_id']
-    print(userid, project_id)
-
+    print(userid, project_id) 
+    
     try:
         bmsinfo = models.Info.objects.get(userid=userid, project_id=project_id)
     except models.Info.DoesNotExist:
-        bmsinfo = models.Info(userid=userid, project_id=project_id)
+        bmsinfo = models.Info(userid=userid, project_id=project_id)  
         print("new user or project")
-
+    
     sample_proj_yaml_cp(userid, project_id)
     create_data_yaml(userid, project_id)
     sample_data_cp()
-
+    
     return Response("get ready for test", status=200, content_type="text/plain")
 
 
@@ -291,14 +291,13 @@ def create_data_yaml(userid, project_id):
 
     with open('sample_yaml/dataset.yaml') as f:
         data_yaml = yaml.load(f, Loader=yaml.FullLoader)
-
+    
     data_yaml['train'] = str(Path('/shared/') / 'datasets' / 'coco128' / 'images' / 'train2017')
     data_yaml['test'] = str(Path('/shared/') / 'datasets' / 'coco128' / 'images' / 'train2017')
     data_yaml['val'] = str(Path('/shared/') / 'datasets' / 'coco128' / 'images' / 'train2017')
-
+    
     with open(Path('/shared/datasets/coco/') / 'dataset.yaml', 'w') as f:
         yaml.dump(data_yaml, f, default_flow_style=False)
-
 
 @api_view(['GET'])
 def start_api(request):
@@ -306,29 +305,31 @@ def start_api(request):
     params = request.query_params
     userid = params['user_id']
     project_id = params['project_id']
-    print(userid, project_id)
-
+    print(userid, project_id) 
+    
     try:
         bmsinfo = models.Info.objects.get(userid=userid, project_id=project_id)
     except models.Info.DoesNotExist:
-        bmsinfo = models.Info(userid=userid, project_id=project_id)
+        bmsinfo = models.Info(userid=userid, project_id=project_id)  
         print("new user or project")
 
     if request.method == 'GET':
-
-        target_yaml = get_user_requirements(userid, project_id)
-
+        
+        data_yaml, target_yaml = get_user_requirements(userid, project_id)
+        print(data_yaml, target_yaml)
+                
         pr = mp.Process(target = queue_bms, args=(userid, project_id))
         pr_id = get_process_id()
-
+                
         PROCESSES[pr_id] = pr
         print(f'{len(PROCESSES)}-th process is starting')
         PROCESSES[pr_id].start()
-
+        
         print("does it come here\n")
         bmsinfo.proj_info_yaml=str(target_yaml)
+        bmsinfo.data_yaml=str(data_yaml)
         bmsinfo.status="started"
-
+        
         bmsinfo.process_id = pr_id
         bmsinfo.save()
         return Response("started", status=200, content_type="text/plain")
@@ -336,7 +337,7 @@ def start_api(request):
 
 def queue_bms(userid, project_id):
     try:
-        # docker_run(userid, project_id)
+        # docker_run(userid, project_id)        
         status_report(userid, project_id, status="success")
         print("process_bms ends")
     except ValueError as e:
