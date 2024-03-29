@@ -13,9 +13,12 @@ Including another URLconf
     1. Import the include() function: from django.urls import include, path
     2. Add a URL to urlpatterns:  path('blog/', include('blog.urls'))
 """
-from django.urls import path, include
+import django
+from django.utils.translation import gettext
+django.utils.translation.ugettext = gettext
+
+from django.urls import path, include, re_path
 from django.contrib import admin
-from django.conf.urls import url
 
 from django.views.static import serve
 from django.conf import settings
@@ -40,10 +43,10 @@ urlpatterns = [
     path('', include('tango.urls_other')),
 
     # 정적 파일 주소
-    url(r'^media/(?P<path>.*)$', serve, {'document_root': settings.MEDIA_ROOT}),
-    url(r'^static/(?P<path>.*)$', serve, {'document_root': settings.STATIC_ROOT}),
+    re_path(r'^media/(?P<path>.*)$', serve, {'document_root': settings.MEDIA_ROOT}),
+    re_path(r'^static/(?P<path>.*)$', serve, {'document_root': settings.STATIC_ROOT}),
 
     # react - public/index.html 연동
-    url("^.*", HomeTemplateView.as_view(), name='home'),
+    re_path("^.*", HomeTemplateView.as_view(), name='home'),
 
 ]
