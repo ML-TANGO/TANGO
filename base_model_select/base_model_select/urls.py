@@ -23,6 +23,8 @@ urlpatterns = [
     path("stop", views.stop_api, name="StopBMS"),
     path("status_request", views.status_request, name="StatusRequestBMS"),
     path("get_ready_for_test", views.get_ready_for_test, name="get_ready_for_test"),
+    path("view_status", views.view_status, name="ViewStatus"),
+    path("manual_change", views.manual_change, name="ManualChange"),
     #path('start?user_id=<user_id>&project_id=<project_id>', views.start_api)
     #path('start/', views.start_api),
     #path(include('start'), views.start_api),

@@ -29,3 +29,6 @@ class Info(models.Model):
 
     # process index ( 0, 1, ..., N )
     process_id = models.CharField(blank=True, null=True, max_length=50)
+
+    model_type = models.CharField(blank=True, null=True, max_length=50, default='Not Selected')
+    model_size = models.CharField(blank=True, null=True, max_length=50, default='Not Selected')

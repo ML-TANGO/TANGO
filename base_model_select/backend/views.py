@@ -13,12 +13,14 @@ from rest_framework.decorators import api_view
 from rest_framework.response import Response
 from rest_framework import status
 from django.http import HttpResponse
+from django.shortcuts import render
 from pathlib import Path
 
 from . import models
 from batch_test.batch_size_test import run_batch_test
 
 
+PREFIX = '[ BMS ]'
 PROCESSES = {}
 
 task_to_model_table = {"detection": "yolov7", "classification": "resnet"}
@@ -48,6 +50,65 @@ model_to_size_table = {
         "odroidn2": "20",
     },
 }
+
+
+@api_view(['POST'])
+def manual_change(request):
+    #TODO: need to check other models in addition to yolov7
+    #TODO: need to combine it with view_status
+
+    userid = request.POST['user']
+    projectid = request.POST['project']
+
+    if 'yolov7' in request.POST['choice']:
+        model_type = 'yolov7'
+        model_size = request.POST['choice'].split('yolov7')[1]
+    else:
+        raise NotImplementedError
+    proj_info_yaml = get_user_requirements(userid, projectid)
+    basemodel_yaml = create_basemodel_yaml(proj_info_yaml,
+                                           userid,
+                                           projectid,
+                                           manual_select={'model':model_type,
+                                                          'size': model_size})
+    bmsinfo = models.Info.objects.get(userid=userid, project_id=projectid)
+
+    #TODO: need to handle batch size procedure considerably
+    with open(proj_info_yaml, 'r') as f:
+        project_info_dict = yaml.load(f, Loader=yaml.FullLoader)
+    project_info_dict['batchsize'] = 2
+    with open(proj_info_yaml, 'w') as f:
+        yaml.dump(project_info_dict, f, default_flow_style=False)
+
+    context = {
+               'model': bmsinfo.model_type,
+               'size': bmsinfo.model_size,
+               'bmsinfo': bmsinfo,
+               'model_table': ['yolov7-tiny', 'yolov7x', 'yolov7-w6', 'yolov7-e6e'],
+              }
+    return render(request, 'test/detail.html', context)
+
+
+@api_view(['GET'])
+def view_status(request):
+    params = request.query_params
+    userid = params['user_id']
+    project_id = params['project_id']
+
+    try:
+        bmsinfo = models.Info.objects.get(userid=userid, project_id=project_id)
+    except models.Info.DoesNotExist:
+        bmsinfo = models.Info(userid=userid, project_id=project_id)
+        print("new user or project")
+
+    context = {
+               'model': bmsinfo.model_type,
+               'size': bmsinfo.model_size,
+               'bmsinfo': bmsinfo,
+               'model_table': ['yolov7-tiny', 'yolov7x', 'yolov7-w6', 'yolov7-e6e'],
+              }
+
+    return render(request, 'test/detail.html', context)
 
 
 @api_view(['GET'])
@@ -165,13 +226,13 @@ def status_report(userid, project_id, status="success"):
         bmsinfo.status = "completed"
         bmsinfo.save()
 
-        print(f"[ STATUS REPORT ] USER ID: {userid}, PROJECT ID: {project_id}")
+        print(f"[ BMS - STATUS REPORT ] USER ID: {userid}, PROJECT ID: {project_id}")
 
     except Exception as e:
         print("An error occurs when BMS reports a project status")
         print(e)
 
-   
+
 def bms_process(yaml_path, userid, project_id):
     with open(yaml_path, 'r') as f:
         proj_info_dict = yaml.load(f, Loader=yaml.FullLoader)
@@ -180,10 +241,10 @@ def bms_process(yaml_path, userid, project_id):
 
     with open(basemodel_yaml, 'r') as f:
         basemodel_dict = yaml.load(f, Loader=yaml.FullLoader)
-    batch_size = run_batch_test(basemodel_yaml, 
+    batch_size = run_batch_test(basemodel_yaml,
                                 proj_info_dict['task_type'],
-                                basemodel_dict['imgsz'] if proj_info_dict['task_type']=='detection' else 256, 
-                                f"hyperparam_yaml/yolov7/hyp.scratch.{basemodel_dict['hyp']}.yaml" if proj_info_dict['task_type']=='detection' else None, 
+                                basemodel_dict['imgsz'] if proj_info_dict['task_type']=='detection' else 256,
+                                f"hyperparam_yaml/yolov7/hyp.scratch.{basemodel_dict['hyp']}.yaml" if proj_info_dict['task_type']=='detection' else None,
                                 True if proj_info_dict['target_info']=='Galaxy_S22' else False,
                                 )
 
@@ -191,7 +252,7 @@ def bms_process(yaml_path, userid, project_id):
         bmsinfo = models.Info.objects.get(userid=userid, project_id=project_id)
         bmsinfo.status = "failed"
         bmsinfo.save()
-        print(f'[ BMS ] Memory resource is not enough for training. Please shrink Model Size')
+        print(f'{PREFIX} Memory resource is not enough for training. Please shrink Model Size')
     else:
         with open(yaml_path, 'r') as f:
             project_info_dict = yaml.load(f, Loader=yaml.FullLoader)
@@ -202,26 +263,38 @@ def bms_process(yaml_path, userid, project_id):
         status_report(userid, project_id, status="success")
 
 
-def create_basemodel_yaml(yaml_path, userid, project_id):
+def create_basemodel_yaml(yaml_path, userid, project_id, manual_select=None):
     with open(yaml_path, 'r') as f:
         proj_info = yaml.load(f, Loader=yaml.FullLoader)
     task = proj_info['task_type']
     target = proj_info['target_info'].replace('-', '').replace('_', '').lower()
 
-    model = task_to_model_table[task]
-    model_size = model_to_size_table[model][target]
+    if manual_select==None:
+        model = task_to_model_table[task]
+        model_size = model_to_size_table[model][target]
+    else:
+        model = manual_select['model']
+        model_size = manual_select['size']
+
+    bmsinfo = models.Info.objects.get(userid=userid, project_id=project_id)
+    bmsinfo.model_type = model
+    bmsinfo.model_size = model_size
+    bmsinfo.save()
 
     source_path = f'basemodel_yaml/{model}/{model}{model_size}.yaml'
     target_path = f'/shared/common/{userid}/{project_id}/basemodel.yaml'
     shutil.copy(source_path, target_path)
-    
+    model_p = model.upper()
+    model_size_p = model_size.replace('-', '').replace('_', '').upper()
+    print(f'{PREFIX} SELECTED MODEL: {model_p}, MODEL SIZE: {model_size_p}')
+
     if task == 'classification':
         source_path = f'basemodel_yaml/{model}/resnet50.json'
         target_path = f'/shared/common/{userid}/{project_id}/basemodel.json'
         shutil.copy(source_path, target_path)
-        print('[ BMS ] JSON file is also created in addition to yaml file.')
+        print(f'{PREFIX} JSON file is also created in addition to yaml file.')
     else:
-        print('[ BMS ] The type of task is not classification. JSON file will not be created.')
+        pass
 
     return target_path
 
