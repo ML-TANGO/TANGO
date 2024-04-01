@@ -109,9 +109,11 @@ class Conv(nn.Module):
     def forward(self, x):
         return self.act(self.bn(self.conv(x)))
 
-    def fuseforward(self, x):
+    # def fuseforward(self, x):
+    #     return self.act(self.conv(x))
+
+    def forward_fuse(self, x):
         return self.act(self.conv(x))
-    
 
 class RobustConv(nn.Module):
     # Robust convolution (use high kernel size 7-11 for: downsampling and other layers). Train for 300 - 450 epochs.
@@ -146,9 +148,14 @@ class RobustConv2(nn.Module):
         return x
     
 
-def DWConv(c1, c2, k=1, s=1, act=True):
-    # Depthwise convolution
-    return Conv(c1, c2, k, s, g=math.gcd(c1, c2), act=act)
+# def DWConv(c1, c2, k=1, s=1, act=True):
+#     # Depthwise convolution
+#     return Conv(c1, c2, k, s, g=math.gcd(c1, c2), act=act)
+
+class DWConv(Conv):
+    # Depth-wise convolution
+    def __init__(self, c1, c2, k=1, s=1, act=True):  # ch_in, ch_out, kernel, stride, activation
+        super().__init__(c1, c2, k, s, g=math.gcd(c1, c2), act=act)
 
 
 class GhostConv(nn.Module):
