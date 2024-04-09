@@ -9,7 +9,7 @@ from datetime import datetime
 import torch
 import requests
 from django.core import serializers
-import json
+import json, yaml
 from collections import OrderedDict
 from shutil import copyfile
 
@@ -150,7 +150,73 @@ def pthlist(request):
 
             print(json.dumps(json_data, ensure_ascii=False, indent="\t"))
 
+            # yaml_data
+            yaml_data = {}
+            yaml_data['nc'] = 80
+            yaml_data['depth_multiple'] = 1.0
+            yaml_data['width_multiple'] = 1.0
+            yaml_data['anchors'] = 3
+            yaml_data['backbone'] = []
+            yaml_data['head'] = []
 
+            for c in range(len(node_order_list)):
+                # YOLO-style yaml module description
+                # [from, number, module, args]
+                number_ = 1                         # repetition
+                module_ = node_layer_list[c]        # module
+                str_params = "{"+node_parameters_list[c]+"}"
+                str_params = str_params.replace('\n', ',')
+                params_ = eval(str_params)
+                args_ = []
+                if module_ == "Conv2d":
+                    ch_ = params_['out_channels']
+                    k_ = params_['kernel_size'][0]
+                    s_ = params_['stride'][0]
+                    args_ = [ch_, k_, s_]
+                elif module_ == 'MaxPool2d':
+                    k_ = params_['kernel_size'][0]
+                    s_ = params_['stride'][0]
+                    p_ = params_['padding'][0]
+                    args_ = [k_, s_, p_]
+                else:
+                    print(f"{moduel_} is not supported yet")
+                    continue
+
+                f = []
+                for a in range(len(edge_id_list)):
+                    layer_index = c + 1
+                    if layer_index == 1:
+                        f.append(-1)
+                        continue
+                    if edge_next_list[a] == layer_index:
+                        if edge_prior_list[a] == layer_index - 1:
+                            f.append(-1)
+                        else:
+                            f.append(edge_prior_list[a])
+                if len(f) == 1:
+                    from_ = f[0]
+                else:
+                    from_ = f
+
+                layer_ = [from_, number_, module_, args_]
+                yaml_data['backbone'].append(layer_)
+
+            print('-'*100)
+            print(yaml_data)
+            print('-'*100)
+            print(yaml.dump(yaml_data, sort_keys=False, default_flow_style=False))
+            print('-'*100)
+            for k, v in yaml_data.items():
+                if isinstance(v, list):
+                    if len(v):
+                        print(f"{k}: ")
+                        for v_element in v:
+                            print(f"\t- {v_element}")
+                    else:
+                        print(f"{k}: {v}")
+                else:
+                    print(f"{k}: {v}")
+            print('-'*100)
 
             if serializer.is_valid():
                 print("valid")
@@ -284,9 +350,12 @@ def startList(request):
         try:
             user_id = request.GET['user_id']
             project_id = request.GET['project_id']
-            serializer = StartSerializer(data={'msg': 'started',
-                                               'user_id': user_id,
-                                               'project_id': project_id})
+            # serializer = StartSerializer(data={'msg': 'started',
+            #                                    'user_id': user_id,
+            #                                    'project_id': project_id})
+            serializer = StatusSerializer(data={'msg': 'started',
+                                   'user_id': user_id,
+                                   'project_id': project_id})
             if serializer.is_valid():
                 serializer.save()
                 try:
