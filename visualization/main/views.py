@@ -45,6 +45,18 @@ import json
 
 # Create your views here.
 
+# https://pytorch.org/docs/stable/nn.html
+TORCH_NN_MODULES =  {   'Conv2d', 'ConvTranspose2d',
+                        'MaxPool2d', 'AvgPool2d', 'AdaptiveMaxPool2d', 'AdaptiveAvgPool2d',
+                        'ZeroPad2d',
+                        'ReLU', 'ReLU6', 'GELU', 'Sigmoid', 'SiLU', 'Mish', 'Tanh', 'Softmax',
+                        'BatchNorm2d', 'LayerNorm',
+                        'TransformerEncoder', 'TransformerDecoder',
+                        'Identify', 'Linear', 'Dropout',
+                        'Embedding',
+                        'MSELoss', 'CrossEntropyLoss', 'BCELoss',
+                        'Upsample'
+                    }
 
 @api_view(['GET', 'POST', 'DELETE', 'UPDATE'])
 # pylint: disable = invalid-name, inconsistent-return-statements
@@ -150,7 +162,7 @@ def pthlist(request):
 
             print(json.dumps(json_data, ensure_ascii=False, indent="\t"))
 
-            # yaml_data
+            # yolo-style yaml_data generation
             yaml_data = {}
             yaml_data['nc'] = 80
             yaml_data['depth_multiple'] = 1.0
@@ -159,52 +171,176 @@ def pthlist(request):
             yaml_data['backbone'] = []
             yaml_data['head'] = []
 
-            for c in range(len(node_order_list)):
+            # sort the node and re-order node_order_list
+            for n in edge_next_list:
+                if n not in edge_prior_list:
+                    # this is the last node
+                    last_node = n
+            for p in edge_prior_list:
+                if p not in edge_next_list:
+                    # this is the first node
+                    first_node = p
+
+            print(f"first node = #{first_node}, last node = #{last_node}")
+            print('-'*50)
+            print(f"node[0] = #{first_node}")
+            print('-'*50)
+
+            total_node = len(node_order_list)
+            nodes_order = [0 for i in range(total_node)]
+            nodes_order[0] = first_node
+            # nodes_order[-1] = last_node
+
+            reserved_nodes = []
+            for i in range(total_node):
+                # print(f" prior node = {nodes_order[i]}")
+                next_nodes = []
+                # print(" look up the edge prior list...")
+                for index, p in enumerate(edge_prior_list):
+                    # print(f"  #{index}: {p}")
+                    if p == nodes_order[i]:
+                        next_nodes.append(edge_next_list[index])
+                # print(f" next nodes = {next_nodes}")
+
+                if len(next_nodes) == 0:
+                    if i+1 == total_node:
+                        print(" this is the last node")
+                    else:
+                        if len(reserved_nodes) == 0:
+                            print(" error: this is not the last node but does not have any connection from output port")
+                        else:
+                            next_node = reserved_nodes.pop(reserved_nodes.index(min(reserved_nodes)))
+                else:
+                    if len(next_nodes) > 1:
+                        next_node = next_nodes.pop(next_nodes.index(min(next_nodes)))
+                        reserved_nodes = reserved_nodes + next_nodes
+                    else:
+                        next_node = next_nodes[0]
+                if next_node in nodes_order:
+                    print(f" warning: this node (#{next_node}) is already allocated in nodes_order, ignored..")
+                else:
+                    print('-'*50)
+                    print(f"node[{i+1}] = #{next_node}")
+                    print('-'*50)
+                    nodes_order[i+1] = next_node
+            if len(reserved_nodes) > 0:
+                print(f" error: reserved nodes left...{reserved_nodes}")
+            print(nodes_order)
+
+            for yaml_index, node_index in enumerate(nodes_order):
+                json_index = node_order_list.index(node_index)
                 # YOLO-style yaml module description
                 # [from, number, module, args]
-                number_ = 1                         # repetition
-                module_ = node_layer_list[c]        # module
-                str_params = "{"+node_parameters_list[c]+"}"
+
+                number_ = 1                             # repetition
+                module_ = node_layer_list[json_index]   # pytorch nn module
+
+                # module & its arguements
+                str_params = "{"+node_parameters_list[json_index]+"}"
                 str_params = str_params.replace('\n', ',')
                 params_ = eval(str_params)
                 args_ = []
-                if module_ == "Conv2d":
+                if module_ == 'Conv2d':
                     ch_ = params_['out_channels']
                     k_ = params_['kernel_size'][0]
                     s_ = params_['stride'][0]
-                    args_ = [ch_, k_, s_]
-                elif module_ == 'MaxPool2d':
+                    p_ = params_['padding'][0]
+                    b_ = params_['bias']
+                    args_ = [ch_, k_, s_, p_, b_]
+                elif module_ in ('MaxPool2d', 'AvgPool2d'):
                     k_ = params_['kernel_size'][0]
                     s_ = params_['stride'][0]
                     p_ = params_['padding'][0]
                     args_ = [k_, s_, p_]
+                elif module_ == 'AdaptiveAvgPool2d':
+                    o_ = params_['output_size']
+                    if o_[0] == o_[1]:
+                        args_ = [o_[0]]
+                    else:
+                        args_ = o_
+                elif module_ == 'ConstantPad2d':
+                    p_ = params_['padding']
+                    v_ = params_['value']
+                    args_ = [p_, v_]
+                elif module_ == 'ZeroPad2d':
+                    p_ = params_['padding']
+                    args_ = [p_]
+                elif module_ in ('ReLU', 'ReLU6', 'Sigmoid', 'LeakyReLU', 'Tanh', 'BatchNorm2d'):
+                    args_ = []
+                elif module_ == 'Softmax':
+                    d_ = params_['dim']
+                    args_ = [d_]
+                elif module_ == 'Linear':
+                    o_ = params_['out_features']
+                    b_ = params_['bias']
+                    args_ = [o_, b_]
+                elif module_ == 'Dropout':
+                    p_ = param_['p']
+                    args_ = [p_]
+                elif module_ == ('BCELoss', 'CrossEntropyLoss', 'MESLoss'):
+                    r_ = params_['reduction']
+                    args_ = [r_]
+                elif module_ == 'Flatten':
+                    # TODO: needs to wrap these more into export-friendly classes
+                    d_st = params_['start_dim']
+                    d_ed = params_['end_dim']
+                    args_ = [d_st, d_ed]
+                elif module_ == 'Upsample':
+                    s_ = params_['size']
+                    f_ = params_['scale_factor']
+                    m_ = params_['mode']
+                    args_ = [s_, f_, m_]
+                elif module_ == ('Battleneck', 'BasicBlock'):
+                    # torchvision.models.resnet.BasicBlock
+                    ch_ = params_['planes']
+                    s_ = params_['stride'][0]
+                    g_ = params_['group']
+                    d_ = params_['dilation']
+                    n_ = params_['norm_layer']
+                    downsample_ = params_['downsample']
+                    w_ = params_['base_width']
+                    norm_ = params_['norm_layer']
+                    args_ = [ch_, s_, downsample_, g_, w_, d_, norm_]
                 else:
-                    print(f"{moduel_} is not supported yet")
+                    print(f"{module_} is not supported yet")
                     continue
+                print(f"layer #{yaml_index} (node_index #{node_index}; json_index #{json_index}) : {module_}")
 
-                f = []
+                # from
+                f_ = []
                 for a in range(len(edge_id_list)):
-                    layer_index = c + 1
-                    if layer_index == 1:
-                        f.append(-1)
-                        continue
-                    if edge_next_list[a] == layer_index:
-                        if edge_prior_list[a] == layer_index - 1:
-                            f.append(-1)
-                        else:
-                            f.append(edge_prior_list[a])
-                if len(f) == 1:
-                    from_ = f[0]
+                    if edge_next_list[a] == node_index:
+                        f_.append(edge_prior_list[a])
+                print(f"f_={f_}")
+                if not f_:
+                    from_ = -1 # this has to be the first layer
+                    assert yaml_index == 0, f'it must be the first layer but index is {yaml_index}'
+                elif len(f_) == 1:
+                    x = nodes_order.index(f_[0])
+                    if x == yaml_index-1:
+                        from_ = -1
+                    else:
+                        from_ = x
                 else:
-                    from_ = f
+                    f_reorder = []
+                    for f_element in f_:
+                        x = nodes_order.index(f_element)
+                        if x == nodes_order[yaml_index-1]:
+                            x = -1
+                        f_reorder.append(x)
+                    from_ = f_reorder
+                print(f"from : {from_}")
 
+                if module_ in TORCH_NN_MODULES:
+                    module_ = f"nn.{module_}"
                 layer_ = [from_, number_, module_, args_]
                 yaml_data['backbone'].append(layer_)
 
-            print('-'*100)
-            print(yaml_data)
-            print('-'*100)
-            print(yaml.dump(yaml_data, sort_keys=False, default_flow_style=False))
+            # print yaml data
+            # print('-'*100)
+            # print(yaml_data)
+            # print('-'*100)
+            # print(yaml.dump(yaml_data, sort_keys=False, default_flow_style=False))
             print('-'*100)
             for k, v in yaml_data.items():
                 if isinstance(v, list):
@@ -228,10 +364,19 @@ def pthlist(request):
                 user_id = get_status[len(get_status)-1].user_id
                 project_id = get_status[len(get_status)-1].project_id
 
+                # save json file
                 json_path = ('/shared/common/'+str(user_id)+'/'+str(project_id)+'/basemodel.json').replace("\\", '/')
                 with open(json_path, 'w', encoding="utf-8") as make_file:
                     json.dump(json_data, make_file, ensure_ascii=False, indent='\t')
 
+                # save yaml file
+                yaml_path = ('/shared/common/'+str(user_id)+'/'+str(project_id)+'/basemodel.yaml')
+                with open(yaml_path, 'w') as f:
+                    yaml.dump(yaml_data, f)
+
+                print(f"save generated models to {json_path}, {yaml_path}")
+
+                # status_report
                 url = 'http://projectmanager:8085/status_report'
                 #url = 'http://' + host_ip + ':8091/status_report'
                 headers = {
