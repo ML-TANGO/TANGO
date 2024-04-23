@@ -42,7 +42,7 @@ model_to_size_table = {
         "k8s": "20",
         "k8sjetsonnano": "20",
         "pcweb": "20",
-        "pc": "20",
+        "pc": "50",
         "jetsonagxorin": "20",
         "jetsonagxxavier": "20",
         "jetsonnano": "20",
