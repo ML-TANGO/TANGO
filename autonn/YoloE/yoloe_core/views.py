@@ -149,21 +149,28 @@ def status_request(request):
 
 def get_user_requirements(userid, projid):
     common_root = Path('/shared/common/')
+    dataset_root = Path('/shared/datasets/')
+
     proj_path = common_root / userid / projid
-    proj_yaml_path = proj_path / 'project_info.yaml' # 'target.yaml'
+    proj_yaml_path = proj_path / 'project_info.yaml'
 
-    ##### Previous Code #####
-    # dataset_yaml_path = Path('/shared/datasets/') / 'dataset.yaml'
-
-    ##### Changed Code #####
+    ### for yolov9 unit-test only ###
+    if not os.path.exists(proj_yaml_path):
+        print(f'There is no {proj_yaml_path}. Instead YOLOv9 project information will be used.')
+        Path(proj_path).mkdir(parents=True, exist_ok=True)
+        shutil.copy('/source/sample_yaml/project_info_v9.yaml', proj_yaml_path)
+    ###
+        
     with open(proj_yaml_path, 'r') as f:
         proj_info = yaml.safe_load(f)
+        
     dataset_on_proj = proj_info['dataset']
-    if os.path.isdir('/shared/datasets/' + dataset_on_proj):
-        dataset_yaml_path = Path('/shared/datasets/') / dataset_on_proj / 'dataset.yaml'
+    dataset_path = dataset_root / dataset_on_proj
+    if os.path.isdir(dataset_path):
+        dataset_yaml_path = dataset_root / dataset_on_proj / 'dataset.yaml'
     else:
-        print(f'There is no /shared/datasets/{dataset_on_proj}. Instead COCO dataset will be used.')
-        dataset_yaml_path = Path('/shared/datasets/coco/') / 'dataset.yaml'
+        print(f'There is no {dataset_path}. Instead embedded COCO128 dataset will be used.')
+        dataset_yaml_path = dataset_root / 'coco' / 'dataset.yaml'
 
     return dataset_yaml_path, proj_yaml_path
 
@@ -201,15 +208,23 @@ def process_yolo(userid, project_id, data_yaml, proj_yaml):
 
         with open(proj_yaml, 'r') as f:
             proj_info = yaml.safe_load(f)
-        print(proj_info)
-        with open(Path(proj_path) / 'basemodel.yaml', 'r') as f:
-            basemodel_yaml = yaml.safe_load(f)
 
+        ### for yolov9 unit-test only ###
+        basemodel_yaml_path = Path(proj_path) / 'basemodel.yaml'
+        if not os.path.exists(basemodel_yaml_path):
+            print(f'There is no {basemodel_yaml_path}. Instead YOLOv9 model will be used.')
+            default_basemodel_yaml = Path('/source/sample_yaml') / proj_info['basemodel']
+            shutil.copy(default_basemodel_yaml, basemodel_yaml_path)
+        ###
+            
+        with open(basemodel_yaml_path, 'r') as f:
+            basemodel_yaml = yaml.safe_load(f)
         target_device = proj_info['target_info']
         target_acc = proj_info['acc']   # accelerator
         target_info = [target_acc, target_device]
+        nas_type = proj_info['nas_type']
 
-        final_model = run_yolo(proj_path, str(data_yaml), target=target_info, train_mode='search')
+        final_model = run_yolo(proj_path, str(data_yaml), target=target_info, train_mode=nas_type)
         print('process_yolo: train done')
 
         Path(proj_path).mkdir(parents=True, exist_ok=True)
