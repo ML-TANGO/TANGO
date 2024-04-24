@@ -75,6 +75,12 @@ def nodelist():
     '''
     node list
     '''
+    print('node')
+    if request.method == 'GET':
+        print('get')
+    if request.method == "POST":
+        print('post')
+
     nodes = Node.objects.all()
     serializer = NodeSerializer(nodes, many=True)
     return Response(serializer.data)
@@ -85,6 +91,10 @@ def edgelist():
     '''
     edge list
     '''
+    print('edge')
+    if request.method == 'GET':
+        print('get')
+
     edges = Edge.objects.all()
     serializer = EdgeSerializer(edges, many=True)
     return Response(serializer.data)
@@ -96,10 +106,13 @@ def pthlist(request):
     pth list
     '''
     print("pth")
+
     if request.method == 'GET':
+        print("get")
         pth = Pth.objects.all()
         serializer = PthSerializer(pth, many=True)
         return Response(serializer.data)
+
     if request.method == 'POST':
         print("post")
         #CShow2()
@@ -296,11 +309,11 @@ def pthlist(request):
                     f_ = params_['scale_factor']
                     m_ = params_['mode']
                     args_ = [s_, f_, m_]
-                elif module_ == ('Battleneck', 'BasicBlock'):
+                elif module_ in ('Bottleneck', 'BasicBlock'):
                     # torchvision.models.resnet
                     ch_ = params_['planes']
                     s_ = params_['stride'][0]
-                    g_ = params_['group']
+                    g_ = params_['groups']
                     d_ = params_['dilation']
                     n_ = params_['norm_layer']
                     downsample_ = params_['downsample']
@@ -427,14 +440,18 @@ def pthlist(request):
         return Response("invalid node or edge",
                         status=status.HTTP_400_BAD_REQUEST)
 
+    if request.method == 'DELETE':
+        print('delete')
 
+    if request.method == 'UPDATE':
+        print('update')
     return None
 
 
 @api_view(['GET', 'POST', 'DELETE', 'UPDATE'])
 def sortlist(request):
     '''
-    pth list
+    sort list
     '''
     print("sort")
     if request.method == 'GET':
@@ -472,10 +489,11 @@ def sortlist(request):
                         status=status.HTTP_400_BAD_REQUEST)
     return None
 
+
 @api_view(['GET', 'POST', 'DELETE', 'UPDATE'])
 def sortlist_detail(request, pk):
     '''
-    pth list
+    sort detail list
     '''
     try:
         pev_sorted_ids = Sort.objects.get(pk=pk)
@@ -490,6 +508,7 @@ def sortlist_detail(request, pk):
         pev_sorted_ids.delete()
         return Response(status=status.HTTP_204_NO_CONTENT)
 
+
 @api_view(['GET', 'POST', 'DELETE', 'UPDATE'])
 # pylint: disable = invalid-name, inconsistent-return-statements
 def startList(request):
@@ -498,315 +517,336 @@ def startList(request):
     '''
     # pylint: disable = no-else-return, no-member
     if request.method == 'GET':
+        print(f"________GET  /Start viz2code____________")
         try:
             user_id = request.GET['user_id']
             project_id = request.GET['project_id']
             serializer = StartSerializer(data={'msg': 'started',
                                                'user_id': user_id,
                                                'project_id': project_id})
+            print(f"1. get user id and project id from rest api")
+
             if serializer.is_valid():
                 serializer.save()
                 try:
+                    print(f"2. clear nodes & edges")
                     nodes = Node.objects.all()
                     nodes.delete()
 
                     edges = Edge.objects.all()
                     edges.delete()
 
-                    # YOLO-style YAML file importer
+
                     yaml_path = '/shared/common/'+str(user_id)+'/'+str(project_id)+'/basemodel.yaml'
-                    with open(yaml_path) as f:
-                        basemodel_yaml = yaml.load(f, Loader=yaml.SafeLoader)
+                    json_path = '/shared/common/'+str(user_id)+'/'+str(project_id)+'/basemodel.json'
+                    if os.path.isfile(yaml_path):
+                        # YOLO-style YAML file import
+                        with open(yaml_path) as f:
+                            basemodel_yaml = yaml.load(f, Loader=yaml.SafeLoader)
 
-                    # 'node' & 'edge' parsing
-                    # import torch, torchvision.models.resnet
-                    ch = basemodel_yaml['ch'] = basemodel_yaml.get('ch', 3) # default channel = 3 (RGB)
-                    layers, lines, c2, edgeid = [], [], ch[-1], 0
-                    for i, (f, n, m, args) in enumerate(d['backbone'] + d['head']):  # from, number, module, args
-                        # m = eval(m) if isinstance(m, str) else m  # eval strings
-                        node = []
-                        for j, a in enumerate(args):
-                            try:
-                                args[j] = eval(a) if isinstance(a, str) else a  # eval strings
-                            except:
-                                print(f"unsupported arguements: {a}...ignored.")
-                                pass
-                        if   m == 'nn.Conv2d':
-                            c1 = ch[f]
-                            c2 = args[0]
-                            k = args[1]
-                            s = args[2]
-                            p = args[3]
-                            b = args[4]
-                            params = (
-                                f"'in_channels': {c1} \n "
-                                f"'out_channels': {c2} \n "
-                                f"'kernel_size': ({k}, {k}) \n "
-                                f"'stride': ({s}, {s}) \n "
-                                f"padding: ({p}, {p}) \n "
-                                f"'bais': {b}"
-                            )
-                        elif m == 'nn.BatchNorm2d':
-                            c1 = ch[f]
-                            c2 = c1
-                            if len(args) > 0:
+                        print(f"3. load yaml file")
+
+                        # 'node' & 'edge' parsing
+                        # import torch, torchvision.models.resnet
+                        ch = [basemodel_yaml.get('ch', 3)] # default channel = 3 (RGB)
+                        layers, lines, c2, edgeid = [], [], ch[-1], 0
+                        for i, (f, n, m, args) in enumerate(basemodel_yaml['backbone'] + basemodel_yaml['head']):  # from, number, module, args
+                            print(f"4. #{i} ({f}, {n}, {m}, {args})")
+                            # m = eval(m) if isinstance(m, str) else m  # eval strings
+                            node = OrderedDict()
+                            for j, a in enumerate(args):
+                                try:
+                                    args[j] = eval(a) if isinstance(a, str) else a  # eval strings
+                                except:
+                                    print(f"unsupported arguements: {a}...ignored.")
+                                    pass
+
+                            if   m == 'nn.Conv2d':
+                                c1 = ch[f]
                                 c2 = args[0]
-                            if c1 != c2:
-                                print(f"Error! BatchNorm2d has to be the same features in {c1} & out {c2} of it")
+                                k = args[1]
+                                s = args[2]
+                                p = args[3]
+                                b = args[4]
+                                params = (
+                                    f"'in_channels': {c1} \n "
+                                    f"'out_channels': {c2} \n "
+                                    f"'kernel_size': ({k}, {k}) \n "
+                                    f"'stride': ({s}, {s}) \n "
+                                    f"'padding': ({p}, {p}) \n "
+                                    f"'bias': {b}"
+                                )
+                            elif m == 'nn.BatchNorm2d':
+                                c1 = ch[f]
                                 c2 = c1
-                            params = (
-                                f"'num_features': {c2}"
-                            )
-                        elif m == 'nn.MaxPool2d':
-                            c1 = ch[f]
-                            c2 = c1
-                            k = args[0]
-                            s = args[1]
-                            p = args[2]
-                            d = 1
-                            r = False
-                            c = False
-                            if len(args) > 3:
-                                d = args[3]
-                                if len(args) > 4:
-                                    r = args[4]
-                                    if len(args) > 5:
-                                        c = args[5]
-                            params = (
-                                f"'kernel_size': ({k}, {k}) \n "
-                                f"'stride': ({s}, {s}) \n "
-                                f"'padding': ({p}, {p}) \n"
-                                f"'dilation': {d} \n"
-                                f"'return_indices': {r} \n"
-                                f"'ceil_mode': {c}"
-                            )
-                        elif m == 'nn.AvgPool2d':
-                            c1 = ch[f]
-                            c2 = c1
-                            k = args[0]
-                            s = args[1]
-                            p = args[2]
-                            params = (
-                                f"'kernel_size': ({k}, {k}) \n "
-                                f"'stride': ({s}, {s}) \n "
-                                f"'padding': ({p}, {p})"
-                            )
-                        elif m == 'nn.AdaptiveAvgPool2d':
-                            c1 = ch[f]
-                            c2 = c1
-                            o = args[0]
-                            params = (
-                                f"'output_size': ({o}, {o})"
-                            )
-                        elif m == 'nn.ConstantPad2d':
-                            c1 = ch[f]
-                            c2 = c1
-                            p = args[0]
-                            v = args[1]
-                            params = (
-                                f"'padding': {p} \n "
-                                f"'value': {v}"
-                            )
-                        elif m == 'nn.ZeroPad2d':
-                            c1 = ch[f]
-                            c2 = c1
-                            p = args[0]
-                            params = (
-                                f"'padding': {p}"
-                            )
-                        elif m in ('nn.ReLU', 'nn.ReLU6'):
-                            c1 = ch[f]
-                            c2 = c1
-                            inp = True
-                            if len(arg) > 0:
+                                if len(args) > 0:
+                                    c2 = args[0]
+                                if c1 != c2:
+                                    print(f"Error! BatchNorm2d has to be the same features in {c1} & out {c2} of it")
+                                    c2 = c1
+                                params = (
+                                    f"'num_features': {c2}"
+                                )
+                            elif m == 'nn.MaxPool2d':
+                                c1 = ch[f]
+                                c2 = c1
+                                k = args[0]
+                                s = args[1]
+                                p = args[2]
+                                d = 1
+                                r = False
+                                c = False
+                                if len(args) > 3:
+                                    d = args[3]
+                                    if len(args) > 4:
+                                        r = args[4]
+                                        if len(args) > 5:
+                                            c = args[5]
+                                params = (
+                                    f"'kernel_size': ({k}, {k}) \n "
+                                    f"'stride': ({s}, {s}) \n "
+                                    f"'padding': ({p}, {p}) \n "
+                                    f"'dilation': {d} \n "
+                                    f"'return_indices': {r} \n "
+                                    f"'ceil_mode': {c}"
+                                )
+                            elif m == 'nn.AvgPool2d':
+                                c1 = ch[f]
+                                c2 = c1
+                                k = args[0]
+                                s = args[1]
+                                p = args[2]
+                                params = (
+                                    f"'kernel_size': ({k}, {k}) \n "
+                                    f"'stride': ({s}, {s}) \n "
+                                    f"'padding': ({p}, {p})"
+                                )
+                            elif m == 'nn.AdaptiveAvgPool2d':
+                                c1 = ch[f]
+                                c2 = c1
+                                o = args[0]
+                                params = (
+                                    f"'output_size': ({o}, {o})"
+                                )
+                            elif m == 'nn.ConstantPad2d':
+                                c1 = ch[f]
+                                c2 = c1
+                                p = args[0]
+                                v = args[1]
+                                params = (
+                                    f"'padding': {p} \n "
+                                    f"'value': {v}"
+                                )
+                            elif m == 'nn.ZeroPad2d':
+                                c1 = ch[f]
+                                c2 = c1
+                                p = args[0]
+                                params = (
+                                    f"'padding': {p}"
+                                )
+                            elif m in ('nn.ReLU', 'nn.ReLU6'):
+                                c1 = ch[f]
+                                c2 = c1
+                                inp = True
+                                if len(args) > 0:
+                                    inp = args[0]
+                                params = (
+                                    f"'inplace': {inp}"
+                                )
+                            elif m in ('nn.Sigmoid', 'nn.Tanh'):
+                                c1 = ch[f]
+                                c2 = c1
+                                params = ()
+                            elif m == 'nn.LeakyReLU':
+                                c1 = ch[f]
+                                c2 = c1
+                                neg = args[0]
+                                inp = True
+                                if len(args) > 1:
+                                    inp = args[1]
+                                params = (
+                                    f"'negative_slope': {neg} \n "
+                                    f"'inplace': {inp}"
+                                )
+                            elif m == 'nn.Softmax':
+                                c1 = ch[f]
+                                c2 = c1
+                                d = args[0]
+                                params = (
+                                    f"'dim': {d}"
+                                )
+                            elif m == 'nn.Linear':
+                                c1 = ch[f]
+                                c2 = args[0]
+                                b = True
+                                if len(args) > 1:
+                                    b = args[1]
+                                params = (
+                                    f"'in_features': {c1} \n "
+                                    f"'out_features': {c2} \n "
+                                    f"'bias': {b}"
+                                )
+                            elif m == 'nn.Dropout':
+                                c1 = ch[f]
+                                p = args[0]
+                                inp = True
+                                if len(args) > 1:
+                                    inp = args[1]
+                                params = (
+                                    f"'p': {p} \n "
+                                    f"'inplace': {inp}"
+                                )
+                            elif m == 'nn.MESLoss':
+                                c1 = ch[f]
+                                avg = args[0]
+                                r1 = args[1]
+                                r2 = args[2]
+                                params = (
+                                    f"'size_average': {avg} \n "
+                                    f"'reduce': {r1} \n "
+                                    f"'reduction': {r2}"
+                                )
+                            elif m == 'nn.BCELoss':
+                                c1 = ch[f]
+                                w = args[0]
+                                avg = args[1]
+                                r1 = args[2]
+                                r2 = args[3]
+                                params = (
+                                    f"'weight': {w} \n "
+                                    f"'size_average': {avg} \n"
+                                    f"'reduce': {r1} \n "
+                                    f"'reduction': {r2}"
+                                )
+                            elif m == 'nn.CrossEntropyLoss':
+                                c1 = ch[f]
+                                w = args[0]
+                                avg = args[1]
+                                ign_idx = args[2]
+                                r1 = args[3]
+                                r2 = args[4]
+                                lsmooth = args[5]
+                                params = (
+                                    f"'weight': {w} \n "
+                                    f"'size_average': {avg} \n "
+                                    f"ignore_index': {ign_idx} \n "
+                                    f"reduce': {r1} \n "
+                                    f"'reduction': {r2} \n"
+                                    f"'label_smoothing': {lsmooth}"
+                                )
+                            elif m == 'Flatten':
+                                c1 = ch[f]
+                                s_dim = args[0]
+                                e_dim = args[1]
+                                params = (
+                                    f"'start_dim': {s_dim} \n "
+                                    f"'end_dim': {e_dim}"
+                                )
+                            elif m == 'nn.Unsample':
+                                c1 = ch[f]
+                                size = args[0]
+                                scale = args[1]
+                                mode = args[2]
+                                align = args[3]
+                                recompute = args[4]
+                                params = (
+                                    f"'size': {size} \n "
+                                    f"'scale_factor': {scale} \n"
+                                    f"'mode': {mode} \n"
+                                    f"'align_corners': {align} \n "
+                                    f"'recompute_scale_factor': {recompute}"
+                                )
+                            elif m in ('BasicBlock', 'Bottleneck'):
+                                c1 = ch[f]
                                 inp = args[0]
-                            params = (
-                                f"'inplace': {inp}"
-                            )
-                        elif m in ('nn.Sigmoid', 'nn.Tanh'):
-                            c1 = ch[f]
-                            c2 = c1
-                            params = ()
-                        elif m == 'nn.LeakyReLU':
-                            c1 = ch[f]
-                            c2 = c1
-                            neg = args[0]
-                            inp = True
-                            if len(args) > 1:
-                                inp = args[1]
-                            params = (
-                                f"'negative_slope': {neg} \n "
-                                f"'inplace': {inp}"
-                            )
-                        elif m == 'nn.Softmax':
-                            c1 = ch[f]
-                            c2 = c1
-                            d = args[0]
-                            params = (
-                                f"'dim': {d}"
-                            )
-                        elif m == 'nn.Linear':
-                            c1 = ch[f]
-                            c2 = args[0]
-                            b = True
-                            if len(args) > 1:
-                                b = args[1]
-                            params = (
-                                f"'in_features': {c1} \n "
-                                f"'out_features': {c2} \n "
-                                f"'bias': {b}"
-                            )
-                        elif m == 'nn.Dropout':
-                            c1 = ch[f]
-                            p = args[0]
-                            inp = True
-                            if len(args) > 1:
-                                inp = args[1]
-                            params = (
-                                f"'p': {p} \n "
-                                f"'inplace': {inp}"
-                            )
-                        elif m == 'nn.MESLoss':
-                            c1 = ch[f]
-                            avg = args[0]
-                            r1 = args[1]
-                            r2 = args[2]
-                            params = (
-                                f"'size_average': {avg} \n "
-                                f"'reduce': {r1} \n "
-                                f"'reduction': {r2}"
-                            )
-                        elif m == 'nn.BCELoss':
-                            c1 = ch[f]
-                            w = args[0]
-                            avg = args[1]
-                            r1 = args[2]
-                            r2 = args[3]
-                            params = (
-                                f"'weight': {w} \n "
-                                f"'size_average': {avg} \n"
-                                f"'reduce': {r1} \n "
-                                f"'reduction': {r2}"
-                            )
-                        elif m == 'nn.CrossEntropyLoss':
-                            c1 = ch[f]
-                            w = args[0]
-                            avg = args[1]
-                            ign_idx = args[2]
-                            r1 = args[3]
-                            r2 = args[4]
-                            lsmooth = args[5]
-                            params = (
-                                f"'weight': {w} \n "
-                                f"'size_average': {avg} \n "
-                                f"ignore_index': {ign_idx} \n "
-                                f"reduce': {r1} \n "
-                                f"'reduction': {r2} \n"
-                                f"'label_smoothing': {lsmooth}"
-                            )
-                        elif m == 'Flatten':
-                            c1 = ch[f]
-                            s_dim = args[0]
-                            e_dim = args[1]
-                            params = (
-                                f"'start_dim': {s_dim} \n "
-                                f"'end_dim': {e_dim}"
-                            )
-                        elif m == 'nn.Unsample':
-                            c1 = ch[f]
-                            size = args[0]
-                            scale = args[1]
-                            mode = args[2]
-                            align = args[3]
-                            recompute = args[4]
-                            params = (
-                                f"'size': {size} \n "
-                                f"'scale_factor': {scale} \n"
-                                f"'mode': {mode} \n"
-                                f"'align_corners': {align} \n "
-                                f"'recompute_scale_factor': {recompute}"
-                            )
-                        elif m in ('BasicBlock', 'Bottleneck'):
-                            c1 = ch[f]
-                            inp = args[0]
-                            planes = args[1]
-                            s = args[2]
-                            downsample = args[3]
-                            g = args[4]
-                            basewidth = args[5]
-                            d = args[6]
-                            norm_layer = args[7]
-                            params = (
-                                f"'inplanes': {inp} \n "
-                                f"'planes': {planes} \n "
-                                f"'stride': ({s}, {s}) \n "
-                                f"'downsample': {downsample} \n "
-                                f"'groups': {g} \n "
-                                f"'base_width': {basewidth} \n "
-                                f"'dilation': {d} \n "
-                                f"'norm_layer': {norm_layer}"
-                            )
-                        else:
-                            print(f"unsupported module... {m}")
-                            c1 = ch[f]
-                            c2 = c1
-                            params = ()
+                                planes = args[1]
+                                s = args[2]
+                                downsample = args[3]
+                                g = args[4]
+                                basewidth = args[5]
+                                d = args[6]
+                                norm_layer = args[7]
+                                params = (
+                                    f"'inplanes': {inp} \n "
+                                    f"'planes': {planes} \n "
+                                    f"'stride': ({s}, {s}) \n "
+                                    f"'downsample': {downsample} \n "
+                                    f"'groups': {g} \n "
+                                    f"'base_width': {basewidth} \n "
+                                    f"'dilation': {d} \n "
+                                    f"'norm_layer': {norm_layer}"
+                                )
+                            else:
+                                print(f"unsupported module... {m}")
+                                c1 = ch[f]
+                                c2 = c1
+                                params = ()
 
-                        node['order'] = i + 1 # start from 1
-                        if 'nn.' in m:
-                            m = m.replace('nn.', '')
-                        node['layer'] = m
-                        node['params'] = params
-                        layers.append(node)
-                        if i == 0:
-                            ch = []
-                        ch.append(c2)
+                            node['order'] = i + 1 # start from 1
+                            if 'nn.' in m:
+                                m = m.replace('nn.', '')
+                            node['layer'] = m
+                            node['parameters'] = params
+                            layers.append(node)
 
-                        # 'edge' parsing
-                        if i == 0:
-                            continue
-                        prior = f if isinstance(list, f) else [f]
-                        for p in prior:
-                            if p == -1:
-                                p = i
-                            edgeid = edgeid + 1
-                            edge['id'] = edgeid
-                            edge['prior'] = p
-                            edge['next'] = i + 1
-                            lines.append(edge)
+                            print(f"5. add node #{node['order']} : {node['layer']}")
 
-                    # json formatting for 'node' & 'edge'
-                    json_data = OrderedDict()
-                    json_data['node'] = layers
-                    json_data['edge'] = lines
-                    print(json.dumps(json_data, ensure_ascii=False, indent="\t"))
+                            if i == 0:
+                                ch = []
+                            ch.append(c2)
 
-                    # save
-                    for i in json_data.get('node'):
-                        serializer = NodeSerializer(data=i)
-                        if serializer.is_valid():
-                            serializer.save()
-                    for j in json_data.get('edge'):
-                        serializer = EdgeSerializer(data=j)
-                        if serializer.is_valid():
-                            serializer.save()
+                            # 'edge' parsing
+                            if i == 0:
+                                continue
+                            edge = OrderedDict()
+                            prior = f if isinstance(f, list) else [f]
+                            for p in prior:
+                                if p == -1:
+                                    p = i
+                                edgeid = edgeid + 1
+                                edge['id'] = edgeid
+                                edge['prior'] = p
+                                edge['next'] = i + 1
+                                lines.append(edge)
 
-                    exit(0)
+                                print(f"6. add edge #{edge['id']} {edge['prior']}->{edge['next']}")
 
-                    copyfile('/shared/common/'+str(user_id)+'/'+str(project_id)+'/basemodel.json', '/visualization/frontend/src/resnet50.json')
-                    #copyfile('./frontend/src/resnet50.json', './frontend/src/VGG16.json')
-                    with open("./frontend/src/resnet50.json", "r", encoding="utf-8-sig") as f:
-                        data = json.load(f)
-                        for i in data.get('node'):
+                        # json formatting for 'node' & 'edge'
+                        json_data = OrderedDict()
+                        json_data['node'] = layers
+                        json_data['edge'] = lines
+                        print(f"7. generate json data")
+                        print(json.dumps(json_data, ensure_ascii=False, indent="\t"))
+
+                        # save
+                        for i in json_data.get('node'):
                             serializer = NodeSerializer(data=i)
                             if serializer.is_valid():
+                                print(f"8-1. save nodes #{i['order']}")
                                 serializer.save()
-                        for j in data.get('edge'):
+                        for j in json_data.get('edge'):
                             serializer = EdgeSerializer(data=j)
                             if serializer.is_valid():
+                                print(f"8-2. save edges #{j['id']}")
                                 serializer.save()
+                    elif os.path.isfile(json_path):
+                        # json import
+                        copyfile(json_path, '/visualization/frontend/src/resnet50.json')
+                        with open("./frontend/src/resnet50.json", "r", encoding="utf-8-sig") as f:
+                            data = json.load(f)
+                            for i in data.get('node'):
+                                serializer = NodeSerializer(data=i)
+                                if serializer.is_valid():
+                                    serializer.save()
+                            for j in data.get('edge'):
+                                serializer = EdgeSerializer(data=j)
+                                if serializer.is_valid():
+                                    serializer.save()
+                    else:
+                        print("not found basemode.yaml neither basemodel.json")
+                        return Response("error", status=200, content_type="text/plain")
 
-                    print('start api GET')
+                    print('8. done to start api GET')
 
                 except Exception as ex:
                     print(ex)
@@ -818,9 +858,8 @@ def startList(request):
             # return HttpResponse(e, HttpResponse)
             #return HttpResponse('error', content_type="text/plain")
             return Response("error", status=200, content_type="text/plain")
-
-
     elif request.method == 'POST':
+        print(f"________POST /Start viz2code____________")
         with open("./frontend/src/resnet50.json", "r") as f:
             data = json.load(f)
             if (len(data["node"]) > 1) :
@@ -868,7 +907,9 @@ def statusList(request):
         status List
     '''
     # pylint: disable = no-else-return, no-member
+    print('status')
     if request.method == 'GET':
+        print('get')
         try:
             user_id = request.GET['user_id']
             project_id = request.GET['project_id']
@@ -888,15 +929,17 @@ def statusList(request):
                                     host_ip +
                                     ':8091/api/running/', verify=False)
 
-            #print("get_time:", get_time)
+            # print("get_time:", get_time)
             #time = get_time.text[-16:-3]
 
             # 현재 시점의 timestamp와 비교하기
             saved_time = datetime.fromtimestamp(int(1696232398148)/1000)
 
+            from pytz import timezone
+            datetime.now(timezone('Asia/Seoul'))
             now = datetime.now()
             print("now: ", now)
-            print(type(now))
+            # print(type(now))
             diff = now - saved_time
             diff_sec = diff.seconds
 
@@ -937,12 +980,15 @@ def runningList(request):
     '''
         running List
     '''
+    print('running')
     # pylint: disable = no-else-return, no-member
     if request.method == 'GET':
+        print('get')
         running = Running.objects.all()
         serializer = RunningSerializer(running, many=True)
         return Response(serializer.data)
     elif request.method == 'POST':
+        print('post')
         running = Running.objects.all()
         serializer = RunningSerializer(data=running)
         if serializer.is_valid():
@@ -1150,6 +1196,7 @@ def make_branches(get_node, get_edge):
         # pylint: disable-msg=bad-option-value, consider-using-f-string
         params_string = "{parameters}". \
             format(**node.__dict__).replace("\n", ',')
+        print(f"{params_string}")
         # pylint: disable-msg=bad-option-value, eval-used
         graph.addnode(CNode("{order}".format(**node.__dict__),
                             type_="{layer}".format(**node.__dict__),
