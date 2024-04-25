@@ -13,10 +13,18 @@ root_path = os.path.dirname(os.path.dirname(BASE_DIR))
 #region API REQUEST ...................................................................................................
 
 async def start_handler(continer, user_id, project_id, target_info):
-    print(continer)
-    print(user_id)
-    print(project_id)
-    print(target_info)
+    """
+    Container Start Request Handler
+
+    Args:
+        continer : continer
+        user_id : user_id
+        project_id : project_id
+        target_info : If the container is imagedenploy, receive hostname and port as targetinfo
+
+    Returns:
+        request info
+    """
 
     if continer != 'imagedeploy':
         host, port = get_container_info(continer)
@@ -32,6 +40,18 @@ async def start_handler(continer, user_id, project_id, target_info):
     return result
 
 async def continer_start_api(host, user_id, project_id):
+    """
+    Request start API
+
+    Args:
+        host : hostname (Defined in docker-compose.yml) 
+        user_id : user_id
+        project_id : project_id
+
+    Returns:
+        request info
+    """
+
     url = 'http://' + host + '/start'
     headers = {
         'Content-Type' : 'text/plain'
@@ -52,9 +72,18 @@ async def continer_start_api(host, user_id, project_id):
 #################################################################################################################
 
 async def request_handler(continer, user_id, project_id, target_info):
-    print(continer)
-    print(user_id)
-    print(project_id)
+    """
+    Container task Status Request Handler
+
+    Args:
+        continer : continer
+        user_id : user_id
+        project_id : project_id
+        target_info : If the container is imagedenploy, receive hostname and port as targetinfo
+
+    Returns:
+        request info
+    """
 
     # host, port = get_container_info(continer)
     # start_task = asyncio.create_task(continer_request_api(host + ':' + port, user_id, project_id))
@@ -82,6 +111,18 @@ async def request_handler(continer, user_id, project_id, target_info):
         return None
 
 async def continer_request_api(host, user_id, project_id):
+    """
+    Request container status API
+
+    Args:
+        host : hostname (Defined in docker-compose.yml) 
+        user_id : user_id
+        project_id : project_id
+
+    Returns:
+        request info
+    """
+        
     url = 'http://' + host + '/status_request'
     headers = {
         'Content-Type' : 'text/plain'
@@ -104,8 +145,17 @@ async def continer_request_api(host, user_id, project_id):
 #region Get Docker Logs ...............................................................................................
 
 def get_docker_log_handler(container, last_logs_timestamp):
-    print("get_docker_log_handler - container")
-    print(container)
+    """
+    Docker-compose log Get function
+
+    Args:
+        container : container
+        last_logs_timestamp(int) : Finally, the time stamp that received the docker log
+
+    Returns:
+        docker log
+    """
+
     client = docker.from_env()
     dockerContainerName = get_docker_container_name(container)
     containerList = client.containers.list()
@@ -122,6 +172,16 @@ def get_docker_log_handler(container, last_logs_timestamp):
 
 #region Get Container Info ............................................................................................
 def get_container_info(host_name):
+    """
+    Get ports into hostname
+
+    Args:
+        host : hostname (Defined in docker-compose.yml) 
+
+    Returns:
+        hostname, port
+    """
+
     ports_by_container = {
         'bms' : "8081",
         'yoloe' : "8090",
@@ -132,6 +192,15 @@ def get_container_info(host_name):
     return host_name, ports_by_container[host_name]
 
 def get_docker_container_name(container):
+    """
+    Get docker container name
+
+    Args:
+        container : container ID
+
+    Returns:
+        container name
+    """
 
     containerName = ''
     if container == 'init' :
@@ -162,6 +231,16 @@ def get_docker_container_name(container):
     return str(containerName)
 
 def get_deploy_host_port(deploy_type):
+    """
+    Get host name and port with target info for image deployment
+
+    Args:
+        deploy_type : deploy_type (Defined in shared/common/user_id/project_id/projct_info.yaml)
+
+    Returns:
+        host name, port
+    """
+
     port = ''
     if deploy_type == 'Cloud' :
         return "cloud-deploy", "8890"
@@ -174,6 +253,18 @@ def get_deploy_host_port(deploy_type):
 
 
 def print_roundtrip(response, path, container):
+    """
+    Transform function to display API call result as log
+
+    Args:
+        response : response
+        path : response
+        container : response
+
+    Returns:
+        display log
+    """
+
     format_headers = lambda d: '\n'.join(f'{k}: {v}' for k, v in d.items())
 
     return str(textwrap.dedent('''
@@ -198,6 +289,17 @@ def print_roundtrip(response, path, container):
 
 # 로그에 보여질 Container 명으로 변경
 def get_log_container_name(container):
+    """
+    Name of the container to be displayed in the log
+    (Actions to unify as one when displayed in the log)
+
+    Args:
+        container : container
+
+    Returns:
+        string
+    """
+
     if container == 'bms':
         return 'BMS'
     elif container == 'yoloe' or container == 'autonn-resnet':
@@ -211,6 +313,16 @@ def get_log_container_name(container):
     
 
 def db_container_name(container):
+    """
+    Get the name of the container to store in the database
+
+    Args:
+        container : container
+
+    Returns:
+        string
+    """
+
     if container == 'bms':
         return 'bms'
     elif container == 'yoloe':
@@ -225,6 +337,17 @@ def db_container_name(container):
         return 'imagedeploy'
 
 def nn_model_zip(user_id, project_id):
+    """
+    Convert path to zip file to shared/common/user_id/project_id/nn_model
+
+    Args:
+        user_id : user_id
+        project_id : project_id
+
+    Returns:
+        zip file
+    """
+
     file_path = os.path.join(root_path, "shared/common/{0}/{1}".format(str(user_id), str(project_id)))
     os.chdir(file_path)
 
@@ -241,6 +364,17 @@ def nn_model_zip(user_id, project_id):
     return os.path.join(file_path, "nn_model.zip")
 
 def nn_model_unzip(user_id, project_id, file):
+    """
+    unzip file
+
+    Args:
+        user_id : user_id
+        project_id : project_id
+        file : zip file
+
+    Returns:
+        zip file
+    """
     file_path = os.path.join(root_path, "shared/common/{0}/{1}".format(str(user_id), str(project_id)))
     save_path = os.path.join(file_path, 'nn_model.zip')
 
@@ -257,6 +391,12 @@ def nn_model_unzip(user_id, project_id, file):
     return os.path.join(file_path, "nn_model.zip")
 
 def create_text_file_if_not_exists(file_path):
+    """
+    create text file if not exists
+
+    Args:
+        file_path : file_path        
+    """
     try:
         # Try to open the file in read mode to check if it exists
         with open(file_path, 'r'):
@@ -268,6 +408,15 @@ def create_text_file_if_not_exists(file_path):
         print(f"File '{file_path}' created.")
 
 def update_project_log_file(user_id, project_id, log):
+    """
+    Add/save log to shared/common/user_id/project_id/log.txt file
+
+    Args:
+        user_id : user_id        
+        project_id : project_id        
+        log : Log to update
+    """
+        
     log_file_path = os.path.join(root_path, "shared/common/{0}/{1}".format(str(user_id), str(project_id)), 'log.txt')
     # create_text_file_if_not_exists(log_file_path)
 
@@ -276,6 +425,18 @@ def update_project_log_file(user_id, project_id, log):
 
 
 def findIndexByDicList(list, find_column, find_value):
+    """
+    Finds the index of a dictionary in a list of dictionaries, where the value of the specified column matches the specified value.
+
+    Args:
+        list: A list of dictionaries.
+        find_column: The column name to search for the match.
+        find_value: The value to match against.
+
+    Returns:
+        The index of the matching dictionary, or `None` if no match is found.
+    """
+
     index = None
     for i, person in enumerate(list):
         print(person[find_column])

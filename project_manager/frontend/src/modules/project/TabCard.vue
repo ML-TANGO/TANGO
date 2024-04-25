@@ -174,7 +174,6 @@ export default {
     navigation() {
       let status = true;
       const info = this.projectInfo;
-      console.log("info", info);
       if (!info?.dataset || info?.dataset === "") status = false;
       else if (!info?.target_id || !info?.target_info) status = false;
       else if (!info?.target_id || info?.target_id === "") status = false;

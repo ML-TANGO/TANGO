@@ -99,7 +99,6 @@ export default {
 
   methods: {
     onClick(e, container) {
-      console.log("container", container);
       this.$emit("start", container);
 
       if (container === ContainerName.VISUALIZATION) {

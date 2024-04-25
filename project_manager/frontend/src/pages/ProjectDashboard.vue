@@ -124,8 +124,6 @@ export default {
           return acc;
         }, {})
       };
-
-      console.log("this.projectsByTab", this.projectsByTab);
     },
     onStepChange(step) {
       this.step = step;

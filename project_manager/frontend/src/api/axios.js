@@ -14,7 +14,6 @@ axios.interceptors.response.use(
     return response;
   },
   function (error) {
-    console.log(error, error.response.status);
     if (error.response.status === 401) {
       const cookie_info = new Cookies();
       cookie_info.remove("userinfo", { path: "/" });

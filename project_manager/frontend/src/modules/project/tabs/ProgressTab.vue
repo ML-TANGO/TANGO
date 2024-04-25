@@ -158,6 +158,10 @@ export default {
     updateLog(log) {
       if (log?.message !== "\n") {
         if (log?.message?.trim()) {
+          if (this.vale.length > 50000) {
+            this.vale = this.vale.substring(10000);
+          }
+
           this.vale += log.message;
         }
       }
@@ -196,7 +200,6 @@ export default {
     },
 
     async immediateLaunch(container) {
-      console.log("immediateLaunch", container);
       this.$emit("restart", container);
       await updateProjectType(this.projectInfo.id, ProjectType.MANUAL);
       await this.containerStartRequest(container);
