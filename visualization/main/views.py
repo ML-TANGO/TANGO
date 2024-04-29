@@ -695,6 +695,7 @@ def startList(request):
                                 )
                             elif m == 'nn.Dropout':
                                 c1 = ch[f]
+                                c2 = c1
                                 p = args[0]
                                 inp = True
                                 if len(args) > 1:
@@ -773,11 +774,9 @@ def startList(request):
                                 expansion = 1
                                 if m == 'Bottleneck':
                                     expansion = 4
-                                c1 = ch[f]
-                                inplanes = args[0]
-                                if c1 != inplanes:
-                                    print(f"warning! input channel {c1} is not the same with inplanes {inplanes}")
+                                inplanes = ch[f]
                                 planes = args[1]
+                                c1 = inplanes
                                 c2 = planes * expansion
                                 s = args[2]
                                 downsample = args[3]
