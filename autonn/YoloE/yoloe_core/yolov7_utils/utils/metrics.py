@@ -7,14 +7,14 @@ import numpy as np
 import torch
 
 
+
 def fitness(x):
     # Model fitness as a weighted combination of metrics
     w = [0.0, 0.0, 0.1, 0.9]  # weights for [P, R, mAP@0.5, mAP@0.5:0.95]
     return (x[:, :4] * w).sum(1)
 
 
-# def ap_per_class(tp, conf, pred_cls, target_cls, v5_metric=False, plot=False, save_dir='.', names=()):
-def ap_per_class(tp, conf, pred_cls, target_cls, yolo_metric='v7', plot=False, save_dir='.', names=()):
+def ap_per_class(tp, conf, pred_cls, target_cls, v5_metric=False, plot=False, save_dir='.', names=()):
     """ Compute the average precision, given the recall and precision curves.
     Source: https://github.com/rafaelpadilla/Object-Detection-Metrics.
     # Arguments
@@ -33,7 +33,7 @@ def ap_per_class(tp, conf, pred_cls, target_cls, yolo_metric='v7', plot=False, s
     tp, conf, pred_cls = tp[i], conf[i], pred_cls[i]
 
     # Find unique classes
-    unique_classes, nt = np.unique(target_cls, return_counts=True)
+    unique_classes = np.unique(target_cls)
     nc = unique_classes.shape[0]  # number of classes, number of detections
 
     # Create Precision-Recall curve and compute AP for each class
@@ -61,8 +61,7 @@ def ap_per_class(tp, conf, pred_cls, target_cls, yolo_metric='v7', plot=False, s
 
             # AP from recall-precision curve
             for j in range(tp.shape[1]):
-                # ap[ci, j], mpre, mrec = compute_ap(recall[:, j], precision[:, j], v5_metric=v5_metric)
-                ap[ci, j], mpre, mrec = compute_ap(recall[:, j], precision[:, j], yolo_metric=yolo_metric)
+                ap[ci, j], mpre, mrec = compute_ap(recall[:, j], precision[:, j], v5_metric=v5_metric)
                 if plot and j == 0:
                     py.append(np.interp(px, mrec, mpre))  # precision at mAP@0.5
 
@@ -75,30 +74,21 @@ def ap_per_class(tp, conf, pred_cls, target_cls, yolo_metric='v7', plot=False, s
         plot_mc_curve(px, r, Path(save_dir) / 'R_curve.png', names, ylabel='Recall')
 
     i = f1.mean(0).argmax()  # max F1 index
-    if yolo_metric == 'v9':
-        p, r, f1 = p[:, i], r[:, i], f1[:, i]
-        tp = (r * nt).round()  # true positives
-        fp = (tp / (p + 1e-16) - tp).round()  # false positives
-        return tp, fp, p, r, f1, ap, unique_classes.astype(int)
-    else:
-        return p[:, i], r[:, i], ap, f1[:, i], unique_classes.astype('int32')
+    return p[:, i], r[:, i], ap, f1[:, i], unique_classes.astype('int32')
 
 
-# def compute_ap(recall, precision, v5_metric=False):
-def compute_ap(recall, precision, yolo_metric='v7'):
+def compute_ap(recall, precision, v5_metric=False):
     """ Compute the average precision, given the recall and precision curves
     # Arguments
         recall:    The recall curve (list)
         precision: The precision curve (list)
         v5_metric: Assume maximum recall to be 1.0, as in YOLOv5, MMDetetion etc.
-        yolo_metric: {v5, v7, v9} default: v7
     # Returns
         Average precision, precision curve, recall curve
     """
 
     # Append sentinel values to beginning and end
-    # if v5_metric:  # New YOLOv5 metric, same as MMDetection and Detectron2 repositories
-    if yolo_metric == 'v5' or yolo_metric == 'v9':
+    if v5_metric:  # New YOLOv5 metric, same as MMDetection and Detectron2 repositories
         mrec = np.concatenate(([0.], recall, [1.0]))
     else:  # Old YOLOv5 metric, i.e. default YOLOv7 metric
         mrec = np.concatenate(([0.], recall, [recall[-1] + 0.01]))
@@ -137,12 +127,6 @@ class ConfusionMatrix:
         Returns:
             None, updates confusion matrix accordingly
         """
-        if detections is None:
-            gt_classes = labels.int()
-            for gc in gt_classes:
-                self.matrix[self.nc, gc] += 1  # background FN
-            return
-
         detections = detections[detections[:, 4] > self.conf]
         gt_classes = labels[:, 0].int()
         detection_classes = detections[:, 5].int()

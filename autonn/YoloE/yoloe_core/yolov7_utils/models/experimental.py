@@ -253,22 +253,13 @@ def attempt_load(weights, map_location=None):
     for w in weights if isinstance(weights, list) else [weights]:
         attempt_download(w)
         ckpt = torch.load(w, map_location=map_location)  # load
-        ckpt = (ckpt.get('ema') or ckpt['model']).to(map_location).float() # FP32 model
-        # model.append(ckpt['ema' if ckpt.get('ema') else 'model'].float().fuse().eval())  # FP32 model
-
-        # Model compatibility updates
-        if not hasattr(ckpt, 'stride'):
-            ckpt.stride = torch.tensor([32.])
-        if hasattr(ckpt, 'names') and isinstance(ckpt.names, (list, tuple)):
-            ckpt.names = dict(enumerate(ckpt.names))  # convert to dict
-
-        model.append(ckpt.fuse().eval() if hasattr(ckpt, 'fuse') else ckpt.eval()) # model in eval mode
+        model.append(ckpt['ema' if ckpt.get('ema') else 'model'].float().fuse().eval())  # FP32 model
     
     # Compatibility updates
     for m in model.modules():
         if type(m) in [nn.Hardswish, nn.LeakyReLU, nn.ReLU, nn.ReLU6, nn.SiLU]:
             m.inplace = True  # pytorch 1.7.0 compatibility
-        elif type(m) is nn.Upsample and not hasattr(m, 'recompute_scale_factor'):
+        elif type(m) is nn.Upsample:
             m.recompute_scale_factor = None  # torch 1.11.0 compatibility
         elif type(m) is Conv:
             m._non_persistent_buffers_set = set()  # pytorch 1.6.0 compatibility

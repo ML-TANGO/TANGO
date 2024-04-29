@@ -33,7 +33,7 @@ from general import check_requirements, xyxy2xywh, xywh2xyxy, xywhn2xyxy, xyn2xy
 from torch_utils import torch_distributed_zero_first
 
 # Parameters
-help_url = 'https://github.com/ML-TANGO/TANGO/wiki/DataLabelling'
+help_url = 'https://github.com/ultralytics/yolov5/wiki/Train-Custom-Data'
 img_formats = ['bmp', 'jpg', 'jpeg', 'png', 'tif', 'tiff', 'dng', 'webp', 'mpo']  # acceptable image suffixes
 vid_formats = ['mov', 'avi', 'mp4', 'mpg', 'mpeg', 'm4v', 'wmv', 'mkv']  # acceptable video suffixes
 logger = logging.getLogger(__name__)
@@ -64,15 +64,6 @@ def exif_size(img):
     return s
 
 
-### added from yolov9
-def seed_worker(worker_id):
-    # Set dataloader worker seed https://pytorch.org/docs/stable/notes/randomness.html#dataloader
-    worker_seed = torch.initial_seed() % 2 ** 32
-    np.random.seed(worker_seed)
-    random.seed(worker_seed)
-###
-
-
 def create_dataloader(path, imgsz, batch_size, stride, opt, hyp=None, augment=False, cache=False, pad=0.0, rect=False,
                       rank=-1, world_size=1, workers=8, image_weights=False, quad=False, prefix=''):
     # Make sure only the first process in DDP process the dataset first, and the following others can use the cache
@@ -93,18 +84,12 @@ def create_dataloader(path, imgsz, batch_size, stride, opt, hyp=None, augment=Fa
     sampler = torch.utils.data.distributed.DistributedSampler(dataset) if rank != -1 else None
     loader = torch.utils.data.DataLoader if image_weights else InfiniteDataLoader
     # Use torch.utils.data.DataLoader() if dataset.properties will update during training else InfiniteDataLoader()
-    ### added from yolov9
-    generator = torch.Generator()
-    generator.manual_seed(6148914691236517205 + rank)
-    ###
     dataloader = loader(dataset,
                         batch_size=batch_size,
                         num_workers=nw,
                         sampler=sampler,
                         pin_memory=False,
-                        collate_fn=LoadImagesAndLabels.collate_fn4 if quad else LoadImagesAndLabels.collate_fn,
-                        worker_init_fn=seed_worker, # added from yolov9
-                        generator=generator)        # added from yolov9
+                        collate_fn=LoadImagesAndLabels.collate_fn4 if quad else LoadImagesAndLabels.collate_fn)
     return dataloader, dataset
 
 
@@ -379,9 +364,8 @@ class LoadImagesAndLabels(Dataset):  # for training/testing
         self.mosaic_border = [-img_size // 2, -img_size // 2]
         self.stride = stride
         self.path = path        
-        self.albumentations = Albumentations() if augment else None
+        #self.albumentations = Albumentations() if augment else None
 
-        # Glob image files
         try:
             f = []  # image files
             for p in path if isinstance(path, list) else [path]:
@@ -398,8 +382,6 @@ class LoadImagesAndLabels(Dataset):  # for training/testing
                 else:
                     raise Exception(f'{prefix}{p} does not exist')
             self.img_files = sorted([x.replace('/', os.sep) for x in f if x.split('.')[-1].lower() in img_formats])
-            # print(*self.img_files, sep='\n')
-            # print(len(self.img_files))
             # self.img_files = sorted([x for x in f if x.suffix[1:].lower() in img_formats])  # pathlib
             assert self.img_files, f'{prefix}No images found'
         except Exception as e:
@@ -408,6 +390,7 @@ class LoadImagesAndLabels(Dataset):  # for training/testing
         # Check cache
         self.label_files = img2label_paths(self.img_files)  # labels
         cache_path = (p if p.is_file() else Path(self.label_files[0]).parent).with_suffix('.cache')  # cached labels
+        print(cache_path)
         if cache_path.is_file():
             cache, exists = torch.load(cache_path), True  # load
             #if cache['hash'] != get_hash(self.label_files + self.img_files) or 'version' not in cache:  # changed
@@ -418,9 +401,8 @@ class LoadImagesAndLabels(Dataset):  # for training/testing
         # Display cache
         nf, nm, ne, nc, n = cache.pop('results')  # found, missing, empty, corrupted, total
         if exists:
-            d = f"Scanning '{cache_path}' images and labels... {nf:3} found, {nm} missing, {ne} empty, {nc} corrupted"
-            # tqdm(None, desc=prefix + d, total=n, initial=n)  # display cache results
-            logger.info(prefix+d)
+            d = f"Scanning '{cache_path}' images and labels... {nf} found, {nm} missing, {ne} empty, {nc} corrupted"
+            tqdm(None, desc=prefix + d, total=n, initial=n)  # display cache results
         assert nf > 0 or not augment, f'{prefix}No labels in {cache_path}. Can not train without labels. See {help_url}'
 
         # Read cache
@@ -492,10 +474,8 @@ class LoadImagesAndLabels(Dataset):  # for training/testing
         # Cache dataset labels, check images and read shapes
         x = {}  # dict
         nm, nf, ne, nc = 0, 0, 0, 0  # number missing, found, empty, duplicate
-        img_label_list = zip(self.img_files, self.label_files)
-        # pbar = tqdm(img_label_list, desc='Scanning images', total=len(self.img_files))
-        # for i, (im_file, lb_file) in enumerate(pbar):
-        for i, (im_file, lb_file) in enumerate(img_label_list):
+        pbar = tqdm(zip(self.img_files, self.label_files), desc='Scanning images', total=len(self.img_files))
+        for i, (im_file, lb_file) in enumerate(pbar):
             try:
                 # verify images
                 im = Image.open(im_file)
@@ -523,23 +503,20 @@ class LoadImagesAndLabels(Dataset):  # for training/testing
                     else:
                         ne += 1  # label empty
                         l = np.zeros((0, 5), dtype=np.float32)
-                        logger.info(f"{prefix}WARNING: Empty label {lb_file}")
                 else:
                     nm += 1  # label missing
                     l = np.zeros((0, 5), dtype=np.float32)
-                    logger.info(f"{prefix}WARNING: Missing label {lb_file}")
                 x[im_file] = [l, shape, segments]
             except Exception as e:
                 nc += 1
-                logger.info(f'{prefix}WARNING: Ignoring corrupted image and/or label {im_file}: {e}')
-            # pbar.desc = f"{prefix}Scanning '{path.parent / path.stem}' images and labels... " \
-            #             f"{nf} found, {nm} missing, {ne} empty, {nc} corrupted"
-        # pbar.close()
-        logger.info(f"{prefix}Scanning '{path.parent / path.stem}' images and labels... " \
-                    f"{nf} found, {nm} missing, {ne} empty, {nc} corrupted")
+                print(f'{prefix}WARNING: Ignoring corrupted image and/or label {im_file}: {e}')
+
+            pbar.desc = f"{prefix}Scanning '{path.parent / path.stem}' images and labels... " \
+                        f"{nf} found, {nm} missing, {ne} empty, {nc} corrupted"
+        pbar.close()
 
         if nf == 0:
-            logger.info(f'{prefix}WARNING: No labels found in {path}. See {help_url}')
+            print(f'{prefix}WARNING: No labels found in {path}. See {help_url}')
 
         x['hash'] = get_hash(self.label_files + self.img_files)
         x['results'] = nf, nm, ne, nc, i + 1
@@ -586,8 +563,9 @@ class LoadImagesAndLabels(Dataset):  # for training/testing
 
             # Letterbox
             shape = self.batch_shapes[self.batch[index]] if self.rect else self.img_size  # final letterboxed shape
-            img, ratio, pad = letterbox(img, shape, auto=False, scaleup=self.augment) # note: img=(h,w), ratio=(w,h) pad=(w,h)
+            img, ratio, pad = letterbox(img, shape, auto=False, scaleup=self.augment)
             shapes = (h0, w0), ((h / h0, w / w0), pad)  # for COCO mAP rescaling
+
             labels = self.labels[index].copy()
             if labels.size:  # normalized xywh to pixel xyxy format
                 labels[:, 1:] = xywhn2xyxy(labels[:, 1:], ratio[0] * w, ratio[1] * h, padw=pad[0], padh=pad[1])
@@ -603,7 +581,7 @@ class LoadImagesAndLabels(Dataset):  # for training/testing
                                                  perspective=hyp['perspective'])
             
             
-            img, labels = self.albumentations(img, labels)
+            #img, labels = self.albumentations(img, labels)
 
             # Augment colorspace
             augment_hsv(img, hgain=hyp['hsv_h'], sgain=hyp['hsv_s'], vgain=hyp['hsv_v'])
@@ -612,7 +590,7 @@ class LoadImagesAndLabels(Dataset):  # for training/testing
             # if random.random() < 0.9:
             #     labels = cutout(img, labels)
             
-            if random.random() < hyp.get('paste_in', 0):
+            if random.random() < hyp['paste_in']:
                 sample_labels, sample_images, sample_masks = [], [], [] 
                 while len(sample_labels) < 30:
                     sample_labels_, sample_images_, sample_masks_ = load_samples(self, random.randint(0, len(self.labels) - 1))
@@ -624,9 +602,8 @@ class LoadImagesAndLabels(Dataset):  # for training/testing
                         break
                 labels = pastein(img, labels, sample_labels, sample_images, sample_masks)
 
-        nL = len(labels)  # number of labels (=object numbers per image)
+        nL = len(labels)  # number of labels
         if nL:
-            # a label = [class index, x1, y1, x2, y2] x1y1 = top-left, x2y2 = bottom-right
             labels[:, 1:5] = xyxy2xywh(labels[:, 1:5])  # convert xyxy to xywh
             labels[:, [2, 4]] /= img.shape[0]  # normalized height 0-1
             labels[:, [1, 3]] /= img.shape[1]  # normalized width 0-1
@@ -647,8 +624,9 @@ class LoadImagesAndLabels(Dataset):  # for training/testing
         labels_out = torch.zeros((nL, 6))
         if nL:
             labels_out[:, 1:] = torch.from_numpy(labels)
+
         # Convert
-        img = img[:, :, ::-1].transpose(2, 0, 1)  # BGR to RGB, HWC to CHW
+        img = img[:, :, ::-1].transpose(2, 0, 1)  # BGR to RGB, to 3x416x416
         img = np.ascontiguousarray(img)
 
         return torch.from_numpy(img), labels_out, self.img_files[index], shapes
@@ -1011,6 +989,7 @@ def letterbox(img, new_shape=(640, 640), color=(114, 114, 114), auto=True, scale
     shape = img.shape[:2]  # current shape [height, width]
     if isinstance(new_shape, int):
         new_shape = (new_shape, new_shape)
+
     # Scale ratio (new / old)
     r = min(new_shape[0] / shape[0], new_shape[1] / shape[1])
     if not scaleup:  # only scale down, do not scale up (for better test mAP)

@@ -115,6 +115,7 @@ def output_to_target(output):
 
 def plot_images(images, targets, paths=None, fname='images.jpg', names=None, max_size=640, max_subplots=16):
     # Plot image grid with labels
+
     if isinstance(images, torch.Tensor):
         images = images.cpu().float().numpy()
     if isinstance(targets, torch.Tensor):
@@ -270,10 +271,9 @@ def plot_study_txt(path='', x=None):  # from utils.plots import *; plot_study_tx
     plt.savefig(str(Path(path).name) + '.png', dpi=300)
 
 
-def plot_labels(labels, names=(), save_dir=Path(''), loggers=None, prefix=''):
+def plot_labels(labels, names=(), save_dir=Path(''), loggers=None):
     # plot dataset labels
-    print(f"[{prefix}] Plotting labels to {save_dir}/labels_correlogram.jpg, "
-        f"{save_dir}/lables.jpg... ")
+    print('Plotting labels... ')
     c, b = labels[:, 0], labels[:, 1:].transpose()  # classes, boxes
     nc = int(c.max() + 1)  # number of classes
     colors = color_list()
@@ -415,8 +415,7 @@ def plot_results(start=0, stop=0, bucket='', id=(), labels=(), save_dir=''):
     assert len(files), 'No results.txt files found in %s, nothing to plot.' % os.path.abspath(save_dir)
     for fi, f in enumerate(files):
         try:
-            # results = np.loadtxt(f, usecols=[2, 3, 4, 8, 9, 12, 13, 14, 10, 11], ndmin=2).T
-            results = np.loadtxt(f, usecols=[3, 4, 5, 8, 9, 12, 13, 14, 10, 11], ndmin=2).T
+            results = np.loadtxt(f, usecols=[2, 3, 4, 8, 9, 12, 13, 14, 10, 11], ndmin=2).T
             n = results.shape[1]  # number of rows
             x = range(start, min(stop, n) if stop else n)
             for i in range(10):
