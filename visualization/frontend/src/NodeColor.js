@@ -1,6 +1,7 @@
 import React from "react";
 
 const NodeColorProp = {
+    Yolo:"#C5FF95",
     Residual:"#EBEBEB",
     Conv:"#F2E3DC",
     Pooling:"#FAF1CB",

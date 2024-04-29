@@ -12,6 +12,20 @@ const layerToggle = () => {
       <div className="LayerToggle">
           <h2 className="Layer">Layer</h2>
     <aside>
+        <details className="categoryYolo">
+          <summary className="layerName">Yolo Block</summary>
+            <ul>
+              <li>
+                <div
+                  className="dndnode"
+                  onDragStart={(event) => onDragStart(event, "Concat", `${NodeColorProp.Yolo}`, "'dim': 1")}
+                  draggable
+                >
+                  Concat
+                </div>
+              </li>
+            </ul>
+        </details>
         <details className="categoryResidual">
           <summary className="layerName">Residual Block</summary>
               <ul>

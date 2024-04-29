@@ -21,7 +21,9 @@ import CrossEntropyLoss from "../layer/CrossEntropyLoss";
 import MSELoss from "../layer/MSELoss";
 import Flatten from "../layer/Flatten";
 import Upsample from "../layer/Upsample";
+import Concat from "../layer/Concat";
 import InitialArch from '../../InitialArch';
+
 import axios from 'axios';
 import ReactFlow, {
   addEdge,
@@ -491,7 +493,17 @@ function AbstractList() {
           header={state}
         ></Flatten>
       );
-
+    if (state === "Concat")
+      return (
+        <Concat
+          params = {nowp}
+          layer={nowc}
+          open={modalOpen}
+          save={saveModal}
+          close={closeModal}
+          header={state}
+        ></Concat>
+    );
     else
       return (
         <Upsample

@@ -4,6 +4,8 @@ high level support for doing this and that.
 import torch
 from torch import nn
 import torchvision.models.resnet as resnet
+from .common import Concat
+
 # from PyBinderCustom import *
 
 
@@ -303,6 +305,8 @@ class CPyBinder:
                 n__ = resnet.Bottleneck(inplanes, planes, stride, downsample, groups, base_width, dilation, norm_layer)
             elif name == 'BasicBlock':
                 n__ = resnet.BasicBlock(inplanes, planes, stride, downsample, groups, base_width, dilation, norm_layer)
+            elif name == 'Concat':
+                n__ = common.Concat(dim)
             else:
                 # n__ = NotImplemented(name)
                 print('Not Implement', name)

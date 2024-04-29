@@ -82,6 +82,8 @@ function InitialArch(level, group, setGroup, ungroup, setUngroup, isSort, setIsS
                         nodeColor = NodeColorProp.Residual;
                     } else if (nodeLabel === "Bottleneck") {
                         nodeColor = NodeColorProp.Residual;
+                    } else if (nodeLabel === "Concat") {
+                        nodeColor = NodeColorProp.Yolo;
                     }
 
                     if (i === 0) {
@@ -319,6 +321,8 @@ function InitialArch(level, group, setGroup, ungroup, setUngroup, isSort, setIsS
                         nodeColor = NodeColorProp.Residual;
                     } else if (nodeLabel === "Bottleneck") {
                         nodeColor = NodeColorProp.Residual;
+                    } else if (nodeLabel === "Concat") {
+                        nodeColor = NodeColorProp.Yolo;
                     }
                     console.log("sadstjklsdfhludz")
                     if (i === 0) {

@@ -16,6 +16,7 @@ class CDefaults:
         self.loss_deflist = []
         self.etc_deflist = []
 
+
         self.tags = {
             'Conv2d': {'in_channels': 1, 'out_channels': 1,
                        'kernel_size': (3, 3),
@@ -71,6 +72,7 @@ class CDefaults:
                            'stride': (1, 1), 'downsample':False,
                            'groups': 1, 'base_width': 64,
                            'dilation': 1, 'norm_layer': None},
+            'Concat': {'dim': 1},
         }
 
         self.pooling_deflist = ['MaxPool2d', 'AvgPool2d', 'AdaptiveAvgPool2d']
@@ -81,7 +83,7 @@ class CDefaults:
         self.loss_deflist = ['BCELoss', 'CrossEntropyLoss', 'MSELoss']
         self.etc_deflist = ['Sequential', 'Flatten', 'Upsample',
                             'Dropout', 'Linear', 'Conv2d',
-                            'Bottleneck', 'BasicBlock']
+                            'Bottleneck', 'BasicBlock', 'Concat']
 
     def pooling_layer(self):
         '''

@@ -3,7 +3,7 @@ import React, {useState, useRef, useEffect} from "react";
 import "../../styles.css";
 
 import CustomEdge from "../CustomEdge";
-import EditModal from "../layer/PopupModal";
+import EditModal from "../layer/PopupModal"; /* Conv2d */
 import MaxPoolModal from "../layer/MaxPool";
 import AvgPool2d from "../layer/AvgPool2d";
 import AdaptiveAvgPool2d from "../layer/AdaptiveAvgPool2d";
@@ -25,6 +25,7 @@ import Flatten from "../layer/Flatten";
 import Upsample from "../layer/Upsample";
 import BasicBlock from "../layer/BasicBlock";
 import Bottleneck from "../layer/Bottleneck";
+import Concat from "../layer/Concat";
 import axios from 'axios';
 import ReactFlow, {
 
@@ -70,6 +71,14 @@ function LayerList() {
   const [level, setLevel] = useState(1);
   const [ungroup, setUngroup] = useState(false);
   const [isSort, setIsSort] = useState(false);
+  console.log("혹시 여기서 처음 InitialArch를 부른거야?")
+  console.log("level =", level)
+  console.log("group =", group)
+  console.log("setGroup =", setGroup)
+  console.log("ungroup =", ungroup)
+  console.log("setUngroup =", setUngroup)
+  console.log("isSort =", isSort)
+  console.log("setIsSort =", setIsSort)
   const [elements, setElements, isLoading] = InitialArch(level, group, setGroup, ungroup, setUngroup, isSort, setIsSort);
   const [rapid, setRapid] = useState([]);
   const [noMatch, setNoMatch] = useState([]);
@@ -245,15 +254,15 @@ const onSortNodes = (sortList) => {
 const notRunningState = setInterval(() => {
     ////    console.log("[post] 동작 중지");
     //    running_id += 1;
-    axios
-      .post("/api/status_report/", {
-        timestamp: Date.now(),
-        //      running: 0,
-      })
-      .then(function (response) {
-        //console.log(timestamp)
-      })
-      .catch((e) => console.log(e));
+    // axios
+    //   .post("/api/status_report/", {
+    //     timestamp: Date.now(),
+    //     //      running: 0,
+    //   })
+    //   .then(function (response) {
+    //     //console.log(timestamp)
+    //   })
+    //   .catch((e) => console.log(e));
   }, initRunningStateTime * 1000);
 
   const onRunningState = () => {
@@ -787,7 +796,18 @@ const notRunningState = setInterval(() => {
           setState={setIdState}
         ></Bottleneck>
       );
-
+    if (state === "Concat")
+      return (
+        <Concat
+          params={paramState}
+          layer={idState}
+          open={modalOpen}
+          save={saveModal}
+          close={closeModal}
+          header={state}
+          setState={setIdState}
+        ></Concat>
+      );
     else
       return (
         <Upsample

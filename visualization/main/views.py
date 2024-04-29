@@ -320,6 +320,9 @@ def pthlist(request):
                     w_ = params_['base_width']
                     norm_ = params_['norm_layer']
                     args_ = [ch_, s_, downsample_, g_, w_, d_, norm_]
+                elif module_ == 'Concat':
+                    d_ = params_['dim']
+                    args_ = [d_]
                 else:
                     print(f"{module_} is not supported yet")
                     continue
@@ -536,18 +539,20 @@ def startList(request):
                     edges = Edge.objects.all()
                     edges.delete()
 
-
                     yaml_path = '/shared/common/'+str(user_id)+'/'+str(project_id)+'/basemodel.yaml'
                     json_path = '/shared/common/'+str(user_id)+'/'+str(project_id)+'/basemodel.json'
+
                     if os.path.isfile(yaml_path):
                         # YOLO-style YAML file import
+                        # copyfile(yaml_path, my_yaml_path)
                         with open(yaml_path) as f:
                             basemodel_yaml = yaml.load(f, Loader=yaml.SafeLoader)
 
-                        print(f"3. load yaml file")
+                        print(f"3. load yaml file {yaml_path}")
 
                         # 'node' & 'edge' parsing
                         # import torch, torchvision.models.resnet
+                        nc = basemodel_yaml.get('nc', 80)  # default number of classes = 80 (coco)
                         ch = [basemodel_yaml.get('ch', 3)] # default channel = 3 (RGB)
                         layers, lines, c2, edgeid = [], [], ch[-1], 0
                         for i, (f, n, m, args) in enumerate(basemodel_yaml['backbone'] + basemodel_yaml['head']):  # from, number, module, args
@@ -558,8 +563,10 @@ def startList(request):
                                 try:
                                     args[j] = eval(a) if isinstance(a, str) else a  # eval strings
                                 except:
-                                    print(f"unsupported arguements: {a}...ignored.")
-                                    pass
+                                    if a == 'nc':
+                                        args[j] = nc
+                                    else:
+                                        print(f"unsupported arguements: {a}...ignored.")
 
                             if   m == 'nn.Conv2d':
                                 c1 = ch[f]
@@ -698,6 +705,7 @@ def startList(request):
                                 )
                             elif m == 'nn.MESLoss':
                                 c1 = ch[f]
+                                c2 = c1
                                 avg = args[0]
                                 r1 = args[1]
                                 r2 = args[2]
@@ -708,6 +716,7 @@ def startList(request):
                                 )
                             elif m == 'nn.BCELoss':
                                 c1 = ch[f]
+                                c2 = c1
                                 w = args[0]
                                 avg = args[1]
                                 r1 = args[2]
@@ -720,6 +729,7 @@ def startList(request):
                                 )
                             elif m == 'nn.CrossEntropyLoss':
                                 c1 = ch[f]
+                                c2 = c1
                                 w = args[0]
                                 avg = args[1]
                                 ign_idx = args[2]
@@ -735,6 +745,8 @@ def startList(request):
                                     f"'label_smoothing': {lsmooth}"
                                 )
                             elif m == 'Flatten':
+                                # reshape input into a 1-dim tensor
+                                # hard to say how long output channel is
                                 c1 = ch[f]
                                 s_dim = args[0]
                                 e_dim = args[1]
@@ -744,6 +756,7 @@ def startList(request):
                                 )
                             elif m == 'nn.Unsample':
                                 c1 = ch[f]
+                                c2 = c1
                                 size = args[0]
                                 scale = args[1]
                                 mode = args[2]
@@ -757,9 +770,15 @@ def startList(request):
                                     f"'recompute_scale_factor': {recompute}"
                                 )
                             elif m in ('BasicBlock', 'Bottleneck'):
+                                expansion = 1
+                                if m == 'Bottleneck':
+                                    expansion = 4
                                 c1 = ch[f]
-                                inp = args[0]
+                                inplanes = args[0]
+                                if c1 != inplanes:
+                                    print(f"warning! input channel {c1} is not the same with inplanes {inplanes}")
                                 planes = args[1]
+                                c2 = planes * expansion
                                 s = args[2]
                                 downsample = args[3]
                                 g = args[4]
@@ -767,7 +786,7 @@ def startList(request):
                                 d = args[6]
                                 norm_layer = args[7]
                                 params = (
-                                    f"'inplanes': {inp} \n "
+                                    f"'inplanes': {inplanes} \n "
                                     f"'planes': {planes} \n "
                                     f"'stride': ({s}, {s}) \n "
                                     f"'downsample': {downsample} \n "
@@ -775,6 +794,21 @@ def startList(request):
                                     f"'base_width': {basewidth} \n "
                                     f"'dilation': {d} \n "
                                     f"'norm_layer': {norm_layer}"
+                                )
+                            elif m == 'Concat':
+                                d = args[0]
+                                if not isinstance(f, list):
+                                    c1 = ch[f]
+                                    c2 = c1
+                                else:
+                                    c1 = [ch[x] for x in f]
+                                    if d == 1: # (N, C, H, W); channel-wise concatentation
+                                        c2 = sum(c1)
+                                    else:
+                                        print("warning! only channel-wise concat is supported.")
+                                        c2 = max(c1) # TODO: should be treated more elegantly..
+                                prarms = (
+                                    f"'dim': {d}"
                                 )
                             else:
                                 print(f"unsupported module... {m}")
@@ -831,8 +865,10 @@ def startList(request):
                                 serializer.save()
                     elif os.path.isfile(json_path):
                         # json import
-                        copyfile(json_path, '/visualization/frontend/src/resnet50.json')
-                        with open("./frontend/src/resnet50.json", "r", encoding="utf-8-sig") as f:
+                        # copyfile(json_path, my_json_path)
+                        # with open("./frontend/src/resnet50.json", "r", encoding="utf-8-sig") as f:
+                        print(f"3. load json file {json_path}")
+                        with open(json_path, "r", encoding="utf-8-sig") as f:
                             data = json.load(f)
                             for i in data.get('node'):
                                 serializer = NodeSerializer(data=i)
@@ -843,11 +879,8 @@ def startList(request):
                                 if serializer.is_valid():
                                     serializer.save()
                     else:
-                        print("not found basemode.yaml neither basemodel.json")
-                        return Response("error", status=200, content_type="text/plain")
-
-                    print('8. done to start api GET')
-
+                        print(f"3. not found basemode.yaml neither basemodel.json")
+                        return Response("error", status=404, content_type="text/plain")
                 except Exception as ex:
                     print(ex)
                 return Response("started", status=200, content_type="text/plain")
@@ -856,18 +889,16 @@ def startList(request):
         # pylint: disable = broad-except
         except Exception as e:
             # return HttpResponse(e, HttpResponse)
-            #return HttpResponse('error', content_type="text/plain")
+            # return HttpResponse('error', content_type="text/plain")
             return Response("error", status=200, content_type="text/plain")
     elif request.method == 'POST':
         print(f"________POST /Start viz2code____________")
-        with open("./frontend/src/resnet50.json", "r") as f:
-            data = json.load(f)
-            if (len(data["node"]) > 1) :
-                return True
-            else:
-                return False
-
-
+        # with open("./frontend/src/resnet50.json", "r") as f:
+        #     data = json.load(f)
+        #     if (len(data["node"]) > 1) :
+        #         return True
+        #     else:
+        #         return False
     else:
         print('no request')
 
@@ -924,7 +955,6 @@ def statusList(request):
             host_ip = str(request.get_host())[:-5]
             # pylint: disable=missing-timeout
             print("host_ip:", host_ip)
-
             get_time = requests.get('http://' +
                                     host_ip +
                                     ':8091/api/running/', verify=False)
@@ -935,16 +965,13 @@ def statusList(request):
             # 현재 시점의 timestamp와 비교하기
             saved_time = datetime.fromtimestamp(int(1696232398148)/1000)
 
-            from pytz import timezone
-            datetime.now(timezone('Asia/Seoul'))
             now = datetime.now()
             print("now: ", now)
             # print(type(now))
             diff = now - saved_time
             diff_sec = diff.seconds
-
+            print(f"diff: {diff_sec}s")
             #print(type(diff_sec))
-
 
             if diff_sec > 5:  # 1분 이상이면
                 #started를 running으로 변경
@@ -1208,6 +1235,7 @@ def make_branches(get_node, get_edge):
     net = CPyBinder.exportmodel(self_binder, graph)
     print(net)
     return net
+
 
 def post_sorted_id(get_node, get_edge):
     '''
