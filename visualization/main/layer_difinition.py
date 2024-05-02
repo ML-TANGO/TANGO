@@ -9,13 +9,16 @@ class CDefaults:
     '''
 
     def __init__(self):
+        self.combine_deflist = []
+        self.conv_deflist = []
+        self.norm_deflist = []
         self.pooling_deflist = []
         self.padding_deflist = []
         self.activation_deflist = []
-        self.norm_deflist = []
+        self.spp_deflist = []
         self.loss_deflist = []
+        self.head_deflist = []
         self.etc_deflist = []
-
 
         self.tags = {
             'Conv2d': {'in_channels': 1, 'out_channels': 1,
@@ -29,7 +32,8 @@ class CDefaults:
                           'stride': (2, 2),
                           'padding': (0, 0)},
             'AdaptiveAvgPool2d': {'output_size': (1, 1)},
-
+            'MP': {'k': 2},
+            'SP': {'kernel_size': (3, 3), 'stride': (1, 1)},
             'ZeroPad2d': {'padding': 1},
             'ConstantPad2d': {'padding': 2, 'value': 3.5},
 
@@ -73,17 +77,32 @@ class CDefaults:
                            'groups': 1, 'base_width': 64,
                            'dilation': 1, 'norm_layer': None},
             'Concat': {'dim': 1},
+            'DownC': {'in_channels': 64, 'out_channels': 64,
+                      'n': 1, 'kernel_size': (2, 2)},
+            'SPPCSPC': {'in_channels': 64, 'out_channels': 64,
+                        'n': 1, 'shortcut': False, 'groups': 1,
+                        'expansion': 0.5, 'kernels': (5, 9, 13)},
+            'ReOrg': {},
+            'Conv': {'in_channels': 64, 'out_channels': 64,
+                     'kernel_size': 1, 'stride': 1, 'padding': None, 'groups': 1,
+                     'act': True},
+            'IDetect': {'nc': 80, 'anchors': (), 'ch': ()}
         }
 
-        self.pooling_deflist = ['MaxPool2d', 'AvgPool2d', 'AdaptiveAvgPool2d']
+        self.conv_deflist = ['Conv2d', 'Conv']
+        self.pooling_deflist = ['MaxPool2d', 'AvgPool2d', 'AdaptiveAvgPool2d'
+                                'MP', 'SP']
         self.padding_deflist = ['ZeroPad2d', 'ConstantPad2d']
         self.activation_deflist = ['ReLU', 'ReLU6', 'Sigmoid',
                                    'LeakyReLU', 'Tanh', 'Softmax']
         self.norm_deflist = ['BatchNorm2d']
         self.loss_deflist = ['BCELoss', 'CrossEntropyLoss', 'MSELoss']
         self.etc_deflist = ['Sequential', 'Flatten', 'Upsample',
-                            'Dropout', 'Linear', 'Conv2d',
-                            'Bottleneck', 'BasicBlock', 'Concat']
+                            'Dropout', 'Linear',
+                            'Bottleneck', 'BasicBlock', 'ReOrg']
+        self.combine_deflist = ['Concat']
+        self.spp_deflist = ['DonwC', 'SPPCSPC']
+        self.head_deflist = ['IDetect']
 
     def pooling_layer(self):
         '''

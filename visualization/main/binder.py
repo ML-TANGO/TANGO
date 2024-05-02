@@ -4,7 +4,12 @@ high level support for doing this and that.
 import torch
 from torch import nn
 import torchvision.models.resnet as resnet
-from .common import Concat
+from .common import Concat, Shortcut
+from .common import ReOrg
+from .common import DownC, SPPCSPC
+from .common import MP, SP
+from .common import Conv
+from .common import IDetect
 
 # from PyBinderCustom import *
 
@@ -74,7 +79,10 @@ class CPyBinder:
             if m__.get('kernel_size'):
                 kernel_size = m__.get('kernel_size')
             else:
-                kernel_size = (1, 1)
+                if name == 'Conv':
+                    kernel_size = 1
+                else:
+                    kernel_size = (1, 1)
 
             if m__.get('dilation'):
                 dilation = m__.get('dilation')
@@ -194,12 +202,18 @@ class CPyBinder:
             if m__.get('stride'):
                 stride = m__.get('stride')
             else:
-                stride = (1, 1)
+                if name == 'Conv':
+                    stride = 1
+                else:
+                    stride = (1, 1)
 
             if m__.get('padding'):
                 padding = m__.get('padding')
             else:
-                padding = (0, 0)
+                if name == 'Conv':
+                    padding = 'None'
+                else:
+                    padding = (0, 0)
 
             if m__.get('inplanes'):
                 inplanes = m__.get('inplanes')
@@ -250,6 +264,51 @@ class CPyBinder:
                 output_size = m__.get('output_size')
             else:
                 output_size = (1, 1)
+
+            if m__.get('n'):
+                n = m__.get('n')
+            else:
+                n = 1
+
+            if m__.get('shortcut'):
+                shortcut = m__.get('shortcut')
+            else:
+                shortcut = False
+
+            if m__.get('expansion'):
+                expansion = m__.get('expansion')
+            else:
+                expansion = 0.5
+
+            if m__.get('kernals'):
+                kernels = m__.get('kernels')
+            else:
+                kernels = (5, 9, 13)
+
+            if m__.get('k'):
+                k = m__.get('k')
+            else:
+                k = 2
+
+            if m__.get('act'):
+                act = m__.get('act')
+            else:
+                act = True
+
+            if m__.get('nc'):
+                nc = m__.get('nc')
+            else:
+                nc = 80
+
+            if m__.get('anchors'):
+                anchors = m__.get('anchors')
+            else:
+                anchros = ()
+
+            if m__.get('ch'):
+                ch = m__.get('ch')
+            else:
+                ch = ()
 
             if name == 'Conv2d':
                 n__ = nn.Conv2d(in_channels, out_channels,
@@ -306,7 +365,21 @@ class CPyBinder:
             elif name == 'BasicBlock':
                 n__ = resnet.BasicBlock(inplanes, planes, stride, downsample, groups, base_width, dilation, norm_layer)
             elif name == 'Concat':
-                n__ = common.Concat(dim)
+                n__ = Concat(dim)
+            elif name == 'DownC':
+                n__ = DownC(in_channels, out_channels, n, kernel_size)
+            elif name == 'SPPCSPC':
+                n__ = SPPCSPC(in_channels, out_channels, n, shortcut, groups, expansion, kernels)
+            elif name == 'ReOrg':
+                n__ = ReOrg()
+            elif name == 'MP':
+                n__ = MP(k)
+            elif name == 'MP':
+                n__ = SP(kernel_size[0], stride[0])
+            elif name == 'Conv':
+                n__ = Conv(in_channels, out_channels, kernel_size, stride, padding, groups, act)
+            elif name == 'IDetect':
+                n__ = IDetect(nc, anchors, ch)
             else:
                 # n__ = NotImplemented(name)
                 print('Not Implement', name)

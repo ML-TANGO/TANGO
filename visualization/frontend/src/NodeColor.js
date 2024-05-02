@@ -1,7 +1,10 @@
 import React from "react";
 
 const NodeColorProp = {
-    Yolo:"#C5FF95",
+    Concat:"#C5FF95",   // green
+    SPP: "#5DEBD7",     // mint
+    Sum: "#FFBB64",     // orange
+    Head: "#DC84F3",    // purple
     Residual:"#EBEBEB",
     Conv:"#F2E3DC",
     Pooling:"#FAF1CB",

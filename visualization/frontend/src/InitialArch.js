@@ -40,11 +40,17 @@ function InitialArch(level, group, setGroup, ungroup, setUngroup, isSort, setIsS
                     let nodeColor;
                     if (nodeLabel === "Conv2d") {
                         nodeColor = NodeColorProp.Conv;
+                    } else if (nodeLabel === "Conv") {
+                        nodeColor = NodeColorProp.Conv
                     } else if (nodeLabel === "MaxPool2d") {
                         nodeColor = NodeColorProp.Pooling;
                     } else if (nodeLabel === "AvgPool2d") {
                         nodeColor = NodeColorProp.Pooling;
                     } else if (nodeLabel === "AdaptiveAvgPool2d") {
+                        nodeColor = NodeColorProp.Pooling;
+                    } else if (nodeLabel === "MP") {
+                        nodeColor = NodeColorProp.Pooling;
+                    } else if (nodeLabel === "SP") {
                         nodeColor = NodeColorProp.Pooling;
                     } else if (nodeLabel === "ZeroPad2d") {
                         nodeColor = NodeColorProp.Padding;
@@ -83,7 +89,17 @@ function InitialArch(level, group, setGroup, ungroup, setUngroup, isSort, setIsS
                     } else if (nodeLabel === "Bottleneck") {
                         nodeColor = NodeColorProp.Residual;
                     } else if (nodeLabel === "Concat") {
-                        nodeColor = NodeColorProp.Yolo;
+                        nodeColor = NodeColorProp.Concat;
+                    } else if (nodeLabel === "Shortcut") {
+                        nodeColor = NodeColorProp.Sum;
+                    } else if (nodeLabel === "DownC") {
+                        nodeColor = NodeColorProp.SPP;
+                    } else if (nodeLabel === "SPPCSPC") {
+                        nodeColor = NodeColorProp.SPP;
+                    } else if (nodeLabel === "ReOrg") {
+                        nodeColor = NodeColorProp.Utilities
+                    } else if (nodeLabel === "IDetect") {
+                        nodeColor = NodeColorProp.Head
                     }
 
                     if (i === 0) {
@@ -262,7 +278,7 @@ function InitialArch(level, group, setGroup, ungroup, setUngroup, isSort, setIsS
                             console.error(error);
                           }
                 };
-                console.log("sadstjklsdfhludz")
+                // console.log("sadstjklsdfhludz")
                 const cnode = await get_node();
                 const dedge = await get_edge();
                 var node_id = 1;
@@ -279,11 +295,17 @@ function InitialArch(level, group, setGroup, ungroup, setUngroup, isSort, setIsS
                     let nodeColor;
                     if (nodeLabel === "Conv2d") {
                         nodeColor = NodeColorProp.Conv;
+                    } else if (nodeLabel === "Conv") {
+                        nodeColor = NodeColorProp.Conv
                     } else if (nodeLabel === "MaxPool2d") {
                         nodeColor = NodeColorProp.Pooling;
                     } else if (nodeLabel === "AvgPool2d") {
                         nodeColor = NodeColorProp.Pooling;
                     } else if (nodeLabel === "AdaptiveAvgPool2d") {
+                        nodeColor = NodeColorProp.Pooling;
+                    } else if (nodeLabel == "MP") {
+                        nodeColor = NodeColorProp.Pooling;
+                    } else if (nodeLabel == "SP") {
                         nodeColor = NodeColorProp.Pooling;
                     } else if (nodeLabel === "ZeroPad2d") {
                         nodeColor = NodeColorProp.Padding;
@@ -322,9 +344,17 @@ function InitialArch(level, group, setGroup, ungroup, setUngroup, isSort, setIsS
                     } else if (nodeLabel === "Bottleneck") {
                         nodeColor = NodeColorProp.Residual;
                     } else if (nodeLabel === "Concat") {
-                        nodeColor = NodeColorProp.Yolo;
+                        nodeColor = NodeColorProp.Concat;
+                    } else if (nodeLabel === "Shortcut") {
+                        nodeColor = NodeColorProp.Sum;
+                    } else if (nodeLabel === "DownC") {
+                        nodeColor = NodeColorProp.SPP;
+                    } else if (nodeLabel === "ReOrg") {
+                        nodeColor = NodeColorProp.Utilities
+                    } else if (nodeLabel === 'IDetect') {
+                        nodeColor = NodeColorProp.Head
                     }
-                    console.log("sadstjklsdfhludz")
+                    // console.log("sadstjklsdfhludz")
                     if (i === 0) {
                         x_pos = 100;
                         y_pos = 100;
@@ -341,13 +371,13 @@ function InitialArch(level, group, setGroup, ungroup, setUngroup, isSort, setIsS
                         x_pos += 200;
                         y_pos = 100;
                     }
-                    console.log("sadstjklsdfhludz")
+                    // console.log("sadstjklsdfhludz")
                     if ((String(nodeLabel) === 'BasicBlock') || (String(nodeLabel) === 'Bottleneck')) {
                         isBlock = true;
                     } else {
                         isBlock = false;
                     }
-                    console.log("sadstjklsdfhludz")
+                    // console.log("sadstjklsdfhludz")
                     const newNode = {
                         id: String(nodeOrder),
                         type: "default",
@@ -483,7 +513,7 @@ function InitialArch(level, group, setGroup, ungroup, setUngroup, isSort, setIsS
 //                    });
 
                     initElements.push(newEdge);
-                    console.log("sadstjklsdfhludz")
+                    // console.log("sadstjklsdfhludz")
                 }
                 // _id = _id + 1;
 

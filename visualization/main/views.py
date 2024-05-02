@@ -277,6 +277,12 @@ def pthlist(request):
                         args_ = [o_[0]]
                     else:
                         args_ = o_
+                elif module_ == 'MP':
+                    k_ = params_['k']
+                    if k_ == 2:
+                        args_ = []
+                    else:
+                        args_ = [k_]
                 elif module_ == 'ConstantPad2d':
                     p_ = params_['padding']
                     v_ = params_['value']
@@ -304,6 +310,8 @@ def pthlist(request):
                     d_st = params_['start_dim']
                     d_ed = params_['end_dim']
                     args_ = [d_st, d_ed]
+                elif module_ == 'ReOrg':
+                    args_ = []
                 elif module_ == 'Upsample':
                     s_ = params_['size']
                     f_ = params_['scale_factor']
@@ -320,9 +328,38 @@ def pthlist(request):
                     w_ = params_['base_width']
                     norm_ = params_['norm_layer']
                     args_ = [ch_, s_, downsample_, g_, w_, d_, norm_]
+                elif moduel_ == 'Conv':
+                    ch_ = params_['out_channels']
+                    k_ = params_['kernel_size']
+                    s_ = params_['stride']
+                    p_ = params_['padding']
+                    g_ = params_['groups']
+                    a_ = params_['act']
+                    args_ = [ch_, k_, s_, p_, g_, a_]
                 elif module_ == 'Concat':
                     d_ = params_['dim']
                     args_ = [d_]
+                elif module_ == 'Shortcut':
+                    d_ = params_['dim']
+                    args_ = [d_]
+                elif module_ == 'DownC':
+                    ch_ = params_['out_channels']
+                    n_ = params_['n']
+                    k_ = params_['kernel_size'][0]
+                    args_ = [ch_, n_, k_]
+                elif module_ == 'SPPCSPC':
+                    ch_ = params_['out_channels']
+                    n_ = params_['n']
+                    sh_ = params_['shortcut']
+                    g_ = params_['groups']
+                    e_ = params_['expansion']
+                    k_ = params_['kernels']
+                    args_ = [ch_, n_, sh_, g_, e_, k_]
+                elif module_ == 'IDetect':
+                    nc_ = params_['nc']
+                    anchors_ = params_['anchors']
+                    ch_ = params_['ch']
+                    args_ = [nc_, anchors_, ch_]
                 else:
                     print(f"{module_} is not supported yet")
                     continue
@@ -775,15 +812,15 @@ def startList(request):
                                 if m == 'Bottleneck':
                                     expansion = 4
                                 inplanes = ch[f]
-                                planes = args[1]
+                                planes = args[0]
                                 c1 = inplanes
                                 c2 = planes * expansion
-                                s = args[2]
-                                downsample = args[3]
-                                g = args[4]
-                                basewidth = args[5]
-                                d = args[6]
-                                norm_layer = args[7]
+                                s = args[1]
+                                downsample = args[2]
+                                g = args[3]
+                                basewidth = args[4]
+                                d = args[5]
+                                norm_layer = args[6]
                                 params = (
                                     f"'inplanes': {inplanes} \n "
                                     f"'planes': {planes} \n "
@@ -793,6 +830,23 @@ def startList(request):
                                     f"'base_width': {basewidth} \n "
                                     f"'dilation': {d} \n "
                                     f"'norm_layer': {norm_layer}"
+                                )
+                            elif m == 'Conv':
+                                c1 = ch[f]
+                                c2 = args[0]
+                                k = args[1]
+                                s = args[2]
+                                p = args[3]
+                                g = args[4]
+                                a = args[5]
+                                params = (
+                                    f"'in_channels': {c1} \n "
+                                    f"'out_channels': {c2} \n "
+                                    f"'kernel_size': {k} \n "
+                                    f"'stride': {s} \n "
+                                    f"'padding': {p} \n "
+                                    f"'groups': {g} \n "
+                                    f"'act': {a}"
                                 )
                             elif m == 'Concat':
                                 d = args[0]
@@ -808,6 +862,101 @@ def startList(request):
                                         c2 = max(c1) # TODO: should be treated more elegantly..
                                 prarms = (
                                     f"'dim': {d}"
+                                )
+                            elif m == 'Shortcut':
+                                d = args[0]
+                                if not isinstance(f, list):
+                                    c1 = ch[f]
+                                    c2 = c1
+                                else:
+                                    c1 = ch[f[0]]
+                                    for x in f:
+                                        if ch[x] != c1:
+                                            print("warning! all input must have the same dimension")
+                                    c2 = c1
+                                prarms = (
+                                    f"'dim': {d}"
+                                )
+                            elif m == 'DownC':
+                                c1 = ch[f]
+                                c2 = args[0]
+                                n = 1
+                                if len(args) > 1:
+                                    n = args[1]
+                                    if len(args) > 2:
+                                        k = args[2]
+                                params = (
+                                    f"'in_channels': {c1} \n "
+                                    f"'out_channels': {c2} \n "
+                                    f"'n': {n} \n "
+                                    f"'kernel_size': ({k}, {k})"
+                                )
+                            elif m == 'SPPCSPC':
+                                c1 = ch[f]
+                                c2 = args[0]
+                                n = args[1]
+                                shortcut = args[2]
+                                g = args[3]
+                                e = args[4]
+                                k = args[5]
+                                params = (
+                                    f"'in_channels': {c1} \n "
+                                    f"'out_channels': {c2} \n "
+                                    f"'n': {n} \n "
+                                    f"'shortcut': {shortcut} \n "
+                                    f"'groups': {g} \n"
+                                    f"'expansion': {e} \n"
+                                    f"'kernels': {k}"
+                                )
+                            elif m == 'ReOrg':
+                                c1 = ch[f]
+                                c2 = 4 * c1
+                                params = ()
+                            elif m == 'MP':
+                                c1 = ch[f]
+                                c2 = c1
+                                k = 2
+                                if len(args) > 0:
+                                    k = args[0]
+                                params = (
+                                    f"'k': {k}"
+                                )
+                            elif m == 'SP':
+                                c1 = ch[f]
+                                c2 = c1
+                                k = 3
+                                s = 1
+                                if len(args) > 1:
+                                    k = args[0]
+                                    s = args[1]
+                                elif len(args) == 1:
+                                    k = args[0]
+                                params = (
+                                    f"'kernel_size': ({k}, {k}) \n "
+                                    f"'stride': ({s}, {s})"
+                                )
+                            elif m == 'IDetect':
+                                nc = args[0]
+                                if isinstance(f, list):
+                                    anchors = len(f)
+                                    c1 = [ch[x] for x in f]
+                                else:
+                                    print("warning! detection module needs two or more inputs")
+                                    anchors = 1
+                                    c1 = [ch[f]]
+                                if len(args)>1:
+                                    if isinstance(args[1], list):
+                                        anchors = len(args[1])
+                                    else:
+                                        anchors = args[1]
+                                if len(args)>2:
+                                    ch = args[2]
+                                else:
+                                    ch = ()
+                                params = (
+                                    f"'nc: {nc} \n "
+                                    f"'anchros: {anchros} \n "
+                                    f"'ch': {ch}"
                                 )
                             else:
                                 print(f"unsupported module... {m}")
