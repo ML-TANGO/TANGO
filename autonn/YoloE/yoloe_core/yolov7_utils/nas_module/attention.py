@@ -1,6 +1,7 @@
 # This code is based on https://github.com/microsoft/Cream/tree/main/AutoFormer.
 
 import random
+import math
 
 import torch
 import torch.nn as nn
@@ -122,3 +123,30 @@ def gelu(x: torch.Tensor) -> torch.Tensor:
         return x * 0.5 * (1.0 + torch.erf(x / math.sqrt(2.0)))
 
 
+class Transform(nn.Module):
+
+    def __init__(self, to_attn=True):
+        super().__init__()
+
+        if to_attn:
+            self.transform = self.cnn_to_attn
+        else:
+            self.transform = self.attn_to_cnn
+
+    def cnn_to_attn(self, x):
+        "B, C, H, W ---> B, S, C"
+
+        B, C, H, W = x.shape
+        return x.reshape(B, C, H*W).permute(0, 2, 1)
+
+    def attn_to_cnn(self, x):
+        "B, S, C ---> B, C, H, W"
+
+        B, S, C = x.shape
+        H = int(math.sqrt(S))
+        assert H == math.sqrt(S), "The sequence dimension of tensor x cannot be transformed to image."
+
+        return x.permute(0, 2, 1).reshape(B, C, H, H)
+
+    def forward(self, x):
+        return self.transform(x)
