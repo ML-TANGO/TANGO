@@ -15,10 +15,10 @@ from attention_module.utils import DropPath
 class TransformerEncoderLayer(nn.Module):
 
     def __init__(self, dim, num_heads=4, mlp_ratio=4., qkv_bias=False, qk_scale=None, dropout=0., attn_drop=0.,
-                 drop_path=0., act_layer=nn.GELU, pre_norm=True, scale=False, relative_position=True, change_qkv=True, max_relative_position=14):
+                 drop_path=0., pre_norm=True, scale=False, relative_position=True, change_qkv=True, max_relative_position=14,
+                 scale_range=[0.7, 1.0, 1.3]):
         super().__init__()
 
-        # the configs of super arch of the encoder, three dimension [embed_dim, mlp_ratio, and num_heads]
         self.super_embed_dim = dim
         self.super_mlp_ratio = mlp_ratio
         self.super_ffn_embed_dim_this_layer = int(mlp_ratio * dim)
@@ -28,8 +28,8 @@ class TransformerEncoderLayer(nn.Module):
         self.drop_path = DropPath(drop_path) if drop_path > 0. else nn.Identity()
         self.scale = scale
         self.relative_position = relative_position
+        self.scale_range = scale_range
 
-        # the configs of current sampled arch
         self.sample_embed_dim = None
         self.sample_mlp_ratio = None
         self.sample_ffn_embed_dim_this_layer = None
@@ -39,7 +39,7 @@ class TransformerEncoderLayer(nn.Module):
         # self.sample_attn_dropout = None
 
         self.attn = AttentionSuper(
-            dim, num_heads=num_heads, qkv_bias=qkv_bias, qk_scale=qk_scale, attn_drop=attn_drop,
+            dim, num_heads=int(num_heads*max(scale_range)), qkv_bias=qkv_bias, qk_scale=qk_scale, attn_drop=attn_drop,
             proj_drop=dropout, scale=self.scale, relative_position=self.relative_position, change_qkv=change_qkv,
             max_relative_position=max_relative_position
         )
@@ -53,8 +53,8 @@ class TransformerEncoderLayer(nn.Module):
 
     def set_sample_config(self):
 
-        sample_mlp_ratio = int(random.choice([0.7, 1.0, 1.3]) * self.super_mlp_ratio)
-        sample_num_heads = int(random.choice([0.7, 1.0, 1.3]) * self.super_num_heads)
+        sample_mlp_ratio = int(random.choice(self.scale_range) * self.super_mlp_ratio)
+        sample_num_heads = int(random.choice(self.scale_range) * self.super_num_heads)
         # sample_dropout =
         # sample_attn_dropout =
 
@@ -75,6 +75,19 @@ class TransformerEncoderLayer(nn.Module):
 
         self.ffn_layer_norm.set_sample_config(sample_embed_dim=self.sample_embed_dim)
 
+    def fix(self, mlp_ratio=None, num_heads=None):
+
+        assert mlp_ratio in self.scale_range, "mlp_ratio is out of scale_range"
+        assert num_heads in self.scale_range, "num_heads is out of scale_range"
+
+        mlp_ratio = random.choice(self.scale_range) if mlp_ratio==None else mlp_ratio
+        self.sample_mlp_ratio = int(mlp_ratio * self.super_mlp_ratio)
+
+        num_heads = random.choice(self.scale_range) if num_heads==None else num_heads
+        self.sample_num_heads = int(num_heads * self.super_num_heads)
+
+        self.scale_fix = True
+
     def forward(self, x):
         """
         Args:
@@ -83,7 +96,8 @@ class TransformerEncoderLayer(nn.Module):
         Returns:
             encoded output of shape `(batch, patch_num, sample_embed_dim)`
         """
-        self.set_sample_config()
+        if not self.scale_fix:
+            self.set_sample_config()
 
         residual = x
         x = self._maybe_layer_norm(self.attn_layer_norm, x, before=True)
@@ -134,13 +148,15 @@ class Transform(nn.Module):
             self.transform = self.attn_to_cnn
 
     def cnn_to_attn(self, x):
-        "B, C, H, W ---> B, S, C"
+        """B, C, H, W ---> B, S, C
+        """
 
         B, C, H, W = x.shape
         return x.reshape(B, C, H*W).permute(0, 2, 1)
 
     def attn_to_cnn(self, x):
-        "B, S, C ---> B, C, H, W"
+        """B, S, C ---> B, C, H, W
+        """
 
         B, S, C = x.shape
         H = int(math.sqrt(S))

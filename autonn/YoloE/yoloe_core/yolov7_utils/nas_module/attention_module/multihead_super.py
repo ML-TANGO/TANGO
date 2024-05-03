@@ -78,7 +78,7 @@ class AttentionSuper(nn.Module):
         self.fc_scale = scale
         self.change_qkv = change_qkv
         if change_qkv:
-            self.qkv = qkv_super(super_embed_dim, 3 * 64 * int(self.num_heads * 1.3), bias=qkv_bias)
+            self.qkv = qkv_super(super_embed_dim, 3 * 64 * self.num_heads, bias=qkv_bias)
         else:
             self.qkv = LinearSuper(super_embed_dim, 3 * super_embed_dim, bias=qkv_bias)
 
@@ -93,7 +93,7 @@ class AttentionSuper(nn.Module):
         self.sample_scale = None
         self.sample_in_embed_dim = None
 
-        self.proj = LinearSuper(64 * int(self.num_heads * 1.3), super_embed_dim)
+        self.proj = LinearSuper(64 * self.num_heads, super_embed_dim)
 
         self.attn_drop = nn.Dropout(attn_drop)
         self.proj_drop = nn.Dropout(proj_drop)
