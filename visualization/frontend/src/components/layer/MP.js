@@ -59,7 +59,7 @@ const MP = (props) => {
 
           <div>
               <li>
-                  <label htmlFor="text">k:</label>
+                  <label htmlFor="text">kernel & stride:</label>
                   <EditText name="k" type="number" style={{width: '50px'}} value={text}
                     onChange={setText} inline/>
               </li>

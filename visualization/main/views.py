@@ -7,6 +7,7 @@ import string
 from time import sleep
 from datetime import datetime
 import torch
+import torch.nn as nn
 import requests
 from django.core import serializers
 import json, yaml
@@ -564,12 +565,12 @@ def startList(request):
             serializer = StartSerializer(data={'msg': 'started',
                                                'user_id': user_id,
                                                'project_id': project_id})
-            print(f"1. get user id and project id from rest api")
+            print(f"⚡ Get user id {user_id} and project id {project_id} from rest api")
 
             if serializer.is_valid():
                 serializer.save()
                 try:
-                    print(f"2. clear nodes & edges")
+                    print(f"🧹 Clear all nodes & edges")
                     nodes = Node.objects.all()
                     nodes.delete()
 
@@ -585,7 +586,7 @@ def startList(request):
                         with open(yaml_path) as f:
                             basemodel_yaml = yaml.load(f, Loader=yaml.SafeLoader)
 
-                        print(f"3. load yaml file {yaml_path}")
+                        print(f"🚛 Load yaml file from {yaml_path}")
 
                         # 'node' & 'edge' parsing
                         # import torch, torchvision.models.resnet
@@ -593,15 +594,23 @@ def startList(request):
                         ch = [basemodel_yaml.get('ch', 3)] # default channel = 3 (RGB)
                         layers, lines, c2, edgeid = [], [], ch[-1], 0
                         for i, (f, n, m, args) in enumerate(basemodel_yaml['backbone'] + basemodel_yaml['head']):  # from, number, module, args
-                            print(f"4. #{i} ({f}, {n}, {m}, {args})")
+                            print(f"💧 Read yaml layer-{i} : ({f}, {n}, {m}, {args})")
                             # m = eval(m) if isinstance(m, str) else m  # eval strings
                             node = OrderedDict()
                             for j, a in enumerate(args):
                                 try:
                                     args[j] = eval(a) if isinstance(a, str) else a  # eval strings
-                                except:
+                                except Exception as e:
                                     if a == 'nc':
                                         args[j] = nc
+                                    elif a == 'anchors':
+                                        args[j] = basemodel_yaml.get('anchors', ())
+                                    elif isinstance(a, nn.Module):
+                                        # for example, nn.LeakeyReLU(0.1)
+                                        args[j] = a
+                                    elif a in ('nearest', 'linear', 'bilinear', 'bicubic', 'trilinear'):
+                                        # list of upsampling mode
+                                        args[j] = a
                                     else:
                                         print(f"unsupported arguements: {a}...ignored.")
 
@@ -792,18 +801,23 @@ def startList(request):
                                     f"'start_dim': {s_dim} \n "
                                     f"'end_dim': {e_dim}"
                                 )
-                            elif m == 'nn.Unsample':
+                            elif m == 'nn.Upsample':
                                 c1 = ch[f]
                                 c2 = c1
                                 size = args[0]
                                 scale = args[1]
-                                mode = args[2]
-                                align = args[3]
-                                recompute = args[4]
+                                mode = 'nearest'
+                                align, recompute = False, False
+                                if len(args)>2:
+                                    mode = args[2]
+                                if len(args)>3:
+                                    align = args[3]
+                                if len(args)>4:
+                                    recompute = args[4]
                                 params = (
                                     f"'size': {size} \n "
-                                    f"'scale_factor': {scale} \n"
-                                    f"'mode': {mode} \n"
+                                    f"'scale_factor': {scale} \n "
+                                    f"'mode': {mode} \n "
                                     f"'align_corners': {align} \n "
                                     f"'recompute_scale_factor': {recompute}"
                                 )
@@ -860,12 +874,12 @@ def startList(request):
                                     else:
                                         print("warning! only channel-wise concat is supported.")
                                         c2 = max(c1) # TODO: should be treated more elegantly..
-                                prarms = (
+                                params = (
                                     f"'dim': {d}"
                                 )
                             elif m == 'Shortcut':
                                 d = args[0]
-                                if not isinstance(f, list):
+                                if isinstance(f, int):
                                     c1 = ch[f]
                                     c2 = c1
                                 else:
@@ -874,7 +888,7 @@ def startList(request):
                                         if ch[x] != c1:
                                             print("warning! all input must have the same dimension")
                                     c2 = c1
-                                prarms = (
+                                params = (
                                     f"'dim': {d}"
                                 )
                             elif m == 'DownC':
@@ -936,27 +950,32 @@ def startList(request):
                                     f"'stride': ({s}, {s})"
                                 )
                             elif m == 'IDetect':
+                                c2 = None
                                 nc = args[0]
                                 if isinstance(f, list):
-                                    anchors = len(f)
+                                    nl = len(f) # number of detection layers
                                     c1 = [ch[x] for x in f]
                                 else:
                                     print("warning! detection module needs two or more inputs")
-                                    anchors = 1
+                                    nl = 1
                                     c1 = [ch[f]]
+                                anchors = [] # viz2code needs to store this
                                 if len(args)>1:
                                     if isinstance(args[1], list):
-                                        anchors = len(args[1])
-                                    else:
+                                        # anchors = len(args[1])
+                                        if len(args[1]) != nl:
+                                            print(f"warning! the number of detection layer is {nl},"
+                                                  f" but anchors is for {len(args[1])} layers.")
                                         anchors = args[1]
+                                    else:
+                                        anchors = [list(range(args[1]*2))] * nl
+                                ch_ = []
                                 if len(args)>2:
-                                    ch = args[2]
-                                else:
-                                    ch = ()
+                                    ch_ = args[2]
                                 params = (
                                     f"'nc: {nc} \n "
-                                    f"'anchros: {anchros} \n "
-                                    f"'ch': {ch}"
+                                    f"'anchors: {anchors} \n "
+                                    f"'ch': {ch_}"
                                 )
                             else:
                                 print(f"unsupported module... {m}")
@@ -971,7 +990,7 @@ def startList(request):
                             node['parameters'] = params
                             layers.append(node)
 
-                            print(f"5. add node #{node['order']} : {node['layer']}")
+                            print(f"🚩 Create a node #{node['order']} : {node['layer']} - args \n {node['parameters']}")
 
                             if i == 0:
                                 ch = []
@@ -980,42 +999,43 @@ def startList(request):
                             # 'edge' parsing
                             if i == 0:
                                 continue
-                            edge = OrderedDict()
+
                             prior = f if isinstance(f, list) else [f]
                             for p in prior:
-                                if p == -1:
-                                    p = i
+                                edge = OrderedDict()
+                                if p < 0:
+                                    p += (i+1)
                                 edgeid = edgeid + 1
                                 edge['id'] = edgeid
                                 edge['prior'] = p
                                 edge['next'] = i + 1
                                 lines.append(edge)
 
-                                print(f"6. add edge #{edge['id']} {edge['prior']}->{edge['next']}")
+                                print(f"  ※ Create an edge #{edge['id']} : {edge['prior']}->{edge['next']}")
 
                         # json formatting for 'node' & 'edge'
                         json_data = OrderedDict()
                         json_data['node'] = layers
                         json_data['edge'] = lines
-                        print(f"7. generate json data")
+                        print(f"🚛 Generate json data")
                         print(json.dumps(json_data, ensure_ascii=False, indent="\t"))
 
                         # save
                         for i in json_data.get('node'):
                             serializer = NodeSerializer(data=i)
                             if serializer.is_valid():
-                                print(f"8-1. save nodes #{i['order']}")
                                 serializer.save()
                         for j in json_data.get('edge'):
                             serializer = EdgeSerializer(data=j)
                             if serializer.is_valid():
-                                print(f"8-2. save edges #{j['id']}")
                                 serializer.save()
+                        print(f"🏳‍🌈 Save Nodes and Edges")
+
                     elif os.path.isfile(json_path):
                         # json import
                         # copyfile(json_path, my_json_path)
                         # with open("./frontend/src/resnet50.json", "r", encoding="utf-8-sig") as f:
-                        print(f"3. load json file {json_path}")
+                        print(f"🚛 Load json file from {json_path}")
                         with open(json_path, "r", encoding="utf-8-sig") as f:
                             data = json.load(f)
                             for i in data.get('node'):
@@ -1026,8 +1046,9 @@ def startList(request):
                                 serializer = EdgeSerializer(data=j)
                                 if serializer.is_valid():
                                     serializer.save()
+                        print(f"🏳‍🌈 Save Nodes and Edges")
                     else:
-                        print(f"3. not found basemode.yaml neither basemodel.json")
+                        print(f"not found basemode.yaml neither basemodel.json")
                         return Response("error", status=404, content_type="text/plain")
                 except Exception as ex:
                     print(ex)

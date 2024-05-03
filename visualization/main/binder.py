@@ -303,7 +303,7 @@ class CPyBinder:
             if m__.get('anchors'):
                 anchors = m__.get('anchors')
             else:
-                anchros = ()
+                anchors = ()
 
             if m__.get('ch'):
                 ch = m__.get('ch')

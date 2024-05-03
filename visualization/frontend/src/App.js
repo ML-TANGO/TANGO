@@ -9,6 +9,7 @@ import Code from './components/page/Code'
 
 class App extends React.Component {
   render() {
+    console.log("Class App is here!!")
     return (
       <div>
             <Router>

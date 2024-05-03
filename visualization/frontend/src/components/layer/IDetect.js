@@ -87,8 +87,13 @@ const IDetect = (props) => {
                   </li>
                   <li>
                       <label htmlFor="text">anchors:</label>
-                      <EditText name="anchors" type="number" style={{width: '50px'}} value={text2}
-                onChange={setText2} inline/>
+                      <EditText
+                        name="anchors"
+                        type="number"
+                        style={{width: '50px'}}
+                        value={text2}
+                        onChange={setText2} inline
+                      />
                   </li>
                   <li>
                       <label htmlFor="text">channels:</label>
@@ -102,11 +107,11 @@ const IDetect = (props) => {
           </React.Fragment>
           </main>
           <div className="btnDiv">
-              <button className="close" onClick={() => {
+            <button className="close" onClick={() => {
               setText('80')
               setText2('')
               setText3('')
-              }} >
+            }} >
               default
             </button>
             <button className="save" onClick={bfsave}>

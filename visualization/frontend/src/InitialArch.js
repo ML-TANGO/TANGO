@@ -17,12 +17,13 @@ function InitialArch(level, group, setGroup, ungroup, setUngroup, isSort, setIsS
 
     useEffect(() => {
         setIsLoading(true);
-        console.log("useInitialArch useEffect");
+        console.log("InitialArch useEffect");
         console.log("group", group);
         console.log("ungroup", ungroup);
         console.log("isSort", isSort);
         const init = async () => {
             function renderData(resData) {
+                console.log("InitalArch.renderData(resData) Enter.")
                 // node_id 와 edge_id로 json 파일을 읽어 순서대로 새로운 id 를 부여함
                 var node_id = 1;
                 var edge_id = 1;

@@ -45,6 +45,9 @@ const Conv = (props) => {
                 break;
             case 6: // 'act'
                 text7_value = String(eachParam[1]);
+                if (text7_value == 'True') {
+                  text7_value = "SiLU()"
+                }
                 break;
         }
     }
