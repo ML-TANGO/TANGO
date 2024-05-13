@@ -12,8 +12,63 @@ const layerToggle = () => {
       <div className="LayerToggle">
           <h2 className="Layer">Layer</h2>
     <aside>
+        <details className="categoryHead">
+          <summary className="layerName">Head Blocks</summary>
+            <ul>
+              <li>
+                <div
+                  className="dndnode"
+                  onDragStart={(event) => onDragStart(event, "IDetect", `${NodeColorProp.Head}`, "'nc': 80 \n 'anchors': () \n 'ch': ()")}
+                  draggable
+                >
+                  IDetect
+                </div>
+              </li>
+            </ul>
+        </details>
+        <details className="categoryCombine">
+          <summary className="layerName">Combine Blocks</summary>
+            <ul>
+              <li>
+                <div
+                  className="dndnode"
+                  onDragStart={(event) => onDragStart(event, "Concat", `${NodeColorProp.Concat}`, "'dim': 1")}
+                  draggable
+                >
+                  Concat
+                </div>
+              </li>
+              <li>
+                <div
+                  className="dndnode"
+                  onDragStart={(event) => onDragStart(event, "Shortcut", `${NodeColorProp.Sum}`, "'dim': 1")}
+                  draggable
+                >
+                  Shortcut
+                </div>
+              </li>
+              <li>
+                <div
+                  className="dndnode"
+                  onDragStart={(event) => onDragStart(event, "DownC", `${NodeColorProp.SPP}`, "'in_channels': 64 \n 'out_channels': 64 \n 'n': 1 \n 'kernel_size': (2, 2)")}
+                  draggable
+                >
+                  DownC
+                </div>
+              </li>
+              <li>
+                <div
+                  className="dndnode"
+                  onDragStart={(event) => onDragStart(event, "SPPCSPC", `${NodeColorProp.SPP}`, "'in_channels': 64 \n 'out_channels': 64 \n 'n': 1 \n 'shortcut': False \n 'groups': 1 \n 'expansion': 0.5 \n kernels': (5, 9, 13)")}
+                  draggable
+                >
+                  SPPCSPC
+                </div>
+              </li>
+            </ul>
+        </details>
         <details className="categoryResidual">
-          <summary className="layerName">Residual Block</summary>
+          <summary className="layerName">Residual Blocks</summary>
               <ul>
                   <li>
                       <div
@@ -36,7 +91,7 @@ const layerToggle = () => {
               </ul>
         </details>
         <details className="categoryConv">
-          <summary className="layerName">Convolution Layer</summary>
+          <summary className="layerName">Convolution Layers</summary>
           <ul>
               <li>
                   <div
@@ -45,6 +100,15 @@ const layerToggle = () => {
                     draggable
                   >
                       Conv2d
+                  </div>
+              </li>
+              <li>
+                  <div
+                    className="dndnode"
+                    onDragStart={(event) => onDragStart(event, "Conv", `${NodeColorProp.Conv}`,"'in_channels': 64 \n 'out_channels': 64 \n 'kernel_size': 1 \n 'stride': 1 \n 'padding': None \n 'groups': 1 \n 'act': True")}
+                    draggable
+                  >
+                      Conv
                   </div>
               </li>
           </ul>
@@ -79,6 +143,28 @@ const layerToggle = () => {
                     draggable
                   >
                     AdaptiveAvgPool2d
+                  </div>
+              </li>
+              <li>
+                  <div
+                    className="dndnode"
+                    onDragStart={(event) =>
+                      onDragStart(event, "MP",`${NodeColorProp.Pooling}`,"'kernel & stride': 2")
+                    }
+                    draggable
+                  >
+                    MP
+                  </div>
+              </li>
+              <li>
+                  <div
+                    className="dndnode"
+                    onDragStart={(event) =>
+                      onDragStart(event, "SP",`${NodeColorProp.Pooling}`,"'kernel_size': (3, 3) \n 'stride': (1, 1)")
+                    }
+                    draggable
+                  >
+                    SP
                   </div>
               </li>
           </ul>
@@ -249,6 +335,15 @@ const layerToggle = () => {
                     draggable
                   >
                     Flatten
+                  </div>
+              </li>
+              <li>
+                  <div
+                    className="dndnode"
+                    onDragStart={(event) => onDragStart(event, "ReOrg",`${NodeColorProp.Utilities}`)}
+                    draggable
+                  >
+                    ReOrg
                   </div>
               </li>
           </ul>

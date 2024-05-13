@@ -1,0 +1,31 @@
+name: resnet50
+hyp: tiny
+imgsz: 640
+
+backbone:
+  [[-1, 1, nn.Conv2d, [64, 7, 2, 3, False]], #0
+   [-1, 1, nn.BatchNorm2d, [64]],
+   [-1, 1, nn.ReLU, [True]],
+   [-1, 1, nn.MaxPool2d, [3, 2, 1, 1, False, False]],
+   [-1, 1, Bottleneck, [  64,  64, 1, True,  1, 64, 1, None]], #4
+   [-1, 1, Bottleneck, [ 256,  64, 1, False, 1, 64, 1, None]], #5
+   [-1, 1, Bottleneck, [ 256,  64, 1, False, 1, 64, 1, None]], #6
+   [-1, 1, Bottleneck, [ 256, 128, 2, True,  1, 64, 1, None]], #7
+   [-1, 1, Bottleneck, [ 512, 128, 1, False, 1, 64, 1, None]], #8
+   [-1, 1, Bottleneck, [ 512, 128, 1, False, 1, 64, 1, None]], #9
+   [-1, 1, Bottleneck, [ 512, 128, 1, False, 1, 64, 1, None]], #10
+   [-1, 1, Bottleneck, [ 512, 256, 2, True,  1, 64, 1, None]], #11
+   [-1, 1, Bottleneck, [1024, 256, 1, False, 1, 64, 1, None]], #12
+   [-1, 1, Bottleneck, [1024, 256, 1, False, 1, 64, 1, None]], #13
+   [-1, 1, Bottleneck, [1024, 256, 1, False, 1, 64, 1, None]], #14
+   [-1, 1, Bottleneck, [1024, 256, 1, False, 1, 64, 1, None]], #15
+   [-1, 1, Bottleneck, [1024, 256, 1, False, 1, 64, 1, None]], #16
+   [-1, 1, Bottleneck, [1024, 512, 2, True,  1, 64, 1, None]], #17
+   [-1, 1, Bottleneck, [2048, 512, 1, False, 1, 64, 1, None]], #18
+   [-1, 1, Bottleneck, [2048, 512, 1, False, 1, 64, 1, None]], #19
+  ]
+
+head:
+  [[-1, 1, nn.AdaptiveAvgPool2d, [1]], #20
+   [-1, 1, nn.Linear, [2048, 1000, True]], #21
+  ]

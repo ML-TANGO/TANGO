@@ -10,6 +10,7 @@ RUN pip install click==8.0.4 colorama==0.4.4
 RUN pip install fastapi==0.74.0 h11==0.13.0
 RUN pip install idna==3.3 numpy==1.22.3
 RUN pip install Pillow==9.0.1 pydantic==1.9.0
+RUN pip install pyyaml==6.0
 RUN pip install pytz==2021.3 requests==2.27.1
 RUN pip install sniffio==1.2.0 sqlparse==0.4.2
 RUN pip install starlette==0.17.1 typing-extensions==4.1.1

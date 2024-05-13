@@ -5,6 +5,7 @@ import EditModal from "../layer/PopupModal";
 import MaxPoolModal from "../layer/MaxPool";
 import AvgPool2d from "../layer/AvgPool2d";
 import AdaptiveAvgPool2d from "../layer/AdaptiveAvgPool2d";
+import MP from "../layer/MP";
 import BatchNorm2d from "../layer/BatchNorm2d";
 import Linear from "../layer/Linear";
 import Dropout from "../layer/Dropout";
@@ -21,7 +22,12 @@ import CrossEntropyLoss from "../layer/CrossEntropyLoss";
 import MSELoss from "../layer/MSELoss";
 import Flatten from "../layer/Flatten";
 import Upsample from "../layer/Upsample";
+import Concat from "../layer/Concat";
+import DownC from "../layer/DownC";
+import SPPCSPC from "../layer/SPPCSPC";
+import ReOrg from "../layer/ReOrg";
 import InitialArch from '../../InitialArch';
+
 import axios from 'axios';
 import ReactFlow, {
   addEdge,
@@ -325,6 +331,17 @@ function AbstractList() {
           header={state}
         ></AdaptiveAvgPool2d>
       );
+    if (state === "MP")
+      return (
+        <MP
+          params = {nowp}
+          layer={nowc}
+          open={modalOpen}
+          save={saveModal}
+          close={closeModal}
+          header={state}
+        ></MP>
+      );
      if (state === "Softmax")
       return (
         <Softmax
@@ -491,7 +508,50 @@ function AbstractList() {
           header={state}
         ></Flatten>
       );
-
+       if (state === "ReOrg")
+      return (
+        <ReOrg
+          params = {nowp}
+          layer={nowc}
+          open={modalOpen}
+          save={saveModal}
+          close={closeModal}
+          header={state}
+        ></ReOrg>
+      );
+    if (state === "Concat")
+      return (
+        <Concat
+          params = {nowp}
+          layer={nowc}
+          open={modalOpen}
+          save={saveModal}
+          close={closeModal}
+          header={state}
+        ></Concat>
+    );
+    if (state === "DownC")
+      return (
+        <DownC
+          params = {nowp}
+          layer={nowc}
+          open={modalOpen}
+          save={saveModal}
+          close={closeModal}
+          header={state}
+        ></DownC>
+    );
+    if (state === "SPPCSPC")
+      return (
+        <SPPCSPC
+          params = {nowp}
+          layer={nowc}
+          open={modalOpen}
+          save={saveModal}
+          close={closeModal}
+          header={state}
+        ></SPPCSPC>
+    );
     else
       return (
         <Upsample

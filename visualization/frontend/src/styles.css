@@ -164,6 +164,14 @@
     background-color:#EBEBEB
 }
 
+.categoryCombine li div{
+    background-color:#92C7CF
+}
+
+.categoryHead li div{
+    background-color:#DC84F3
+}
+
 /*.Menu nav{*/
 /*    display: flex;*/
 /*    padding-left: 0.5%;*/

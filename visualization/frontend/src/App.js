@@ -9,6 +9,7 @@ import Code from './components/page/Code'
 
 class App extends React.Component {
   render() {
+    console.log("Class App is here!!")
     return (
       <div>
             <Router>
@@ -93,12 +94,16 @@ axios.get('/api/running/')
     var k = Object.keys(response.data).length
     console.log('kkkkkkkkkkkkkk', k)
    // handle success
-   for (var j=0;j<k+1;j++){
-    axios.delete('/api/running/'.concat(j).concat('/'))
-   }
+    if (k > 0) {
+      // for (var j=0;j<k+1;j++){
+      for (var j=0;j<k;j++){
+        axios.delete('/api/running/'.concat(j).concat('/'))
+      }
+    }
  })
  .catch(function (error) {
    // handle error
+  console.log('Error', error.message)
  })
  .then(function () {
    // always executed
