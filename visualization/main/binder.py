@@ -81,6 +81,10 @@ class CPyBinder:
             else:
                 if name == 'Conv':
                     kernel_size = 1
+                elif name == 'MP':
+                    kernel_size = 2
+                elif name == 'SP':
+                    kernel_size = 3
                 else:
                     kernel_size = (1, 1)
 
@@ -202,7 +206,7 @@ class CPyBinder:
             if m__.get('stride'):
                 stride = m__.get('stride')
             else:
-                if name == 'Conv':
+                if name in ('Conv', 'SP'):
                     stride = 1
                 else:
                     stride = (1, 1)
@@ -211,7 +215,7 @@ class CPyBinder:
                 padding = m__.get('padding')
             else:
                 if name == 'Conv':
-                    padding = 'None'
+                    padding = None
                 else:
                     padding = (0, 0)
 
@@ -310,6 +314,11 @@ class CPyBinder:
             else:
                 ch = ()
 
+            if m__.get('pad'):
+                pad = m__.get('pad')
+            else:
+                pad = None
+
             if name == 'Conv2d':
                 n__ = nn.Conv2d(in_channels, out_channels,
                                 kernel_size, stride=stride, padding=padding, bias=bias)#, stride, padding, bias)
@@ -374,8 +383,8 @@ class CPyBinder:
                 n__ = ReOrg()
             elif name == 'MP':
                 n__ = MP(k)
-            elif name == 'MP':
-                n__ = SP(kernel_size[0], stride[0])
+            elif name == 'SP':
+                n__ = SP(kernel_size, stride)
             elif name == 'Conv':
                 n__ = Conv(in_channels, out_channels, kernel_size, stride, padding, groups, act)
             elif name == 'IDetect':

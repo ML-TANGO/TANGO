@@ -58,6 +58,8 @@ TORCH_NN_MODULES =  {   'Conv2d', 'ConvTranspose2d',
                         'MSELoss', 'CrossEntropyLoss', 'BCELoss',
                         'Upsample'
                     }
+HEAD_MODULES = { 'Classify', 'Detect', 'IDetect', 'IAuxDetect', 'IKeypoint',
+                 'IBin', 'Segment', 'Pose'}
 
 @api_view(['GET', 'POST', 'DELETE', 'UPDATE'])
 # pylint: disable = invalid-name, inconsistent-return-statements
@@ -188,74 +190,120 @@ def pthlist(request):
             yaml_data['backbone'] = []
             yaml_data['head'] = []
 
-            # sort the node and re-order node_order_list
-            for n in edge_next_list:
-                if n not in edge_prior_list:
-                    # this is the last node
-                    last_node = n
-            for p in edge_prior_list:
-                if p not in edge_next_list:
-                    # this is the first node
-                    first_node = p
+            # sort the node and re-order node_order_list -------------------------------------------------------------->
+            # TODO: buggy codes here... needs to solve this later on
+            # for n in edge_next_list:
+            #     if n not in edge_prior_list:
+            #         # this is the last node
+            #         last_node = n
+            # for p in edge_prior_list:
+            #     if p not in edge_next_list:
+            #         # this is the first node
+            #         first_node = p
 
-            print(f"first node = #{first_node}, last node = #{last_node}")
-            print('-'*50)
-            print(f"node[0] = #{first_node}")
-            print('-'*50)
+            # print(f"first node = #{first_node}, last node = #{last_node}")
+            # print('-'*50)
+            # print(f"node[0] = #{first_node}")
+            # print('-'*50)
 
-            total_node = len(node_order_list)
-            nodes_order = [0 for i in range(total_node)]
-            nodes_order[0] = first_node
-            # nodes_order[-1] = last_node
+            # total_node = len(node_order_list)
+            # nodes_order = [0 for i in range(total_node)]
+            # nodes_order[0] = first_node
+            # # nodes_order[-1] = last_node
 
-            reserved_nodes = []
-            for i in range(total_node):
-                # print(f" prior node = {nodes_order[i]}")
-                next_nodes = []
-                # print(" look up the edge prior list...")
-                for index, p in enumerate(edge_prior_list):
-                    # print(f"  #{index}: {p}")
-                    if p == nodes_order[i]:
-                        next_nodes.append(edge_next_list[index])
-                # print(f" next nodes = {next_nodes}")
+            # reserved_nodes = []
+            # for i in range(total_node):
+            #     print(f" prior node = {nodes_order[i]}")
+            #     next_nodes = []
+            #     print(" look up the edge prior list...")
+            #     for index, p in enumerate(edge_prior_list):
+            #         if p == nodes_order[i]:
+            #             # print(f"  edge-#{index}: prior node={p}")
+            #             next_nodes.append(edge_next_list[index])
+            #     print(f" next nodes = {next_nodes}")
 
-                if len(next_nodes) == 0:
-                    if i+1 == total_node:
-                        print(" this is the last node")
-                    else:
-                        if len(reserved_nodes) == 0:
-                            print(" error: this is not the last node but does not have any connection from output port")
-                        else:
-                            next_node = reserved_nodes.pop(reserved_nodes.index(min(reserved_nodes)))
-                else:
-                    if len(next_nodes) > 1:
-                        next_node = next_nodes.pop(next_nodes.index(min(next_nodes)))
-                        reserved_nodes = reserved_nodes + next_nodes
-                    else:
-                        next_node = next_nodes[0]
-                if next_node in nodes_order:
-                    print(f" warning: this node (#{next_node}) is already allocated in nodes_order, ignored..")
-                else:
-                    print('-'*50)
-                    print(f"node[{i+1}] = #{next_node}")
-                    print('-'*50)
-                    nodes_order[i+1] = next_node
-            if len(reserved_nodes) > 0:
-                print(f" error: reserved nodes left...{reserved_nodes}")
-            print(nodes_order)
+            #     if not next_nodes:
+            #         # 3 possible cases when next nodes are empty
+            #         # - the last node
+            #         # - the end node of a branch
+            #         # - error(not the last node, but no reserved nodes)
+            #         if i+1 == total_node:
+            #             print(" this is the last node")
+            #         else:
+            #             if not reserved_nodes:
+            #                 print(f" error: this is not the last node,"
+            #                       f" but does not have any connection from output port")
+            #             else:
+            #                 # not the last node but just a branch end,
+            #                 # search other branch from reserved nodes
+            #                 next_node = reserved_nodes.pop(reserved_nodes.index(min(reserved_nodes)))
+            #     else:
+            #         if len(next_nodes) > 1:
+            #             # 2 or more next nodes : this node must be a branch point
+            #             next_node = next_nodes.pop(next_nodes.index(min(next_nodes)))
+            #             reserved_nodes = reserved_nodes + next_nodes
+            #         else:
+            #             # only 1 next node : simple connection
+            #             next_node = next_nodes[0]
+            #     if next_node in nodes_order:
+            #         print(f" warning: this node (#{next_node}) is already allocated in nodes_order, ignored..")
+            #     else:
+            #         print('-'*50)
+            #         print(f"node[{i+1}] = #{next_node}")
+            #         print('-'*50)
+            #         nodes_order[i+1] = next_node
+            # if len(reserved_nodes) > 0:
+            #     print(f" error: reserved nodes left...{reserved_nodes}")
 
-            for yaml_index, node_index in enumerate(nodes_order):
-                json_index = node_order_list.index(node_index)
+            # print(nodes_order)
+            # sort the node and re-order node_order_list <--------------------------------------------------------------
+
+            # for yaml_index, node_index in enumerate(nodes_order):
+            #     json_index = node_order_list.index(node_index)
+            for yaml_index, node_index in enumerate(node_order_list):
+                json_index = node_index - 1
+
                 # YOLO-style yaml module description
                 # [from, number, module, args]
-
                 number_ = 1                             # repetition
                 module_ = node_layer_list[json_index]   # pytorch nn module
 
                 # module & its arguements
-                str_params = "{"+node_parameters_list[json_index]+"}"
-                str_params = str_params.replace('\n', ',')
-                params_ = eval(str_params)
+                # str_params = "{"+node_parameters_list[json_index]+"}"
+                # str_params = str_params.replace('\n', ',')
+                # params_ = eval(str_params)
+                str_params = node_parameters_list[json_index]
+
+                params_ = {}
+                str_param = str_params.split('\n')
+                for p in str_param:
+                    try:
+                        eval_params_ = eval("{"+p+"}")
+                    except:
+                        # print(p)
+                        p_key, p_value = p.split(': ') # [0] key [1] value
+                        if 'LeakyReLU' in p_value:
+                            p_value = f"nn.{p_value}"
+                            eval_params_ = eval("{"+p_key+": "+p_value+"}")
+                        elif isinstance(p_value, str):
+                            # print(f"---{p_key}---{p_value}---")
+                            p_key = p_key.strip()
+                            p_value = p_value.strip()
+                            # print(f"---{p_key}---{p_value}---")
+                            p_key = p_key.replace("'","")
+                            p_value = p_value.replace("'", "")
+                            # print(f"---{p_key}---{p_value}---")
+                            eval_params_[p_key.strip("'")] = p_value
+                        else:
+                            print("forced to convert string-to-dictionary")
+                            p_key.strip()
+                            p_value.strip()
+                            p_key = p_key.replace("'","")
+                            p_value = p_value.replace("'", "")
+                            eval_params_[p_key] = p_value
+                    finally:
+                        params_.update(eval_params_)
+
                 args_ = []
                 if module_ == 'Conv2d':
                     ch_ = params_['out_channels']
@@ -284,6 +332,10 @@ def pthlist(request):
                         args_ = []
                     else:
                         args_ = [k_]
+                elif module_ == 'SP':
+                    k_ = params_['kernel_size']
+                    s_ = params_['stride']
+                    args_ = [k_, s_]
                 elif module_ == 'ConstantPad2d':
                     p_ = params_['padding']
                     v_ = params_['value']
@@ -329,11 +381,11 @@ def pthlist(request):
                     w_ = params_['base_width']
                     norm_ = params_['norm_layer']
                     args_ = [ch_, s_, downsample_, g_, w_, d_, norm_]
-                elif moduel_ == 'Conv':
+                elif module_ == 'Conv':
                     ch_ = params_['out_channels']
                     k_ = params_['kernel_size']
                     s_ = params_['stride']
-                    p_ = params_['padding']
+                    p_ = params_['pad']
                     g_ = params_['groups']
                     a_ = params_['act']
                     args_ = [ch_, k_, s_, p_, g_, a_]
@@ -364,6 +416,9 @@ def pthlist(request):
                 else:
                     print(f"{module_} is not supported yet")
                     continue
+                # yaml_index: 0, 1, 2, ...
+                # node_index: 1, 2, 3, ...
+                # json_index: 1, 2, 3, ...
                 print(f"layer #{yaml_index} (node_index #{node_index}; json_index #{json_index}) : {module_}")
 
                 # from
@@ -376,25 +431,36 @@ def pthlist(request):
                     from_ = -1 # this has to be the first layer
                     assert yaml_index == 0, f'it must be the first layer but index is {yaml_index}'
                 elif len(f_) == 1:
-                    x = nodes_order.index(f_[0])
-                    if x == yaml_index-1:
-                        from_ = -1
-                    else:
-                        from_ = x
+                    # x = nodes_order.index(f_[0])
+                    from_ = f_[0] - 1 - yaml_index # node_index = yaml_index + 1
+                    if from_ < -5:
+                        # too far to calcaulate prior node, write explicit node number instead.
+                        from_ = f_[0] - 1
                 else:
-                    f_reorder = []
+                    # 2 or more inputs
+                    f_multiple = []
                     for f_element in f_:
-                        x = nodes_order.index(f_element)
-                        if x == nodes_order[yaml_index-1]:
-                            x = -1
-                        f_reorder.append(x)
-                    from_ = f_reorder
+                        # x = nodes_order.index(f_element)
+                        # if x == nodes_order[yaml_index-1]:
+                        #     x = -1
+                        x = f_element - 1 - yaml_index
+                        if x < -5:
+                            x = f_element - 1
+                        f_multiple.append(x)
+                    if all(num < 0 for num in f_multiple):
+                        f_multiple.sort(reverse=True)
+                    else:
+                        f_multiple.sort(reverse=False)
+                    from_ = f_multiple
                 print(f"from : {from_}")
 
                 if module_ in TORCH_NN_MODULES:
                     module_ = f"nn.{module_}"
                 layer_ = [from_, number_, module_, args_]
-                yaml_data['backbone'].append(layer_)
+                if module_ in HEAD_MODULES:
+                    yaml_data['head'].append(layer_)
+                else:
+                    yaml_data['backbone'].append(layer_)
 
             # print yaml data
             # print('-'*100)
@@ -858,7 +924,7 @@ def startList(request):
                                     f"'out_channels': {c2} \n "
                                     f"'kernel_size': {k} \n "
                                     f"'stride': {s} \n "
-                                    f"'padding': {p} \n "
+                                    f"'pad': {p} \n "
                                     f"'groups': {g} \n "
                                     f"'act': {a}"
                                 )
@@ -903,7 +969,7 @@ def startList(request):
                                     f"'in_channels': {c1} \n "
                                     f"'out_channels': {c2} \n "
                                     f"'n': {n} \n "
-                                    f"'kernel_size': ({k}, {k})"
+                                    f"'kernel_size': {k}"
                                 )
                             elif m == 'SPPCSPC':
                                 c1 = ch[f]
@@ -946,8 +1012,8 @@ def startList(request):
                                 elif len(args) == 1:
                                     k = args[0]
                                 params = (
-                                    f"'kernel_size': ({k}, {k}) \n "
-                                    f"'stride': ({s}, {s})"
+                                    f"'kernel_size': {k} \n "
+                                    f"'stride': {s}"
                                 )
                             elif m == 'IDetect':
                                 c2 = None
@@ -973,8 +1039,8 @@ def startList(request):
                                 if len(args)>2:
                                     ch_ = args[2]
                                 params = (
-                                    f"'nc: {nc} \n "
-                                    f"'anchors: {anchors} \n "
+                                    f"'nc': {nc} \n "
+                                    f"'anchors': {anchors} \n "
                                     f"'ch': {ch_}"
                                 )
                             else:
@@ -1384,19 +1450,54 @@ class RunningView(viewsets.ModelViewSet):
 
 def make_branches(get_node, get_edge):
     '''
-    test branches
+    make a graph with nodes and edges and export pytorch model from the graph
     '''
     graph = CGraph()
     self_binder = CPyBinder()
     for node in get_node:
         # pylint: disable-msg=bad-option-value, consider-using-f-string
         params_string = "{parameters}". \
-            format(**node.__dict__).replace("\n", ',')
-        print(f"{params_string}")
+            format(**node.__dict__).replace("\n", '>')
+        # print(f"{params_string}")
+
+        # tenace -------------------------------------------------------------->
+        # workaround to avoid eval() error when a value is string or nn.Module
+        params_dict = {}
+        params_ = params_string.split('>')
+        for p in params_:
+            try:
+                eval_params_ = eval("{"+p+"}")
+            except:
+                # print(p)
+                p_key, p_value = p.split(': ') # [0] key [1] value
+                if 'LeakyReLU' in p_value:
+                    p_value = f"nn.{p_value}"
+                    eval_params_ = eval("{"+p_key+": "+p_value+"}")
+                elif isinstance(p_value, str):
+                    # print(f"---{p_key}---{p_value}---")
+                    p_key = p_key.strip()
+                    p_value = p_value.strip()
+                    # print(f"---{p_key}---{p_value}---")
+                    p_key = p_key.replace("'","")
+                    p_value = p_value.replace("'", "")
+                    # print(f"---{p_key}---{p_value}---")
+                    eval_params_[p_key.strip("'")] = p_value
+                else:
+                    print("forced to convert string-to-dictionary")
+                    p_key.strip()
+                    p_value.strip()
+                    p_key = p_key.replace("'","")
+                    p_value = p_value.replace("'", "")
+                    eval_params_[p_key] = p_value
+            finally:
+                params_dict.update(eval_params_)
+        # print(f"{params_dict}")
+        # tenace <--------------------------------------------------------------
+
         # pylint: disable-msg=bad-option-value, eval-used
         graph.addnode(CNode("{order}".format(**node.__dict__),
                             type_="{layer}".format(**node.__dict__),
-                            params=eval("{" + params_string + "}")))
+                            params=params_dict)) # params=eval("{" + params_string + "}")))
     for edge in get_edge:
         # pylint: disable-msg=bad-option-value, consider-using-f-string
         graph.addedge(CEdge("{prior}".format(**edge.__dict__),

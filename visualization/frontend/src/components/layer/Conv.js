@@ -69,7 +69,7 @@ const Conv = (props) => {
         .concat(" \n 'out_channels': ").concat(text2)
         .concat(" \n 'kernel_size': ").concat(text3)
         .concat(" \n 'stride': ").concat(text4)
-        .concat(" \n 'padding': ").concat(text5)
+        .concat(" \n 'pad': ").concat(text5)
         .concat(" \n 'groups': ").concat(text6)
         .concat(" \n 'act': ").concat(text7)
 

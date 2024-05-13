@@ -54,7 +54,14 @@ class CNode:
                     'recompute_scale_factor': type(None),
                     'inplanes': int, 'planes': int,
                     'downsample': bool, 'base_width': int,
-                    'norm_layer': type(None)
+                    'norm_layer': type(None),
+                    # added for yolov7 modules by tenace ---------------------->
+                    'k': int, 'n': int,
+                    'expansion': float, 'kernels': int,
+                    'pad': type(None), 'act': type(None),
+                    'shortcut': bool,
+                    'anchors': int, 'ch': int
+                    # added for yolov7 <----------------------------------------
                     }
 
         for key, value in params.items():

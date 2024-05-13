@@ -32,8 +32,6 @@ class CDefaults:
                           'stride': (2, 2),
                           'padding': (0, 0)},
             'AdaptiveAvgPool2d': {'output_size': (1, 1)},
-            'MP': {'k': 2},
-            'SP': {'kernel_size': (3, 3), 'stride': (1, 1)},
             'ZeroPad2d': {'padding': 1},
             'ConstantPad2d': {'padding': 2, 'value': 3.5},
 
@@ -76,7 +74,11 @@ class CDefaults:
                            'stride': (1, 1), 'downsample':False,
                            'groups': 1, 'base_width': 64,
                            'dilation': 1, 'norm_layer': None},
+            # added for yolov7 modules by tenace ------------------------------>
             'Concat': {'dim': 1},
+            'MP': {'k': 2},
+            'SP': {'kernel_size': (3, 3), 'stride': (1, 1)},
+            'Shortcut': {'dim': 1},
             'DownC': {'in_channels': 64, 'out_channels': 64,
                       'n': 1, 'kernel_size': (2, 2)},
             'SPPCSPC': {'in_channels': 64, 'out_channels': 64,
@@ -84,9 +86,10 @@ class CDefaults:
                         'expansion': 0.5, 'kernels': (5, 9, 13)},
             'ReOrg': {},
             'Conv': {'in_channels': 64, 'out_channels': 64,
-                     'kernel_size': 1, 'stride': 1, 'padding': None, 'groups': 1,
+                     'kernel_size': 1, 'stride': 1, 'pad': None, 'groups': 1,
                      'act': True},
             'IDetect': {'nc': 80, 'anchors': (), 'ch': ()}
+            # added for yolov7 <------------------------------------------------
         }
 
         self.conv_deflist = ['Conv2d', 'Conv']

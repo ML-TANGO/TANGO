@@ -86,8 +86,12 @@ class SP(nn.Module):
 # Convolution-based modules
 def autopad(k, p=None):  # kernel, padding
     # Pad to 'same'
+    # print(f"Conv autopad input k={k}, p={p}, type(p)={type(p)}")
+    if isinstance(p, str):
+        p = eval(p)
     if p is None:
         p = k // 2 if isinstance(k, int) else [x // 2 for x in k]  # auto-pad
+    # print(f"autopad result p={p}")
     return p
 
 class Conv(nn.Module):

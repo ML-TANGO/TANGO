@@ -10,6 +10,8 @@ from __future__ import unicode_literals
 from tkinter import messagebox
 from copy import deepcopy
 
+import torch.nn as nn
+
 
 # adadjacencylist: 연결되었든, 안되었든 노드들의 ID와 연결정보 담고 있음.
 # ex) 1: [3] -> 1번 노드와 3번 노드가 연결되어있음.
@@ -259,6 +261,7 @@ class CNode:
 
     def setparams(self, params):
         '''setparams'''
+        # print(type(params))
         assert type(params) == type(dict())
         # assert isinstance(params, type({}))
         self.params = self.typecast(params)
@@ -306,32 +309,63 @@ class CNode:
                     'label_smoothing': float,
                     'start_dim': int,
                     'end_dim': int,
-                    'size': type(None),
-                    'scale_factor': type(None),
+                    'size': int, # type(None), https://pytorch.org/docs/stable/generated/torch.nn.Upsample.html
+                    'scale_factor': float, #type(None),
                     'mode': str,
-                    'align_corners': type(None),
-                    'recompute_scale_factor': type(None),
+                    'align_corners': bool, #type(None),
+                    'recompute_scale_factor': bool, #type(None),
                     'inplanes': int,
                     'planes': int,
                     'downsample': str,
                     'base_width': int,
-                    'norm_layer': type(None)
+                    'norm_layer': type(None),
+                    # added for yolov7 modules by tenace (2024.5.7) ----------->
+                    'n': int,
+                    'shortcut': bool,
+                    'expansion': float,
+                    'kernels': int,
+                    'k': int,
+                    'act': type(None),
+                    'nc': int,
+                    'anchors': int,
+                    'ch': int,
+                    'pad': type(None),
+                    # added for yolov7 <----------------------------------------
                     }
 
         for key, value in params.items():
             cast = datatype.get(key)
+            if cast == type(None):
+                cast = type(value)
+            # print(f"key={key}, type_key={cast} : value={value}, type_value={type(value)}")
             if type(value) == type(None):
                 # use the None as is or use default
                 params[key] = value
             elif type(value) == tuple:
                 params[key] = tuple(map(cast, value))
             elif type(value) == list:
-                params[key] = tuple(map(cast, value))
+                # tenace ------------------------------------------------------>
+                def cast_recursive_list(value):
+                    assert type(value) == list
+                    cast_result = []
+                    for v in value:
+                        if type(v) == list:
+                            cast_result.append(cast_recursive_list(v))
+                        else:
+                            return list(map(cast, value))
+                    return cast_result
+                params[key] = cast_recursive_list(value)
+                # params[key] = list(map(cast, value))
+                # print(f"key={key}, value={params[key]}")
+                # tenace <------------------------------------------------------
             elif type(value) == dict:
                 if key == "subgraph":
                     for _nodeid, param in value.items():
                         param = self.typecast(param)
                         value.update({_nodeid: param})
+            elif isinstance(value, nn.Module):
+                # use pytorch nn.Module as it is
+                params[key] = value
             else:
                 params[key] = cast(value)
 
