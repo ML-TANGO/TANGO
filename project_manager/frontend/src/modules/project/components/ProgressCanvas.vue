@@ -39,6 +39,7 @@
   </div>
 </template>
 <script>
+import Swal from "sweetalert2";
 import { mapState } from "vuex";
 import { ProjectNamespace } from "@/store/modules/project";
 
@@ -139,7 +140,7 @@ export default {
           this.blobDownload(blob);
           this.hideLoadingPopup();
           this.isUserEditingDialog = false;
-          this.$swal("다운로드 성공", "", "info");
+          Swal.fire("다운로드 성공", "", "info");
         })
         .catch(err => {
           console.error("err: ", err);
@@ -166,22 +167,20 @@ export default {
         this.hideLoadingPopup();
         this.isUserEditingDialog = false;
 
-        this.$swal
-          .fire({
-            title: `업로드 성공`,
-            text: "Image Deploy를 실행하시겠습니까?",
-            icon: "info",
-            showCancelButton: true,
-            confirmButtonColor: "#3085d6",
-            cancelButtonColor: "#d33",
-            confirmButtonText: "확인",
-            cancelButtonText: "취소"
-          })
-          .then(async result => {
-            if (result.isConfirmed) {
-              this.$emit("immediateLaunch", "imagedeploy");
-            }
-          });
+        Swal.fire({
+          title: `업로드 성공`,
+          text: "Image Deploy를 실행하시겠습니까?",
+          icon: "info",
+          showCancelButton: true,
+          confirmButtonColor: "#3085d6",
+          cancelButtonColor: "#d33",
+          confirmButtonText: "확인",
+          cancelButtonText: "취소"
+        }).then(async result => {
+          if (result.isConfirmed) {
+            this.$emit("immediateLaunch", "imagedeploy");
+          }
+        });
       });
     },
 
@@ -190,20 +189,20 @@ export default {
     },
 
     showLoadingPopup() {
-      this.$swal.fire({
+      Swal.fire({
         title: "Please Wait....",
         allowOutsideClick: false,
         allowEscapekey: false,
         allowEnterkey: false,
         showConfimButton: false,
         didOpen: () => {
-          this.$swal.showLoading();
+          Swal.showLoading();
         }
       });
     },
 
     hideLoadingPopup() {
-      this.$swal.close();
+      Swal.close();
     }
   }
 };

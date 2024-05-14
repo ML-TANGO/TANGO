@@ -131,6 +131,7 @@
   </div>
 </template>
 <script>
+import Swal from "sweetalert2";
 import { mapState } from "vuex";
 import { TargetNamespace } from "@/store/modules/targetStore";
 
@@ -210,31 +211,31 @@ export default {
     },
     next() {
       if (this.targetInfo === "" || !this.targetInfo) {
-        this.$swal("Target", "Target Info를 입력해 주세요.", "error");
+        Swal.fire("Target", "Target Info를 입력해 주세요.", "error");
         return;
       } else if (this.engine === "" || !this.engine) {
-        this.$swal("Target", "Target Engine을 입력해 주세요.", "error");
+        Swal.fire("Target", "Target Engine을 입력해 주세요.", "error");
         return;
       } else if (this.os === "" || !this.os) {
-        this.$swal("Target", "Target os를 입력해 주세요.", "error");
+        Swal.fire("Target", "Target os를 입력해 주세요.", "error");
         return;
       } else if (this.acc === "" || !this.acc) {
-        this.$swal("Target", "Target acc를 입력해 주세요.", "error");
+        Swal.fire("Target", "Target acc를 입력해 주세요.", "error");
         return;
       } else if (this.cpu === "" || !this.cpu) {
-        this.$swal("Target", "Target cpu를 입력해 주세요.", "error");
+        Swal.fire("Target", "Target cpu를 입력해 주세요.", "error");
         return;
       } else if (this.memory === "" || !this.memory) {
-        this.$swal("Target", "Target memory를 입력해 주세요.", "error");
+        Swal.fire("Target", "Target memory를 입력해 주세요.", "error");
         return;
       }
 
       if (this.selectedTargetInfo?.value.toLowerCase().includes("k8s") && (this.nfsIP === "" || !this.nfsIP)) {
-        this.$swal("Target", "Target nfs ip 입력해 주세요.", "error");
+        Swal.fire("Target", "Target nfs ip 입력해 주세요.", "error");
         return;
       }
       if (this.selectedTargetInfo?.value.toLowerCase().includes("k8s") && (this.nfsPath === "" || !this.nfsPath)) {
-        this.$swal("Target", "Target nfs path 입력해 주세요.", "error");
+        Swal.fire("Target", "Target nfs path 입력해 주세요.", "error");
         return;
       }
 

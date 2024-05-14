@@ -86,6 +86,7 @@
   </div>
 </template>
 <script>
+import Swal from "sweetalert2";
 import Tango_login from "@/assets/Tango_login.png";
 import logo_3 from "@/assets/icon_3x/Tango_logo.png";
 
@@ -133,11 +134,11 @@ export default {
       const userIDCheck = userIDRule()[0](this.id);
       if (userIDCheck === true) this.checkID = await isDuplicateIDAPI(this.id);
       else {
-        this.$swal("ID를 다시 확인해주세요.", "", "error");
+        Swal.fire("ID를 다시 확인해주세요.", "", "error");
       }
 
       if (this.checkID) {
-        this.$swal("ID 중복 확인", "사용가능한 ID 입니다.", "info");
+        Swal.fire("ID 중복 확인", "사용가능한 ID 입니다.", "info");
       }
     },
 
@@ -147,10 +148,10 @@ export default {
           await createAccountAPI(this.id, this.email, this.pw);
           this.$router.push("login");
         } else {
-          this.$swal("ID 중복 검사를 해주세요.", "", "error");
+          Swal.fire("ID 중복 검사를 해주세요.", "", "error");
         }
       } catch (err) {
-        this.$swal("회원가입에 실패했습니다.", "정보를 다시 확인 후 재 시도 해주세요.", "error");
+        Swal.fire("회원가입에 실패했습니다.", "정보를 다시 확인 후 재 시도 해주세요.", "error");
       }
     },
 

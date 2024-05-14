@@ -19,6 +19,7 @@
   </div>
 </template>
 <script>
+import Swal from "sweetalert2";
 import { mapState } from "vuex";
 import { ProjectNamespace } from "@/store/modules/project";
 
@@ -44,10 +45,10 @@ export default {
     async next() {
       try {
         if (this.projectName === "") {
-          this.$swal("Project", "Project 이름을 입력해 주세요.", "error");
+          Swal.fire("Project", "Project 이름을 입력해 주세요.", "error");
           return;
         } else if (this.projectDescription === "") {
-          this.$swal("Project", "Project 설명을 입력해 주세요.", "error");
+          Swal.fire("Project", "Project 설명을 입력해 주세요.", "error");
           return;
         }
 
@@ -62,7 +63,7 @@ export default {
         } else {
           const res = await createProject(this.projectName, this.projectDescription);
           if (res.result === false) {
-            this.$swal("Project 이름 중복", "이름 변경 후 다시 시도해 주세요.", "error");
+            Swal.fire("Project 이름 중복", "이름 변경 후 다시 시도해 주세요.", "error");
             return;
           }
           this.$emit("next", {
@@ -73,7 +74,7 @@ export default {
         }
         // this.$emit("next", { project_name: this.projectName, project_description: this.projectDescription });
       } catch {
-        this.$swal("Project 생성 오류", "다시 시도해 주세요.", "error");
+        Swal.fire("Project 생성 오류", "다시 시도해 주세요.", "error");
       }
     },
 
