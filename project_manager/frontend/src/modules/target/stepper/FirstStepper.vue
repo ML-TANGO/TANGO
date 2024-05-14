@@ -11,6 +11,7 @@
   </div>
 </template>
 <script>
+import Swal from "sweetalert2";
 import { mapState } from "vuex";
 import { TargetNamespace } from "@/store/modules/targetStore";
 import DragAndDrop from "@/modules/common/file-upload/DragAndDrop.vue";
@@ -38,24 +39,24 @@ export default {
   methods: {
     next() {
       if (this.targetName === "" || !this.targetName) {
-        this.$swal("Target", "Target 이름을 입력해 주세요.", "error");
+        Swal.fire("Target", "Target 이름을 입력해 주세요.", "error");
         return;
       } else if (this.image === "" || !this.image) {
-        this.$swal("Target", "Target 이미지를 입력해 주세요.", "error");
+        Swal.fire("Target", "Target 이미지를 입력해 주세요.", "error");
         return;
       }
       this.$emit("next", { name: this.targetName, image: this.image });
     },
 
     async onUpload(file) {
-      this.$swal.fire({
+      Swal.fire({
         title: "Please Wait....",
         allowOutsideClick: false,
         allowEscapekey: false,
         allowEnterkey: false,
         showConfimButton: false,
         didOpen: () => {
-          this.$swal.showLoading();
+          Swal.showLoading();
         }
       });
 
@@ -69,7 +70,7 @@ export default {
       const reader = new FileReader();
       reader.onload = () => {
         this.image = reader.result;
-        this.$swal.close();
+        Swal.close();
       };
       reader.readAsDataURL(compressFile);
     },

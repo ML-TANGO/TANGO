@@ -98,6 +98,7 @@
   </v-card>
 </template>
 <script>
+import Swal from "sweetalert2";
 import { mapMutations } from "vuex";
 import { TargetNamespace, TargetMutations } from "@/store/modules/targetStore";
 
@@ -145,30 +146,28 @@ export default {
 
     async onDelete(target) {
       try {
-        this.$swal
-          .fire({
-            title: `${target.name} Target을 \n 삭제하시겠습니까?`,
-            text: "삭제한 뒤 복구가 불가능합니다.",
-            icon: "warning",
-            showCancelButton: true,
-            confirmButtonColor: "#3085d6",
-            cancelButtonColor: "#d33",
-            confirmButtonText: "확인",
-            cancelButtonText: "취소"
-          })
-          .then(async result => {
-            if (result.isConfirmed) {
-              await deleteTarget(target.id)
-                .then(async () => {
-                  this.items = await getTargetList();
-                })
-                .catch(() => {
-                  this.$swal("사용중인 타겟입니다.", "", "error");
-                });
-            }
-          });
+        Swal.fire({
+          title: `${target.name} Target을 \n 삭제하시겠습니까?`,
+          text: "삭제한 뒤 복구가 불가능합니다.",
+          icon: "warning",
+          showCancelButton: true,
+          confirmButtonColor: "#3085d6",
+          cancelButtonColor: "#d33",
+          confirmButtonText: "확인",
+          cancelButtonText: "취소"
+        }).then(async result => {
+          if (result.isConfirmed) {
+            await deleteTarget(target.id)
+              .then(async () => {
+                this.items = await getTargetList();
+              })
+              .catch(() => {
+                Swal.fire("사용중인 타겟입니다.", "", "error");
+              });
+          }
+        });
       } catch (err) {
-        this.$swal("사용중인 타겟입니다.", "", "error");
+        Swal.fire("사용중인 타겟입니다.", "", "error");
       }
     },
 

@@ -37,6 +37,7 @@
   </div>
 </template>
 <script>
+import Swal from "sweetalert2";
 import { mapState } from "vuex";
 import { TargetNamespace } from "@/store/modules/targetStore";
 
@@ -68,10 +69,10 @@ export default {
     create() {
       const targetInfo = TargetInfoList.find(q => q.value === this.target.info);
       if (targetInfo.requiredFields.includes("target_hostip") && (this.ipAddress === "" || !this.ipAddress)) {
-        this.$swal("Target", "Ip Address를 입력해 주세요.", "error");
+        Swal.fire("Target", "Ip Address를 입력해 주세요.", "error");
         return;
       } else if (targetInfo.requiredFields.includes("target_hostport") && (this.port === "" || !this.port)) {
-        this.$swal("Target", "Port를 입력해 주세요.", "error");
+        Swal.fire("Target", "Port를 입력해 주세요.", "error");
         return;
       }
 

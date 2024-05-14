@@ -60,6 +60,7 @@
   </div>
 </template>
 <script>
+import Swal from "sweetalert2";
 import Cookies from "universal-cookie"; // MIT
 
 import Tango_login from "@/assets/Tango_login.png";
@@ -90,7 +91,7 @@ export default {
 
         this.$router.go();
       } else {
-        this.$swal("로그인 실패", "ID, PW를 확인해주세요.", "error");
+        Swal.fire("로그인 실패", "ID, PW를 확인해주세요.", "error");
       }
     },
 

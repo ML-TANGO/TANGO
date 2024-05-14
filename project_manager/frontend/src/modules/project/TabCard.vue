@@ -87,6 +87,7 @@
   </v-hover>
 </template>
 <script>
+import Swal from "sweetalert2";
 import { mapMutations } from "vuex";
 import { ProjectNamespace, ProjectMutations } from "@/store/modules/project";
 
@@ -150,24 +151,22 @@ export default {
       if (this.projectInfo.container === "" || this.projectInfo.container === "init") {
         await this.setDialog();
       } else {
-        this.$swal
-          .fire({
-            title: `프로젝트를 수정 하시겠습니까?`,
-            text: "지금까지 진행된 내용이 사라집니다.",
-            icon: "warning",
-            showCancelButton: true,
-            confirmButtonColor: "#3085d6",
-            cancelButtonColor: "#d33",
-            confirmButtonText: "확인",
-            cancelButtonText: "취소"
-          })
-          .then(async result => {
-            if (result.isConfirmed) {
-              await this.setDialog();
-            } else {
-              this.$EventBus.$emit("forcedTermination");
-            }
-          });
+        Swal.fire({
+          title: `프로젝트를 수정 하시겠습니까?`,
+          text: "지금까지 진행된 내용이 사라집니다.",
+          icon: "warning",
+          showCancelButton: true,
+          confirmButtonColor: "#3085d6",
+          cancelButtonColor: "#d33",
+          confirmButtonText: "확인",
+          cancelButtonText: "취소"
+        }).then(async result => {
+          if (result.isConfirmed) {
+            await this.setDialog();
+          } else {
+            this.$EventBus.$emit("forcedTermination");
+          }
+        });
       }
     },
 
@@ -187,28 +186,26 @@ export default {
       if (status) {
         this.$router.push(`/project/${this.projectInfo.id}`);
       } else {
-        this.$swal("project를 완성해 주세요.");
+        Swal.fire("project를 완성해 주세요.");
       }
     },
 
     onDelete() {
-      this.$swal
-        .fire({
-          title: `${this.projectInfo.project_name} 프로젝트를 \n 삭제하시겠습니까?`,
-          text: "삭제한 뒤 복구가 불가능합니다.",
-          icon: "warning",
-          showCancelButton: true,
-          confirmButtonColor: "#3085d6",
-          cancelButtonColor: "#d33",
-          confirmButtonText: "확인",
-          cancelButtonText: "취소"
-        })
-        .then(async result => {
-          if (result.isConfirmed) {
-            await deleteProject(this.projectInfo.id);
-            this.$EventBus.$emit("deleteProject");
-          }
-        });
+      Swal.fire({
+        title: `${this.projectInfo.project_name} 프로젝트를 \n 삭제하시겠습니까?`,
+        text: "삭제한 뒤 복구가 불가능합니다.",
+        icon: "warning",
+        showCancelButton: true,
+        confirmButtonColor: "#3085d6",
+        cancelButtonColor: "#d33",
+        confirmButtonText: "확인",
+        cancelButtonText: "취소"
+      }).then(async result => {
+        if (result.isConfirmed) {
+          await deleteProject(this.projectInfo.id);
+          this.$EventBus.$emit("deleteProject");
+        }
+      });
     },
 
     close() {
