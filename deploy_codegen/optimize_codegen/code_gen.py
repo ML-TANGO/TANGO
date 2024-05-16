@@ -1015,102 +1015,125 @@ class CodeGen:
         else:
             self.m_converted_file = "%s%s%s" % (self.m_current_file_path, "/", self.m_nninfo_weight_pt_file)
 
-        if self.m_deploy_type == 'cloud':
-            # code copy
-            os.system("cp -r ./db/yolov7 %s" % self.m_current_code_folder)
-            # copy db/yolov3/yolov3.pt into nn_model folder
+        if self.m_deploy_type == 'cloud' or self.m_deploy_type == 'k8s' or self.m_deploy_type == 'pc_web':
+            if self.m_deploy_type != 'k8s':
+                k8s_path =  self.m_current_code_folder 
+            else:
+                k8s_path =  "%s/fileset" % self.m_current_code_folder 
+            # os.system(k8s_path) 
+            os.system("cp  %s  %s" % ("./db/Dockerfile", k8s_path)) 
+            os.system("cp  %s  %s" % ("./db/myutil.py", k8s_path)) 
             pt_path = "%s%s" % (self.m_current_file_path, self.m_nninfo_weight_pt_file)
-            os.system("cp  %s  %s/yolov7/yolov7-e6e.pt" % (pt_path, self.m_current_code_folder)) 
-        elif self.m_deploy_type == 'k8s':
-            # khlee copy k8s app codes
-            os.system("mkdir %s/fileset" % self.m_current_code_folder) 
-            os.system("unzip ./db/k8syolov7.zip -d %s/fileset" % self.m_current_code_folder) 
-            # copy pt file nn_model/fileset/yolov7
-            pt_path = "%s%s" % (self.m_current_file_path, self.m_nninfo_weight_pt_file)
-            os.system("cp  %s  %s/fileset/yolov7" % (pt_path, self.m_current_code_folder)) 
-            # copy requirement file to code_folder just for testing
+            shutil.copy(pt_path, k8s_path)
+            os.system("cp -r ./db/web/templates %s" % k8s_path)
             if os.path.isfile(self.get_real_filepath(self.m_requirement_file)):
-                shutil.copy(self.get_real_filepath(self.m_requirement_file), self.m_current_code_folder)
+                shutil.copy(self.get_real_filepath(self.m_requirement_file), k8s_path)
+
             # change output.py code
-            k8s_str = "def_port = 8902\n"
-            k8s_str += "def_weight_file = '%s'\n" % self.m_nninfo_weight_pt_file
-            k8s_str += "def_input_source = %s\n\n\n" % self.m_sysinfo_input_method 
-            # open output.py and add k8s_str on top of it
-            os.system("mv %s/fileset/yolov7/output.py %s/fileset/yolov7/tmp.py" % (self.m_current_code_folder, self.m_current_code_folder)) 
+            k8s_str = "def_port_num = %s\n" % self.m_deploy_network_serviceport
+            k8s_str += "def_path = %s\n\n\n" % self.m_sysinfo_input_method 
             try:
-                outf = open("%s/fileset/yolov7/output.py" % self.m_current_code_folder, "w") 
+                outf = open("%s/output.py" % k8s_path, "w") 
             except IOError as err:
                 logging.debug("output.py Write Error #1")
                 return -1
             outf.write(k8s_str)
             try:
-                inf = open("%s/fileset/yolov7/tmp.py" % self.m_current_code_folder, "r") 
+                inf = open("./db/weboutput-temp.py", "r") 
             except IOError as err:
                 logging.debug("tmp.py Open Error #1")
                 return -1
-            os.system("/bin/rm -f %s/fileset/yolov7/tmp.py" % (self.m_current_code_folder)) 
             outf.write(inf.read()) 
             outf.close()
             inf.close()
+            # pyotorch-yolov
+            if isinstance(self.m_nninfo_class_file, list):
+                t_file = self.m_nninfo_class_file[0]
+            else:
+                t_file = self.m_nninfo_class_file
+            t_file = "%s%s" % (t_file, "\n")
+            tmp = t_file.split("/")
+            cnt = len(tmp)
+            t_file = tmp[0]
+            for  i in range(cnt-1):
+                t_file = "%s.%s" % (t_file, tmp[i+1])
+            t_file = t_file.split(".py\n")[0]
+            t_file = t_file.split("\n")[0]
+            if self.m_nninfo_yolo_base_file_path != ".":  
+                tmp_path = self.m_nninfo_yolo_base_file_path.replace("/", ".")
+                t_file = "%s.%s" % (tmp_path, t_file)
+            try:
+                outf = open("%s/pytorch_yolov7.py" % k8s_path, "w") 
+            except IOError as err:
+                logging.debug("pytorch_yolov7.py Write Error #1")
+                return -1
+            outf.write('import %s as ye\n' % t_file)
+            outf.write('def_pt_file = "%s"\n' % self.m_nninfo_weight_pt_file)
+            a_file = self.m_nninfo_annotation_file.split("/")
+            outf.write('def_label_yaml = "%s"\n' % a_file[-1])
+            outf.write('def_input_location = %s\n' % self.m_sysinfo_input_method)
+            outf.write('def_conf_thres = %s\n' % self.m_nninfo_postproc_conf_thres)
+            outf.write('def_iou_thres = %s\n'% self.m_nninfo_postproc_iou_thres)
+            outf.write('def_output_location = %s\n' % self.m_sysinfo_output_method)
+            if self.m_sysinfo_acc_type == "cuda":
+                outf.write('def_dev = \"cuda:0\"\n')
+            else:
+                outf.write('def_dev = \"cuda:0\"\n')
+            outf.write('def_data_type = "%s"\n' % self.m_nninfo_input_data_type)
+            outf.write('def_width = %s\n' % self.m_nninfo_input_tensor_shape[2])
+            outf.write('def_height = %s\n\n\n' % self.m_nninfo_input_tensor_shape[3])
+            # pytorch_yolov7 copy khlee
+            # copy head
+            try:
+                f1 = open("./db/pytorch_template.head", 'r')
+            except IOError as err:
+                logging.debug("pytorch temp. head open error")
+                return -1
+            for line1 in f1:
+                outf.write(line1)
+            f1.close()
+
+            # copy model initializing code
+            outf.write('\n        self.model = ye.Model(cfg="basemodel.yaml")\n')
+            # copy body
+            try:
+                f2 = open("./db/pytorch_template.body", 'r')
+            except IOError as err:
+                logging.debug("pytorch temp. body open error")
+                return -1
+            for line2 in f2:
+                outf.write(line2)
+            f2.close()
+            outf.close()
+
             # copy annotation file
             annotation_file = "%s/%s" % (def_dataset_path, self.m_nninfo_annotation_file)
-            t_path = "%s/fileset/yolov7" % self.m_current_code_folder 
+            if self.m_deploy_type != 'k8s':
+                t_path = "%s/yolov7" % self.m_current_code_folder 
+            else:
+                t_path = "%s/fileset/yolov7" % self.m_current_code_folder 
             shutil.copy(annotation_file, t_path) 
+            # yoloe_core
+            if isinstance(self.m_nninfo_class_file, list):
+                num_files = len(self.m_nninfo_class_file)
+                if num_files >= 1:
+                    for i in range(num_files):
+                        self.copy_subfolderfile(self.m_nninfo_class_file[i], self.m_current_code_folder, base_dir=self.m_nninfo_yolo_base_file_path) 
+            else:
+                shutil.copy(self.get_real_filepath(self.m_nninfo_class_file), self.m_current_code_folder, base_dir=self.m_nninfo_yolo_base_file_path) 
+            # copy .pt file
+            pt_path = "%s%s" % (self.m_current_file_path, self.m_nninfo_weight_pt_file)
+            shutil.copy(pt_path, self.m_current_code_folder)
+            # basemodel.yaml
+            t_split = self.m_nninfo_class_name.split("(")
+            t_class_name = t_split[0]
+            tmp_param = t_split[1].split(")")[0]
+            tmp_param = tmp_param.split("=")[1]
+            f_param = self.get_real_filepath(tmp_param[1:-1])
+            shutil.copy(f_param, self.m_current_code_folder)
+            # requirements.txt
+            # deployment.yaml
         else:
-            '''
-            # convert  and copy .pt file to nn_model folder
-            if os.path.isfile(self.m_converted_file):
-                shutil.copy(self.m_converted_file, self.m_current_code_folder)
-
-            tmp_str = "%s%s%s%s%s%s" % ('\"\"\"', def_newline, self.m_deploy_python_file,
-                                        def_newline, '\"\"\"', def_newline)
-            tmp_str = "%s%s%s" % (tmp_str, "import torch", def_newline)
-            tmp_str = "%s%s%s" % (tmp_str, "import cv2", def_newline)
-            tmp_str = "%s%s%s" % (tmp_str, "import numpy as np", def_newline)
-            tmp_str = "%s%s%s" % (tmp_str, "import time", def_newline)
-            tmp_str = "%s%s%s" % (tmp_str, def_newline, def_newline)
-
-            # pytorch file
-            # 가속기 gpu, npu 고려 사항 입력
-            tmp_str = "%s%s%s" % (tmp_str,
-                                  "model = torch.hub.load('ultralytics/yolov5', 'yolov5s')", def_newline)
-
-            # input method
-            tmp_str = "%s%s%s" % (tmp_str, "cap = cv2.VideoCapture('480.mp4')", def_newline)
-            tmp_str = "%s%s%s" % (tmp_str, def_newline, def_newline)
-
-            tmp_str = "%s%s%s" % (tmp_str, "while True:", def_newline)
-            tmp_str = "%s%s%s%s" % (tmp_str, def_4blank, "ret, img = cap.read()", def_newline)
-            tmp_str = "%s%s" % (tmp_str, def_newline)
-            tmp_str = "%s%s%s%s" % (tmp_str, def_4blank, "# Inference", def_newline)
-            tmp_str = "%s%s%s%s" % (tmp_str, def_4blank, "start_time = time.time()", def_newline)
-            tmp_str = "%s%s%s%s" % (tmp_str, def_4blank, "results = model(img)", def_newline)
-            tmp_str = "%s%s%s%s" % (tmp_str, def_4blank, "end_time = time.time()", def_newline)
-            tmp_str = "%s%s" % (tmp_str, def_newline)
-            tmp_str = "%s%s%s%s" % (tmp_str, def_4blank, "fps = 1 / (end_time - start_time)",
-                                    def_newline)
-            tmp_str = "%s%s%s" % (tmp_str,
-                                  def_4blank, 'cv2.putText(img, f"{fps:.3f} FPS", (20,35),')
-            tmp_str = "%s%s%s" % (tmp_str,
-                                  " cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 255, 0), 2)", def_newline)
-            tmp_str = "%s%s%s%s" % (tmp_str, def_4blank,
-                                    "cv2.imshow('YoloV5 Test...', np.squeeze(results.render()))", def_newline)
-            tmp_str = "%s%s%s%s" % (tmp_str,
-                                    def_4blank, "if cv2.waitKey(1) & 0xFF == ord('q'):", def_newline)
-            tmp_str = "%s%s%s%s%s" % (tmp_str, def_4blank, def_4blank, "break", def_newline)
-            tmp_str = "%s%s" % (tmp_str, def_newline)
-            tmp_str = "%s%s%s" % (tmp_str, "cap.release()", def_newline)
-            tmp_str = "%s%s%s" % (tmp_str, "cv2.destroyAllWindows()", def_newline)
-
-            try:
-                f = open(self.get_code_filepath(self.m_deploy_python_file), 'w')
-            except IOError as err:
-                print("Python File Write Error", err)
-                return -1
-            f.write(tmp_str)
-            f.close()
-            '''
-            # khlee
             # copy pytorch related file recursively (make subdirectory and copy files)
             if isinstance(self.m_nninfo_class_file, list):
                 num_files = len(self.m_nninfo_class_file)
@@ -1460,7 +1483,7 @@ class CodeGen:
                        "os": 'ubuntu',
                        "image_uri": 'us-docker.pkg.dev/cloudrun/container/hello:latest',
                        "components": t_com }
-            my_entry = ['run.sh', '-p', 'opt1', 'arg']
+            my_entry = ['python3', 'output.py']
             t_deploy = {"type": dep_type,
                         "service_name": "hello",
                         # "workdir": "/workspace",

@@ -1,0 +1,36 @@
+<!DOCTYPE html>
+<html>
+<head>
+	<title> Dectection </title>
+</head>
+<body>
+<div class="container">
+    <div class="row">
+        <div class="col-lg-8  offset-lg-2">
+	</div>
+	<div class="col-lg-8  offset-lg-2">
+            <h3 class="mt-5">Detection Service </h3>
+		<form action = "http://localhost:5000/fileupload" method = "POST" enctype = "multipart/form-data">
+		<input type = "file" name = "file"  />
+      		<input type = "submit"/>
+		<h3 style="font-family:courier;"> Selected File : {{ data }} </h3>
+		</form>
+		</p>
+		<form id="Info" action = ""  method = "GET" >
+		<input type="submit" value="File Start/Stop" name="ToggleFile" method='GET'/>
+		<input type="submit" value="Camera Start/Stop" name="ToggleCamera" method='GET'/>
+		</form>
+        	<img src= {{ url_for('video_feed')}} height="70%">
+        </div>
+        <div class="col-lg-8  offset-lg-2">
+		<h3 style="font-family:courier;">Manual:</h3>
+		<ol style="font-family:courier;">
+		<li>Select File--Select File name to send to the sever for detect objects</li>
+		<li>Push Submit--Select File name to send to the sever for detect objects</li>
+		<li>File Start/Stop--button for object detection from a file</li>
+		<li>Camera Start/Stop--button for object detection from a camera input</li>	
+	</div>
+    </div>
+</div>
+</body>
+</html>
