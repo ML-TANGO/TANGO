@@ -122,6 +122,8 @@ RUN pip3 install matplotlib
 
 RUN apt-get install software-properties-common -y
 RUN add-apt-repository ppa:openjdk-r/ppa
+# added by khlee to fix build error
+RUN apt-get install python3-launchpadlib -y
 RUN apt-get install -y openjdk-17-jdk
 WORKDIR /app
 RUN mkdir android_sdk
