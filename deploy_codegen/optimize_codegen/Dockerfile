@@ -1,4 +1,4 @@
-FROM python:3.6
+FROM python:3.8
 
 ENV CMAKE_ARGS="-DONNX_USE_PROTOBUF_SHARED_LIBS=ON"
 
@@ -121,9 +121,9 @@ RUN pip3 install defusedxml
 RUN pip3 install matplotlib
 
 RUN apt-get install software-properties-common -y
-RUN add-apt-repository ppa:openjdk-r/ppa
 # added by khlee to fix build error
 RUN apt-get install python3-launchpadlib -y
+RUN add-apt-repository ppa:openjdk-r/ppa
 RUN apt-get install -y openjdk-17-jdk
 WORKDIR /app
 RUN mkdir android_sdk
