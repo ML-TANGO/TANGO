@@ -29,7 +29,7 @@ RUN apt-get install -y zlib1g-dev libedit-dev libxml2-dev
 RUN pip3 install pyyaml requests
 RUN pip3 install tvm
 RUN pip3 install torch==1.7.0
-RUN pip3 install tensorflow==2.4.0
+RUN pip3 install tensorflow==2.8.0
 RUN pip3 install tensorflow-datasets
 RUN pip3 install seaborn pandas torchvision
 RUN pip3 install --upgrade attrs psutil
