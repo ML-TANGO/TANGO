@@ -633,10 +633,14 @@ def startList(request):
             serializer = StartSerializer(data={'msg': 'started',
                                                'user_id': user_id,
                                                'project_id': project_id})
+            statusSerializer = StatusSerializer(data={'msg': 'started',
+                                               'user_id': user_id,
+                                               'project_id': project_id})
             print(f"⚡ Get user id {user_id} and project id {project_id} from rest api")
 
-            if serializer.is_valid():
+            if serializer.is_valid() and statusSerializer.is_valid():
                 serializer.save()
+                statusSerializer.save()
                 try:
                     print(f"🧹 Clear all nodes & edges")
                     nodes = Node.objects.all()
@@ -1101,6 +1105,7 @@ def startList(request):
                             if serializer.is_valid():
                                 serializer.save()
                         print(f"🏳‍🌈 Save Nodes and Edges")
+                        return Response("started", status=200, content_type="text/plain")
 
                     elif os.path.isfile(json_path):
                         # json import
@@ -1118,19 +1123,21 @@ def startList(request):
                                 if serializer.is_valid():
                                     serializer.save()
                         print(f"🏳‍🌈 Save Nodes and Edges")
+                        return Response("started", status=200, content_type="text/plain")
+
                     else:
                         print(f"not found basemode.yaml neither basemodel.json")
                         return Response("error", status=404, content_type="text/plain")
                 except Exception as ex:
-                    print(ex)
-                return Response("started", status=200, content_type="text/plain")
+                    print(f"tried to build nodes & edges from basemodel but failed: reason={ex}")
+                    return Response("error", status=400, content_type="text/plain")
             else:
-                return Response("error", status=200, content_type="text/plain")
+                print(f"Start or Status models is not validated")
+                return Response("error", status=409, content_type="text/plain")
         # pylint: disable = broad-except
         except Exception as e:
-            # return HttpResponse(e, HttpResponse)
-            # return HttpResponse('error', content_type="text/plain")
-            return Response("error", status=200, content_type="text/plain")
+            print(f"tried to start process but failed: reasone={e}")
+            return Response("error", status=400, content_type="text/plain")
     elif request.method == 'POST':
         print(f"________POST /Start viz2code____________")
         # with open("./frontend/src/resnet50.json", "r") as f:
