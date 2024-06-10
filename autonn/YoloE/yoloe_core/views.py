@@ -117,11 +117,11 @@ def start(request):
 
     # check user id & project id
     try:
-        nasInfo = models.Info.objects.get(userid=userid,
+        nasinfo = models.Info.objects.get(userid=userid,
                                           project_id=project_id)
     except models.Info.DoesNotExist:
         print("new project")
-        nasInfo = models.Info(userid=userid,
+        nasinfo = models.Info(userid=userid,
                               project_id=project_id)
 
     data_yaml, proj_yaml = get_user_requirements(userid, project_id)
