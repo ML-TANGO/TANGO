@@ -44,7 +44,7 @@ def run_batch_test(basemodel_yaml, task, imgsz, hyp_yaml=None, nas=None):
         if DEBUG: print(f'{PREFIX} task is unknown ({task})')
         return None
 
-    batch_size = int(get_batch_size_for_gpu(model, 3 if task=='detection' else 1, imgsz, amp=True) * 0.9)
+    batch_size = int(get_batch_size_for_gpu(model, 3 if task=='detection' else 1, imgsz, amp=True) * 0.8)
     # It assumes that the memory sizes of all gpus in a machine are same.
     # 0.8 is multiplied by batch size to prevent cuda memory error due to a memory leak of yolov7
 
@@ -53,7 +53,7 @@ def run_batch_test(basemodel_yaml, task, imgsz, hyp_yaml=None, nas=None):
     gc.collect()
 
     batch_size = False if batch_size < 2 else batch_size * torch.cuda.device_count()
-    print(f'{PREFIX} Selcted Batch Size - {batch_size} (0.9 * batch size for a gpu * gpu_num)')
+    print(f'{PREFIX} Selcted Batch Size - {batch_size} (0.8 * batch size for a gpu * gpu_num)')
 
     return batch_size
 
