@@ -34,7 +34,7 @@ model_to_size_table = {
         "jetsonagxorin": "-tiny",
         "jetsonagxxavier": "-tiny",
         "jetsonnano": "-tiny",
-        "galaxys22": "-tiny",
+        "galaxys22": "-supernet",
         "odroidn2": "-tiny",
     },
     "resnet": {
