@@ -16,8 +16,10 @@ services:
              python manage.py loaddata base_model_data.json &&
              python manage.py runserver 0.0.0.0:8085"
     volumes:
-      - ./project_manager:/code
+      # - ./project_manager:/code
       - shared:/shared
+      - ${COCODIR}:/shared/datasets/coco
+      - ${COCO128DIR}:/shared/datasets/coco128
       - /var/run/docker.sock:/var/run/docker.sock
     hostname: projectmanager
     ports:
@@ -174,7 +176,7 @@ services:
   autonn_yoloe:
     build:
       context: ./autonn/YoloE
-    shm_size: '256M'
+    shm_size: '8G'
     ipc: host
     command: >
       sh -c "python manage.py pretrained_supernet && 
@@ -197,8 +199,10 @@ services:
     volumes:
       - ./autonn/YoloE:/source
       - shared:/shared
-      - ./autonn/YoloE/sample_yaml/dataset.yaml:/shared/datasets/coco/dataset.yaml # TEMP FILE UNTIL LABELLING MODULE WORKING
-      - ${COCODIR:-./autonn/YoloE/sample_data/coco128}:/shared/datasets/coco # TEMP FILE UNTIL LABELLING MODULE WORKING
+      # - ./autonn/YoloE/sample_yaml/dataset.yaml:/shared/datasets/coco/dataset.yaml # TEMP FILE UNTIL LABELLING MODULE WORKING
+      - ${COCODIR}:/shared/datasets/coco
+      - ${COCO128DIR}:/shared/datasets/coco128
+      # - ${COCODIR:-./autonn/YoloE/sample_data/coco128}:/shared/datasets/coco # TEMP FILE UNTIL LABELLING MODULE WORKING
     hostname: yoloe
     ports:
       - "8090:8090"
