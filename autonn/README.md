@@ -29,11 +29,12 @@ autonn
 │       │       ├─ views.py
 │       │       ├─ migrations
 │       │       │   └─ __init__.py
-│       │       └─ code
+│       │       └─ tango
 │       │           ├─ common
 │       │           ├─ main
 │       │           ├─ nas
 │       │           ├─ hpo
+│       │           ├─ utils
 │       │           └─ viz
 │       ├── config
 │       │       ├─ __init__.py
