@@ -1,0 +1,56 @@
+{
+  "name": "visualization",
+  "version": "0.1.0",
+  "private": true,
+  "description": "AutoNN frontend: Model visualization",
+  "keywords": [
+    "react"
+  ],
+  "main": "src/index.js",
+  "dependencies": {
+    "@testing-library/jest-dom": "^5.16.4",
+    "@testing-library/react": "^12.1.4",
+    "@testing-library/user-event": "^13.5.0",
+    "axios": "^0.23.0",
+    "classnames": "^2.3.1",
+    "react": "^17.0.2",
+    "react-beautiful-dnd": "^13.1.0",
+    "react-canvas-draw": "^1.1.1",
+    "react-dom": "^17.0.2",
+    "react-draggable": "^4.4.4",
+    "react-dropbox-chooser": "^0.0.5",
+    "react-edit-text": "^4.4.0",
+    "react-flow-renderer": "^9.6.7",
+    "react-google-picker": "^0.1.0",
+    "react-router-dom": "^6.3.0",
+    "react-scripts": "^5.0.0",
+    "reactjs-popup": "^2.0.5",
+    "styled-components": "^5.3.5",
+    "sweetalert2": "^11.2.0",
+    "web-vitals": "^2.1.4"
+  },
+  "proxy": "http://127.0.0.1:8100",
+  "scripts": {
+    "start": "react-scripts start",
+    "build": "react-scripts build",
+    "test": "react-scripts test",
+    "eject": "react-scripts eject"
+  },
+  "eslintConfig": {
+    "extends": [
+      "react-app"
+    ]
+  },
+  "browserslist": {
+    "production": [
+      ">0.2%",
+      "not dead",
+      "not op_mini all"
+    ],
+    "development": [
+      "last 1 chrome version",
+      "last 1 firefox version",
+      "last 1 safari version"
+    ]
+  }
+}

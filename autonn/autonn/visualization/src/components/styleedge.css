@@ -1,0 +1,7 @@
+path.react-flow__edge-path {
+  stroke-width: 3;
+}
+
+path.react-flow__edge-path:hover {
+  stroke-width: 5;
+}

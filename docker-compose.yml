@@ -18,6 +18,8 @@ services:
     volumes:
       - ./project_manager:/code
       - shared:/shared
+      - ${COCODIR}:/shared/datasets/coco
+      - ${COCO128DIR}:/shared/datasets/coco128
       - /var/run/docker.sock:/var/run/docker.sock
     hostname: projectmanager
     ports:
@@ -74,6 +76,39 @@ services:
     ports:
       - "8086:80" # for Web UI
       - "8095:10236" # for Rest API
+
+  #---------------------------------
+  # AutoNN: AutoNN
+  #---------------------------------
+  autonn:
+    build:
+      context: ./autonn/autonn
+    shm_size: '256M'
+    ipc: host
+    command: >
+      sh -c "python manage.py makemigrations &&
+             python manage.py migrate &&
+             python manage.py runserver 0.0.0.0:8100"
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              capabilities:
+                - gpu
+                - utility
+                - compute
+                - video
+    environment:
+      - NVIDIA_VISIBLE_DEVICES=${GPU_NUM:-all}
+    volumes:
+      - ./autonn/autonn:/source
+      - shared:/shared
+      - ${COCODIR}:/shared/datasets/coco
+      - ${COCO128DIR}:/shared/datasets/coco128
+    hostname: autonn
+    ports:
+      - "8100:8100"
 
   #---------------------------------
   # Base Model Selector
@@ -177,7 +212,7 @@ services:
     shm_size: '256M'
     ipc: host
     command: >
-      sh -c "python manage.py pretrained_supernet && 
+      sh -c "python manage.py pretrained_supernet &&
              python manage.py makemigrations &&
              python manage.py migrate &&
              python manage.py runserver 0.0.0.0:8090"
