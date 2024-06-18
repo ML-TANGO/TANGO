@@ -184,6 +184,7 @@ def get_container_info(host_name):
 
     ports_by_container = {
         'bms' : "8081",
+        'autonn' : "8100",
         'yoloe' : "8090",
         'codeGen' : "8888",
         'autonn-resnet': "8092",
@@ -207,6 +208,8 @@ def get_docker_container_name(container):
         containerName = ''
     elif container == 'bms' :
         containerName = 'bms'
+    elif container == 'autonn' :
+        containerName = 'autonn'
     elif container == 'yoloe' :
         containerName = 'autonn_yoloe'
     elif container == 'labelling' :
@@ -302,7 +305,7 @@ def get_log_container_name(container):
 
     if container == 'bms':
         return 'BMS'
-    elif container == 'yoloe' or container == 'autonn-resnet':
+    elif container == 'yoloe' or container == 'autonn-resnet' or container == 'autonn':
         return 'Auto NN'
     elif container == 'codeGen' or container == 'code_gen' or container == 'codegen':
         return 'Code Gen'
@@ -325,6 +328,8 @@ def db_container_name(container):
 
     if container == 'bms':
         return 'bms'
+    elif container == 'autonn':
+        return 'autonn'
     elif container == 'yoloe':
         return 'yoloe'
     elif container == 'viz2code' or container == 'visualization':

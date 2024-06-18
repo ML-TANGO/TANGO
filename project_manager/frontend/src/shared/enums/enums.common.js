@@ -3,6 +3,7 @@ export const TaskType = Object.freeze({
   CLASSIFICATION: "classification"
 });
 
+// 사용안함
 export const ContainerPort = Object.freeze({
   bms: "8081",
   vis2code: "8091",
@@ -12,7 +13,8 @@ export const ContainerPort = Object.freeze({
   cloud_deployment: "8088",
   ondevice_deployment: "8891",
   yolo_e: "8090",
-  lablilng: "8095"
+  lablilng: "8095",
+  autonn: "8100"
 });
 
 export const DataType = {
@@ -28,7 +30,8 @@ export const ObjectType = {
 
 export const ContainerName = {
   BMS: "bms",
-  AUTO_NN: "yoloe",
+  AUTO_NN: "autonn",
+  AUTO_NN_YOLOE: "yoloe",
   AUTO_NN_RESNET: "autonn-resnet",
   CODE_GEN: "codeGen",
   IMAGE_DEPLOY: "imagedeploy",
@@ -39,6 +42,7 @@ export const ContainerName = {
 export const DisplayName = {
   [ContainerName.BMS]: "BMS",
   [ContainerName.AUTO_NN]: "Auto NN",
+  [ContainerName.AUTO_NN_YOLOE]: "Auto NN",
   [ContainerName.AUTO_NN_RESNET]: "Auto NN",
   [ContainerName.CODE_GEN]: "Code Gen",
   [ContainerName.IMAGE_DEPLOY]: "Image Deploy",

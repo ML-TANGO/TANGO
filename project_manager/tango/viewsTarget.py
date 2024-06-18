@@ -186,8 +186,7 @@ def target_info(request):
         _type_: _description_
     """
 
-    queryset = Target.objects.filter(id=request.data['id'],
-                                      create_user=request.user)  # Target id로 검색
+    queryset = Target.objects.filter(id=request.data['id'])  # Target id로 검색
     data = list(queryset.values())
 
     target_data = {'id': data[0]['id'],
