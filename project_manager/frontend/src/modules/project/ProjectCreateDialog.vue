@@ -47,7 +47,7 @@ import SecondStepper from "./stepper/SecondStepper.vue";
 import ThirdStepper from "./stepper/ThirdStepper.vue";
 import FourthStepper from "./stepper/FourthStepper.vue";
 
-import { TaskType, ContainerName } from "@/shared/enums";
+import { /*TaskType,*/ ContainerName } from "@/shared/enums";
 
 import { updateProjectInfo, setWorkflow } from "@/api";
 
@@ -148,16 +148,29 @@ export default {
 
       await updateProjectInfo(param);
 
-      const workflow =
-        this.project.task_type === TaskType.DETECTION
-          ? [ContainerName.BMS, ContainerName.AUTO_NN, ContainerName.CODE_GEN, ContainerName.IMAGE_DEPLOY]
-          : [
-              ContainerName.BMS,
-              ContainerName.VISUALIZATION,
-              ContainerName.AUTO_NN_RESNET,
-              ContainerName.CODE_GEN,
-              ContainerName.IMAGE_DEPLOY
-            ];
+      // 20240610........ 이전 버전...................
+      // const workflow =
+      //   this.project.task_type === TaskType.DETECTION
+      //     ? [ContainerName.BMS, ContainerName.AUTO_NN, ContainerName.CODE_GEN, ContainerName.IMAGE_DEPLOY]
+      //     : [
+      //         ContainerName.BMS,
+      //         ContainerName.VISUALIZATION,
+      //         ContainerName.AUTO_NN_RESNET,
+      //         ContainerName.CODE_GEN,
+      //         ContainerName.IMAGE_DEPLOY
+      //       ];
+
+      // const workflow =
+      //   this.project.task_type === TaskType.DETECTION
+      //     ? [ContainerName.AUTO_NN, ContainerName.CODE_GEN, ContainerName.IMAGE_DEPLOY]
+      //     : [
+      //         // ContainerName.VISUALIZATION,
+      //         ContainerName.AUTO_NN_RESNET,
+      //         ContainerName.CODE_GEN,
+      //         ContainerName.IMAGE_DEPLOY
+      //       ];
+
+      const workflow = [ContainerName.AUTO_NN, ContainerName.CODE_GEN, ContainerName.IMAGE_DEPLOY];
 
       if (this.project.deploy_user_edit === "yes") {
         workflow.splice(workflow.length - 1, 0, ContainerName.USER_EDITING);

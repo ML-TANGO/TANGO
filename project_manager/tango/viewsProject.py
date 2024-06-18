@@ -231,7 +231,42 @@ def status_report(request):
         print(error)
         return HttpResponse(error)
 
+# 컨테이너 업데이트 (Auto NN)
+@api_view(['POST'])
+@permission_classes([AllowAny])   # 토큰 확인
+def status_update(request):
+    """
+    API to receive task status reports from other containers
 
+    Args:
+        user_id (string): user_id
+        project_id (string): project_id
+        container_id (string): container_id
+        status (string): task status
+
+    Returns:
+        status
+    """
+    try:
+        print("@@@@@@@@@@@@@@@ status_update @@@@@@@@@@@@@@@")
+        userid = request.data['user_id']
+        projectId = request.data['project_id']
+        containerId = request.data['container_id']
+        updateId = request.data['update_id']
+        updateContent = request.data['update_content']
+
+        print("user_id : " + str(userid))
+        print("projectId : " + str(projectId))
+        print("containerId : " + str(containerId))
+        print("updateId : " + str(updateId))
+        print("updateContent : " + str(json.dumps(updateContent)))
+
+        return HttpResponse(json.dumps({'status': 200}))
+
+    except Exception as error:
+        print("status_update - error")
+        print(error)
+        return HttpResponse(error)
 # 컨테이너 상태
 @api_view(['GET', 'POST'])
 @authentication_classes([OAuth2Authentication])   # 토큰 확인

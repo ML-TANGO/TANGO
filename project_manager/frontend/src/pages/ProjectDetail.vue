@@ -24,10 +24,10 @@ import { ProjectNamespace, ProjectMutations } from "@/store/modules/project";
 
 import ProjectCreateDialog from "@/modules/project/ProjectCreateDialog.vue";
 import ConfigurationTab from "@/modules/project/tabs/ConfigurationTab.vue";
-import ProgressTab from "@/modules/project/tabs/ProgressTab.vue";
+import ProgressTab from "@/modules/project/tabs/ProgressTabV2.vue";
 import TabBase from "@/modules/project/TabBase.vue";
 
-import { TaskType, ContainerName } from "@/shared/enums";
+import { /*TaskType,*/ ContainerName } from "@/shared/enums";
 
 import {
   getProjectInfo,
@@ -88,16 +88,28 @@ export default {
       }
 
       if (!info?.workflow || info?.workflow.length <= 0) {
-        const workflow =
-          info.task_type === TaskType.DETECTION
-            ? [ContainerName.BMS, ContainerName.AUTO_NN, ContainerName.CODE_GEN, ContainerName.IMAGE_DEPLOY]
-            : [
-                ContainerName.BMS,
-                ContainerName.VISUALIZATION,
-                ContainerName.AUTO_NN_RESNET,
-                ContainerName.CODE_GEN,
-                ContainerName.IMAGE_DEPLOY
-              ];
+        // 20240610........ 이전 버전...................
+        // const workflow =
+        // info.task_type === TaskType.DETECTION
+        //   ? [ContainerName.BMS, ContainerName.AUTO_NN, ContainerName.CODE_GEN, ContainerName.IMAGE_DEPLOY]
+        //   : [
+        //       ContainerName.BMS,
+        //       ContainerName.VISUALIZATION,
+        //       ContainerName.AUTO_NN_RESNET,
+        //       ContainerName.CODE_GEN,
+        //       ContainerName.IMAGE_DEPLOY
+        //     ];
+
+        // info.task_type === TaskType.DETECTION
+        //   ? [ContainerName.AUTO_NN, ContainerName.CODE_GEN, ContainerName.IMAGE_DEPLOY]
+        //   : [
+        //       // ContainerName.VISUALIZATION,
+        //       ContainerName.AUTO_NN_RESNET,
+        //       ContainerName.CODE_GEN,
+        //       ContainerName.IMAGE_DEPLOY
+        //     ];
+
+        const workflow = [ContainerName.AUTO_NN, ContainerName.CODE_GEN, ContainerName.IMAGE_DEPLOY];
 
         if (info.deploy_user_edit === "yes") {
           workflow.splice(workflow.length - 1, 0, ContainerName.USER_EDITING);
@@ -116,34 +128,6 @@ export default {
       this.$router.push("/");
     }
   },
-
-  // async mounted() {
-  // const info = await getProjectInfo(this.$route.params.id);
-  // if (info.container_status === "running") {
-  //   this.startInterval();
-  // }
-  // if (!info?.workflow || info?.workflow.length <= 0) {
-  //   const workflow =
-  //     info.task_type === TaskType.DETECTION
-  //       ? [ContainerName.BMS, ContainerName.AUTO_NN, ContainerName.CODE_GEN, ContainerName.IMAGE_DEPLOY]
-  //       : [
-  //           ContainerName.BMS,
-  //           ContainerName.VISUALIZATION,
-  //           ContainerName.AUTO_NN_RESNET,
-  //           ContainerName.CODE_GEN,
-  //           ContainerName.IMAGE_DEPLOY
-  //         ];
-  //   if (info.deploy_user_edit === "yes") {
-  //     workflow.splice(workflow.length - 1, 0, ContainerName.USER_EDITING);
-  //   }
-  //   await setWorkflow(info.id, workflow);
-  //   this.projectInfo = {
-  //     ...this.projectInfo,
-  //     workflow: workflow
-  //   };
-  //   this.SET_PROJECT(this.projectInfo);
-  // }
-  // },
 
   destroyed() {
     this.stopInterval();
