@@ -7,6 +7,8 @@ from rest_framework.decorators import api_view
 from rest_framework.response import Response
 import requests
 from . import models
+from .tango.main.select import run_autonn
+
 PROCESSES = {}
 
 @api_view(['GET', 'POST'])
@@ -18,7 +20,7 @@ def InfoList(request):
         infoList = models.Info.objects.all()
         return Response(infoList, status=HTTP_200_OK)
 
-    if request.method == 'POST':
+    elif request.method == 'POST':
         # Fetching the form data
         uploadedFile = request.FILES["data_yaml"]
         usrId = request.data['user_id']
@@ -125,6 +127,44 @@ def status_request(request):
         return Response("failed", status=status.HTTP_400_BAD_REQUEST, content_type='text/plain')
 
 
+def status_update(userid, project_id, update_id=None, update_content=None):
+    """
+        Update AutoNN status for P.M. to visualize the progress on their dashboard
+    """
+    try:
+        url = 'http://projectmanager:8085/status_update'
+        headers = {
+            'Content-Type' : 'text/json'
+        }
+        payload = {
+            'container_id' : "autonn",
+            'user_id' : userid,
+            'project_id' : project_id,
+            'update_id' : update_id,
+            'update_content' : update_content,
+        }
+        # response = requests.get(url, headers=headers, params=payload)
+        # temp printing
+        print("GET /status_update")
+        print(f"-------------{update_id}------------")
+        print(f"{update_content}")
+
+        # info = models.Info.objects.get(userid=userid, project_id=project_id)
+        # if update_id is in ['basemodel', 'model', 'model_summary',
+        #                     'train_dataset', 'val_dataset', 'anchor']:
+        #     info.progress = "setting"
+        # elif update_id is in ['train_start', 'train_loss', 'val_accuracy', 'train_end']:
+        #     info.progress = "training"
+        # elif update_id is in ['nas_start', 'evolution_search', 'nas_end',
+        #                       'fintune_start', 'finetue_loss', 'finetue_acc', 'finetune_end']:
+        #     info.progress = "nas"
+        # else
+        #     info.progress = "unknown"
+        # info.save()
+    except Exception as e:
+        print(f"[AutoNN status_update] exception: {e}")
+
+
 def status_report(userid, project_id, status="success"):
     """
         Report status to project manager when the autonn process ends
@@ -135,7 +175,7 @@ def status_report(userid, project_id, status="success"):
             'Content-Type' : 'text/plain'
         }
         payload = {
-            'container_id' : "yoloe",
+            'container_id' : "autonn",
             'user_id' : userid,
             'project_id' : project_id,
             'status' : status
@@ -161,15 +201,15 @@ def process_autonn(userid, project_id):
         status report
     '''
     try:
-        # basemodel = create_basemodel()
-        # final_model = run_autonn()
-        # export_model_weight()
-        # export_model_meta()
-        # status_report("completed")
+        # ------- actual process --------
+        fanal_model = run_autonn(userid, project_id, viz="False", nas="False", hpo="False")
+        # export_model(final_model, userid, project_id)
+        # export_nn_info(userid, project_id)
+        # status_report(userid, project_id, "completed")
 
         # ------- temp for test ---------
-        import time
-        time.sleep(15)
+        # import time
+        # time.sleep(15)
         status_report(userid, project_id, "completed")
         return
     except Exception as e:
