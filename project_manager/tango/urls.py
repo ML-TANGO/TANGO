@@ -8,7 +8,7 @@ Todo:
 from django.urls import path, include,re_path
 from django.contrib import admin
 
-from . import views, viewsProject, viewsDataset
+from . import views, viewsProject
 
 from rest_framework import routers
 from rest_framework_jwt.views import obtain_jwt_token, verify_jwt_token, refresh_jwt_token
@@ -46,9 +46,6 @@ urlpatterns = [
     re_path(r'^container_start', viewsProject.container_start, name='container_start'),       # 컨테이너 실행
     re_path(r'^status_result', viewsProject.status_result, name='status_result'),       # 컨테이너 실행 상태 확인
     re_path(r'^status_request', viewsProject.status_request, name='status_request'),       # 컨테이너 실행 상태 확인 요청
-
-    re_path(r'^get_dataset_list', viewsDataset.get_dataset_list, name='get_dataset_list'),       # 컨테이너 실행 상태 확인 요청
-
 
     re_path(r'^download_nn_model', viewsProject.download_nn_model, name='download_nn_model'), # nn_model 다운로드(외부IDE연동)
     re_path(r'^upload_nn_model', viewsProject.upload_nn_model, name='upload_nn_model'),       # nn_model 업로드(외부IDE연동)

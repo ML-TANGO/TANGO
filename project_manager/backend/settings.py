@@ -61,6 +61,7 @@ INSTALLED_APPS = [
     'oauth2_provider',
     'corsheaders',
     'targets',
+    'datasets',
     'tango',
 ]
 

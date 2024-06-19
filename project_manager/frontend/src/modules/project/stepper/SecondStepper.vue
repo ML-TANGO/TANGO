@@ -29,12 +29,14 @@
   </div>
 </template>
 <script>
+import Vue from "vue";
+
 import { mapMutations, mapState } from "vuex";
 import { ProjectNamespace, ProjectMutations } from "@/store/modules/project";
 
 import DatasetCard from "@/modules/common/card/DatasetCard.vue";
 
-import { getDatasetListTango } from "@/api";
+import { getDatasetListTango, getDatasetFolderSize, getDatasetFileCount } from "@/api";
 
 export default {
   components: { DatasetCard },
@@ -55,6 +57,9 @@ export default {
   async created() {
     try {
       this.items = await getDatasetListTango();
+      this.items = this.items.filter(q => q.name !== "tmp");
+      this.getDatasetSize();
+      this.getDatasetCount();
 
       if (this.selectedImage?.name) {
         this.selected = this.items.findIndex(q => q.name === this.selectedImage.name);
@@ -69,6 +74,33 @@ export default {
     ...mapMutations(ProjectNamespace, {
       SET_SELECTED_IMAGE: ProjectMutations.SET_SELECTED_IMAGE
     }),
+
+    getDatasetSize() {
+      const folderList = this.items.map(q => q.path);
+      getDatasetFolderSize(folderList).then(res => {
+        res.datas.forEach(data => {
+          const target = this.items.find(q => q.path === data.folder_path);
+          // target.size = data.size;
+
+          Vue.set(target, "size", data.size);
+        });
+
+        // this.listKey++;
+      });
+    },
+
+    getDatasetCount() {
+      const folderList = this.items.map(q => q.path);
+      getDatasetFileCount(folderList).then(res => {
+        res.datas.forEach(data => {
+          const target = this.items.find(q => q.path === data.folder_path);
+          // target.file_count = data.count;
+          Vue.set(target, "file_count", data.count);
+        });
+
+        // this.listKey++;
+      });
+    },
 
     pre() {
       this.$emit("prev");
