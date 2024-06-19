@@ -4,7 +4,7 @@ export async function getTargetList() {
   let response = null;
 
   try {
-    response = await axios.get("/api/target_read");
+    response = await axios.get("/api/targets/target_read");
   } catch (error) {
     throw new Error(error);
   }
@@ -35,7 +35,9 @@ export async function createTarget(param) {
   formData.append("host_service_port", param.host_service_port);
 
   try {
-    response = await axios.post("/api/target_create", formData, { headers: { "Content-Type": "multipart/form-data" } });
+    response = await axios.post("/api/targets/target_create", formData, {
+      headers: { "Content-Type": "multipart/form-data" }
+    });
   } catch (error) {
     throw new Error(error);
   }
@@ -67,7 +69,9 @@ export async function updateTarget(param) {
   formData.append("host_service_port", param.host_service_port);
 
   try {
-    response = await axios.post("/api/target_update", formData, { headers: { "Content-Type": "multipart/form-data" } });
+    response = await axios.post("/api/targets/target_update", formData, {
+      headers: { "Content-Type": "multipart/form-data" }
+    });
   } catch (error) {
     throw new Error(error);
   }
@@ -79,7 +83,7 @@ export async function deleteTarget(id) {
   let response = null;
 
   try {
-    response = await axios.delete("/api/target_delete", { data: { id: id } });
+    response = await axios.delete("/api/targets/target_delete", { data: { id: id } });
   } catch (error) {
     throw new Error(error);
   }
@@ -91,7 +95,7 @@ export async function getTargetInfo(id) {
   let response = null;
 
   try {
-    response = await axios.post("/api/target_info", { id: id });
+    response = await axios.post("/api/targets/target_info", { id: id });
   } catch (error) {
     throw new Error(error);
   }

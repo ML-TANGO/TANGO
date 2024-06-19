@@ -8,7 +8,7 @@ Todo:
 from django.urls import path, include,re_path
 from django.contrib import admin
 
-from . import views, viewsProject, viewsTarget, viewsDataset
+from . import views, viewsProject, viewsDataset
 
 from rest_framework import routers
 from rest_framework_jwt.views import obtain_jwt_token, verify_jwt_token, refresh_jwt_token
@@ -42,12 +42,6 @@ urlpatterns = [
     re_path(r'^dataset_check', viewsProject.dataset_check, name='dataset_check'),   # 데이터 셋 유효성 검사
 
     re_path(r'^get_server_ip', views.get_server_ip, name='get_server_ip'),          # 서버 IP 정보 획득
-
-    re_path(r'^target_create', viewsTarget.target_create, name='target_create'),    # 타겟 생성
-    re_path(r'^target_read', viewsTarget.target_read, name='target_read'),          # 타겟 조회 (리스트)
-    re_path(r'^target_update', viewsTarget.target_update, name='target_update'),    # 타겟 수정
-    re_path(r'^target_delete', viewsTarget.target_delete, name='target_delete'),    # 타겟 삭제
-    re_path(r'^target_info', viewsTarget.target_info, name='target_info'),    # 타겟 정보 가져오기
 
     re_path(r'^container_start', viewsProject.container_start, name='container_start'),       # 컨테이너 실행
     re_path(r'^status_result', viewsProject.status_result, name='status_result'),       # 컨테이너 실행 상태 확인
