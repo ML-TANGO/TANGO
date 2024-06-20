@@ -20,8 +20,8 @@ services:
     volumes:
       - ./project_manager:/code
       - shared:/shared
-      - ${COCODIR}:/shared/datasets/coco
-      - ${COCO128DIR}:/shared/datasets/coco128
+      - ${COCODIR:-./autonn/autonn/autonn_core/datasets/coco}:/shared/datasets/coco
+      - ${COCO128DIR:-./autonn/autonn/autonn_core/datasets/coco128}:/shared/datasets/coco128
       - /var/run/docker.sock:/var/run/docker.sock
     hostname: projectmanager
     ports:
@@ -106,8 +106,8 @@ services:
     volumes:
       - ./autonn/autonn:/source
       - shared:/shared
-      - ${COCODIR}:/shared/datasets/coco
-      - ${COCO128DIR}:/shared/datasets/coco128
+      - ${COCODIR:-./autonn/autonn/autonn_core/datasets/coco}:/shared/datasets/coco
+      - ${COCO128DIR:-./autonn/autonn/autonn_core/datasets/coco128}:/shared/datasets/coco128
     hostname: autonn
     ports:
       - "8100:8100"
@@ -361,24 +361,24 @@ services:
   #---------------------------------
   # Visualizer
   #---------------------------------
-  viz2code:
-    hostname: viz2code
-    build:
-      context: ./visualization
-    command: >
-      sh -c "cd ./visualization/frontend &&
-             npm run build &&
-             cd ..
-             python manage.py makemigrations &&
-             python manage.py migrate &&
-             python manage.py runserver react 0.0.0.0:8091"
-    volumes:
-      - ./visualization:/source
-      - shared:/shared
-    ports:
-      - "8091:8091"
-  #   depends_on:
-  #     - postgresql
+  # viz2code:
+  #   hostname: viz2code
+  #   build:
+  #     context: ./visualization
+  #   command: >
+  #     sh -c "cd ./visualization/frontend &&
+  #            npm run build &&
+  #            cd ..
+  #            python manage.py makemigrations &&
+  #            python manage.py migrate &&
+  #            python manage.py runserver react 0.0.0.0:8091"
+  #   volumes:
+  #     - ./visualization:/source
+  #     - shared:/shared
+  #   ports:
+  #     - "8091:8091"
+  # #   depends_on:
+  # #     - postgresql
 
   #---------------------------------
   # Volumes

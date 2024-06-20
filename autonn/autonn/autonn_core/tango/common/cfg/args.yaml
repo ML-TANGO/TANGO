@@ -1,0 +1,37 @@
+# args.yaml for Yolov7 
+weights: ''
+cfg: ''
+data: ''
+hyp: ''
+epochs: 1
+batch_size: -1
+img_size: [640, 640]
+rect: False
+resume: False
+nosave: False
+notest: False
+noautoanchor: False
+evolve: False
+bucket: ''
+cache_images: False
+image_weights: False
+device: ''
+multi_scale: False
+single_cls: False
+adam: False
+sync_bn: False
+local_rank: -1
+workers: 8
+project: 'runs/train'
+entity: None
+name: 'exp'
+exist_ok: False
+quad: False
+linear_lr: False
+label_smoothing: 0.0
+upload_dataset: False
+bbox_interval: -1
+save_period: -1
+artifact_alias: 'latest'
+freeze: [0]
+v5_metric: False

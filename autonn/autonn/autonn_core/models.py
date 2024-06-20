@@ -12,4 +12,6 @@ class Info(models.Model):
     task = models.CharField(blank=True, null=True, max_length=50, default='detection')
     status = models.CharField(blank=True, null=True, max_length=10, default='ready')
     process_id = models.CharField(blank=True, null=True, max_length=50)
+    model_type = models.CharField(blank=True, null=True, max_length=50, default='Not Selected')
+    model_size = models.CharField(blank=True, null=True, max_length=50, default='Not Selected')
 

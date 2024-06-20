@@ -1,0 +1,6 @@
+# ResNet32 Params
+layers:
+  - 5
+  - 5
+  - 5
+num_classes: 2
