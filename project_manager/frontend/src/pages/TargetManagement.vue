@@ -1,6 +1,6 @@
 <template>
   <v-card style="height: 100%; padding-right: 22px" class="py-5 pl-10">
-    <div style="height: calc(100vh - 90px); overflow: auto" class="mt-8">
+    <div style="height: calc(95vh - 90px); overflow: auto" class="mt-8">
       <div
         v-for="(item, index) in items"
         :key="index"

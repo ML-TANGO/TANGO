@@ -26,7 +26,8 @@ from rest_framework.response import Response
 from rest_framework.decorators import api_view, permission_classes, authentication_classes
 from oauth2_provider.contrib.rest_framework import OAuth2Authentication
 
-from .models import Project, AuthUser, Target, WorkflowOrder
+from .models import Project, AuthUser, WorkflowOrder
+from targets.models import Target
 
 from django.views.decorators.csrf import csrf_exempt, csrf_protect
 from django.forms.models import model_to_dict

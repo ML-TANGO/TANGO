@@ -86,11 +86,13 @@
   </div>
 </template>
 <script>
+import Vue from "vue";
+
 import DatasetCard from "@/modules/common/card/DatasetCard.vue";
 import TargetCard from "@/modules/common/card/TargetCard.vue";
 import SkeletonLoaderCard from "@/modules/common/card/SkeletonLoaderCard.vue";
 
-import { getTargetInfo, getDatasetListTango } from "@/api";
+import { getTargetInfo, getDatasetListTango, getDatasetFolderSize, getDatasetFileCount } from "@/api";
 export default {
   components: { DatasetCard, TargetCard, SkeletonLoaderCard },
 
@@ -172,6 +174,24 @@ export default {
           });
         }
       }
+    }
+  },
+
+  methods: {
+    getDatasetSize(folderList) {
+      getDatasetFolderSize(folderList).then(res => {
+        res.datas.forEach(data => {
+          Vue.set(this.selectedImage, "size", data.size);
+        });
+      });
+    },
+
+    getDatasetCount(folderList) {
+      getDatasetFileCount(folderList).then(res => {
+        res.datas.forEach(data => {
+          Vue.set(this.selectedImage, "file_count", data.count);
+        });
+      });
     }
   }
 };

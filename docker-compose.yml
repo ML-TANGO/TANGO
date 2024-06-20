@@ -11,6 +11,8 @@ services:
       sh -c "chmod 777 ./wait_for_postgres.sh &&
              ./wait_for_postgres.sh &&
              python manage.py makemigrations tango &&
+             python manage.py makemigrations datasets &&
+             python manage.py makemigrations targets &&
              python manage.py migrate &&
              python manage.py collectstatic --no-input &&
              python manage.py loaddata base_model_data.json &&
@@ -83,7 +85,7 @@ services:
   autonn:
     build:
       context: ./autonn/autonn
-    shm_size: '256M'
+    shm_size: "256M"
     ipc: host
     command: >
       sh -c "python manage.py makemigrations &&
@@ -113,32 +115,32 @@ services:
   #---------------------------------
   # Base Model Selector
   #---------------------------------
-  # bms:
-  #   build:
-  #     context: ./base_model_select
-  #   shm_size: '256M'
-  #   command: >
-  #     sh -c "python manage.py makemigrations &&
-  #            python manage.py migrate --run-syncdb &&
-  #            python manage.py runserver 0.0.0.0:8081"
-  #   deploy:
-  #     resources:
-  #       reservations:
-  #         devices:
-  #           - driver: nvidia
-  #             capabilities:
-  #               - gpu
-  #               - utility
-  #               - compute
-  #               - video
-  #   environment:
-  #     - NVIDIA_VISIBLE_DEVICES=${GPU_NUM:-all}
-  #   hostname: bms
-  #   volumes:
-  #     - ./base_model_select:/source
-  #     - shared:/shared
-  #   ports:
-  #     - "8081:8081"
+  bms:
+    build:
+      context: ./base_model_select
+    shm_size: "256M"
+    command: >
+      sh -c "python manage.py makemigrations &&
+             python manage.py migrate --run-syncdb &&
+             python manage.py runserver 0.0.0.0:8081"
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              capabilities:
+                - gpu
+                - utility
+                - compute
+                - video
+    environment:
+      - NVIDIA_VISIBLE_DEVICES=${GPU_NUM:-all}
+    hostname: bms
+    volumes:
+      - ./base_model_select:/source
+      - shared:/shared
+    ports:
+      - "8081:8081"
 
   # #---------------------------------
   # # AutoNN: Bakcbone-NAS
@@ -206,69 +208,69 @@ services:
   #---------------------------------
   # AutoNN: YoloE
   #---------------------------------
-  # autonn_yoloe:
-  #   build:
-  #     context: ./autonn/YoloE
-  #   shm_size: '256M'
-  #   ipc: host
-  #   command: >
-  #     sh -c "python manage.py pretrained_supernet &&
-  #            python manage.py makemigrations &&
-  #            python manage.py migrate &&
-  #            python manage.py runserver 0.0.0.0:8090"
-  #   # use the below lines commented out if you want to use gpu
-  #   deploy:
-  #     resources:
-  #       reservations:
-  #         devices:
-  #           - driver: nvidia
-  #             capabilities:
-  #               - gpu
-  #               - utility
-  #               - compute
-  #               - video
-  #   environment:
-  #     - NVIDIA_VISIBLE_DEVICES=${GPU_NUM:-all}
-  #   volumes:
-  #     - ./autonn/YoloE:/source
-  #     - shared:/shared
-  #     - ./autonn/YoloE/sample_yaml/dataset.yaml:/shared/datasets/coco/dataset.yaml # TEMP FILE UNTIL LABELLING MODULE WORKING
-  #     - ${COCODIR:-./autonn/YoloE/sample_data/coco128}:/shared/datasets/coco # TEMP FILE UNTIL LABELLING MODULE WORKING
-  #   hostname: yoloe
-  #   ports:
-  #     - "8090:8090"
+  autonn_yoloe:
+    build:
+      context: ./autonn/YoloE
+    shm_size: "256M"
+    ipc: host
+    command: >
+      sh -c "python manage.py pretrained_supernet &&
+             python manage.py makemigrations &&
+             python manage.py migrate &&
+             python manage.py runserver 0.0.0.0:8090"
+    # use the below lines commented out if you want to use gpu
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              capabilities:
+                - gpu
+                - utility
+                - compute
+                - video
+    environment:
+      - NVIDIA_VISIBLE_DEVICES=${GPU_NUM:-all}
+    volumes:
+      - ./autonn/YoloE:/source
+      - shared:/shared
+      - ./autonn/YoloE/sample_yaml/dataset.yaml:/shared/datasets/coco/dataset.yaml # TEMP FILE UNTIL LABELLING MODULE WORKING
+      - ${COCODIR:-./autonn/YoloE/sample_data/coco128}:/shared/datasets/coco # TEMP FILE UNTIL LABELLING MODULE WORKING
+    hostname: yoloe
+    ports:
+      - "8090:8090"
 
   #---------------------------------
   # AutoNN: ResNet
   #---------------------------------
-  # autonn_resnet:
-  #   build:
-  #     context: ./autonn/ResNet
-  #   shm_size: '256M'
-  #   ipc: host
-  #   command: >
-  #     sh -c "python manage.py makemigrations &&
-  #            python manage.py migrate &&
-  #            python manage.py runserver 0.0.0.0:8092"
-  #   # use the below lines commented out if you want to use gpu
-  #   deploy:
-  #     resources:
-  #       reservations:
-  #         devices:
-  #           - driver: nvidia
-  #             capabilities:
-  #               - gpu
-  #               - utility
-  #               - compute
-  #               - video
-  #   environment:
-  #     - NVIDIA_VISIBLE_DEVICES=all
-  #   volumes:
-  #     - ./autonn/ResNet:/source
-  #     - shared:/shared
-  #   hostname: autonn-resnet
-  #   ports:
-  #     - "8092:8092"
+  autonn_resnet:
+    build:
+      context: ./autonn/ResNet
+    shm_size: "256M"
+    ipc: host
+    command: >
+      sh -c "python manage.py makemigrations &&
+             python manage.py migrate &&
+             python manage.py runserver 0.0.0.0:8092"
+    # use the below lines commented out if you want to use gpu
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              capabilities:
+                - gpu
+                - utility
+                - compute
+                - video
+    environment:
+      - NVIDIA_VISIBLE_DEVICES=all
+    volumes:
+      - ./autonn/ResNet:/source
+      - shared:/shared
+    hostname: autonn-resnet
+    ports:
+      - "8092:8092"
 
   #---------------------------------
   # code_gen Build
