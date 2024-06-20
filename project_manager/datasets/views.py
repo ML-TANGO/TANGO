@@ -14,6 +14,7 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 import cv2
 import base64
 
+import multiprocessing
 import threading
 import time
 import zipfile
@@ -71,17 +72,12 @@ def get_dataset_list(request):
 def get_folders_size(request):
     try:
         folder_list = request.data['folder_list']
-        print(folder_list)
 
-        data = []
-        for folder_path in folder_list:
-            res = {
-                "folder_path": folder_path,
-                "size": get_dir_size(folder_path),
-            }
-            data.append(res)
+        num_processes = multiprocessing.cpu_count()
+        with multiprocessing.Pool(processes=num_processes) as pool:
+            results = pool.map(get_dir_size_handler, folder_list)
 
-        return HttpResponse(json.dumps({'status': 200, 'datas': data }))
+        return HttpResponse(json.dumps({'status': 200, 'datas': results }))
     except Exception as e:
         return HttpResponse(json.dumps({'status': 404}))
 
@@ -90,17 +86,12 @@ def get_folders_size(request):
 def get_folders_file_count(request):
     try:
         folder_list = request.data['folder_list']
-        print(folder_list)
 
-        data = []
-        for folder_path in folder_list:
-            res = {
-                "folder_path": folder_path,
-                "count": get_file_count(folder_path),
-            }
-            data.append(res)
+        num_processes = multiprocessing.cpu_count()
+        with multiprocessing.Pool(processes=num_processes) as pool:
+            results = pool.map(get_file_count, folder_list)
 
-        return HttpResponse(json.dumps({'status': 200, 'datas': data }))
+        return HttpResponse(json.dumps({'status': 200, 'datas': results }))
     except Exception as e:
         return HttpResponse(json.dumps({'status': 404}))        
     
@@ -132,6 +123,9 @@ def get_folder_info(folder_path):
         print("유효한 폴더 경로가 아닙니다.")
 
     return folder_info
+
+def get_dir_size_handler(path):
+    return {"folder_path": path, "size": get_dir_size(path)}
 
 def get_dir_size(path='.'):
     total = 0
@@ -201,7 +195,8 @@ def get_file_count(folder_path):
     file_count = 0
     for path, dirs, files in os.walk(folder_path):
         file_count += len(files)
-    return file_count
+    # return file_count
+    return { "folder_path": folder_path, "count": file_count}
 
 def get_folder_thumbnail(folder_path):
     """
