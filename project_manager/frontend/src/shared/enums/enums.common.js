@@ -128,3 +128,10 @@ export const TargetInfoList = [
     requiredFields: []
   }
 ];
+
+export const CommonDatasetName = Object.freeze({
+  IMAGE_NET: "imagenet",
+  CHESTXRAY: "ChestXRay",
+  VOC: "VOC",
+  COCO: "coco"
+});

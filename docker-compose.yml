@@ -11,6 +11,8 @@ services:
       sh -c "chmod 777 ./wait_for_postgres.sh &&
              ./wait_for_postgres.sh &&
              python manage.py makemigrations tango &&
+             python manage.py makemigrations datasets &&
+             python manage.py makemigrations targets &&
              python manage.py migrate &&
              python manage.py collectstatic --no-input &&
              python manage.py loaddata base_model_data.json &&
@@ -83,7 +85,7 @@ services:
   autonn:
     build:
       context: ./autonn/autonn
-    shm_size: '256M'
+    shm_size: "256M"
     ipc: host
     command: >
       sh -c "python manage.py makemigrations &&
@@ -116,7 +118,7 @@ services:
   bms:
     build:
       context: ./base_model_select
-    shm_size: '256M'
+    shm_size: "256M"
     command: >
       sh -c "python manage.py makemigrations &&
              python manage.py migrate --run-syncdb &&
@@ -209,7 +211,7 @@ services:
   autonn_yoloe:
     build:
       context: ./autonn/YoloE
-    shm_size: '256M'
+    shm_size: "256M"
     ipc: host
     command: >
       sh -c "python manage.py pretrained_supernet &&
@@ -244,7 +246,7 @@ services:
   autonn_resnet:
     build:
       context: ./autonn/ResNet
-    shm_size: '256M'
+    shm_size: "256M"
     ipc: host
     command: >
       sh -c "python manage.py makemigrations &&

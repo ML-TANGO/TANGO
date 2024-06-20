@@ -167,6 +167,8 @@ cython_debug/
 
 # migration files within Django framework based code
 project_manager/tango/migrations/*.py
+project_manager/targets/migrations/*.py
+project_manager/datasets/migrations/*.py
 
 # Visual Studio Code
 .vscode/

@@ -40,6 +40,8 @@ urlpatterns = [
 
     # 서버 주소 시작
     path('api/', include('tango.urls')),
+    path('api/datasets/', include('datasets.urls')),
+    path('api/targets/', include('targets.urls')),
     path('', include('tango.urls_other')),
 
     # 정적 파일 주소

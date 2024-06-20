@@ -124,7 +124,10 @@ export default {
       e.preventDefault();
       e.cancelBubble = true;
 
-      if (!this.currentPath.includes(address)) {
+      // if (!this.currentPath.includes(address)) {
+      //   this.$router.push(address);
+      // }
+      if (this.currentPath != address) {
         this.$router.push(address);
       }
     },
