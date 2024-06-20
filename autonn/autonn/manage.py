@@ -18,6 +18,11 @@ import sys
         │       ├─ views.py
         │       ├─ migrations
         │       │   └─ __init__.py
+        │       ├─ datasets
+        │       │   ├─ coco
+        │       │   ├─ coco128
+        │       │   ├─ imagenet
+        │       │   └─ voc
         │       └─ tango 💃 'tango' modules
         │           ├─ common
         │           │   ├─ cfg

@@ -119,50 +119,12 @@ def status_request(request):
                 info.save()
                 # print("_____failed(dead process)_______")
                 return Response("failed", status=status.HTTP_410_GONE, content_type='text/plain')
-    except KeyError:
+    except KeyError as e:
         print(f"[AutoNN GET/status_request] exception: {e}")
         info.status = "failed"
         info.save()
         # print("_____failed(empty process)_______")
         return Response("failed", status=status.HTTP_400_BAD_REQUEST, content_type='text/plain')
-
-
-def status_update(userid, project_id, update_id=None, update_content=None):
-    """
-        Update AutoNN status for P.M. to visualize the progress on their dashboard
-    """
-    try:
-        url = 'http://projectmanager:8085/status_update'
-        headers = {
-            'Content-Type' : 'text/json'
-        }
-        payload = {
-            'container_id' : "autonn",
-            'user_id' : userid,
-            'project_id' : project_id,
-            'update_id' : update_id,
-            'update_content' : update_content,
-        }
-        # response = requests.get(url, headers=headers, params=payload)
-        # temp printing
-        print("GET /status_update")
-        print(f"-------------{update_id}------------")
-        print(f"{update_content}")
-
-        # info = models.Info.objects.get(userid=userid, project_id=project_id)
-        # if update_id is in ['basemodel', 'model', 'model_summary',
-        #                     'train_dataset', 'val_dataset', 'anchor']:
-        #     info.progress = "setting"
-        # elif update_id is in ['train_start', 'train_loss', 'val_accuracy', 'train_end']:
-        #     info.progress = "training"
-        # elif update_id is in ['nas_start', 'evolution_search', 'nas_end',
-        #                       'fintune_start', 'finetue_loss', 'finetue_acc', 'finetune_end']:
-        #     info.progress = "nas"
-        # else
-        #     info.progress = "unknown"
-        # info.save()
-    except Exception as e:
-        print(f"[AutoNN status_update] exception: {e}")
 
 
 def status_report(userid, project_id, status="success"):
@@ -202,7 +164,7 @@ def process_autonn(userid, project_id):
     '''
     try:
         # ------- actual process --------
-        fanal_model = run_autonn(userid, project_id, viz="False", nas="False", hpo="False")
+        fanal_model = run_autonn(userid, project_id, viz2code="False", nas="False", hpo="False")
         # export_model(final_model, userid, project_id)
         # export_nn_info(userid, project_id)
         # status_report(userid, project_id, "completed")
