@@ -7,6 +7,9 @@ val: /shared/datasets/coco128/images/val2017  # 8 images
 # number of classes
 nc: 80
 
+# channels
+ch: 3 # rgb = 3, grey = 1
+
 # class names
 names: [ 'person', 'bicycle', 'car', 'motorcycle', 'airplane', 'bus', 'train', 'truck', 'boat', 'traffic light',
          'fire hydrant', 'stop sign', 'parking meter', 'bench', 'bird', 'cat', 'dog', 'horse', 'sheep', 'cow',
