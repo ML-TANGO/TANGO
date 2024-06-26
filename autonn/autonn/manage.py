@@ -26,16 +26,32 @@ import sys
         │       └─ tango 💃 'tango' modules
         │           ├─ common
         │           │   ├─ cfg
+        │           │   │    ├─ resnet
+        │           │   │    └─ yolov7
         │           │   └─ model
+        │           │        ├─ ofa_utils
+        │           │        ├─ __init__.py
+        │           │        ├─ common.py
+        │           │        ├─ dynamic_layer.py
+        │           │        ├─ dynamic_op.py
+        │           │        ├─ experimental.py
+        │           │        ├─ search_block.py
+        │           │        ├─ supernet_yolov7.py
+        │           │        ├─ yolo.py
+        │           │        └─ yolo_nas.py
         │           ├─ main
+        │           │   ├─ __init__.py
         │           │   ├─ classify.py
         │           │   ├─ detect.py
         │           │   ├─ export.py
         │           │   ├─ finetune.py
         │           │   ├─ search.py
         │           │   ├─ test.py
-        │           │   └─ train.py
+        │           │   ├─ train.py
+        │           │   └─ train_aux.py
         │           ├─ nas
+        │           │   ├─ predictors
+        │           │   └─ search_algorithm
         │           ├─ hpo
         │           ├─ viz
         │           │   ├─ binder.py
@@ -43,6 +59,7 @@ import sys
         │           │   ├─ layer_definition.py
         │           │   └─ node_edge.py
         │           └─ utils
+        │               ├─ __init__.py
         │               ├─ activations.py
         │               ├─ autoanchor.py
         │               ├─ autobatch.py
