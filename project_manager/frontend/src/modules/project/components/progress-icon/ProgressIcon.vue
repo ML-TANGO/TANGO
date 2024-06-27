@@ -52,6 +52,8 @@ export default {
           return RunningIcon;
         } else if (this.status === "completed") {
           return CompleteIcon;
+        } else if (this.status === "failed") {
+          return RunningIcon;
         } else {
           return DefaultIcon;
         }

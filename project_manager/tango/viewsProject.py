@@ -146,8 +146,10 @@ def status_request(request):
             response_log += get_log_container_name(container_id) + " 완료\n"
             response['response'] = "completed"
 
-        if response['response'] == 'completed':
-            queryset.container_status = 'completed'
+        # if response['response'] == 'completed':
+        #     queryset.container_status = 'completed'
+
+        queryset.container_status = response['response']
 
         update_project_log_file(user_id, project_id, response_log)
 
