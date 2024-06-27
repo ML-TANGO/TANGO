@@ -14,6 +14,7 @@ import socket
 import threading
 import requests
 import asyncio
+import shutil
 
 from datetime import datetime
 import time
@@ -545,10 +546,21 @@ def project_delete(request):
         _type_: _description_
     """
 
-    queryset = Project.objects.get(id=request.data['id'],
-                                   create_user=request.user)  # Project id로 검색
-    queryset.delete()
-
+    try:
+        queryset = Project.objects.get(id=request.data['id'],
+                                       create_user=request.user)  # Project id로 검색
+        queryset.delete()
+    
+        project_path = os.path.join(root_path, "shared/common/{0}/{1}".format(str(request.user),
+                                                                                 str(request.data['id'])))
+        
+        print(project_path)
+        shutil.rmtree(project_path)
+    except Exception as error:
+        print("project_delete -------------------")
+        print(error)
+    
+    
     return Response(status=200)
 
 
