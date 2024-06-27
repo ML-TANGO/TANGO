@@ -4,11 +4,11 @@ import os
 import sys
 
 """
-    src(autonn) 🚩 BASE_DIR
+    source(autonn) 🚩 BASE_DIR
         ├── Dockerfile
         ├── manage.py
         ├── requirement.txt
-        ├── autonn_core  🚩 CORE_DIR
+        ├── autonn_core
         │       ├─ __init__.py
         │       ├─ admin.py
         │       ├─ apps.py
@@ -18,19 +18,40 @@ import sys
         │       ├─ views.py
         │       ├─ migrations
         │       │   └─ __init__.py
+        │       ├─ datasets
+        │       │   ├─ coco
+        │       │   ├─ coco128
+        │       │   ├─ imagenet
+        │       │   └─ voc
         │       └─ tango 💃 'tango' modules
         │           ├─ common
         │           │   ├─ cfg
+        │           │   │    ├─ resnet
+        │           │   │    └─ yolov7
         │           │   └─ model
+        │           │        ├─ ofa_utils
+        │           │        ├─ __init__.py
+        │           │        ├─ common.py
+        │           │        ├─ dynamic_layer.py
+        │           │        ├─ dynamic_op.py
+        │           │        ├─ experimental.py
+        │           │        ├─ search_block.py
+        │           │        ├─ supernet_yolov7.py
+        │           │        ├─ yolo.py
+        │           │        └─ yolo_nas.py
         │           ├─ main
+        │           │   ├─ __init__.py
         │           │   ├─ classify.py
         │           │   ├─ detect.py
         │           │   ├─ export.py
         │           │   ├─ finetune.py
         │           │   ├─ search.py
         │           │   ├─ test.py
-        │           │   └─ train.py
+        │           │   ├─ train.py
+        │           │   └─ train_aux.py
         │           ├─ nas
+        │           │   ├─ predictors
+        │           │   └─ search_algorithm
         │           ├─ hpo
         │           ├─ viz
         │           │   ├─ binder.py
@@ -38,6 +59,7 @@ import sys
         │           │   ├─ layer_definition.py
         │           │   └─ node_edge.py
         │           └─ utils
+        │               ├─ __init__.py
         │               ├─ activations.py
         │               ├─ autoanchor.py
         │               ├─ autobatch.py
@@ -59,23 +81,14 @@ import sys
                 ├─ public
                 ├─ src
                 └─ package.json
-
-    tango module import usage :
-        'from tango.utils import autoanchor'
-        'import tango.viz as V'
-        'import tango.nas'
 """
-from pathlib import Path
-BASE_DIR = Path(__file__).resolve().parent # /src
-CORE_DIR = BASE_DIR / 'autonn_core' # /src/autonn_core
-sys.path.append(CORE_DIR)
-
 
 def main():
     """Run administrative tasks."""
     os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'config.settings')
     try:
         from django.core.management import execute_from_command_line
+
     except ImportError as exc:
         raise ImportError(
             "Couldn't import Django. Are you sure it's installed and "

@@ -1,0 +1,33 @@
+# VOC 2012 dataset  http://host.robots.ox.ac.uk/pascal/VOC by University of Oxford
+
+# download (optional)
+download: ./get_voc.sh
+
+# diretories
+train: /shared/datasets/voc/images/train2012
+val: /shared/datasets/voc/images/val2012
+
+# number of classes
+nc: 20
+
+# class names
+names: [ 'aeroplane', 
+         'bicycle', 
+         'bird', 
+         'boat',
+         'bottle',
+         'bus',
+         'car',
+         'cat',
+         'chair',
+         'cow',
+         'diningtable',
+         'dog',
+         'horse',
+         'motobike',
+         'person',
+         'pottedplant',
+         'sheep',
+         'sofa',
+         'train',
+         'tvmonitor'  ]

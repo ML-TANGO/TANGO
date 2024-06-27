@@ -1,0 +1,67 @@
+# Bottleneck, [3, 8, 36, 3]
+name: resnet152
+hyp: tiny
+imgsz: 640
+nc: 1000
+
+backbone:
+  [[-1, 1, nn.Conv2d, [64, 7, 2, 3, False]], #0
+   [-1, 1, nn.BatchNorm2d, [64]],
+   [-1, 1, nn.ReLU, [True]],
+   [-1, 1, nn.MaxPool2d, [3, 2, 1, 1, False, False]],
+   [-1, 1, Bottleneck, [64, 1, True,  1, 64, 1, None]], #4 - 1
+   [-1, 1, Bottleneck, [64, 1, False, 1, 64, 1, None]], #5 - 2
+   [-1, 1, Bottleneck, [64, 1, False, 1, 64, 1, None]], #6 - 3
+   [-1, 1, Bottleneck, [128, 2, True,  1, 64, 1, None]], #7  - 1
+   [-1, 1, Bottleneck, [128, 1, False, 1, 64, 1, None]], #8  - 2
+   [-1, 1, Bottleneck, [128, 1, False, 1, 64, 1, None]], #9  - 3
+   [-1, 1, Bottleneck, [128, 1, False, 1, 64, 1, None]], #10 - 4
+   [-1, 1, Bottleneck, [128, 1, False, 1, 64, 1, None]], #11 - 5
+   [-1, 1, Bottleneck, [128, 1, False, 1, 64, 1, None]], #12 - 6
+   [-1, 1, Bottleneck, [128, 1, False, 1, 64, 1, None]], #13 - 7
+   [-1, 1, Bottleneck, [128, 1, False, 1, 64, 1, None]], #14 - 8
+   [-1, 1, Bottleneck, [256, 2, True,  1, 64, 1, None]], #15 - 1
+   [-1, 1, Bottleneck, [256, 1, False, 1, 64, 1, None]], #16 - 2
+   [-1, 1, Bottleneck, [256, 1, False, 1, 64, 1, None]], #17 - 3
+   [-1, 1, Bottleneck, [256, 1, False, 1, 64, 1, None]], #18 - 4
+   [-1, 1, Bottleneck, [256, 1, False, 1, 64, 1, None]], #19 - 5
+   [-1, 1, Bottleneck, [256, 1, False, 1, 64, 1, None]], #20 - 6
+   [-1, 1, Bottleneck, [256, 1, False, 1, 64, 1, None]], #21 - 7
+   [-1, 1, Bottleneck, [256, 1, False, 1, 64, 1, None]], #22 - 8
+   [-1, 1, Bottleneck, [256, 1, False, 1, 64, 1, None]], #23 - 9
+   [-1, 1, Bottleneck, [256, 1, False, 1, 64, 1, None]], #24 - 10
+   [-1, 1, Bottleneck, [256, 1, False, 1, 64, 1, None]], #25 - 11
+   [-1, 1, Bottleneck, [256, 1, False, 1, 64, 1, None]], #26 - 12
+   [-1, 1, Bottleneck, [256, 1, False, 1, 64, 1, None]], #27 - 13
+   [-1, 1, Bottleneck, [256, 1, False, 1, 64, 1, None]], #28 - 14
+   [-1, 1, Bottleneck, [256, 1, False, 1, 64, 1, None]], #29 - 15
+   [-1, 1, Bottleneck, [256, 1, False, 1, 64, 1, None]], #30 - 16
+   [-1, 1, Bottleneck, [256, 1, False, 1, 64, 1, None]], #31 - 17
+   [-1, 1, Bottleneck, [256, 1, False, 1, 64, 1, None]], #32 - 18
+   [-1, 1, Bottleneck, [256, 1, False, 1, 64, 1, None]], #33 - 19
+   [-1, 1, Bottleneck, [256, 1, False, 1, 64, 1, None]], #34 - 20
+   [-1, 1, Bottleneck, [256, 1, False, 1, 64, 1, None]], #35 - 21
+   [-1, 1, Bottleneck, [256, 1, False, 1, 64, 1, None]], #36 - 22
+   [-1, 1, Bottleneck, [256, 1, False, 1, 64, 1, None]], #37 - 23
+   [-1, 1, Bottleneck, [256, 1, False, 1, 64, 1, None]], #38 - 24
+   [-1, 1, Bottleneck, [256, 1, False, 1, 64, 1, None]], #39 - 25
+   [-1, 1, Bottleneck, [256, 1, False, 1, 64, 1, None]], #40 - 26
+   [-1, 1, Bottleneck, [256, 1, False, 1, 64, 1, None]], #41 - 27
+   [-1, 1, Bottleneck, [256, 1, False, 1, 64, 1, None]], #42 - 28
+   [-1, 1, Bottleneck, [256, 1, False, 1, 64, 1, None]], #43 - 29
+   [-1, 1, Bottleneck, [256, 1, False, 1, 64, 1, None]], #44 - 30
+   [-1, 1, Bottleneck, [256, 1, False, 1, 64, 1, None]], #45 - 31
+   [-1, 1, Bottleneck, [256, 1, False, 1, 64, 1, None]], #46 - 32
+   [-1, 1, Bottleneck, [256, 1, False, 1, 64, 1, None]], #47 - 33
+   [-1, 1, Bottleneck, [256, 1, False, 1, 64, 1, None]], #48 - 34
+   [-1, 1, Bottleneck, [256, 1, False, 1, 64, 1, None]], #49 - 35
+   [-1, 1, Bottleneck, [256, 1, False, 1, 64, 1, None]], #50 - 36
+   [-1, 1, Bottleneck, [512, 2, True,  1, 64, 1, None]], #51 - 1
+   [-1, 1, Bottleneck, [512, 1, False, 1, 64, 1, None]], #52 - 2
+   [-1, 1, Bottleneck, [512, 1, False, 1, 64, 1, None]], #53 - 3
+  ]
+
+head:
+  [[-1, 1, nn.AdaptiveAvgPool2d, [1]], #54
+   [-1, 1, nn.Linear, [nc, True]], #55
+  ]
