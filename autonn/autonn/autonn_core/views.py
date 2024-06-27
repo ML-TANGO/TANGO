@@ -7,6 +7,8 @@ from rest_framework.decorators import api_view
 from rest_framework.response import Response
 import requests
 from . import models
+from .tango.main.select import run_autonn
+
 PROCESSES = {}
 
 @api_view(['GET', 'POST'])
@@ -18,7 +20,7 @@ def InfoList(request):
         infoList = models.Info.objects.all()
         return Response(infoList, status=HTTP_200_OK)
 
-    if request.method == 'POST':
+    elif request.method == 'POST':
         # Fetching the form data
         uploadedFile = request.FILES["data_yaml"]
         usrId = request.data['user_id']
@@ -117,7 +119,7 @@ def status_request(request):
                 info.save()
                 # print("_____failed(dead process)_______")
                 return Response("failed", status=status.HTTP_410_GONE, content_type='text/plain')
-    except KeyError:
+    except KeyError as e:
         print(f"[AutoNN GET/status_request] exception: {e}")
         info.status = "failed"
         info.save()
@@ -135,7 +137,7 @@ def status_report(userid, project_id, status="success"):
             'Content-Type' : 'text/plain'
         }
         payload = {
-            'container_id' : "yoloe",
+            'container_id' : "autonn",
             'user_id' : userid,
             'project_id' : project_id,
             'status' : status
@@ -161,15 +163,15 @@ def process_autonn(userid, project_id):
         status report
     '''
     try:
-        # basemodel = create_basemodel()
-        # final_model = run_autonn()
-        # export_model_weight()
-        # export_model_meta()
-        # status_report("completed")
+        # ------- actual process --------
+        fanal_model = run_autonn(userid, project_id, viz2code="False", nas="False", hpo="False")
+        # export_model(final_model, userid, project_id)
+        # export_nn_info(userid, project_id)
+        # status_report(userid, project_id, "completed")
 
         # ------- temp for test ---------
-        import time
-        time.sleep(15)
+        # import time
+        # time.sleep(15)
         status_report(userid, project_id, "completed")
         return
     except Exception as e:

@@ -198,6 +198,7 @@ autonn/neck_nas/neckNAS/ku/runs/
 autonn/YoloE/yoloe_core/migrations
 autonn/YoloE/runs/
 autonn/autonn/autonn_core/migrations
+autonn/autonn/runs/
 
 # BMS
 base_model_select/backend/migrations

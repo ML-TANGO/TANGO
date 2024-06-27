@@ -27,6 +27,15 @@ DEBUG = True
 
 ALLOWED_HOSTS = ['0.0.0.0', '*']
 
+# CORS_ALLOW_CREDENTIALS = True
+# CORS_ORIGIN_ALLOW_ALL = True
+
+# CORS_ALLOW_METHODS = [
+#     'GET',
+#     'POST',
+#     'DELETE',
+#     'PUT'
+# ]
 
 # Application definition
 
@@ -38,10 +47,12 @@ INSTALLED_APPS = [
     'django.contrib.messages',
     'django.contrib.staticfiles',
     'rest_framework',
+    # 'corsheaders',
     'autonn_core',
 ]
 
 MIDDLEWARE = [
+    # 'corsheaders.middleware.CorsMiddleware',
     'django.middleware.security.SecurityMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
     'django.middleware.common.CommonMiddleware',
@@ -101,6 +112,12 @@ AUTH_PASSWORD_VALIDATORS = [
     },
 ]
 
+# REST_FRAMEWORK = {
+#     'DEFAULT_PERMISSION_CLASSES': (
+#         'rest_framework.permissions.AllowAny',          # 모든 사용자 권한
+#         'rest_framework.permissions.IsAuthenticated',   # 인증된 사용자 권한
+#     ),
+# }
 
 # Internationalization
 # https://docs.djangoproject.com/en/5.0/topics/i18n/

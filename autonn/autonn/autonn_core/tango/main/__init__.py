@@ -1,0 +1,55 @@
+import os, sys
+import requests
+import json
+from pathlib import Path
+
+COMMON_ROOT = Path("/shared/common")
+DATASET_ROOT = Path("/shared/datasets")
+CORE_DIR = Path(__file__).resolve().parent.parent.parent # /source/autonn_core
+CFG_PATH = CORE_DIR / 'tango' / 'common' / 'cfg'
+
+# from autonn_core.models import Info
+from django.apps import apps
+Info = apps.get_model('autonn_core', 'Info')
+
+def status_update(userid, project_id, update_id=None, update_content=None):
+    """
+        Update AutoNN status for P.M. to visualize the progress on their dashboard
+    """
+    try:
+        url = 'http://projectmanager:8085/status_update'
+        headers = {
+            'Content-Type' : 'application/json'
+        }
+        payload = {
+            'container_id' : "autonn",
+            'user_id' : userid,
+            'project_id' : project_id,
+            'update_id' : update_id,
+            'update_content' : json.dumps(update_content),
+        }
+        response = requests.post(url, headers=headers, data=json.dumps(payload))
+        # temp printing
+        # import pprint
+        # print(f"_________POST /status_update [ {update_id} ]_________")
+        # pprint.pprint(update_content, indent=2, depth=3, compact=False)
+
+        info = Info.objects.get(userid=userid, project_id=project_id)
+        if update_id in ['project_info', 'hyperparameter', 'arguments', 'system',
+                         'basemodel', 'model', 'model_summary',
+                         'train_dataset', 'val_dataset', 'anchor']:
+            info.progress = "setting"
+        elif update_id in ['train_start', 'train_loss', 'val_accuracy', 'train_end']:
+            info.progress = "training"
+        elif update_id in ['nas_start', 'evolution_search', 'nas_end',
+                           'fintune_start', 'finetue_loss', 'finetue_acc', 'finetune_end']:
+            info.progress = "nas"
+        else:
+            info.progress = "unknown"
+        info.save()
+
+    except Exception as e:
+        print(f"[AutoNN status_update] exception: {e}")
+
+
+# __all__ = ['status_update']
