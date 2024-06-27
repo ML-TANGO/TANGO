@@ -116,7 +116,7 @@ def status_request(request):
         # log_str = str(queryset.current_log) 
         # log_str += response['request_info']
         response_log = log_str
-
+        
         if len(response['response']) > 50:
             queryset.save()
             return HttpResponse(json.dumps({'container': container_id, 'container_status': queryset.container_status, 'message':  get_log_container_name(container_id) + ": status_request - Error\n"}))
@@ -133,7 +133,7 @@ def status_request(request):
         if container_id != "imagedeploy":
             logs = get_docker_log_handler(queryset.container, queryset.last_logs_timestamp)
         else:
-            logs = get_docker_log_handler(queryset.target.target_info, queryset.last_logs_timestamp)
+            logs = get_docker_log_handler(get_deploy_container(queryset.target.target_info), queryset.last_logs_timestamp)
         
         queryset.last_logs_timestamp = time.mktime(datetime.now().timetuple()) + 1.0
         queryset.last_log_container = queryset.container

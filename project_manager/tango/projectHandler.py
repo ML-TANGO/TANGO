@@ -252,6 +252,26 @@ def get_deploy_host_port(deploy_type):
     else:
         # ondevice 등등.... 
         return "ondevice", "8891"
+    
+def get_deploy_container(deploy_type):
+    """
+    Get host name and port with target info for image deployment
+
+    Args:
+        deploy_type : deploy_type (Defined in shared/common/user_id/project_id/projct_info.yaml)
+
+    Returns:
+        host name, port
+    """
+
+    port = ''
+    if deploy_type == 'Cloud' :
+        return "cloud_deploy"
+    elif deploy_type == 'K8S' or deploy_type == 'K8S_Jetson_Nano':
+        return "kube_deploy"
+    else:
+        # ondevice 등등.... 
+        return "ondevice_deploy"
 #endregion
 
 
