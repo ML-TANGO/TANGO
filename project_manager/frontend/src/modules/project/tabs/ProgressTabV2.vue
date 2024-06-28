@@ -3,11 +3,25 @@
     <div>
       <div style="width: 100%" class="d-flex justify-center">
         <div style="gap: 15px" class="d-flex align-center">
-          <v-btn class="mb-3" color="#4a80ff" width="380" dark @click="menualCreate">
+          <v-btn
+            class="mb-3"
+            color="#4a80ff"
+            width="380"
+            dark
+            @click="menualCreate"
+            :disabled="projectInfo?.container_status === 'started' || projectInfo?.container_status === 'running'"
+          >
             Manually Generation of Neural Networks
           </v-btn>
 
-          <v-btn class="mb-3" color="#4a80ff" width="380" dark @click="autoCreate">
+          <v-btn
+            class="mb-3"
+            color="#4a80ff"
+            width="380"
+            dark
+            @click="autoCreate"
+            :disabled="projectInfo?.container_status === 'started' || projectInfo?.container_status === 'running'"
+          >
             Automatic Generation of Neural Networks
           </v-btn>
         </div>
@@ -175,6 +189,15 @@ export default {
     start(container) {
       const containerName = DisplayName[container];
 
+      if (this.project.container_status === "running" || this.project.container_status === "started") {
+        Swal.fire({
+          title: "이미 컨테이너가 실행 중입니다.",
+          icon: "error",
+          text: ""
+        });
+        return;
+      }
+
       Swal.fire({
         title: `${containerName}를 실행하시겠습니까?`,
         text: "",
@@ -186,15 +209,16 @@ export default {
         cancelButtonText: "취소"
       }).then(async result => {
         if (result.isConfirmed) {
+          this.SET_PROJECT({
+            container: container,
+            container_status: "started"
+          });
+
           this.$emit("restart", container);
           await updateProjectType(this.projectInfo.id, ProjectType.MANUAL);
           await this.containerStartRequest(container);
           this.SET_PROJECT({ project_type: ProjectType.MANUAL });
         }
-      });
-
-      this.SET_PROJECT({
-        container: container
       });
     },
 
