@@ -183,6 +183,12 @@ export default {
                   this.projectInfo = this.project;
                   this.$EventBus.$emit("logUpdate", res);
 
+                  if (res.container_status.toLowerCase() === "failed") {
+                    this.stopInterval();
+
+                    return;
+                  }
+
                   if (res.container === ContainerName.VISUALIZATION) {
                     if (res.container_status !== "running" && res.container_status !== "started") {
                       // VISUALIZATION 완료 경우
@@ -196,6 +202,7 @@ export default {
                       if (res.container === ContainerName.IMAGE_DEPLOY) {
                         this.$EventBus.$emit("nnModelDownload");
                       }
+                      return;
                     }
                   } else {
                     // todo auto일경우 구현
@@ -203,6 +210,7 @@ export default {
                       if (res.container_status !== "running" && res.container_status !== "started") {
                         this.stopInterval();
                         this.$EventBus.$emit("nnModelDownload");
+                        return;
                       }
                     }
                   }
@@ -229,7 +237,7 @@ export default {
     },
 
     restart(container) {
-      this.SET_PROJECT({ container: container, container_status: "" });
+      this.SET_PROJECT({ container: container, container_status: "started" });
       this.projectInfo = this.project;
 
       this.startInterval();
