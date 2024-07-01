@@ -14,6 +14,7 @@ import socket
 import threading
 import requests
 import asyncio
+import shutil
 
 from datetime import datetime
 import time
@@ -115,7 +116,7 @@ def status_request(request):
         # log_str = str(queryset.current_log) 
         # log_str += response['request_info']
         response_log = log_str
-
+        
         if len(response['response']) > 50:
             queryset.save()
             return HttpResponse(json.dumps({'container': container_id, 'container_status': queryset.container_status, 'message':  get_log_container_name(container_id) + ": status_request - Error\n"}))
@@ -132,7 +133,7 @@ def status_request(request):
         if container_id != "imagedeploy":
             logs = get_docker_log_handler(queryset.container, queryset.last_logs_timestamp)
         else:
-            logs = get_docker_log_handler(queryset.target.target_info, queryset.last_logs_timestamp)
+            logs = get_docker_log_handler(get_deploy_container(queryset.target.target_info), queryset.last_logs_timestamp)
         
         queryset.last_logs_timestamp = time.mktime(datetime.now().timetuple()) + 1.0
         queryset.last_log_container = queryset.container
@@ -145,8 +146,10 @@ def status_request(request):
             response_log += get_log_container_name(container_id) + " 완료\n"
             response['response'] = "completed"
 
-        if response['response'] == 'completed':
-            queryset.container_status = 'completed'
+        # if response['response'] == 'completed':
+        #     queryset.container_status = 'completed'
+
+        queryset.container_status = response['response']
 
         update_project_log_file(user_id, project_id, response_log)
 
@@ -545,10 +548,21 @@ def project_delete(request):
         _type_: _description_
     """
 
-    queryset = Project.objects.get(id=request.data['id'],
-                                   create_user=request.user)  # Project id로 검색
-    queryset.delete()
-
+    try:
+        queryset = Project.objects.get(id=request.data['id'],
+                                       create_user=request.user)  # Project id로 검색
+        queryset.delete()
+    
+        project_path = os.path.join(root_path, "shared/common/{0}/{1}".format(str(request.user),
+                                                                                 str(request.data['id'])))
+        
+        print(project_path)
+        shutil.rmtree(project_path)
+    except Exception as error:
+        print("project_delete -------------------")
+        print(error)
+    
+    
     return Response(status=200)
 
 
