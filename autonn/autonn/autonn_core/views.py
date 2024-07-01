@@ -1,24 +1,30 @@
 import json, yaml
 import multiprocessing as mp
 import random
+
 from django.shortcuts import render
+from django.views.decorators.csrf import csrf_exempt
 from rest_framework import viewsets, status
 from rest_framework.decorators import api_view
 from rest_framework.response import Response
 import requests
-from . import models
+
+from .models import Info, Node, Edge
+from .serializers import NodeSerializer, EdgeSerializer
 from .tango.main.select import run_autonn
 
 PROCESSES = {}
 
 @api_view(['GET', 'POST'])
+@csrf_exempt
 def InfoList(request):
     '''
-        General information list
+    List all autonn process information,
+    or create info for a new autonn process.
     '''
     if request.method == 'GET':
-        infoList = models.Info.objects.all()
-        return Response(infoList, status=HTTP_200_OK)
+        infoList = Info.objects.all()
+        return Response(infoList, status=status.HTTP_200_OK)
 
     elif request.method == 'POST':
         # Fetching the form data
@@ -31,7 +37,7 @@ def InfoList(request):
         prcId = request.data['process_id']
 
         # Saving the information in the database
-        updatedInfo = models.Info(
+        updatedInfo = Info(
             userid=usrId,
             project_id=prjId,
             target_device=target,
@@ -45,6 +51,57 @@ def InfoList(request):
         return Response("created", status=status.HTTP_201_CREATED)
 
 
+@api_view(['GET', 'POST'])
+@csrf_exempt
+def nodelist(request):
+    '''
+    List all nodes, or create a new node.
+    '''
+    # print('node')
+    if request.method == 'GET':
+        # print('get')
+        nodes = Node.objects.all()
+        serializer = NodeSerializer(nodes, many=True)
+        return Response(serializer.data)
+
+    elif request.method == "POST":
+        # print('post')
+        serializer = NodeSerializer(data=request.data)
+        if serializer.is_valid():
+            serializer.save()
+            return Response(serializer.data, status=status.HTTP_201_CREATED)
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+    # nodes = Node.objects.all()
+    # serializer = NodeSerializer(nodes, many=True)
+    # return Response(serializer.data)
+
+
+@api_view(['GET', 'POST'])
+@csrf_exempt
+def edgelist(request):
+    '''
+    List all edges, or create a new edge.
+    '''
+    # print('edge')
+    if request.method == 'GET':
+        # print('get')
+        edges = Edge.objects.all()
+        serializer = EdgeSerializer(edges, many=True)
+        return Response(serializer.data)
+
+    elif request.method == 'POST':
+        serializer = EdgeSerializer(data=request.data)
+        if serializer.is_valid():
+            serializer.save()
+            return Response(serializer.data, status=status.HTTP_201_CREATED)
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+    # edges = Edge.objects.all()
+    # serializer = EdgeSerializer(edges, many=True)
+    # return Response(serializer.data)
+
+
 @api_view(['GET'])
 def start(request):
     """
@@ -56,13 +113,13 @@ def start(request):
     project_id = params['project_id']
 
     try:
-        info = models.Info.objects.get(userid=userid, project_id=project_id)
+        info = Info.objects.get(userid=userid, project_id=project_id)
         if info.status in ['started', 'running']:
             # duplicate project
             return Response("failed", status=status.HTTP_406_NOT_ACCEPTABLE, content_type="text/plain")
-    except models.Info.DoesNotExist:
+    except Info.DoesNotExist:
         # new project
-        info = models.Info(userid=userid, project_id=project_id)
+        info = Info(userid=userid, project_id=project_id)
 
     try:
         # data_yaml, proj_yaml = get_user_requirements(userid, project_id)
@@ -96,9 +153,9 @@ def status_request(request):
     project_id = params['project_id']
 
     try:
-        info = models.Info.objects.get(userid=userid,
+        info = Info.objects.get(userid=userid,
                                           project_id=project_id)
-    except models.Info.DoesNotExist:
+    except Info.DoesNotExist:
         # empty project
         return Response("ready", status=status.HTTP_204_NO_CONTENT, content_type='text/plain')
 
@@ -144,7 +201,7 @@ def status_report(userid, project_id, status="success"):
         }
         response = requests.get(url, headers=headers, params=payload)
 
-        info = models.Info.objects.get(userid=userid, project_id=project_id)
+        info = Info.objects.get(userid=userid, project_id=project_id)
         info.status = status
         # process_done = PROCESSES.pop(str(info.process_id))
         # process_done.close()
@@ -179,7 +236,6 @@ def process_autonn(userid, project_id):
         status_report(userid, project_id, "failed")
 
 
-
 def get_process_id():
     """
         Assign a new random number into a process
@@ -191,3 +247,51 @@ def get_process_id():
         except KeyError:
             break
     return pr_num
+
+
+class NodeView(viewsets.ModelViewSet):
+    '''
+    Node View
+    '''
+    serializer_class = NodeSerializer
+    queryset = Node.objects.all()
+
+    def print_serializer(self):
+        '''
+        print serializer class
+        '''
+        print("Node serializer")
+
+    def print_objects(self):
+        '''
+        print objects
+        '''
+        print("Node objects")
+
+
+class EdgeView(viewsets.ModelViewSet):
+    # pylint: disable=too-many-ancestors
+    '''
+    Edge View
+    '''
+    serializer_class = EdgeSerializer
+    queryset = Edge.objects.all()
+
+    def print_serializer(self):
+        '''
+        print serializer class
+        '''
+        print("Edge serializer")
+
+    def print_objects(self):
+        '''
+        print objects
+        '''
+        print("Edge objects")
+
+
+
+
+
+
+

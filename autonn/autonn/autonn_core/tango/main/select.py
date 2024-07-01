@@ -1,49 +1,37 @@
-import os, sys
+import os
 import gc
 import time
-from copy import deepcopy
-from pathlib import Path
-from threading import Thread
 import shutil
 import argparse
 import yaml, json
 import logging
 
+from pathlib import Path
 COMMON_ROOT = Path("/shared/common")
 DATASET_ROOT = Path("/shared/datasets")
 CORE_DIR = Path(__file__).resolve().parent.parent.parent # /source/autonn_core
 CFG_PATH = CORE_DIR / 'tango' / 'common' / 'cfg'
 
 import numpy as np
-import torch.distributed as dist
+import torch
 import torch.nn as nn
-import torch.nn.functional as F
 import torch.optim as optim
 import torch.optim.lr_scheduler as lr_scheduler
-import torch.utils.data
-from torch.cuda import amp
-from torch.nn.parallel import DistributedDataParallel as DDP
+
 # from torch.utils.tensorboard import SummaryWriter
 from tensorboardX import SummaryWriter
-from tqdm import tqdm
-
 from . import status_update, Info
-from . import test  # import test.py to get mAP after each epoch
 from .train import train
-from common.models.experimental import attempt_load
-from common.models.yolo import Model
-from utils.autoanchor import check_anchors
-from utils.autobatch import get_batch_size_for_gpu
-from utils.datasets import create_dataloader
-from utils.general import labels_to_class_weights, increment_path, labels_to_image_weights, init_seeds, \
-    fitness, strip_optimizer, get_latest_run, check_dataset, check_file, check_git_status, check_img_size, \
-    check_requirements, print_mutation, set_logging, one_cycle, colorstr
-from utils.google_utils import attempt_download
-from utils.loss import ComputeLoss, ComputeLossOTA
-from utils.plots import plot_images, plot_labels, plot_results, plot_evolution
-from utils.torch_utils import ModelEMA, select_device, intersect_dicts, torch_distributed_zero_first, is_parallel
-from utils.wandb_logging.wandb_utils import WandbLogger, check_wandb_resume
-from .train_aux import run_yolo_aux
+from .visualize import Viz
+from tango.utils.general import (   increment_path,
+                                    fitness,
+                                    get_latest_run,
+                                    check_file,
+                                    print_mutation,
+                                    set_logging,
+                                    colorstr        )
+from tango.utils.plots import plot_evolution
+from tango.utils.wandb_logging.wandb_utils import check_wandb_resume
 
 
 TASK_TO_MODEL_TABLE = {
@@ -176,6 +164,11 @@ def base_model_select(userid, project_id, proj_info, manual_select=False):
     target_path = f'{PROJ_PATH}/basemodel.yaml'
     shutil.copy(source_path, target_path)
 
+    # construct nodes and edges
+    viz2coder = Viz(userid, project_id)
+    viz2coder.parse_model(target_path)
+    viz2coder.update()
+
     # for updating status (P.M)
     model_p = model.upper()
     size_p = size.replace('-', '').replace('_', '').upper()
@@ -187,6 +180,9 @@ def base_model_select(userid, project_id, proj_info, manual_select=False):
 
 
 def run_autonn(userid, project_id, viz2code=False, nas=False, hpo=False):
+    # Set Logging --------------------------------------------------------------
+    set_logging(int(os.environ['RANK']) if 'RANK' in os.environ else -1)
+
     # Load settings ------------------------------------------------------------
     proj_info, opt, hyp, basemodel, data = get_user_requirements(userid, project_id)
 
@@ -204,8 +200,7 @@ def run_autonn(userid, project_id, viz2code=False, nas=False, hpo=False):
         return run_autonn_aux(proj_path, dataset_yaml_path, data, target, train_mode, final_arch)
 
     # Set Logging --------------------------------------------------------------
-    set_logging(opt.global_rank)
-
+    # set_logging(opt.global_rank)
 
     # wandb_run = check_wandb_resume(opt)
     # if opt.resume and not wandb_run:

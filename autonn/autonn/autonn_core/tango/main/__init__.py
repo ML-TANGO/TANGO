@@ -1,20 +1,22 @@
 import os, sys
+sys.path.append(os.path.dirname(os.path.dirname(os.path.dirname(__file__))))
+
+from django.apps import apps
+Info = apps.get_model('autonn_core', 'Info')
+Node = apps.get_model('autonn_core', 'Node')
+Edge = apps.get_model('autonn_core', 'Edge')
+
 import requests
 import json
 from pathlib import Path
-
 COMMON_ROOT = Path("/shared/common")
 DATASET_ROOT = Path("/shared/datasets")
 CORE_DIR = Path(__file__).resolve().parent.parent.parent # /source/autonn_core
 CFG_PATH = CORE_DIR / 'tango' / 'common' / 'cfg'
 
-# from autonn_core.models import Info
-from django.apps import apps
-Info = apps.get_model('autonn_core', 'Info')
-
 def status_update(userid, project_id, update_id=None, update_content=None):
     """
-        Update AutoNN status for P.M. to visualize the progress on their dashboard
+    Update AutoNN status for P.M. to visualize the progress on their dashboard
     """
     try:
         url = 'http://projectmanager:8085/status_update'
@@ -42,7 +44,7 @@ def status_update(userid, project_id, update_id=None, update_content=None):
         elif update_id in ['train_start', 'train_loss', 'val_accuracy', 'train_end']:
             info.progress = "training"
         elif update_id in ['nas_start', 'evolution_search', 'nas_end',
-                           'fintune_start', 'finetue_loss', 'finetue_acc', 'finetune_end']:
+                           'fintune_start', 'finetune_loss', 'finetune_acc', 'finetune_end']:
             info.progress = "nas"
         else:
             info.progress = "unknown"

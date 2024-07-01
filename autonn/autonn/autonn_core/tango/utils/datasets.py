@@ -14,9 +14,9 @@ from threading import Thread
 
 import cv2
 import numpy as np
+from PIL import Image, ExifTags
 import torch
 import torch.nn.functional as F
-from PIL import Image, ExifTags
 from torch.utils.data import Dataset
 from tqdm import tqdm
 
@@ -26,13 +26,18 @@ from copy import deepcopy
 from torchvision.utils import save_image
 from torchvision.ops import roi_pool, roi_align, ps_roi_pool, ps_roi_align
 
-from autonn_core.tango.main import status_update
-
-import sys
-sys.path.append(os.path.dirname(__file__))
-from general import check_requirements, xyxy2xywh, xywh2xyxy, xywhn2xyxy, xyn2xy, segment2box, segments2boxes, \
-    resample_segments, clean_str
-from torch_utils import torch_distributed_zero_first
+from tango.main import status_update
+from tango.utils.general import (   check_requirements,
+                                    xyxy2xywh,
+                                    xywh2xyxy,
+                                    xywhn2xyxy,
+                                    xyn2xy,
+                                    segment2box,
+                                    segments2boxes,
+                                    resample_segments,
+                                    clean_str
+                                )
+from tango.utils.torch_utils import torch_distributed_zero_first
 
 # Parameters
 help_url = 'https://github.com/ultralytics/yolov5/wiki/Train-Custom-Data'
