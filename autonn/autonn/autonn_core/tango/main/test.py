@@ -1,7 +1,7 @@
 import argparse
 import logging
 import json
-import sys, os
+import os
 from pathlib import Path
 from threading import Thread
 
@@ -10,15 +10,27 @@ import torch
 import yaml
 from tqdm import tqdm
 
-sys.path.append(Path(__file__).parent.parent) # tango/
-from autonn_core.tango.common.models.experimental import attempt_load
-from autonn_core.tango.main import status_update
-from utils.datasets import create_dataloader
-from utils.general import coco80_to_coco91_class, check_dataset, check_file, check_img_size, check_requirements, \
-    box_iou, non_max_suppression, scale_coords, xyxy2xywh, xywh2xyxy, set_logging, increment_path, colorstr
-from utils.metrics import ap_per_class, ConfusionMatrix
-from utils.plots import plot_images, output_to_target, plot_study_txt
-from utils.torch_utils import select_device, time_synchronized, TracedModel
+from . import status_update, Info
+
+from tango.common.models.experimental import attempt_load
+from tango.utils.datasets import create_dataloader
+from tango.utils.general import (   coco80_to_coco91_class,
+                                    check_dataset,
+                                    check_file,
+                                    check_img_size,
+                                    check_requirements,
+                                    box_iou,
+                                    non_max_suppression,
+                                    scale_coords,
+                                    xyxy2xywh,
+                                    xywh2xyxy,
+                                    set_logging,
+                                    increment_path,
+                                    colorstr
+                                )
+from tango.utils.metrics import ap_per_class, ConfusionMatrix
+from tango.utils.plots import plot_images, output_to_target, plot_study_txt
+from tango.utils.torch_utils import select_device, time_synchronized, TracedModel
 
 logger = logging.getLogger(__name__)
 
@@ -236,9 +248,9 @@ def test(proj_info,
             Thread(target=plot_images, args=(img, output_to_target(out), paths, f, names), daemon=True).start()
 
         # Status update
-        val_acc['step'] = batch_i
+        val_acc['step'] = batch_i + 1
         val_acc['total_step'] = len(dataloader)
-        val_acc['time'] = f'{(t0 + t1) * 1E3:.1f} ms'
+        val_acc['time'] = f'{(t0 + t1):.1f} s'
         status_update(userid, project_id,
                       update_id="val_accuracy",
                       update_content=val_acc)

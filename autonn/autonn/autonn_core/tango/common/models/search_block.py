@@ -1,8 +1,8 @@
 import torch
 import torch.nn as nn
 
-from models.common import Conv, Concat
-from models.dynamic_op import DynamicConv2d, DynamicBatchNorm2d
+from tango.common.models.common import Conv, Concat
+from tango.common.models.dynamic_op import DynamicConv2d, DynamicBatchNorm2d
 
 
 class ELAN(nn.Module):

@@ -4,16 +4,16 @@ import sys
 from copy import deepcopy
 
 import os
-sys.path.append(os.path.dirname(os.path.dirname(__file__)))  # to run '$ python *.py' files in subdirectories
+# sys.path.append(os.path.dirname(os.path.dirname(__file__)))  # to run '$ python *.py' files in subdirectories
 
 import torch
-from models.common import *
-from models.experimental import *
-from utils.autoanchor import check_anchor_order
-from utils.general import make_divisible, check_file, set_logging
-from utils.torch_utils import time_synchronized, fuse_conv_and_bn, model_info, \
+from tango.common.models.common import *
+from tango.common.models.experimental import *
+from tango.utils.autoanchor import check_anchor_order
+from tango.utils.general import make_divisible, check_file, set_logging
+from tango.utils.torch_utils import time_synchronized, fuse_conv_and_bn, model_info, \
     model_summary, scale_img, initialize_weights, copy_attr
-from utils.loss import SigmoidBin
+from tango.utils.loss import SigmoidBin
 
 try:
     import thop  # for FLOPS computation

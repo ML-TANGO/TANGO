@@ -4,8 +4,9 @@ import gc
 import logging
 
 from copy import deepcopy
-from utils.general import colorstr
-from autonn_core.tango.main import status_update
+from tango.main import status_update
+from tango.utils.general import colorstr
+
 
 DEBUG = False
 PREFIX = colorstr('AutoBatch: ')

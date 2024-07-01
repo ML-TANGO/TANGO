@@ -1,7 +1,6 @@
-import argparse
 import logging
 import math
-import os, sys
+import os
 import gc
 import random
 import time
@@ -17,36 +16,48 @@ import torch.nn as nn
 import torch.nn.functional as F
 import torch.optim as optim
 import torch.optim.lr_scheduler as lr_scheduler
-import torch.utils.data
+# import torch.utils.data
 import yaml
 from torch.cuda import amp
 from torch.nn.parallel import DistributedDataParallel as DDP
-from torch.utils.tensorboard import SummaryWriter
 from tqdm import tqdm
 
 from . import status_update, Info
 from . import test  # import test.py to get mAP after each epoch
+from tango.common.models.experimental import attempt_load
+from tango.common.models.yolo import Model
+from tango.utils.autoanchor import check_anchors
+from tango.utils.autobatch import get_batch_size_for_gpu
+from tango.utils.datasets import create_dataloader
+from tango.utils.general import (   labels_to_class_weights,
+                                    labels_to_image_weights,
+                                    init_seeds,
+                                    fitness,
+                                    strip_optimizer,
+                                    check_dataset,
+                                    check_img_size,
+                                    one_cycle,
+                                    colorstr
+                                )
+from tango.utils.google_utils import attempt_download
+from tango.utils.loss import ComputeLoss, ComputeLossOTA
+from tango.utils.plots import   (   plot_images,
+                                    plot_labels,
+                                    plot_results,
+                                    plot_lr_scheduler
+                                )
+from tango.utils.torch_utils import (   ModelEMA,
+                                        select_device_and_info,
+                                        intersect_dicts,
+                                        torch_distributed_zero_first,
+                                        is_parallel,
+                                        time_synchronized
+                                    )
+from tango.utils.wandb_logging.wandb_utils import WandbLogger
 
-from common.models.experimental import attempt_load
-from common.models.yolo import Model
-from utils.autoanchor import check_anchors
-from utils.autobatch import get_batch_size_for_gpu
-from utils.datasets import create_dataloader
-from utils.general import labels_to_class_weights, increment_path, labels_to_image_weights, init_seeds, \
-                          fitness, strip_optimizer, get_latest_run, \
-                          check_dataset, check_file, check_git_status, check_img_size, check_requirements, \
-                          print_mutation, set_logging, one_cycle, colorstr
-from utils.google_utils import attempt_download
-from utils.loss import ComputeLoss, ComputeLossOTA
-from utils.plots import plot_images, plot_labels, plot_results, plot_evolution, plot_lr_scheduler
-from utils.torch_utils import ModelEMA, select_device_and_info, intersect_dicts, \
-                              torch_distributed_zero_first, is_parallel, time_synchronized
-from utils.wandb_logging.wandb_utils import WandbLogger, check_wandb_resume
-from .train_aux import run_yolo_aux
+# # YOLOv7-NAS
+from tango.common.models.supernet_yolov7 import YOLOSuperNet
 
-# YOLOv7-NAS
-from ..common.models.supernet_yolov7 import YOLOSuperNet
-from .search import run_search
 
 logger = logging.getLogger(__name__)
 
@@ -325,7 +336,7 @@ def train(proj_info, hyp, opt, data_dict, tb_writer=None):
     dataloader, dataset = create_dataloader(userid, project_id, train_path, imgsz, batch_size, gs, opt,
                                             hyp=hyp, augment=True, cache=opt.cache_images, rect=opt.rect, rank=rank,
                                             world_size=opt.world_size, workers=opt.workers,
-                                            image_weights=opt.image_weights, quad=opt.quad, prefix=colorstr('train'))
+                                            image_weights=opt.image_weights, quad=opt.quad, prefix='train')
     mlc = np.concatenate(dataset.labels, 0)[:, 0].max()  # max label class
     nb = len(dataloader)  # number of batches
     assert mlc < nc, 'Label class %g exceeds nc=%g in %s. Possible class labels are 0-%g' % (mlc, nc, opt.data, nc - 1)
@@ -335,7 +346,7 @@ def train(proj_info, hyp, opt, data_dict, tb_writer=None):
         testloader = create_dataloader(userid, project_id, test_path, imgsz_test, batch_size, gs, opt,  # testloader
                                        hyp=hyp, cache=opt.cache_images and not opt.notest, rect=True, rank=-1,
                                        world_size=opt.world_size, workers=opt.workers,
-                                       pad=0.5, prefix=colorstr('val'))[0]
+                                       pad=0.5, prefix='val')[0]
 
         if not opt.resume:
             labels = np.concatenate(dataset.labels, 0)
@@ -496,7 +507,7 @@ def train(proj_info, hyp, opt, data_dict, tb_writer=None):
                 # pbar.set_description(s)
 
                 mloss_list = mloss.to('cpu').numpy().tolist()
-                train_loss['epoch'] = epoch
+                train_loss['epoch'] = epoch + 1
                 train_loss['total_epoch'] = epochs
                 train_loss['gpu_mem'] = mem
                 train_loss['box'] = mloss_list[0]
@@ -504,9 +515,9 @@ def train(proj_info, hyp, opt, data_dict, tb_writer=None):
                 train_loss['cls'] = mloss_list[2]
                 train_loss['total'] = mloss_list[3]
                 train_loss['label'] = targets.shape[0]
-                train_loss['step'] = i
+                train_loss['step'] = i + 1
                 train_loss['total_step'] = nb
-                train_loss['time'] = (time_synchronized() - t_batch) / 3600
+                train_loss['time'] = f"{(time_synchronized() - t_batch):.1f} s"
                 status_update(userid, project_id,
                               update_id="train_loss",
                               update_content=train_loss)
