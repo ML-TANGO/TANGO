@@ -6,11 +6,8 @@ import yaml
 from scipy.cluster.vq import kmeans
 from tqdm import tqdm
 
-import os
-import sys
-sys.path.append(os.path.dirname(os.path.dirname(__file__)))
-from utils.general import colorstr
-from main import status_update
+from tango.utils.general import colorstr
+from tango.main import status_update
 
 logger = logging.getLogger(__name__)
 
@@ -46,7 +43,7 @@ def check_anchors(uid, pid, dataset, model, thr=4.0, imgsz=640):
     bpr, aat = metric(anchors)
     logger.info(f'anchors/target = {aat:.2f}, Best Possible Recall (BPR) = {bpr:.4f}')
     anchor_summary = {}
-    anchor_summary['ahchor2target_ratio'] = f"{aat:.2f}"
+    anchor_summary['anchor2target_ratio'] = f"{aat:.2f}"
     anchor_summary['best_possible_recall'] = f"{bpr:.4f}"
     status_update(uid, pid,
                   update_id="anchors",
