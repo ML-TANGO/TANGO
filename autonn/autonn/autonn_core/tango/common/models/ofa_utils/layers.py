@@ -6,9 +6,9 @@ import torch
 import torch.nn as nn
 
 from collections import OrderedDict
-from ofa_utils import get_same_padding, min_divisible_value, SEModule, ShuffleLayer
-from ofa_utils import MyNetwork, MyModule
-from ofa_utils import build_activation, make_divisible
+from . import get_same_padding, min_divisible_value, SEModule, ShuffleLayer
+from . import MyNetwork, MyModule
+from . import build_activation, make_divisible
 
 __all__ = [
     "set_layer_from_config",

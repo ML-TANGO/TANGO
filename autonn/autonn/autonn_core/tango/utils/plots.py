@@ -19,10 +19,8 @@ import yaml
 from PIL import Image, ImageDraw, ImageFont
 from scipy.signal import butter, filtfilt
 
-import sys
-sys.path.append(os.path.dirname(__file__))
-from general import xywh2xyxy, xyxy2xywh
-from metrics import fitness
+from tango.utils.general import xywh2xyxy, xyxy2xywh
+from tango.utils.metrics import fitness
 
 # Settings
 matplotlib.rc('font', **{'size': 11})

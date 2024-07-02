@@ -11,13 +11,11 @@ import torch.nn.functional as F
 from torchvision.ops import DeformConv2d
 from PIL import Image
 from torch.cuda import amp
-import os
-import sys
-sys.path.append(os.path.dirname(os.path.dirname(os.path.dirname(__file__))) + '/utils')
-from datasets import letterbox
-from general import non_max_suppression, make_divisible, scale_coords, increment_path, xyxy2xywh
-from plots import color_list, plot_one_box
-from torch_utils import time_synchronized
+
+from tango.utils.datasets import letterbox
+from tango.utils.general import non_max_suppression, make_divisible, scale_coords, increment_path, xyxy2xywh
+from tango.utils.plots import color_list, plot_one_box
+from tango.utils.torch_utils import time_synchronized
 
 
 ##### basic ####

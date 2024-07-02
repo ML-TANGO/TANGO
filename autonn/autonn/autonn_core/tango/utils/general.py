@@ -1,4 +1,4 @@
-# YOLOR general utils
+# TANGO general utils
 
 import glob
 import logging
@@ -18,11 +18,9 @@ import torch
 import torchvision
 import yaml
 
-import sys
-sys.path.append(os.path.dirname(os.path.dirname(__file__)))
-from utils.google_utils import gsutil_getsize
-from utils.metrics import fitness
-from utils.torch_utils import init_torch_seeds
+from tango.utils.google_utils import gsutil_getsize
+from tango.utils.metrics import fitness
+from tango.utils.torch_utils import init_torch_seeds
 
 # Settings
 torch.set_printoptions(linewidth=320, precision=5, profile='long')
@@ -35,7 +33,7 @@ logger = logging.getLogger(__name__)
 
 def set_logging(rank=-1):
     logging.basicConfig(
-        format="%(message)s",
+        format="[%(asctime)s] %(message)s",
         level=logging.WARN)
         # level=logging.INFO if rank in [-1, 0] else logging.WARN)
 

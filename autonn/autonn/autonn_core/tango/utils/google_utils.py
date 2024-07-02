@@ -10,6 +10,7 @@ import requests
 import torch
 
 
+
 def gsutil_getsize(url=''):
     # gs://bucket/file size https://cloud.google.com/storage/docs/gsutil/commands/du
     s = subprocess.check_output(f'gsutil du {url}', shell=True).decode('utf-8')
