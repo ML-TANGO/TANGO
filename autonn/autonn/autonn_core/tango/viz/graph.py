@@ -7,11 +7,13 @@ from __future__ import division
 from __future__ import print_function
 from __future__ import unicode_literals
 
-from tkinter import messagebox
+# from tkinter import messagebox
+import logging
 from copy import deepcopy
 
 import torch.nn as nn
 
+logger = logging.getLogger(__name__)
 
 # adadjacencylist: 연결되었든, 안되었든 노드들의 ID와 연결정보 담고 있음.
 # ex) 1: [3] -> 1번 노드와 3번 노드가 연결되어있음.
@@ -73,7 +75,7 @@ class CGraph:
             self.nodes.update({node.id_: node})
             self.adadjacencylist.update({node.id_: []})
         else:
-            print('Node already exists')
+            logger.warn('Node already exists')
 
     def editnode(self, _id,  # pylint: disable-msg=too-many-arguments
                  _type=None, params=None, status=True):
@@ -86,11 +88,12 @@ class CGraph:
                 node.setparams(params)
             except BaseException:  # pylint: disable-msg=broad-except
                 # log("Invalid Parameters - params are not dictionary")
-                messagebox.showerror('Invalid Parameters',
-                                     "Please enter parameters as "
-                                     + "a valid dictionary."
-                                     + "\ne.g. {'kernel_size': (2, 2), "
-                                     + "'stride': (2, 2), 'padding': (0, 0)}")
+                # messagebox.showerror('Invalid Parameters',
+                #                      "Please enter parameters as "
+                #                      + "a valid dictionary."
+                #                      + "\ne.g. {'kernel_size': (2, 2), "
+                #                      + "'stride': (2, 2), 'padding': (0, 0)}")
+                logger.warn(f"Invalid Parameters - params are not dictionary")
 
         if status == 'setactive':
             node.status = True
@@ -373,9 +376,9 @@ class CNode:
 
     def getdetails(self):
         """A dummy docstring."""
-        print("--------------")
-        print(self.type_)
-        print(self.learned_params)
+        logger.info("--------------")
+        logger.info(self.type_)
+        logger.info(self.learned_params)
 
 
 class CEdge:  # pylint: disable-msg=too-few-public-methods
@@ -409,16 +412,16 @@ class CTest():  # pylint: disable-msg=too-few-public-methods
         graph_obj = CGraph(graph).normalize()
         order = graph_obj.topological_sort()
 
-        print(order)
+        # print(order)
         return order
 
 
 class CShow2():
     """A dummy docstring."""
     def __init__(self):
-        print("shsshshshshshow")
+        # print("shsshshshshshow")
         self.test_branches()
-        print("order")
+        # print("order")
         return str(0)
     '''
     def test_branches(self):
@@ -449,7 +452,7 @@ class CShow2():
     def test_branches(self):
         """A dummy docstring."""
         graph = CGraph()
-        print("shsshshshshshow")
+        # print("shsshshshshshow")
         graph.addnode(CNode("Bottleneck1", type_="Bottleneck",
                             params={'inplanes': 28*28, 'planes': 10, 'stride': (1, 1), 'downsample': None,
                                     'groups': 1, 'base_width': 64, 'dilation': 1, 'norm_layer': None}))
@@ -460,5 +463,5 @@ class CShow2():
         graph.addedge(CEdge("Bottleneck1", "BasicBlock1"))
 
         order = graph.topological_sort()
-        print(order)
+        # print(order)
         return order

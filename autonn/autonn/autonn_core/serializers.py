@@ -5,6 +5,7 @@ from rest_framework import serializers
 
 from .models import Node
 from .models import Edge
+from .models import Pth
 
 
 class NodeSerializer(serializers.ModelSerializer):
@@ -16,4 +17,10 @@ class NodeSerializer(serializers.ModelSerializer):
 class EdgeSerializer(serializers.ModelSerializer):
     class Meta:
         model = Edge
+        fields = '__all__'
+
+
+class PthSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Pth
         fields = '__all__'

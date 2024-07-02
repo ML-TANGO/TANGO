@@ -1,21 +1,19 @@
 """
 high level support for doing this and that.
 """
+import logging
+
 import torch
 from torch import nn
 import torchvision.models.resnet as resnet
 
-TANGO_ROOT = Path(__file__).resolve().parent.parent # /source/autonn_core/tango
-sys.path.append(TANGO_ROOT)
-from tango.common.models.common import Concat, Shortcut
-from tango.common.models.common import ReOrg
-from tango.common.models.common import DownC, SPPCSPC
-from tango.common.models.common import MP, SP
-from tango.common.models.common import Conv
-from tango.common.models.common import IDetect
+from tango.common.models.common import (Concat, Shortcut, ReOrg, DownC, SPPCSPC,
+                                        MP, SP, Conv)
+from tango.common.models.yolo import IDetect
 
 # from PyBinderCustom import *
 
+logger = logging.getLogger(__name__)
 
 class CPyBinder:
     """A dummy docstring."""
@@ -394,7 +392,7 @@ class CPyBinder:
                 n__ = IDetect(nc, anchors, ch)
             else:
                 # n__ = NotImplemented(name)
-                print('Not Implement', name)
+                logger.warn('Not Implement', name)
                 # Group or Sequential nodes
                 # if node.group == True:
                 #    n = self.exportmodel(subgraph)
@@ -407,7 +405,7 @@ class CPyBinder:
     def load(self, path):
         """A dummy docstring."""
         model = torch.load(path)
-        print(model)
+        logger.info(model)
         return model
 
 #     def importModel(self, model):

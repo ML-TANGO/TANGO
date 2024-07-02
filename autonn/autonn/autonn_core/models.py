@@ -2,7 +2,7 @@ from django.db import models
 
 class Info(models.Model):
     '''
-        General information for an AutoNN project
+    General information for an AutoNN project
     '''
     # ID -----------------------------------------------------------------------
     id = models.AutoField(primary_key=True)
@@ -26,10 +26,15 @@ class Info(models.Model):
     batch_multiplier = models.FloatField(blank=True, default=1.0)
     epoch = models.IntegerField(blank=True, null=True)
 
+    def __str__(self):
+        uid = str(self.userid)
+        pid = str(self.project_id)
+        return uid + '/' + pid
+
 
 class Node(models.Model):
     '''
-        nn.Module (Nueral Network Module) as a node
+    nn.Module (Nueral Network Module) as a node
     '''
     objects = models.Manager()
     order = models.IntegerField(primary_key=True)
@@ -39,10 +44,23 @@ class Node(models.Model):
 
 class Edge(models.Model):
     '''
-        Connection among nn.Modules as an edge
+    Connection among nn.Modules as an edge
     '''
     objects = models.Manager()
     id = models.IntegerField(primary_key=True)
     prior = models.IntegerField()
     next = models.IntegerField()
+
+
+class Pth(models.Model):
+    '''
+    PyTorch model generated from Viz
+    '''
+    # ID -----------------------------------------------------------------------
+    userid = models.CharField(blank=True, null=True, max_length=50, default='')
+    project_id = models.CharField(blank=True, null=True, max_length=50, default='')
+
+    # from Viz -----------------------------------------------------------------
+    model_pth = models.CharField(blank=True, null=True, max_length=200, default='')
+    model_yml = models.CharField(blank=True, null=True, max_length=200, default='')
 
