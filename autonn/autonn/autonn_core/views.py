@@ -9,8 +9,9 @@ from rest_framework.decorators import api_view
 from rest_framework.response import Response
 import requests
 
-from .models import Info, Node, Edge
-from .serializers import NodeSerializer, EdgeSerializer
+from .models import Info, Node, Edge, Pth
+from .serializers import NodeSerializer, EdgeSerializer, PthSerializer
+
 from .tango.main.select import run_autonn
 
 PROCESSES = {}
@@ -28,32 +29,32 @@ def InfoList(request):
 
     elif request.method == 'POST':
         # Fetching the form data
-        uploadedFile = request.FILES["data_yaml"]
         usrId = request.data['user_id']
         prjId = request.data['project_id']
+        prcId = request.data['process_id']
         target = request.data['target']
+        # uploadedFile = request.FILES["data_yaml"]
         task = request.data['task']
         sts = request.data['status']
-        prcId = request.data['process_id']
 
         # Saving the information in the database
-        updatedInfo = Info(
+        newInfo = Info(
             userid=usrId,
             project_id=prjId,
+            process_id=prcId,
             target_device=target,
-            data_yaml=uploadedFile,
+            # data_yaml=uploadedFile,
             task=task,
             status=sts,
-            process_id=prcId
         )
-        updatedInfo.save()
+        newInfo.save()
 
         return Response("created", status=status.HTTP_201_CREATED)
 
 
 @api_view(['GET', 'POST'])
 @csrf_exempt
-def nodelist(request):
+def node_list(request):
     '''
     List all nodes, or create a new node.
     '''
@@ -79,7 +80,7 @@ def nodelist(request):
 
 @api_view(['GET', 'POST'])
 @csrf_exempt
-def edgelist(request):
+def edge_list(request):
     '''
     List all edges, or create a new edge.
     '''
@@ -102,10 +103,52 @@ def edgelist(request):
     # return Response(serializer.data)
 
 
+@api_view(['GET', 'POST'])
+@csrf_exempt
+def pth_list(request):
+    '''
+    Make a PyTorch Model generated with Viz
+    '''
+    if request.method == 'GET':
+        pth = Pth.objects.all()
+        serializer = PathSerializer(pth, many=True)
+        return Response(serializer.data)
+
+    elif request.method == 'POST':
+        # id -------------------------------------------------------------------
+        infos = Info.objects.all()
+        info = infos[-1] # tenace note: it is rational, assuming only one and the latest project is running
+        userid = info.user_id
+        project_id = info.project_id
+        PROJ_PATH = '/shared/common/'+str(userid)+'/'+str(project_id)
+
+        # basemodel.pt ---------------------------------------------------------
+        created_model = export_pth()
+        # file_path = (os.getcwd() + '/model_' + name + '.pt').replace("\\", '/')
+        file_path = PROJ_PATH+'/basemodel.pth'
+        torch.save(created_model, file_path)
+
+        # basemodel.yaml -------------------------------------------------------
+        created_yaml = export_yml()
+        yaml_path = PROJ_PATH+'/basemodel.yml'
+        with open(yaml_path, 'w') as f:
+                    yaml.dump(created_yaml, f)
+
+        # DB create ------------------------------------------------------------
+        serializer = PthSerializer(data={'userid': userid,
+                                         'project_id': project_id,
+                                         'model_pth': file_path,
+                                         'model_yml': yaml_path})
+        if serializer.is_valid():
+            serializer.save()
+            return Response(serializer.data, status=status.HTTP_201_CREATED)
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+
 @api_view(['GET'])
 def start(request):
     """
-        API for project manager having autonn start
+    API for project manager having autonn start
     """
     # print("_________GET /start_____________")
     params = request.query_params
@@ -145,7 +188,7 @@ def start(request):
 @api_view(['GET'])
 def status_request(request):
     """
-        API for project manager pooling autonn status
+    API for project manager pooling autonn status
     """
     # print("_________GET /status_request_____________")
     params = request.query_params
@@ -186,7 +229,7 @@ def status_request(request):
 
 def status_report(userid, project_id, status="success"):
     """
-        Report status to project manager when the autonn process ends
+    Report status to project manager when the autonn process ends
     """
     try:
         url = 'http://projectmanager:8085/status_report'
@@ -213,11 +256,9 @@ def status_report(userid, project_id, status="success"):
 
 def process_autonn(userid, project_id):
     '''
-        select basemodel
-        run autonn (setup - train - nas - hpo)
-        export weights
-        export neural net info
-        status report
+    1. Run autonn (setup w/bms - pre-train - nas - hpo - train - test)
+    2. Export model weights and architecure (pt, yaml)
+    3. Report status to PM (completed / failed)
     '''
     try:
         # ------- actual process --------
@@ -238,7 +279,7 @@ def process_autonn(userid, project_id):
 
 def get_process_id():
     """
-        Assign a new random number into a process
+    Assign a new random number into a process
     """
     while True:
         pr_num = str(random.randint(100000, 999999))
@@ -270,7 +311,6 @@ class NodeView(viewsets.ModelViewSet):
 
 
 class EdgeView(viewsets.ModelViewSet):
-    # pylint: disable=too-many-ancestors
     '''
     Edge View
     '''
@@ -290,8 +330,22 @@ class EdgeView(viewsets.ModelViewSet):
         print("Edge objects")
 
 
+class PthView(viewsets.ModelViewSet):
+    # pylint: disable=too-many-ancestors
+    '''
+    Pth View
+    '''
+    serializer_class = PthSerializer
+    queryset = Pth.objects.all()
 
+    def print_serializer(self):
+        '''
+        print serializer class
+        '''
+        print("Pth serializer")
 
-
-
-
+    def print_objects(self):
+        '''
+        print objects
+        '''
+        print("Pth objects")

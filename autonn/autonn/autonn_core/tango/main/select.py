@@ -22,7 +22,7 @@ import torch.optim.lr_scheduler as lr_scheduler
 from tensorboardX import SummaryWriter
 from . import status_update, Info
 from .train import train
-from .visualize import Viz
+from .visualize import BasemodelViewer
 from tango.utils.general import (   increment_path,
                                     fitness,
                                     get_latest_run,
@@ -165,9 +165,9 @@ def base_model_select(userid, project_id, proj_info, manual_select=False):
     shutil.copy(source_path, target_path)
 
     # construct nodes and edges
-    viz2coder = Viz(userid, project_id)
-    viz2coder.parse_model(target_path)
-    viz2coder.update()
+    viewer = BasemodelViewer(userid, project_id)
+    viewer.parse_yaml(target_path)
+    viewer.update()
 
     # for updating status (P.M)
     model_p = model.upper()

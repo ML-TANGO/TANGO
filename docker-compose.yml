@@ -1,4 +1,4 @@
-version: "3"
+# version: "3"
 
 services:
   #---------------------------------
@@ -20,8 +20,8 @@ services:
     volumes:
       - ./project_manager:/code
       - shared:/shared
-      # - ${COCODIR:-./autonn/autonn/autonn_core/datasets/coco}:/shared/datasets/coco
-      # - ${COCO128DIR:-./autonn/autonn/autonn_core/datasets/coco128}:/shared/datasets/coco128
+      - ${COCODIR:-./autonn/autonn/autonn_core/datasets/coco}:/shared/datasets/coco
+      - ${COCO128DIR:-./autonn/autonn/autonn_core/datasets/coco128}:/shared/datasets/coco128
       - /var/run/docker.sock:/var/run/docker.sock
     hostname: projectmanager
     ports:
@@ -315,34 +315,33 @@ services:
   #---------------------------------
   # K8S deploy
   #---------------------------------
-  kube_deploy:
-    hostname: kube-deploy
-    build:
-      context: ./deploy_targets/k8s
-    container_name: "tango_k8s"
-    privileged: true
-    command: bash -c "cd /app && python3 k8s_deploy.py"
-    volumes:
-      - $HOME/.kube:/home/root/.kube
-      - shared:/app/tango
-      - ./deploy_targets/k8s:/app
-      - /var/run/docker.sock:/var/run/docker.sock
-    environment:
-      - "HOME=/home/root"
-    ports:
-      - "8901:8901"
+  # kube_deploy:
+  #   hostname: kube-deploy
+  #   build:
+  #     context: ./deploy_targets/k8s
+  #   container_name: "tango_k8s"
+  #   privileged: true
+  #   command: bash -c "cd /app && python3 k8s_deploy.py"
+  #   volumes:
+  #     - $HOME/.kube:/home/root/.kube
+  #     - shared:/app/tango
+  #     - ./deploy_targets/k8s:/app
+  #     - /var/run/docker.sock:/var/run/docker.sock
+  #   environment:
+  #     - "HOME=/home/root"
+  #   ports:
+  #     - "8901:8901"
 
   #---------------------------------
   # K8S docker registry(image manager)
   #---------------------------------
-
-  registry:
-    image: registry
-    container_name: registry
-    volumes:
-      - registry_data:/var/lib/registry/docker/registry/v2
-    ports:
-      - "8903:5000"
+  # registry:
+  #   image: registry
+  #   container_name: registry
+  #   volumes:
+  #     - registry_data:/var/lib/registry/docker/registry/v2
+  #   ports:
+  #     - "8903:5000"
 
   #---------------------------------
   # ondevice_deploy Build

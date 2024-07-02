@@ -5,6 +5,7 @@ from django.apps import apps
 Info = apps.get_model('autonn_core', 'Info')
 Node = apps.get_model('autonn_core', 'Node')
 Edge = apps.get_model('autonn_core', 'Edge')
+Pth  = apps.get_model('autonn_core', 'Pth' )
 
 import requests
 import json
