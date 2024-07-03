@@ -54,7 +54,7 @@
     <div class="d-flex align-center" style="gap: 60px; height: 100%">
       <div class="d-flex flex-column text-center">
         <small class="mb-2" style="letter-spacing: 1px; color: #aaa; font-size: 11px">FILES</small>
-        <p class="ma-0" style="font-size: 14px">{{ item?.file_count || "-" }}</p>
+        <p class="ma-0" style="font-size: 14px">{{ item?.file_count?.toLocaleString() || "-" }}</p>
       </div>
       <div class="d-flex flex-column text-center">
         <small class="mb-2" style="letter-spacing: 1px; color: #aaa; font-size: 11px">SIZE</small>

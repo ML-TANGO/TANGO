@@ -28,6 +28,18 @@ export const ObjectType = {
   S: "Segmentation"
 };
 
+export const ProjectRequiredColumn = [
+  "dataset",
+  "target_id",
+  "target_id",
+  "task_type",
+  "nas_type",
+  "deploy_weight_level",
+  "deploy_precision_level",
+  "deploy_user_edit",
+  "deploy_output_method"
+];
+
 export const ContainerName = {
   BMS: "bms",
   AUTO_NN: "autonn",
@@ -134,4 +146,23 @@ export const CommonDatasetName = Object.freeze({
   CHESTXRAY: "ChestXRay",
   VOC: "VOC",
   COCO: "coco"
+});
+
+export const DatasetStatus = Object.freeze({
+  NONE: 1,
+  DOWNLOADING: 2,
+  COMPLETE: 3
+});
+
+export const ProjectStatus = Object.freeze({
+  PREPARING: "preparing",
+  FAILED: "failed",
+  RUNNING: "running",
+  COMPLETED: "completed"
+});
+
+export const ViewerMode = Object.freeze({
+  TEXT: "text",
+  CHART: "chart",
+  MODEL_VIEW: "model_view"
 });

@@ -36,6 +36,8 @@ import { ProjectNamespace, ProjectMutations } from "@/store/modules/project";
 
 import DatasetCard from "@/modules/common/card/DatasetCard.vue";
 
+import { DatasetStatus } from "@/shared/enums";
+
 import { getDatasetListTango, getDatasetFolderSize, getDatasetFileCount } from "@/api";
 
 export default {
@@ -57,7 +59,9 @@ export default {
   async created() {
     try {
       this.items = await getDatasetListTango();
+      console.log("this.items", this.items);
       this.items = this.items.filter(q => q.name !== "tmp");
+      this.items = this.items.filter(q => q.status === DatasetStatus.COMPLETE);
       this.getDatasetSize();
       this.getDatasetCount();
 

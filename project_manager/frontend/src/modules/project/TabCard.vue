@@ -107,12 +107,12 @@ export default {
 
     projectInfo: {
       default: () => ({
-        project_name: "project_name",
-        project_description: "project_description",
-        dataset: "coco128",
-        target: "n_cloud",
-        task_type: "detection",
-        nas_type: "neck_nas"
+        project_name: "",
+        project_description: "",
+        dataset: "",
+        target: "",
+        task_type: "",
+        nas_type: ""
       })
     }
   },

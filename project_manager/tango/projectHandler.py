@@ -12,12 +12,12 @@ root_path = os.path.dirname(os.path.dirname(BASE_DIR))
 
 #region API REQUEST ...................................................................................................
 
-async def start_handler(continer, user_id, project_id, target_info):
+async def start_handler(container, user_id, project_id, target_info):
     """
     Container Start Request Handler
 
     Args:
-        continer : continer
+        container : container
         user_id : user_id
         project_id : project_id
         target_info : If the container is imagedenploy, receive hostname and port as targetinfo
@@ -26,20 +26,20 @@ async def start_handler(continer, user_id, project_id, target_info):
         request info
     """
 
-    if continer != 'imagedeploy':
-        host, port = get_container_info(continer)
+    if container != 'imagedeploy':
+        host, port = get_container_info(container)
     else :
         host, port = get_deploy_host_port(target_info)
 
-    print("continer_start_api : " + host + ':' + port)
+    print("container_start_api : " + host + ':' + port)
 
-    start_task = asyncio.create_task(continer_start_api(host + ':' + port, user_id, project_id))
+    start_task = asyncio.create_task(container_start_api(host + ':' + port, user_id, project_id))
     result = await start_task
-    # host, port = get_container_info(continer)
-    # result = continer_start_api(host + ':' + port, user_id, project_id)
+    # host, port = get_container_info(container)
+    # result = container_start_api(host + ':' + port, user_id, project_id)
     return result
 
-async def continer_start_api(host, user_id, project_id):
+async def container_start_api(host, user_id, project_id):
     """
     Request start API
 
@@ -71,12 +71,12 @@ async def continer_start_api(host, user_id, project_id):
 
 #################################################################################################################
 
-async def request_handler(continer, user_id, project_id, target_info):
+async def request_handler(container, user_id, project_id, target_info):
     """
     Container task Status Request Handler
 
     Args:
-        continer : continer
+        container : container
         user_id : user_id
         project_id : project_id
         target_info : If the container is imagedenploy, receive hostname and port as targetinfo
@@ -85,24 +85,24 @@ async def request_handler(continer, user_id, project_id, target_info):
         request info
     """
 
-    # host, port = get_container_info(continer)
-    # start_task = asyncio.create_task(continer_request_api(host + ':' + port, user_id, project_id))
+    # host, port = get_container_info(container)
+    # start_task = asyncio.create_task(container_request_api(host + ':' + port, user_id, project_id))
     # result = await start_task
     try:
-        # host, port = get_container_info(continer)
-        # result = continer_request_api(host + ':' + port, user_id, project_id)
+        # host, port = get_container_info(container)
+        # result = container_request_api(host + ':' + port, user_id, project_id)
         # return result
 
 
-        # host, port = get_container_info(continer)
-        if continer != 'imagedeploy':
-            host, port = get_container_info(continer)
+        # host, port = get_container_info(container)
+        if container != 'imagedeploy':
+            host, port = get_container_info(container)
         else :
             host, port = get_deploy_host_port(target_info)
 
-        print("continer_start_api : " + host + ':' + port)
+        print("status_request_api : " + host + ':' + port)
 
-        start_task = asyncio.create_task(continer_request_api(host + ':' + port, user_id, project_id))
+        start_task = asyncio.create_task(container_request_api(host + ':' + port, user_id, project_id))
         result = await start_task
         return result
     
@@ -110,7 +110,7 @@ async def request_handler(continer, user_id, project_id, target_info):
         print('request_handler - error : ' + str(error))
         return None
 
-async def continer_request_api(host, user_id, project_id):
+async def container_request_api(host, user_id, project_id):
     """
     Request container status API
 
@@ -449,7 +449,7 @@ def update_project_log_file(user_id, project_id, log):
         f.write(log)
 
 
-def findIndexByDicList(list, find_column, find_value):
+def findIndexByDictList(list, find_column, find_value):
     """
     Finds the index of a dictionary in a list of dictionaries, where the value of the specified column matches the specified value.
 
