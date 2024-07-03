@@ -27,13 +27,20 @@ from rest_framework.response import Response
 from rest_framework.decorators import api_view, permission_classes, authentication_classes
 from oauth2_provider.contrib.rest_framework import OAuth2Authentication
 
-from .models import Project, AuthUser, WorkflowOrder
+from .models import Project, AuthUser, WorkflowOrder, AutonnStatus
 from targets.models import Target
 
 from django.views.decorators.csrf import csrf_exempt, csrf_protect
 from django.forms.models import model_to_dict
+from django.db.models import Model, ManyToOneRel
+
+from . import models
+
 
 from .projectHandler import *
+from targets.views import target_to_response
+
+from .service.autonn_status import update_autonn_status
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 root_path = os.path.dirname(os.path.dirname(BASE_DIR))
@@ -41,6 +48,124 @@ root_path = os.path.dirname(os.path.dirname(BASE_DIR))
 # @permission_classes([IsAuthenticated])                  # 권한 체크 - 로그인 여부
 # @authentication_classes([JSONWebTokenAuthentication])   # 토큰 확인
 # @permission_classes([AllowAny])
+
+def related_model_to_dict(model):
+    model_dict =  {}
+
+    if isinstance(model, Model) == False:
+        return model
+
+    # 모델의 필드 이름 얻기 (ManyToOneRel 제외)
+    for field in model._meta.get_fields():
+        if isinstance(field, ManyToOneRel):
+            continue
+
+        key = str(field).split(".")[-1]
+        try:
+            model_dict[key] = related_model_to_dict(getattr(model, key))
+        except Exception as error:
+            model_dict[key] = None
+
+    return model_dict
+
+def init_autonn_status(project_info):
+    try:
+        autonn_status_info = models.AutonnStatus.objects.get(project = project_info.id)
+        return related_model_to_dict(autonn_status_info)
+    except models.AutonnStatus.DoesNotExist:
+        try:
+            hyperparameter = models.Hyperparameter()
+            hyperparameter.save()
+
+            arguments = models.Arguments()
+            arguments.save()
+
+            system = models.System()
+            system.save()
+
+            basemodel = models.Basemodel()
+            basemodel.save()
+
+            model_summary = models.ModelSummary()
+            model_summary.save()
+
+            batch_size = models.BatchSize()
+            batch_size.save()
+
+            train_dataset = models.TrainDataset()
+            train_dataset.save()
+
+            val_dataset = models.ValDataset()
+            val_dataset.save()
+
+            anchor = models.Anchor()
+            anchor.save()
+
+            train_start = models.TrainStart()
+            train_start.save()
+
+            train_loss_latest = models.TrainLossLatest()
+            train_loss_latest.save()
+
+            val_accuracy_latest = models.ValAccuracyLatest()
+            val_accuracy_latest.save()
+
+            # projectInstance = models.Project.objects.get(id = project_id)
+
+            autonn_status = models.AutonnStatus(
+                project = project_info,
+                hyperparameter = hyperparameter,
+                arguments = arguments,
+                system = system,
+                basemodel = basemodel,
+                model_summary = model_summary,
+                batch_size = batch_size,
+                train_dataset = train_dataset,
+                val_dataset = val_dataset,
+                anchor = anchor,
+                train_start = train_start,
+                train_loss_latest = train_loss_latest,
+                val_accuracy_latest = val_accuracy_latest,
+            )
+            
+            autonn_status.save()
+
+            return related_model_to_dict(autonn_status)
+        except Exception as error:
+            print(error)
+            return None
+    except Exception as error:
+        print(error)
+        return None
+
+@api_view(['POST'])
+@permission_classes([AllowAny])   # 토큰 확인
+def get_autonn_status(request):
+    try:
+        project_id = request.data['project_id']
+        project_info = Project.objects.get(id = project_id)
+
+        autonn = init_autonn_status(project_info)
+
+        train_loss_laststeps = models.TrainLossLastStep.objects.filter(
+            project_id = project_info.id,
+            project_version = project_info.version,
+            is_use = True
+        )
+        train_loss_laststep_list = list(train_loss_laststeps.values())
+        autonn["train_loss_laststep_list"] = list(map(related_model_to_dict, train_loss_laststep_list))
+
+        val_accuracy_laststeps = models.ValAccuracyLastStep.objects.filter(
+            project_id = project_info.id,
+            project_version = project_info.version,
+            is_use = True
+        )
+        val_accuracy_laststep_list = list(val_accuracy_laststeps.values())
+        autonn["val_accuracy_laststep_list"] = list(map(related_model_to_dict, val_accuracy_laststep_list))
+
+        return HttpResponse(json.dumps({'status': 200, "autonn" : autonn}))
+    except Exception as error:
+        return HttpResponse(error)
 
 
 # 컨테이너 상태 결과 응답
@@ -74,13 +199,26 @@ def container_start(request):
         project_info.container_status = 'started'
         project_info.save()
 
+        if container_id == "autonn":
+            models.TrainLossLastStep.objects.filter(
+                project_id = project_info.id,
+                project_version = project_info.version,
+                is_use = True
+            ).update(is_use = False)
+
+            models.ValAccuracyLastStep.objects.filter(
+                project_id = project_info.id,
+                project_version = project_info.version,
+                is_use = True
+            ).update(is_use = False)
+        
+
         return HttpResponse(json.dumps({'status': 200, 'message': str(container_id) + ' 시작 요청\n', 'response' : to_json['request_info']}))
 
     except Exception as error:
         print('container start error - ' + str(error))
         print(error)
         return HttpResponse(error)
-
 
 # 컨테이너 상태 결과 응답
 @api_view(['POST'])
@@ -161,7 +299,6 @@ def status_request(request):
         print(error)
         return HttpResponse(error)
 
-
 # 컨테이너 상태 결과 응답
 @api_view(['GET'])
 @permission_classes([AllowAny])   # 토큰 확인
@@ -212,8 +349,8 @@ def status_report(request):
         workflow_order = WorkflowOrder.objects.filter(project_id=project_id).order_by('order')
 
         if queryset.project_type == 'auto':
-            current_container_idx = findIndexByDicList(list(workflow_order.values()), 'workflow_name', container_id)
-            if (result == 'success' or result == 'completed') and current_container_idx != None :
+            current_container_idx = findIndexByDictList(list(workflow_order.values()), 'workflow_name', container_id)
+            if (result == 'completed') and current_container_idx != None :
                 if len(list(workflow_order.values())) - 1 > current_container_idx:
                     next_container = list(workflow_order.values())[current_container_idx + 1]['workflow_name']
                     if next_container:
@@ -224,8 +361,7 @@ def status_report(request):
                         asyncio.run(start_handler(next_container, user_id, project_id, queryset.target.target_info))
                         queryset.container_status = 'started'
         else:
-            if result == 'success' or result == 'completed':
-                queryset.container_status = 'completed'
+            queryset.container_status = result
 
         queryset.save()
         return HttpResponse(json.dumps({'status': 200}))
@@ -235,7 +371,7 @@ def status_report(request):
         print(error)
         return HttpResponse(error)
 
-# 컨테이너 업데이트 (Auto NN)
+# 컨테이너 업데이트 (for Auto NN)
 @api_view(['POST'])
 @permission_classes([AllowAny])   # 토큰 확인
 def status_update(request):
@@ -253,17 +389,20 @@ def status_update(request):
     """
     try:
         print("@@@@@@@@@@@@@@@ status_update @@@@@@@@@@@@@@@")
-        userid = request.data['user_id']
-        projectId = request.data['project_id']
-        containerId = request.data['container_id']
-        updateId = request.data['update_id']
-        updateContent = request.data['update_content']
+        # print(request.data)
+        # userid = request.data['user_id']
+        # projectId = request.data['project_id']
+        # containerId = request.data['container_id']
+        # updateId = request.data['update_id']
+        # updateContent = request.data['update_content']
 
-        print("user_id : " + str(userid))
-        print("projectId : " + str(projectId))
-        print("containerId : " + str(containerId))
-        print("updateId : " + str(updateId))
-        print("updateContent : " + str(json.dumps(updateContent)))
+        # print("user_id : " + str(userid))
+        # print("projectId : " + str(projectId))
+        # print("containerId : " + str(containerId))
+        # print("updateId : " + str(updateId))
+        # print("updateContent : " + str(json.dumps(updateContent)))
+
+        update_autonn_status(request.data)
 
         return HttpResponse(json.dumps({'status': 200}))
 
@@ -271,40 +410,40 @@ def status_update(request):
         print("status_update - error")
         print(error)
         return HttpResponse(error)
-# 컨테이너 상태
-@api_view(['GET', 'POST'])
-@authentication_classes([OAuth2Authentication])   # 토큰 확인
-def status_result(request):
-    """
-    status_result _summary_
 
-    Args:
-        request (_type_): _description_
+# # 컨테이너 상태
+# @api_view(['GET', 'POST'])
+# @authentication_classes([OAuth2Authentication])   # 토큰 확인
+# def status_result(request):
+#     """
+#     status_result _summary_
 
-    Returns:
-        _type_: _description_
-    """
+#     Args:
+#         request (_type_): _description_
 
-    try:
-        project_id = request.data['project_id']
-        queryset = Project.objects.get(id=project_id, create_user=str(request.user))
-        if last_container != queryset.container:
-            last_logs_timestamp = 0
+#     Returns:
+#         _type_: _description_
+#     """
 
-        logs = get_docker_log_handler(queryset.container, last_logs_timestamp)
-        last_logs_timestamp = time.mktime(datetime.now().timetuple())
-        last_container = queryset.container
+#     try:
+#         project_id = request.data['project_id']
+#         queryset = Project.objects.get(id=project_id, create_user=str(request.user))
+#         if last_container != queryset.container:
+#             last_logs_timestamp = 0
 
-        m = response_message + '\n' + str(logs)
-        response_message = ''
+#         logs = get_docker_log_handler(queryset.container, last_logs_timestamp)
+#         last_logs_timestamp = time.mktime(datetime.now().timetuple())
+#         last_container = queryset.container
 
-        return HttpResponse(json.dumps({'container': queryset.container,
-                                        'container_status': queryset.container_status,
-                                        'message': m,}))
+#         m = response_message + '\n' + str(logs)
+#         response_message = ''
 
-    except Exception as e:
-        print(e)
+#         return HttpResponse(json.dumps({'container': queryset.container,
+#                                         'container_status': queryset.container_status,
+#                                         'message': m,}))
 
+#     except Exception as e:
+#         print(e)
 
 # nn_model 다운로드(외부IDE연동)
 @api_view(['GET'])
@@ -526,6 +665,13 @@ def project_create(request):
                        create_date=str(datetime.now()))
         data.save()
 
+        ##################################################
+        ##################################################
+        ##################################################
+        ##################################################
+        ##################################################
+        init_autonn_status(data) 
+
         return Response({'result': True,
                          'id': data.id,
                          'name': data.project_name,
@@ -549,14 +695,19 @@ def project_delete(request):
     """
 
     try:
-        queryset = Project.objects.get(id=request.data['id'],
+        project = Project.objects.get(id=request.data['id'],
                                        create_user=request.user)  # Project id로 검색
-        queryset.delete()
+        try:
+            autonn_status = AutonnStatus.objects.get(project = request.data['id'])
+            nested_model_delete(autonn_status)
+        except Exception as error:
+            print("autonn status를 찾을 수 없음")
+            print(error)
+        
+        project.delete()
     
         project_path = os.path.join(root_path, "shared/common/{0}/{1}".format(str(request.user),
                                                                                  str(request.data['id'])))
-        
-        print(project_path)
         shutil.rmtree(project_path)
     except Exception as error:
         print("project_delete -------------------")
@@ -565,6 +716,12 @@ def project_delete(request):
     
     return Response(status=200)
 
+def nested_model_delete(model):
+    if isinstance(model, Model):
+        for field in model._meta.get_fields():
+            nested_model_delete(field)
+        model.delete()
+    return
 
 # Project 정보 조회
 @api_view(['GET', 'POST'])
@@ -596,7 +753,7 @@ def project_info(request):
         # TODO : 타겟이 0이 아닌 경우 SW 정보 전달
         if project['target_id'] is not None:
             target_info = model_to_dict(Target.objects.get(id=int(project['target_id'])))
-            target_info_dic = {"target_info": target_info}
+            target_info_dic = {"target_info": target_to_response(target_info)}
 
             result = dict(project,  **target_info_dic)
         else:
@@ -1219,3 +1376,8 @@ def set_workflow(request):
 
     except Exception as e:
         return Response(status=500)
+    
+
+
+
+

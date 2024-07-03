@@ -20,13 +20,41 @@ import time
 import zipfile
 import shutil
 
+from .enums import DATASET_STATUS
+
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 root_path = os.path.dirname(os.path.dirname(BASE_DIR))
 
 RUN_COCO_THREAD="RUN_COCO_THREAD"
 RUN_IMAGENET_THREAD="RUN_IMAGENET_THREAD"
 RUN_VOC_THREAD="RUN_VOC_THREAD"
-RUN_KAGGLE_THREAD="RUN_KAGGLE_THREAD"
+RUN_CHEST_XRAY_THREAD="RUN_CHEST_XRAY_THREAD"
+
+COMMON_DATASET_INFO = {
+    "COCO": {
+        "name": "coco",
+        "path": os.path.join(root_path, "shared/datasets/coco"),
+        "thread_name": RUN_COCO_THREAD,
+        "script_path": os.path.join(BASE_DIR, "download_scripts", "get_coco.sh")
+    },
+    "IMAGE_NET": {
+        "name": "imagenet",
+        "path": os.path.join(root_path, "shared/datasets/imagenet"),
+        "thread_name": RUN_IMAGENET_THREAD,
+        "script_path": os.path.join(BASE_DIR, "download_scripts", "get_imagenet.sh")
+    },
+    "VOC": {
+        "name": "VOC",
+        "path": os.path.join(root_path, "shared/datasets/VOC"),
+        "thread_name": RUN_VOC_THREAD,
+        "script_path": os.path.join(BASE_DIR, "download_scripts", "get_voc.sh")
+    },
+    "CHEST_XRAY": {
+        "name": "ChestXRay",
+        "path": os.path.join(root_path, "shared/datasets/ChestXRay"),
+        "thread_name": RUN_CHEST_XRAY_THREAD
+    }
+}
 
 #region get dataset ......................................................................................
 
@@ -62,10 +90,46 @@ def get_dataset_list(request):
                 result = future.result()
                 dir_info_list.append(result)
 
+        dir_info_list = sorted(dir_info_list, key= lambda x: x["name"])
         return HttpResponse(json.dumps({'status': 200, 'datasets': dir_info_list }))
         # return HttpResponse(json.dumps({'status': 200}))
     except Exception as e:
         return HttpResponse(json.dumps({'status': 404}))
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])   # 토큰 확인
+def get_dataset_info(request):
+    """
+    get_dataset_list _summary_
+
+    Args:
+        request (_type_): _description_
+
+    Returns:
+        _type_: _description_
+    """
+
+    try:
+        dataset_name = request.GET["name"]
+
+        print("dataset_name : " + str(dataset_name))
+
+        path = os.path.join(root_path, "shared/datasets/*")
+        dir_list = glob.glob(path)
+
+        dataset_info = None
+
+        for dir_path in dir_list:
+            name = os.path.basename(dir_path)
+            if name ==  dataset_name:
+                print("dir_path : " + str(dir_path))
+                dataset_info = get_folder_info(dir_path)
+                break
+
+        return HttpResponse(json.dumps({'status': 200, 'dataset': dataset_info }))
+    except Exception as e:
+        return HttpResponse(json.dumps({'status': 404}))
+
 
 @api_view(['POST'])
 @permission_classes([IsAuthenticated])   # 토큰 확인
@@ -79,6 +143,8 @@ def get_folders_size(request):
 
         return HttpResponse(json.dumps({'status': 200, 'datas': results }))
     except Exception as e:
+        print("ZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZ   get_folders_size ")
+        print(e)
         return HttpResponse(json.dumps({'status': 404}))
 
 @api_view(['POST'])
@@ -93,6 +159,8 @@ def get_folders_file_count(request):
 
         return HttpResponse(json.dumps({'status': 200, 'datas': results }))
     except Exception as e:
+        print("ZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZ   get_folders_file_count ")
+        print(e)
         return HttpResponse(json.dumps({'status': 404}))        
     
 
@@ -118,6 +186,8 @@ def get_folder_info(folder_path):
         # folder_info['last_modified_time'] = get_folder_last_modified_date(folder_path)
         # folder_info['file_count'] = get_file_count(folder_path) # 계산하는데 시간이 오래걸려 따로 수행..
         folder_info['thumbnail'] = get_folder_thumbnail(folder_path)
+        # folder_info['isDownload'] = is_download_complete_dataset(folder_path)
+        folder_info['status'] = check_dataset_status(folder_info)
         
     else:
         print("유효한 폴더 경로가 아닙니다.")
@@ -223,7 +293,8 @@ def get_folder_thumbnail(folder_path):
 
     # random choice
     if len(file_list) > 0:
-        random_images = random.sample(file_list,4) if len(file_list) >= 4  else random.sample(file_list, len(file_list))
+        # random_images = random.sample(file_list,4) if len(file_list) >= 4  else random.sample(file_list, len(file_list))
+        random_images = file_list[0:4]
         thumbnail_list = []
         for image in random_images:
             thumbnail_list.append(make_image_thumbnail(image))
@@ -267,25 +338,23 @@ def download_coco(request):
     """
 
     try:
-        fix_path = root_path
-        path = os.path.join(fix_path, "shared/datasets/coco")
-        if is_thread_name_active(RUN_COCO_THREAD):
+        if is_thread_name_active(COMMON_DATASET_INFO["COCO"]["thread_name"]):
             print("[RUN_COCO_THREAD] Already running...")
             return HttpResponse(json.dumps({'status': 200, 'isAlready':True}))
-        elif is_download_complete_dataset(path):
-            print("coco DATASET Download Complete")
+        elif is_download_complete_dataset(COMMON_DATASET_INFO["COCO"]["path"]):
+            print("COCO DATASET Download Complete")
             return HttpResponse(json.dumps({'status': 200, 'complete':True}))
         
         data = request.data
         args = [data["isTrain"], data["isVal"], data["isTest"], data["isSegments"], data["isSama"]]
-        thread_1 = threading.Thread(target = download_coco_handler, args=args, name=RUN_COCO_THREAD)
+        thread_1 = threading.Thread(target = download_coco_handler, args=args, name=COMMON_DATASET_INFO["COCO"]["thread_name"])
         thread_1.start()
         return HttpResponse(json.dumps({'status': 200}))
     except Exception as e:
         print(e)
 
 def download_coco_handler(is_train, is_val, is_test, is_segments, is_sama):
-    coco_script_file_path = os.path.join(BASE_DIR, "download_scripts", "get_coco.sh")
+    coco_script_file_path = COMMON_DATASET_INFO["COCO"]["script_path"]
     print(coco_script_file_path)
     if os.path.isfile(coco_script_file_path):
         os.chmod(coco_script_file_path, 0o755)
@@ -314,7 +383,7 @@ def download_coco_handler(is_train, is_val, is_test, is_segments, is_sama):
         print("coco_dataset download done")
 
         coco_yaml_file_path = os.path.join(BASE_DIR, "datasets_yaml", "coco", "coco_dataset.yaml") 
-        coco_datasets_path = os.path.join(fix_path, "shared", "datasets", "coco", "dataset.yaml")
+        coco_datasets_path = os.path.join(COMMON_DATASET_INFO["COCO"]["path"], "dataset.yaml")
         shutil.copy(coco_yaml_file_path, coco_datasets_path)
 
 
@@ -332,31 +401,29 @@ def download_imagenet(request):
     """
 
     try:
-        fix_path = root_path
-        path = os.path.join(fix_path, "shared/datasets/imagenet")
-        if is_thread_name_active(RUN_IMAGENET_THREAD):
+        if is_thread_name_active(COMMON_DATASET_INFO["IMAGE_NET"]["thread_name"]):
             print("[RUN_IMAGENET_THREAD] Already running...")
             return HttpResponse(json.dumps({'status': 200, 'isAlready':True}))
-        elif is_download_complete_dataset(path):
+        
+        elif is_download_complete_dataset(COMMON_DATASET_INFO["IMAGE_NET"]["path"]):
             print("imagenet DATASET Download Complete")
             return HttpResponse(json.dumps({'status': 200, 'complete':True}))
+        
         data = request.data
         args = [data["isTrain"], data["isVal"]]
-        thread_1 = threading.Thread(target = download_imagenet_handler, args=args, name=RUN_IMAGENET_THREAD)
+        thread_1 = threading.Thread(target = download_imagenet_handler, args=args, name=COMMON_DATASET_INFO["IMAGE_NET"]["thread_name"])
         thread_1.start()
         return HttpResponse(json.dumps({'status': 200}))
     except Exception as e:
         print(e)
 
 def download_imagenet_handler(is_train, is_val):
-    imagenet_script_file_path = os.path.join(BASE_DIR, "download_scripts", "get_imagenet.sh")
+    imagenet_script_file_path = COMMON_DATASET_INFO["IMAGE_NET"]["script_path"]
     print(imagenet_script_file_path)
     if os.path.isfile(imagenet_script_file_path):
         os.chmod(imagenet_script_file_path, 0o755)
 
-        # fix_path = root_path if os.environ.get('IS_DOCKER_COMPOSE') else BASE_DIR
-        fix_path = root_path
-        labels_unzip_path = os.path.join(fix_path, "shared/datasets/imagenet")
+        labels_unzip_path = COMMON_DATASET_INFO["IMAGE_NET"]["path"]
 
         sh_run = str(imagenet_script_file_path)
         sh_run += " " + labels_unzip_path
@@ -368,7 +435,7 @@ def download_imagenet_handler(is_train, is_val):
         print("imagenet download done")
 
         imagenet_yaml_file_path = os.path.join(BASE_DIR, "datasets_yaml", "imagenet", "imagenet_dataset.yaml") 
-        imagenet_datasets_path = os.path.join(fix_path, "shared", "datasets", "imagenet", "dataset.yaml")
+        imagenet_datasets_path = os.path.join(COMMON_DATASET_INFO["IMAGE_NET"]["path"], "dataset.yaml")
         shutil.copy(imagenet_yaml_file_path, imagenet_datasets_path)
 
 
@@ -386,29 +453,27 @@ def download_voc(request):
     """
 
     try:
-        fix_path = root_path
-        path = os.path.join(fix_path, "shared/datasets/VOC")
-        if is_thread_name_active(RUN_VOC_THREAD):
+        if is_thread_name_active(COMMON_DATASET_INFO["VOC"]["thread_name"]):
             print("[RUN_VOC_THREAD] Already running...")
             return HttpResponse(json.dumps({'status': 200, 'isAlready':True}))
-        elif is_download_complete_dataset(path):
+        elif is_download_complete_dataset(COMMON_DATASET_INFO["VOC"]["path"]):
             print("VOC DATASET Download Complete")
             return HttpResponse(json.dumps({'status': 200, 'complete':True}))
-        thread_1 = threading.Thread(target = download_voc_handler, name=RUN_VOC_THREAD)
+        thread_1 = threading.Thread(target = download_voc_handler, name=COMMON_DATASET_INFO["VOC"]["thread_name"])
         thread_1.start()
         return HttpResponse(json.dumps({'status': 200}))
     except Exception as e:
         print(e)
 
 def download_voc_handler():
-    voc_script_file_path = os.path.join(BASE_DIR, "download_scripts", "get_voc.sh")
+    voc_script_file_path = COMMON_DATASET_INFO["VOC"]["script_path"]
     print(voc_script_file_path)
     if os.path.isfile(voc_script_file_path):
         os.chmod(voc_script_file_path, 0o755)
 
         # fix_path = root_path if os.environ.get('IS_DOCKER_COMPOSE') else BASE_DIR
         fix_path = root_path
-        labels_unzip_path = os.path.join(fix_path, "shared/datasets/VOC")
+        labels_unzip_path = COMMON_DATASET_INFO["VOC"]["path"]
 
         sh_run = str(voc_script_file_path)
         sh_run += " " + labels_unzip_path
@@ -418,13 +483,13 @@ def download_voc_handler():
         print("voc download done")
 
         voc_yaml_file_path = os.path.join(BASE_DIR, "datasets_yaml", "VOC", "voc_dataset.yaml") 
-        voc_datasets_path = os.path.join(fix_path, "shared", "datasets", "VOC", "dataset.yaml")
+        voc_datasets_path = os.path.join(COMMON_DATASET_INFO["VOC"]["path"], "dataset.yaml")
         shutil.copy(voc_yaml_file_path, voc_datasets_path)
 
 
 @api_view(['POST'])
 @permission_classes([AllowAny])   # 토큰 확인
-def download_kaggle_dataset(request):
+def download_chest_xray_dataset(request):
     """
     download_kaggle_dataset _summary_
 
@@ -436,30 +501,25 @@ def download_kaggle_dataset(request):
     """
 
     try:
-        # data = request.data
-        # args = []
-        fix_path = root_path
-        path = os.path.join(fix_path, "shared/datasets/ChestXRay")
-        if is_thread_name_active(RUN_KAGGLE_THREAD):
+        if is_thread_name_active(COMMON_DATASET_INFO["CHEST_XRAY"]["thread_name"]):
             print("[RUN_KAGGLE_THREAD] Already running...")
             return HttpResponse(json.dumps({'status': 200, 'isAlready':True}))
-        elif is_download_complete_dataset(path):
+        elif is_download_complete_dataset(COMMON_DATASET_INFO["CHEST_XRAY"]["path"]):
             print("KAGGLE DATASET Download Complete")
             return HttpResponse(json.dumps({'status': 200, 'complete':True}))
-        thread_1 = threading.Thread(target = download_kaggle_handler, args=[request.user], name=RUN_KAGGLE_THREAD)
+        thread_1 = threading.Thread(target = download_chest_xray_handler, args=[request.user], name=COMMON_DATASET_INFO["CHEST_XRAY"]["thread_name"])
         thread_1.start()
         return HttpResponse(json.dumps({'status': 200}))
     except Exception as e:
         print(e)
 
-def download_kaggle_handler(user_id):
+def download_chest_xray_handler(user_id):
     api = authenticate_kaggle(user_id)
     # 데이터셋 다운로드
     dataset = 'paultimothymooney/chest-xray-pneumonia'
 
     # fix_path = root_path if os.environ.get('IS_DOCKER_COMPOSE') else BASE_DIR
-    fix_path = root_path
-    dataset_path = os.path.join(fix_path, "shared/datasets/ChestXRay")
+    dataset_path =COMMON_DATASET_INFO["CHEST_XRAY"]["path"]
 
     # 데이터셋 다운로드
     api.dataset_download_files(dataset, path=dataset_path, unzip=True)
@@ -579,11 +639,13 @@ def create_folder_if_not_exists(path):
 
 def dataset_start_scirpt():
     # fix_path = root_path if os.environ.get('IS_DOCKER_COMPOSE') else BASE_DIR
-    fix_path = root_path
-    create_folder_if_not_exists(os.path.join(fix_path, "shared/datasets/coco"))
-    create_folder_if_not_exists(os.path.join(fix_path, "shared/datasets/VOC"))
-    create_folder_if_not_exists(os.path.join(fix_path, "shared/datasets/ChestXRay"))
-    create_folder_if_not_exists(os.path.join(fix_path, "shared/datasets/imagenet"))
+    # fix_path = root_path
+    # create_folder_if_not_exists(os.path.join(fix_path, "shared/datasets/coco"))
+    # create_folder_if_not_exists(os.path.join(fix_path, "shared/datasets/VOC"))
+    # create_folder_if_not_exists(os.path.join(fix_path, "shared/datasets/ChestXRay"))
+    # create_folder_if_not_exists(os.path.join(fix_path, "shared/datasets/imagenet"))
+    for common_dataset in COMMON_DATASET_INFO.values():
+        create_folder_if_not_exists(common_dataset["path"])
 
 def is_thread_name_active(name):
     """
@@ -651,6 +713,28 @@ def is_download_complete_dataset(folder_path):
         return True
     else: 
         return False
+
+def check_dataset_status(dataset):
+    folder_name = dataset["name"]
+    folder_path = dataset["path"]
+
+    common_dataset = next((common_dataset for common_dataset in COMMON_DATASET_INFO.values() if common_dataset["name"] == folder_name), None)
+
+    # Common Dataset이 아닌 경우 (= 사용자가 직접 업로드한 경우? 등등 이미 다운완료 되었을 것)
+    if(common_dataset == None):
+        return DATASET_STATUS.COMPLETE.value
+
+    # 다운로드 중일 경우
+    if is_thread_name_active(common_dataset["thread_name"]) == True:
+        return DATASET_STATUS.DOWNLOADING.value
+
+    # 데이터 셋 다운로드가 완료된 경우
+    if is_download_complete_dataset(folder_path) == True:
+        return DATASET_STATUS.COMPLETE.value
+
+    # 데이터셋 다운로드 전.
+    return DATASET_STATUS.NONE.value
+
 #endregion
 
 

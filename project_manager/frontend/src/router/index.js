@@ -1,12 +1,13 @@
 import Vue from "vue";
 import VueRouter from "vue-router";
 import ProjectDashboard from "@/pages/ProjectDashboard.vue";
-import ProjectDetail from "@/pages/ProjectDetail.vue";
+import ProjectDetail from "@/pages/ProjectDetailV2.vue";
 import LoginPage from "@/pages/LoginPage.vue";
 import CreatAccountPage from "@/pages/CreateAccountPage.vue";
 import NotFoundPage from "@/pages/NotFoundPage.vue";
 import VisualizationPage from "@/pages/VisualizationPage.vue";
-import DataManagement from "@/pages/DataManagement.vue";
+import DataLebeling from "@/pages/DataLebeling.vue";
+import DatasetManagement from "@/pages/DatasetManagement.vue";
 import TargetManagement from "@/pages/TargetManagement.vue";
 
 import Cookies from "universal-cookie";
@@ -44,9 +45,14 @@ const routes = [
     component: TargetManagement
   },
   {
-    path: "/data",
-    name: "datasets",
-    component: DataManagement
+    path: "/dataset",
+    name: "dataset",
+    component: DatasetManagement
+  },
+  {
+    path: "/labeling",
+    name: "labeling",
+    component: DataLebeling
   },
   {
     path: "/visualization",

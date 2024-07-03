@@ -1,7 +1,7 @@
 <template lang="">
   <div>
     <v-card style="height: calc(100vh - 60px); overflow-y: overlay; width: 100%" class="px-4">
-      <TabBase :count="-1" title="Configuration">
+      <TabBase :count="-1" title="Configuration" z>
         <template #action>
           <ProjectCreateDialog :step="step" @stepChange="onStepChange">
             <template v-slot:btn>
@@ -58,7 +58,7 @@ import {
   imagenetDatasetDownload,
   cocoDatasetDownload,
   vocDatasetDownload,
-  kaggleDatasetDownload
+  chestXrayDatasetDownload
 } from "@/api";
 
 import Cookies from "universal-cookie";
@@ -327,7 +327,7 @@ export default {
           this.$refs.KaggleUserInfoDialogref.isOpen = true;
           return;
         }
-        const res = await kaggleDatasetDownload();
+        const res = await chestXrayDatasetDownload();
         result = checkIsAlready(res);
       } else if (this.projectInfo.dataset === CommonDatasetName.VOC) {
         const res = await vocDatasetDownload();

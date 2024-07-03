@@ -122,8 +122,10 @@ def target_update(request):
     """
 
     try:
-        queryset = Target.objects.get(id=int(request.data['id']),
-                                      create_user=request.user)
+        # queryset = Target.objects.get(id=int(request.data['id']),
+        #                               create_user=request.user)
+
+        queryset = Target.objects.get(id=int(request.data['id']))
 
         queryset.target_name = request.data['name']
         queryset.target_info = request.data['info']
@@ -163,8 +165,9 @@ def target_delete(request):
 
     try:
 
-        queryset = Target.objects.get(id=request.data['id'],
-                                      create_user=request.user)  # Project ID로 검색
+        # queryset = Target.objects.get(id=request.data['id'],
+        #                               create_user=request.user)  # Project ID로 검색
+        queryset = Target.objects.get(id=request.data['id'])  # Project ID로 검색
         queryset.delete()
 
         return Response(status=200)
@@ -188,22 +191,27 @@ def target_info(request):
 
     queryset = Target.objects.filter(id=request.data['id'])  # Target id로 검색
     data = list(queryset.values())
-
-    target_data = {'id': data[0]['id'],
-                           'name': data[0]['target_name'],
-                           'create_user': data[0]['create_user'],
-                           'create_date': data[0]['create_date'],
-                           'info': data[0]['target_info'],
-                           'engine': data[0]['target_engine'],
-                           'os': data[0]['target_os'],
-                           'cpu':data[0]['target_cpu'],
-                           'acc': data[0]['target_acc'],
-                           'memory': data[0]['target_memory'],
-                           'nfs_ip': data[0]['nfs_ip'],
-                           'nfs_path': data[0]['nfs_path'],
-                           'host_ip': data[0]['target_host_ip'],
-                           'host_port': data[0]['target_host_port'],
-                           'host_service_port': data[0]['target_host_service_port'],
-                           'image': str(data[0]['target_image'])}
     
-    return HttpResponse(json.dumps(target_data))
+    return HttpResponse(json.dumps(target_to_response(data[0])))
+
+
+def target_to_response(target):
+    to_dict = {
+        'id': target['id'],
+        'name': target['target_name'],
+        'create_user': target['create_user'],
+        'create_date': target['create_date'],
+        'info': target['target_info'],
+        'engine': target['target_engine'],
+        'os': target['target_os'],
+        'cpu':target['target_cpu'],
+        'acc': target['target_acc'],
+        'memory': target['target_memory'],
+        'nfs_ip': target['nfs_ip'],
+        'nfs_path': target['nfs_path'],
+        'host_ip': target['target_host_ip'],
+        'host_port': target['target_host_port'],
+        'host_service_port': target['target_host_service_port'],
+        'image': str(target['target_image'])
+    }
+    return to_dict
