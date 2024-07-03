@@ -18,7 +18,7 @@ services:
              python manage.py loaddata base_model_data.json &&
              python manage.py runserver 0.0.0.0:8085"
     volumes:
-      - ./project_manager:/code
+      # - ./project_manager:/code
       - shared:/shared
       - ${COCODIR:-./autonn/autonn/autonn_core/datasets/coco}:/shared/datasets/coco
       - ${COCO128DIR:-./autonn/autonn/autonn_core/datasets/coco128}:/shared/datasets/coco128
