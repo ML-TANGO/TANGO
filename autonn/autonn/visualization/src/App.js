@@ -27,6 +27,37 @@ export default App;
 
 
 
+// replace /api/running/, get ID and thier status
+// var userid = ''
+// var project_id = ''
+// var model = ''
+// var status = ''
+// var info_id = ''
+
+// axios.get('/api/info')
+//   .then(function (response) {
+//     var k = Object.keys(response.data).length
+//     console.log(k)
+//     var info = response.data[k-1]
+//     info_id = info.id
+//     userid = info.userid
+//     project_id = info.project_id
+//     model = info.model_type + info.model_size
+//     status = info.model_viz
+//   })
+//   .catch(function (error) {
+//     console.error('GET /api/info : Error = ', error.message)
+//     info_id = 'unknown'
+//     userid = 'unknown'
+//     project_id = 'not assigned'
+//     model = 'not selected'
+//     status = 'not ready'
+//   })
+//   .then(function () {
+//     console.log('id=', info_id, 'userid=', userid, ' project_id=', project_id)
+//     console.log('model=', model, 'ready to load model=', status)
+//   });
+
 
 // const jsonData= require('./VGG16.json');
 // console.log(jsonData.node[0].layer)
@@ -89,25 +120,27 @@ export default App;
 //}
 //
 ////노드와 엣지 삭제하기
-axios.get('/api/running/')
- .then(function (response) {
-    var k = Object.keys(response.data).length
-    console.log('kkkkkkkkkkkkkk', k)
-   // handle success
-    if (k > 0) {
-      // for (var j=0;j<k+1;j++){
-      for (var j=0;j<k;j++){
-        axios.delete('/api/running/'.concat(j).concat('/'))
-      }
-    }
- })
- .catch(function (error) {
-   // handle error
-  console.log('Error', error.message)
- })
- .then(function () {
-   // always executed
- });
+// tenace note: unneccessary action, instead we need to get userid & project_id if they have
+// axios.get('/api/running/')
+//  .then(function (response) {
+//     var k = Object.keys(response.data).length
+//     console.log('kkkkkkkkkkkkkk', k)
+//    // handle success
+//     if (k > 0) {
+//       // for (var j=0;j<k+1;j++){
+//       for (var j=0;j<k;j++){
+//         axios.delete('/api/running/'.concat(j).concat('/'))
+//       }
+//     }
+//  })
+//  .catch(function (error) {
+//    // handle error
+//   console.log('Error', error.message)
+//  })
+//  .then(function () {
+//    // always executed
+//  });
+
 
 //for (var j=0; j<200; j++){
 //
