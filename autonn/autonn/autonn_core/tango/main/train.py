@@ -71,6 +71,8 @@ def train(proj_info, hyp, opt, data_dict, tb_writer=None):
         proj_info['userid'], proj_info['project_id'], proj_info['task_type'], \
         proj_info['nas'], proj_info['hpo'], proj_info['target_info'], proj_info['acc']
 
+    info = Info.objects.get(userid=userid, project_id=project_id)
+
     # Directories --------------------------------------------------------------
     wdir = save_dir / 'weights'
     wdir.mkdir(parents=True, exist_ok=True)  # make dir
@@ -171,7 +173,6 @@ def train(proj_info, hyp, opt, data_dict, tb_writer=None):
     imgsz, imgsz_test = [check_img_size(x, gs) for x in opt.img_size]  # verify imgsz are gs-multiples
 
     # Batch size ---------------------------------------------------------------
-    info = Info.objects.get(userid=userid, project_id=project_id)
     bs_factor = 0.8
     autobatch_rst = get_batch_size_for_gpu(userid, project_id, model, 3 if task=='detection' else 1, imgsz, amp_enabled=True)
     batch_size = int(autobatch_rst * bs_factor)
@@ -410,6 +411,8 @@ def train(proj_info, hyp, opt, data_dict, tb_writer=None):
     status_update(userid, project_id,
               update_id="train_start",
               update_content=train_start)
+    info.progress = "train"
+    info.save()
 
     # torch.save(model, wdir / 'init.pt')
     for epoch in range(start_epoch, epochs):  # epoch ------------------------------------------------------------------

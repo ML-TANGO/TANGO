@@ -152,12 +152,6 @@ def base_model_select(userid, project_id, proj_info, manual_select=False):
         model = manual_select['model']
         size = manual_select['size']
 
-    # save internally
-    info = Info.objects.get(userid=userid, project_id=project_id)
-    info.model_type = model
-    info.model_size = size
-    info.save()
-
     # store basemodel.yaml
     PROJ_PATH = COMMON_ROOT / userid / project_id
     source_path = f'{CFG_PATH}/{model}/{model}{size}.yaml'
@@ -168,6 +162,15 @@ def base_model_select(userid, project_id, proj_info, manual_select=False):
     viewer = BasemodelViewer(userid, project_id)
     viewer.parse_yaml(target_path)
     viewer.update()
+
+    # save internally
+    info = Info.objects.get(userid=userid, project_id=project_id)
+    info.model_type = model
+    info.model_size = size
+    info.status = "running"
+    info.progress = "bms"
+    info.model_viz = "ready"
+    info.save()
 
     # for updating status (P.M)
     model_p = model.upper()
@@ -231,6 +234,7 @@ def run_autonn(userid, project_id, viz2code=False, nas=False, hpo=False):
             except Exception as e:
                 logger.warn(f'{prefix}Fail to load tensorbord because {e}')
         results, train_final = train(proj_info, hyp, opt, data, tb_writer)
+        tb_writer.flush()
 
     # HPO ----------------------------------------------------------------------
     else:
@@ -330,8 +334,9 @@ def run_autonn(userid, project_id, viz2code=False, nas=False, hpo=False):
     logger.info(f'best model = {train_final}, {mb:.1f} MB')
     logger.info(f'mAP = {results[-1]}')
 
+    print("=== wait for 10 sec to avoid thread exception =============")
+    import time
+    time.sleep(10)
+
     return train_final  # best.pt
-    # temp
-    # import time
-    # time.sleep(15)
-    # return None
+

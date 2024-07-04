@@ -1,6 +1,8 @@
+import os
 import json, yaml
 import multiprocessing as mp
 import random
+import warnings
 
 from django.shortcuts import render
 from django.views.decorators.csrf import csrf_exempt
@@ -10,97 +12,104 @@ from rest_framework.response import Response
 import requests
 
 from .models import Info, Node, Edge, Pth
-from .serializers import NodeSerializer, EdgeSerializer, PthSerializer
+from .serializers import InfoSerializer
+from .serializers import NodeSerializer
+from .serializers import EdgeSerializer
+from .serializers import PthSerializer
 
 from .tango.main.select import run_autonn
+from .tango.main.visualize import export_pth, export_yml
 
 PROCESSES = {}
 
-@api_view(['GET', 'POST'])
-@csrf_exempt
-def InfoList(request):
-    '''
-    List all autonn process information,
-    or create info for a new autonn process.
-    '''
-    if request.method == 'GET':
-        infoList = Info.objects.all()
-        return Response(infoList, status=status.HTTP_200_OK)
+warnings.filterwarnings(action='ignore', message='All-NaN slice encountered')
+warnings.filterwarnings(action='ignore', category=UserWarning)
 
-    elif request.method == 'POST':
-        # Fetching the form data
-        usrId = request.data['user_id']
-        prjId = request.data['project_id']
-        prcId = request.data['process_id']
-        target = request.data['target']
-        # uploadedFile = request.FILES["data_yaml"]
-        task = request.data['task']
-        sts = request.data['status']
+# @api_view(['GET', 'POST'])
+# @csrf_exempt
+# def InfoList(request):
+#     '''
+#     List all autonn process information,
+#     or create info for a new autonn process.
+#     '''
+#     if request.method == 'GET':
+#         infoList = Info.objects.all()
+#         return Response(infoList, status=status.HTTP_200_OK)
 
-        # Saving the information in the database
-        newInfo = Info(
-            userid=usrId,
-            project_id=prjId,
-            process_id=prcId,
-            target_device=target,
-            # data_yaml=uploadedFile,
-            task=task,
-            status=sts,
-        )
-        newInfo.save()
+#     elif request.method == 'POST':
+#         # Fetching the form data
+#         usrId = request.data['user_id']
+#         prjId = request.data['project_id']
+#         prcId = request.data['process_id']
+#         target = request.data['target']
+#         # uploadedFile = request.FILES["data_yaml"]
+#         task = request.data['task']
+#         sts = request.data['status']
 
-        return Response("created", status=status.HTTP_201_CREATED)
+#         # Saving the information in the database
+#         newInfo = Info(
+#             userid=usrId,
+#             project_id=prjId,
+#             process_id=prcId,
+#             target_device=target,
+#             # data_yaml=uploadedFile,
+#             task=task,
+#             status=sts,
+#         )
+#         newInfo.save()
 
-
-@api_view(['GET', 'POST'])
-@csrf_exempt
-def node_list(request):
-    '''
-    List all nodes, or create a new node.
-    '''
-    # print('node')
-    if request.method == 'GET':
-        # print('get')
-        nodes = Node.objects.all()
-        serializer = NodeSerializer(nodes, many=True)
-        return Response(serializer.data)
-
-    elif request.method == "POST":
-        # print('post')
-        serializer = NodeSerializer(data=request.data)
-        if serializer.is_valid():
-            serializer.save()
-            return Response(serializer.data, status=status.HTTP_201_CREATED)
-        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
-
-    # nodes = Node.objects.all()
-    # serializer = NodeSerializer(nodes, many=True)
-    # return Response(serializer.data)
+#         return Response("created", status=status.HTTP_201_CREATED)
 
 
-@api_view(['GET', 'POST'])
-@csrf_exempt
-def edge_list(request):
-    '''
-    List all edges, or create a new edge.
-    '''
-    # print('edge')
-    if request.method == 'GET':
-        # print('get')
-        edges = Edge.objects.all()
-        serializer = EdgeSerializer(edges, many=True)
-        return Response(serializer.data)
+# @api_view(['GET', 'POST'])
+# @csrf_exempt
+# def node_list(request):
+#     '''
+#     List all nodes, or create a new node.
+#     '''
+#     # print('node')
+#     if request.method == 'GET':
+#         # print('get')
+#         nodes = Node.objects.all()
+#         serializer = NodeSerializer(nodes, many=True)
+#         return Response(serializer.data)
 
-    elif request.method == 'POST':
-        serializer = EdgeSerializer(data=request.data)
-        if serializer.is_valid():
-            serializer.save()
-            return Response(serializer.data, status=status.HTTP_201_CREATED)
-        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+#     elif request.method == "POST":
+#         # print('post')
+#         serializer = NodeSerializer(data=request.data)
+#         if serializer.is_valid():
+#             serializer.save()
+#             return Response(serializer.data, status=status.HTTP_201_CREATED)
+#         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
-    # edges = Edge.objects.all()
-    # serializer = EdgeSerializer(edges, many=True)
-    # return Response(serializer.data)
+#     # nodes = Node.objects.all()
+#     # serializer = NodeSerializer(nodes, many=True)
+#     # return Response(serializer.data)
+
+
+# @api_view(['GET', 'POST'])
+# @csrf_exempt
+# def edge_list(request):
+#     '''
+#     List all edges, or create a new edge.
+#     '''
+#     # print('edge')
+#     if request.method == 'GET':
+#         # print('get')
+#         edges = Edge.objects.all()
+#         serializer = EdgeSerializer(edges, many=True)
+#         return Response(serializer.data)
+
+#     elif request.method == 'POST':
+#         serializer = EdgeSerializer(data=request.data)
+#         if serializer.is_valid():
+#             serializer.save()
+#             return Response(serializer.data, status=status.HTTP_201_CREATED)
+#         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+#     # edges = Edge.objects.all()
+#     # serializer = EdgeSerializer(edges, many=True)
+#     # return Response(serializer.data)
 
 
 @api_view(['GET', 'POST'])
@@ -116,23 +125,25 @@ def pth_list(request):
 
     elif request.method == 'POST':
         # id -------------------------------------------------------------------
-        infos = Info.objects.all()
-        info = infos[-1] # tenace note: it is rational, assuming only one and the latest project is running
-        userid = info.user_id
-        project_id = info.project_id
+        # infos = Info.objects.all()
+        # info = infos[infos.count()-1] # tenace note: it is rational, assuming only one and the latest project is running
+        info_dict = request.data
+        userid = info_dict['userid']
+        project_id = info_dict['project_id']
         PROJ_PATH = '/shared/common/'+str(userid)+'/'+str(project_id)
 
         # basemodel.pt ---------------------------------------------------------
-        created_model = export_pth()
-        # file_path = (os.getcwd() + '/model_' + name + '.pt').replace("\\", '/')
         file_path = PROJ_PATH+'/basemodel.pth'
-        torch.save(created_model, file_path)
+        created_model = export_pth(file_path)
+        # file_path = (os.getcwd() + '/model_' + name + '.pt').replace("\\", '/')
+        # torch.save(created_model, file_path)
 
         # basemodel.yaml -------------------------------------------------------
-        created_yaml = export_yml()
         yaml_path = PROJ_PATH+'/basemodel.yml'
-        with open(yaml_path, 'w') as f:
-                    yaml.dump(created_yaml, f)
+        model_name = info_dict['model_type'] + info_dict['model_size']
+        created_yaml = export_yml(model_name, yaml_path)
+        # with open(yaml_path, 'w') as f:
+        #             yaml.dump(created_yaml, f)
 
         # DB create ------------------------------------------------------------
         serializer = PthSerializer(data={'userid': userid,
@@ -155,6 +166,8 @@ def start(request):
     userid = params['user_id']
     project_id = params['project_id']
 
+    synchronize_project_manager_db(userid)
+
     try:
         info = Info.objects.get(userid=userid, project_id=project_id)
         if info.status in ['started', 'running']:
@@ -175,6 +188,7 @@ def start(request):
         # info.target_device=str(proj_yaml)
         # info.data_yaml=str(data_yaml)
         info.status="started"
+        info.progress="setting"
         info.process_id = pr_id
         info.save()
         return Response("started", status=status.HTTP_200_OK, content_type="text/plain")
@@ -202,28 +216,28 @@ def status_request(request):
         # empty project
         return Response("ready", status=status.HTTP_204_NO_CONTENT, content_type='text/plain')
 
+    # already done for any reason
+    if info.status == "completed":
+        return Response("completed", status=status.HTTP_208_ALREADY_REPORTED, content_type='text/plain')
+    elif info.status == "failed":
+        return Response("failed", status=status.HTTP_410_GONE, content_type='text/plain')
+
     try:
         if PROCESSES[str(info.process_id)].is_alive():
             # the project is running
             info.status = "running"
             info.save()
-            # print("_____running_______")
             return Response("running", status=status.HTTP_200_OK, content_type='text/plain')
         else:
-            # the project is not running
+            # the project is done
             if info.status == "completed":
-                # print("_____completed_______")
                 return Response("completed", status=status.HTTP_208_ALREADY_REPORTED, content_type='text/plain')
-            else:
-                info.status = "failed"
-                info.save()
-                # print("_____failed(dead process)_______")
+            elif info.status == "failed":
                 return Response("failed", status=status.HTTP_410_GONE, content_type='text/plain')
     except KeyError as e:
         print(f"[AutoNN GET/status_request] exception: {e}")
         info.status = "failed"
         info.save()
-        # print("_____failed(empty process)_______")
         return Response("failed", status=status.HTTP_400_BAD_REQUEST, content_type='text/plain')
 
 
@@ -288,6 +302,39 @@ def get_process_id():
         except KeyError:
             break
     return pr_num
+
+
+def synchronize_project_manager_db(user):
+    infos = Info.objects.all()
+
+    for i in infos:
+        uid, pid = i.userid, i.project_id
+        if uid == user:
+            shared_dir = f"/shared/common/{uid}/{pid}"
+            # print(f"{i}: {patshared_dir}")
+            if not os.path.isdir(shared_dir):
+                # print("it will be deleted!")
+                i.delete()
+                try:
+                    if PROCESSES[str(i.process_id)].is_alive():
+                        # print(f"process-{i.process_id} will close!")
+                        process_done = PROCESSES.pop(str(info.process_id))
+                        process_done.close()
+                except:
+                    pass
+                try:
+                    pth = Pth.objects.get(userid=uid, project_id=pid)
+                    pth.delete()
+                except Pth.DoesNotExist:
+                    pass
+
+
+class InfoView(viewsets.ModelViewSet):
+    '''
+    Info View
+    '''
+    serializer_class = InfoSerializer
+    queryset = Info.objects.all()
 
 
 class NodeView(viewsets.ModelViewSet):

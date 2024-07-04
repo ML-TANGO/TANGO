@@ -5,9 +5,10 @@ import logging
 from pathlib import Path
 from copy import deepcopy
 
+import torch
 import torch.nn as nn
 
-from . import Node, Edge, Pth
+from . import Info, Node, Edge, Pth
 from django.core import serializers
 from autonn_core.serializers import NodeSerializer
 from autonn_core.serializers import EdgeSerializer
@@ -507,8 +508,14 @@ class BasemodelViewer:
             if serializerE.is_valid():
                 serializerE.save()
 
+        try:
+            info = Info.objects.get(userid=self.userid, project_id=self.projid)
+            info.progress = 'viz_update'
+            info.save()
+        except Info.DoesNotExist:
+            logger.warn(f'not found {userid}/{project_id} information')
 
-def export_pth():
+def export_pth(file_path):
     '''
     Make a graph with nodes and edges and export pytorch model from the graph
     '''
@@ -566,10 +573,11 @@ def export_pth():
         graph.addedge(CEdge("{prior}".format(**edge.__dict__),
                             "{next}".format(**edge.__dict__)))
     net = CPyBinder.exportmodel(self_binder, graph)
-    # print(net)
+    logger.info(net)
+    torch.save(net, file_path)
     return net
 
-def export_yml():
+def export_yml(name, yaml_path):
     '''
     Make a graph with nodes and edges and export pytorch model from the graph
     '''
@@ -789,14 +797,14 @@ def export_yml():
         # yaml_index: 0, 1, 2, ...
         # node_index: 1, 2, 3, ...
         # json_index: 1, 2, 3, ...
-        logger.debug(f"layer #{yaml_index} (node_index #{node_index}; json_index #{json_index}) : {module_}")
+        logger.info(f"layer #{yaml_index} (node_index #{node_index}; json_index #{json_index}) : {module_}")
 
         # from
         f_ = []
         for a in range(len(edge_id_list)):
             if edge_next_list[a] == node_index:
                 f_.append(edge_prior_list[a])
-        logger.debug(f"f_={f_}")
+        logger.info(f"f_={f_}")
         if not f_:
             from_ = -1 # this has to be the first layer
             assert yaml_index == 0, f'it must be the first layer but index is {yaml_index}'
@@ -822,7 +830,7 @@ def export_yml():
             else:
                 f_multiple.sort(reverse=False)
             from_ = f_multiple
-        logger.debug(f"from : {from_}")
+        logger.info(f"from : {from_}")
 
         if module_ in TORCH_NN_MODULES:
             module_ = f"nn.{module_}"
@@ -849,5 +857,8 @@ def export_yml():
         else:
             logger.debug(f"{k}: {v}")
     logger.debug('-'*100)
+
+    with open(yaml_path, 'w') as f:
+                yaml.dump(yaml_data, f)
 
     return yaml_data
