@@ -27,8 +27,9 @@
 
       <v-list dense style="background: #303030" class="pr-7" :elevation="0" nav>
         <div class="d-flex flex-column non" style="gap: 15px">
-          <div v-for="item in items" :key="item.title" class="non">
-            <v-tooltip right content-class="tooltip-right tango" nudge-right="45" :disabled="!mini">
+          <div v-for="item in items" :key="item.title" class="non" :style="{ marginTop: `${item?.margin || 0}px` }">
+            <div v-if="item?.separated" style="height: 2px; background-color: gray"></div>
+            <v-tooltip v-else right content-class="tooltip-right tango" nudge-right="45" :disabled="!mini">
               <template v-slot:activator="{ on, attrs }">
                 <v-hover v-slot="{ hover }">
                   <v-list-item
@@ -36,14 +37,17 @@
                     v-on="on"
                     class="non side-transition"
                     @click.stop="onNavigate($event, item.address)"
-                    :style="{ backgroundColor: hover || currentPath.includes(item.image) ? '#515559' : '#303030' }"
+                    :style="{ backgroundColor: hover || currentPath === `${item.address}` ? '#515559' : '#303030' }"
                   >
                     <v-list-item-icon>
-                      <v-img :src="routingImage(item.image)" width="15" max-width="20" contain></v-img>
+                      <v-img v-if="item.isImage" :src="routingImage(item)" width="15" max-width="20" contain></v-img>
+                      <v-icon v-else :color="currentPath === `${item.address}` ? '#ffffff' : '#6c7890'">{{
+                        item.image
+                      }}</v-icon>
                     </v-list-item-icon>
 
                     <v-list-item-content style="margin-left: -15px">
-                      <v-list-item-title :style="{ color: currentPath.includes(item.image) ? '#d5d8db' : '#6c7890' }">
+                      <v-list-item-title :style="{ color: currentPath === `${item.address}` ? '#d5d8db' : '#6c7890' }">
                         {{ item.title }}
                       </v-list-item-title>
                     </v-list-item-content>
@@ -87,10 +91,12 @@ export default {
     return {
       mini: false,
       items: [
-        { title: "Project Management", image: "project", address: "/project" },
-        { title: "Target Management", image: "target", address: "/target" },
-        { title: "Data Management", image: "data", address: "/data" },
-        { title: "Visualization", image: "visualization", address: "/visualization" }
+        { title: "Target Management", image: "target", address: "/target", isImage: true },
+        { title: "Dataset Management", image: "data", address: "/dataset", isImage: true },
+        { title: "Project Management", image: "project", address: "/project", isImage: true },
+        // { title: "Visualization", image: "visualization", address: "/visualization", isImage: true },
+        { separated: true },
+        { title: "Data Labeling", image: "mdi-vector-square-close", address: "/labeling", margin: 5, isImage: false }
       ],
       routerImages: {
         project: project_mgmt,
@@ -132,8 +138,8 @@ export default {
       }
     },
 
-    routingImage(image) {
-      const img = this.currentPath.includes(image) ? image + "_on" : image;
+    routingImage(item) {
+      const img = this.currentPath === item.address ? item.image + "_on" : item.image;
       return this.routerImages[img];
     }
   }

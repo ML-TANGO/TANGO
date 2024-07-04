@@ -26,6 +26,17 @@ export async function getDatasetListTango() {
   return response.data.datasets;
 }
 
+export async function getDatasetInfo(name) {
+  let response = null;
+  try {
+    response = await axios.get("/api/datasets/get_dataset_info", { params: { name: name } });
+  } catch (error) {
+    throw new Error(error);
+  }
+
+  return response.data;
+}
+
 export async function getDatasetFolderSize(folderList) {
   let response = null;
   try {
@@ -87,10 +98,10 @@ export async function vocDatasetDownload() {
   return response.data;
 }
 
-export async function kaggleDatasetDownload() {
+export async function chestXrayDatasetDownload() {
   let response = null;
   try {
-    response = await axios.post("/api/datasets/download_kaggle_dataset");
+    response = await axios.post("/api/datasets/download_chest_xray_dataset");
   } catch (error) {
     throw new Error(error);
   }

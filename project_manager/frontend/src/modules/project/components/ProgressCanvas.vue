@@ -121,10 +121,7 @@ export default {
 
       if (compareStatus < projectStatus) {
         return "completed";
-      } else if (
-        compareStatus === projectStatus &&
-        (this.status === "complete" || this.status === "completed" || this.status === "success")
-      ) {
+      } else if (compareStatus === projectStatus && this.status === "completed") {
         return "completed";
       } else if (compareStatus === projectStatus) {
         return "running";

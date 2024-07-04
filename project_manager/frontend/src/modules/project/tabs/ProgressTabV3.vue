@@ -37,38 +37,11 @@
             :userEdit="project.deploy_user_edit === 'yes'"
             :workflow="project?.workflow"
             @start="start"
-            @showVis2code="showVis2code"
             @immediateLaunch="immediateLaunch"
           />
+          <!-- @showVis2code="showVis2code" -->
         </div>
       </v-card>
-      <v-btn
-        @click="open = !open"
-        v-if="project.task_type === TaskType.CLASSIFICATION && projectInfo?.container !== ContainerName.BMS"
-        style="background-color: #fff"
-        class="ml-1 elevation-0"
-      >
-        <div v-if="!open">
-          <v-icon>mdi-chevron-down</v-icon>
-
-          Open VISUALIZATION
-        </div>
-
-        <div v-else>
-          <v-icon>mdi-chevron-up</v-icon>
-          Close VISUALIZATION
-        </div>
-      </v-btn>
-      <v-banner
-        v-model="open"
-        style="padding: 0px !important"
-        class="custom"
-        v-if="project.task_type === TaskType.CLASSIFICATION"
-      >
-        <v-card style="height: 1080px; overflow: none" class="mt-5">
-          <iframe :src="HongIKVis2Code" title="내용" width="100%" height="100%"></iframe>
-        </v-card>
-      </v-banner>
     </div>
     <div>
       <LogViewer />
@@ -107,39 +80,15 @@ export default {
   },
 
   computed: {
-    ...mapState(ProjectNamespace, ["project"]),
-
-    HongIKVis2Code() {
-      if (process.env.NODE_ENV === "production") {
-        const host = window.location.hostname;
-        return `http://${host}:8091`;
-      } else {
-        return `${process.env.VUE_APP_ROOT_HOST}:8091`;
-      }
-    }
+    ...mapState(ProjectNamespace, ["project", "autonn_status"])
   },
 
-  mounted() {
-    this.$nextTick(() => {
-      const element = document.getElementById("log");
-      element.scrollTop = element.scrollHeight;
-    });
-
-    this.$EventBus.$on("control_Vis2Code", status => {
-      this.isVis2Code = status;
-      this.open = status;
-    });
-  },
+  mounted() {},
 
   methods: {
     ...mapMutations(ProjectNamespace, {
       SET_PROJECT: ProjectMutations.SET_PROJECT
     }),
-
-    showVis2code() {
-      this.isVis2Code = true;
-      this.open = true;
-    },
 
     start(container) {
       const containerName = DisplayName[container];
@@ -184,79 +133,8 @@ export default {
       this.SET_PROJECT({ project_type: ProjectType.MANUAL, container: container });
     },
 
-    async autoCreate() {
-      // 실행중인 컨테이너가 있다면 종료
-      if (this.projectInfo?.container && this.projectInfo?.container !== "" && this.projectInfo?.container !== "init") {
-        Swal.fire({
-          title: `실행 중인 작업이 있습니다.`,
-          text: "다시 시작 하시겠습니까?",
-          icon: "warning",
-          showCancelButton: true,
-          confirmButtonColor: "#3085d6",
-          cancelButtonColor: "#d33",
-          confirmButtonText: "확인",
-          cancelButtonText: "취소"
-        }).then(async result => {
-          if (result.isConfirmed) {
-            await updateProjectType(this.projectInfo.id, ProjectType.AUTO);
-            await this.containerStartRequest("bms");
-            this.$emit("restart", "bms");
-          }
-        });
-      } else {
-        await updateProjectType(this.projectInfo.id, ProjectType.AUTO);
-        await this.containerStartRequest("bms");
-        this.$emit("restart", "bms");
-      }
-
-      this.SET_PROJECT({
-        project_type: ProjectType.AUTO
-      });
-    },
-
-    async menualCreate() {
-      // 실행중인 컨테이너가 있다면 종료
-      if (this.projectInfo?.container && this.projectInfo?.container !== "" && this.projectInfo?.container !== "init") {
-        Swal.fire({
-          title: `실행 중인 작업이 있습니다.`,
-          text: "다시 시작 하시겠습니까?",
-          icon: "warning",
-          showCancelButton: true,
-          confirmButtonColor: "#3085d6",
-          cancelButtonColor: "#d33",
-          confirmButtonText: "확인",
-          cancelButtonText: "취소"
-        }).then(async result => {
-          if (result.isConfirmed) {
-            await updateProjectType(this.projectInfo.id, ProjectType.MANUAL);
-          }
-        });
-      } else {
-        await updateProjectType(this.projectInfo.id, ProjectType.MANUAL);
-      }
-
-      this.SET_PROJECT({
-        project_type: ProjectType.MANUAL
-      });
-    },
-
-    // showContainerName(container) {
-    //   if (container) {
-    //     if (container.toLowerCase() === "bms") {
-    //       return "BMS";
-    //     } else if (container.toLowerCase() === "yoloe") {
-    //       return "Auto NN";
-    //     } else if (container.toLowerCase() === "codegen") {
-    //       return "Code Gen";
-    //     } else if (container.toLowerCase() === "imagedeploy") {
-    //       return "Image Deploy";
-    //     } else {
-    //       return "";
-    //     }
-    //   } else {
-    //     return "";
-    //   }
-    // },
+    async autoCreate() {},
+    async menualCreate() {},
 
     async containerStartRequest(container) {
       const res = await containerStart(container, this.projectInfo.create_user, this.projectInfo.id);

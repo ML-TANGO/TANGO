@@ -10,9 +10,9 @@
       {{ project.project_name }}
     </h3>
     <div style="grid-column: 2">
-      <v-btn dark icon>
+      <!-- <v-btn dark icon>
         <v-icon color="black">mdi-bell-outline</v-icon>
-      </v-btn>
+      </v-btn> -->
     </div>
     <div style="grid-column: 3">
       <v-menu bottom offset-y :rounded="'lg'" :nudge-bottom="15" :nudge-left="30">
@@ -29,7 +29,7 @@
         </template>
 
         <v-list dense style="width: 200px" class="px-3">
-          <v-list-item @click="logout">
+          <!-- <v-list-item>
             <v-list-item-icon>
               <v-icon color="black">mdi-cog</v-icon>
             </v-list-item-icon>
@@ -37,7 +37,7 @@
               <v-list-item-title> setting </v-list-item-title>
             </v-list-item-content>
           </v-list-item>
-          <v-divider class="my-3" />
+          <v-divider class="my-3" /> -->
           <v-list-item @click="logout">
             <v-list-item-icon>
               <v-icon color="black">mdi-logout</v-icon>
