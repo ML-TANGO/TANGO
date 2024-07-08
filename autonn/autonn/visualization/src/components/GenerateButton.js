@@ -6,14 +6,15 @@ import styled from "styled-components";
 function GenerateButton(props){
     const onShow=(event)=>{
         event.preventDefault();
-        var data = props.elements;
-        data = (Object.values((Object.entries(data))));
-
-        axios.post("/api/pth/")
-        .then(function(response){
-        console.log(response)
-        })
-        .catch(e => console.log(e))
+        // var data = props.elements;
+        // data = (Object.values((Object.entries(data))));
+        var data = props.info
+        axios
+            .post("/api/pth/", data)
+            .then(function(response) {
+                console.log(response)
+            })
+            .catch(e => console.log(e))
     };
 
     return(

@@ -76,10 +76,10 @@ function LayerList() {
   const [idState, setIdState] = useState("");
   const [paramState, setParam] = useState();
   const [group, setGroup] = useState(false);
-  const [level, setLevel] = useState(1);
+  const [level, setLevel] = useState(0);
   const [ungroup, setUngroup] = useState(false);
   const [isSort, setIsSort] = useState(false);
-  const [elements, setElements, isLoading] = InitialArch(level, group, setGroup, ungroup, setUngroup, isSort, setIsSort);
+  const [info, elements, setElements, isLoading] = InitialArch(level, group, setGroup, ungroup, setUngroup, isSort, setIsSort);
   const [rapid, setRapid] = useState([]);
   const [noMatch, setNoMatch] = useState([]);
 
@@ -87,6 +87,7 @@ function LayerList() {
 
   useEffect(()=>{
     const get_params = async () => {
+      if (idState.length == 0) return
       try {
         await axios.get('/api/node/'.concat(String(idState)).concat('/')).then((response) => {
            setParam(response.data.parameters);
@@ -903,7 +904,7 @@ const notRunningState = setInterval(() => {
           setState={setIdState}
         ></IDetect>
       );
-    else
+    if (state == 'Upsample')
       return (
         <Upsample
           params = {paramState}
@@ -914,6 +915,10 @@ const notRunningState = setInterval(() => {
           header={state}
           setState={setIdState}
         ></Upsample>
+      );
+    else
+      return (
+        "DOUBLE-CLICK A NODE FOR DETAIL"
       );
   };
 
@@ -927,6 +932,10 @@ const tabOnClick = (path) => {
   }
 
 }
+
+  const onReload = () => {
+    setLevel(level+1)
+  }
 
  if (isLoading) {
     return <div>로딩중...</div>;
@@ -974,9 +983,11 @@ const tabOnClick = (path) => {
               </ControlButton>
             </Controls>
           <div className="reactBtn" style={{position:'absolute' ,zIndex:100}}>
-
-            <GenerateButton  elements={elements}  />
+            <GenerateButton  info={info}  />
+            {/*<GenerateButton  elements={elements}  />*/}
+            <button class="btb_fin" onClick={onReload}> Reload </button>
             </div>
+
 
           </ReactFlow>
         </div>

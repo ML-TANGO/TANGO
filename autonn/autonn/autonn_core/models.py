@@ -20,6 +20,7 @@ class Info(models.Model):
     progress = models.CharField(blank=True, null=True, max_length=20, default='unknown')
     model_type = models.CharField(blank=True, null=True, max_length=50, default='Not Selected')
     model_size = models.CharField(blank=True, null=True, max_length=50, default='Not Selected')
+    model_viz = models.CharField(blank=True, null=True, max_length=50, default='not ready')
     batch_size = models.IntegerField(blank=True, null=True)
 
     # For checkpoint -----------------------------------------------------------
@@ -63,4 +64,5 @@ class Pth(models.Model):
     # from Viz -----------------------------------------------------------------
     model_pth = models.CharField(blank=True, null=True, max_length=200, default='')
     model_yml = models.CharField(blank=True, null=True, max_length=200, default='')
+
 
