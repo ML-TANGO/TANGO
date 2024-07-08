@@ -24,8 +24,8 @@ services:
     volumes:
       # - ./project_manager:/code
       - shared:/shared
-      # - ${COCODIR:-./autonn/autonn/autonn_core/datasets/coco}:/shared/datasets/coco
-      # - ${COCO128DIR:-./autonn/autonn/autonn_core/datasets/coco128}:/shared/datasets/coco128
+      - ${COCODIR:-./autonn/autonn/autonn_core/datasets/coco}:/shared/datasets/coco
+      - ${COCO128DIR:-./autonn/autonn/autonn_core/datasets/coco128}:/shared/datasets/coco128
       - /var/run/docker.sock:/var/run/docker.sock
     hostname: projectmanager
     ports:
@@ -110,8 +110,8 @@ services:
     volumes:
       - ./autonn/autonn:/source
       - shared:/shared
-      # - ${COCODIR:-./autonn/autonn/autonn_core/datasets/coco}:/shared/datasets/coco
-      # - ${COCO128DIR:-./autonn/autonn/autonn_core/datasets/coco128}:/shared/datasets/coco128
+      - ${COCODIR:-./autonn/autonn/autonn_core/datasets/coco}:/shared/datasets/coco
+      - ${COCO128DIR:-./autonn/autonn/autonn_core/datasets/coco128}:/shared/datasets/coco128
     hostname: autonn
     ports:
       - "8100:8100"
