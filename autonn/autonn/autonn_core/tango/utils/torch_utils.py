@@ -255,7 +255,7 @@ def model_summary(model, img_size=640):
         img = torch.zeros((1, model.yaml.get('ch', 3), stride, stride), device=next(model.parameters()).device)  # input
         flops = profile(deepcopy(model), inputs=(img,), verbose=False)[0] / 1E9 * 2  # stride GFLOPS
         img_size = img_size if isinstance(img_size, list) else [img_size, img_size]  # expand if int/float
-        gflops = '%.1f GFLOPS' % (flops * img_size[0] / stride * img_size[1] / stride)  # 640x640 GFLOPS
+        gflops = '%.1f' % (flops * img_size[0] / stride * img_size[1] / stride)  # 640x640 GFLOPS
     except (ImportError, Exception) as e:
         gflops = 'n/a'
 

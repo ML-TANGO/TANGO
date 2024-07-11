@@ -34,8 +34,8 @@ logger = logging.getLogger(__name__)
 def set_logging(rank=-1):
     logging.basicConfig(
         format="[%(asctime)s] %(message)s",
-        level=logging.WARN)
-        # level=logging.INFO if rank in [-1, 0] else logging.WARN)
+        # level=logging.WARN)
+        level=logging.INFO if rank in [-1, 0] else logging.WARN)
 
 
 def init_seeds(seed=0):
@@ -113,7 +113,7 @@ def check_requirements(requirements='requirements.txt', exclude=()):
             pkg.require(r)
         except Exception as e:  # DistributionNotFound or VersionConflict if requirements not met
             n += 1
-            logger.info(f"{prefix} {e.req} not found and is required by YOLOR, attempting auto-update...")
+            logger.info(f"{prefix} {e.req} not found and is required by TANGO, attempting auto-update...")
             logger.info(subprocess.check_output(f"pip install '{e.req}'", shell=True).decode())
 
     if n:  # if packages updated

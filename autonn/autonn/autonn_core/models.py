@@ -12,6 +12,7 @@ class Info(models.Model):
 
     # From user ----------------------------------------------------------------
     target = models.CharField(blank=True, null=True, max_length=50, default='pc')
+    device = models.CharField(blank=True, null=True, max_length=50, default='cpu')
     dataset = models.CharField(blank=True, null=True, max_length=50, default='coco')
     task = models.CharField(blank=True, null=True, max_length=50, default='detection')
 

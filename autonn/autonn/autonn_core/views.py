@@ -19,6 +19,7 @@ from .serializers import PthSerializer
 
 from .tango.main.select import run_autonn
 from .tango.main.visualize import export_pth, export_yml
+from .tango.main.export import export_weight, export_config
 
 PROCESSES = {}
 
@@ -176,6 +177,7 @@ def start(request):
     except Info.DoesNotExist:
         # new project
         info = Info(userid=userid, project_id=project_id)
+        info.save()
 
     try:
         # data_yaml, proj_yaml = get_user_requirements(userid, project_id)
@@ -210,8 +212,7 @@ def status_request(request):
     project_id = params['project_id']
 
     try:
-        info = Info.objects.get(userid=userid,
-                                          project_id=project_id)
+        info = Info.objects.get(userid=userid, project_id=project_id)
     except Info.DoesNotExist:
         # empty project
         return Response("ready", status=status.HTTP_204_NO_CONTENT, content_type='text/plain')
@@ -276,10 +277,19 @@ def process_autonn(userid, project_id):
     '''
     try:
         # ------- actual process --------
-        fanal_model = run_autonn(userid, project_id, viz2code="False", nas="False", hpo="False")
-        # export_model(final_model, userid, project_id)
-        # export_nn_info(userid, project_id)
-        # status_report(userid, project_id, "completed")
+        final_model = run_autonn(userid, project_id, viz2code="False", nas="False", hpo="False")
+
+        info = Info.objects.get(userid=userid, project_id=project_id)
+        target_acc = info.device
+        convert =   [   'torchscript',  # convert to traced model(torchscript)
+                        # 'onnx',         # convert to onnx
+                        # 'onnx_end2end', # convert to onnx with nms
+                        # 'engine',       # convert to tensor RT
+                        # 'pb',           # convert to tensor flow graph format
+                        # 'tflite'        # convert to tensor flow lite
+                    ]
+        export_weight(final_model, userid, project_id, target_acc, convert)
+        #export_config(userid, project_id)
 
         # ------- temp for test ---------
         # import time
