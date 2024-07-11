@@ -83,6 +83,16 @@ def get_user_requirements(userid, projid):
                   update_id="project_info",
                   update_content=proj_info_dict)
 
+    info = Info.objects.get(userid=userid, project_id=projid)
+    info.target = proj_info_dict['target_info'].replace('-', '').replace('_', '').lower()
+    info.device = proj_info_dict['acc']
+    info.dataset = proj_info_dict['dataset']
+    info.task = proj_info_dict['task_type']
+    info.status = "running"
+    info.progress = "setting"
+    info.model_viz = "not ready"
+    info.save()
+
     # ----------------------------- dataset ------------------------------------
     dataset_on_proj = proj_info_dict["dataset"]
     if os.path.isdir(str(DATASET_ROOT / dataset_on_proj)):
@@ -201,9 +211,6 @@ def run_autonn(userid, project_id, viz2code=False, nas=False, hpo=False):
 
     if basemodel['imgsz']==1280:
         return run_autonn_aux(proj_path, dataset_yaml_path, data, target, train_mode, final_arch)
-
-    # Set Logging --------------------------------------------------------------
-    # set_logging(opt.global_rank)
 
     # wandb_run = check_wandb_resume(opt)
     # if opt.resume and not wandb_run:
