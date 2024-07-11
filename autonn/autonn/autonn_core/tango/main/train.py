@@ -391,7 +391,7 @@ def train(proj_info, hyp, opt, data_dict, tb_writer=None):
               update_content=hyp)
 
     # Start training -----------------------------------------------------------
-    t0 = time_synchronized() # time.time()
+    t0 = time.time() # time_synchronized()
     nw = max(round(hyp['warmup_epochs'] * nb), 1000)  # number of warmup iterations, max(3 epochs, 1k iterations)
     # nw = min(nw, (epochs - start_epoch) / 2 * nb)  # limit warmup to < 1/2 of training
     maps = np.zeros(nc)  # mAP per class
@@ -416,7 +416,7 @@ def train(proj_info, hyp, opt, data_dict, tb_writer=None):
 
     # torch.save(model, wdir / 'init.pt')
     for epoch in range(start_epoch, epochs):  # epoch ------------------------------------------------------------------
-        t_epoch = time_synchronized()
+        t_epoch = time.time() #time_synchronized()
         model.train()
 
         # Update image weights (optional)
@@ -448,7 +448,7 @@ def train(proj_info, hyp, opt, data_dict, tb_writer=None):
         train_loss = {}
         optimizer.zero_grad()
         for i, (imgs, targets, paths, _) in pbar:  # batch ---------------------
-            t_batch = time_synchronized()
+            t_batch = time.time() #time_synchronized()
             ni = i + nb * epoch  # number integrated batches (since train start)
             imgs = imgs.to(device, non_blocking=True).float() / 255.0  # uint8 to float32, 0-255 to 0.0-1.0
 
@@ -520,7 +520,7 @@ def train(proj_info, hyp, opt, data_dict, tb_writer=None):
                 train_loss['label'] = targets.shape[0]
                 train_loss['step'] = i + 1
                 train_loss['total_step'] = nb
-                train_loss['time'] = f"{(time_synchronized() - t_batch):.1f} s"
+                train_loss['time'] = f"{(time.time() - t_batch):.1f} s"
                 status_update(userid, project_id,
                               update_id="train_loss",
                               update_content=train_loss)
@@ -583,6 +583,23 @@ def train(proj_info, hyp, opt, data_dict, tb_writer=None):
             #     if wandb_logger.wandb:
             #         wandb_logger.log({tag: x})  # W&B
 
+            epoch_summary = {}
+            epoch_summary['total_epoch'] = epochs
+            epoch_summary['current_epoch'] = epoch + 1
+            epoch_summary['train_loss_box'] = mloss_list[0]
+            epoch_summary['train_loss_obj'] = mloss_list[1]
+            epoch_summary['train_loss_cls'] = mloss_list[2]
+            epoch_summary['train_loss_total'] = mloss_list[3]
+            epoch_summary['val_acc_P'] = results[0]
+            epoch_summary['val_acc_R'] = results[1]
+            epoch_summary['val_acc_map50'] = results[2]
+            epoch_summary['val_acc_map'] = results[3]
+            epoch_summary['epoch_time'] = time.time() - t_epoch
+            epoch_summary['total_time'] = (time.time() - t0) / 3600
+            status_update(userid, project_id,
+                          update_id="epoch_summary",
+                          update_content=epoch_summary)
+
             # Update best mAP
             fi = fitness(np.array(results).reshape(1, -1))  # weighted combination of [P, R, mAP@.5, mAP@.5-.95]
             if fi > best_fitness:
@@ -638,7 +655,7 @@ def train(proj_info, hyp, opt, data_dict, tb_writer=None):
             #     wandb_logger.log({"Results": [wandb_logger.wandb.Image(str(save_dir / f), caption=f) for f in files
             #                                   if (save_dir / f).exists()]})
 
-        logger.info('%g epochs completed in %.3f hours.\n' % (epoch - start_epoch + 1, (time_synchronized() - t0) / 3600))
+        logger.info('%g epochs completed in %.3f hours.\n' % (epoch - start_epoch + 1, (time.time() - t0) / 3600))
 
         # Test best.pt after fusing layers
         # [tenace's note] argument of type 'PosixPath' is not iterable
@@ -684,7 +701,7 @@ def train(proj_info, hyp, opt, data_dict, tb_writer=None):
     train_end['epochs'] = epochs
     train_end['bestmodel'] = str(final)
     train_end['bestmodel_size'] = f'{mb:.1f} MB'
-    train_end['time'] = f'{(time_synchronized() - t0) / 3600:.3f} hours'
+    train_end['time'] = f'{(time.time() - t0) / 3600:.3f} hours'
     status_update(userid, project_id,
                   update_id="train_end",
                   update_content=train_end)

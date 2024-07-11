@@ -123,7 +123,7 @@ class IDetect(nn.Module):
     def forward(self, x):
         # x = x.copy()  # for profiling
         z = []  # inference output
-        self.training |= self.export
+        # self.training |= self.export
         for i in range(self.nl):
             x[i] = self.m[i](self.ia[i](x[i]))  # conv
             x[i] = self.im[i](x[i])
@@ -140,11 +140,12 @@ class IDetect(nn.Module):
                 z.append(y.view(bs, -1, self.no))
 
         return x if self.training else (torch.cat(z, 1), x)
+
     
     def fuseforward(self, x):
         # x = x.copy()  # for profiling
         z = []  # inference output
-        self.training |= self.export
+        # self.training |= self.export
         for i in range(self.nl):
             x[i] = self.m[i](x[i])  # conv
             bs, _, ny, nx = x[i].shape  # x(bs,255,20,20) to x(bs,3,20,20,85)
