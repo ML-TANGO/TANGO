@@ -2,13 +2,13 @@ import json
 
 from django.db.models import Model
 
-from ..models import Project, Hyperparameter, AutonnStatus, TrainLossLastStep, ValAccuracyLastStep
+from ..models import Project, Hyperparameter, AutonnStatus, TrainLossLastStep, ValAccuracyLastStep, EpochSummary
 from ..enums import autonn_update_ids, autonn_process
 
 def create_last_step(model_class, update_data, project_id):
     try:
         data = json.loads(update_data)
-        if int(data["step"]) == (int(data["total_step"]) - 1):
+        if int(data["step"]) == (int(data["total_step"])):
             project_info = Project.objects.get(id = project_id)
             if model_class == TrainLossLastStep:
                 data["project_id"] = project_id
@@ -30,6 +30,24 @@ def create_last_step(model_class, update_data, project_id):
     except Exception as error:
         print("autonn_status 업데이트 오류.............")
         print(error)
+
+def create_epoch_summary(_data, project_id):
+    try:
+        epoch_summary_info = json.loads(_data)
+        project_info = Project.objects.get(id = project_id)
+    
+        epoch_summay = EpochSummary()
+        epoch_summay.project_id = project_id
+        epoch_summay.project_version = project_info.version
+        
+        for key, value in epoch_summary_info.items():
+            setattr(epoch_summay, key, value)
+    
+        epoch_summay.save()
+    except Exception as error:
+        print("create epoch summary error")
+        print(error)
+    
 
 def update_instance_with_dict(model_class, update_data):
     try:
@@ -93,6 +111,7 @@ def update_autonn_status(body):
         autonn_update_ids["train_start"] : ("train_start", autonn_status_info.train_start),
         autonn_update_ids["train_loss"] : ("train_loss", autonn_status_info.train_loss_latest),
         autonn_update_ids["val_accuracy"] : ("val_accuracy", autonn_status_info.val_accuracy_latest),
+        autonn_update_ids["epoch_summary"] : ("epoch_summary", None),
         # autonn_update_ids["train_end"] : ("train_end", autonn_status_info.tr),
         # autonn_update_ids["nas_start"] : ("nas_start", autonn_status_info.),
         # autonn_update_ids["evolution_search"] : ("evolution_search", autonn_status_info.),
@@ -117,6 +136,11 @@ def update_autonn_status(body):
 
     if update_id == autonn_update_ids["system"]:
         update_instance_by_system(update_instance, body['update_content'])
+    elif update_id == autonn_update_ids["epoch_summary"]:
+        data = json.loads(body['update_content'])
+        if 'total_time' in data:
+            data['total_time'] = float(data['total_time']) * 3600
+        create_epoch_summary(json.dumps(data), body['project_id'])
     elif update_id == autonn_update_ids["val_accuracy"]:
         data = json.loads(body['update_content'])
         if 'class' in data:

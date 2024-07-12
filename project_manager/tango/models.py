@@ -88,6 +88,8 @@ class Project(models.Model):
     last_log_container = models.CharField(blank=True, null=True, max_length=50, default='') # 마지막 로그를 불러온 컨테이너
     current_log = models.TextField(blank=True, null=True, default='')                       # last_logs_timestamp 이후로 찍힌 로그
 
+    autonn_retry_count = models.IntegerField(blank=True, null=True, default=0)
+
     class Meta:
         """Project Meta class
         Note:
@@ -450,7 +452,7 @@ class ModelSummary(models.Model):
     layers = models.IntegerField(blank=True, null=True)
     parameters = models.BigIntegerField(blank=True, null=True)
     gradients = models.BigIntegerField(blank=True, null=True)
-    FLOPS = models.IntegerField(blank=True, null=True)
+    flops = models.FloatField(blank=True, null=True, default=0.0)
 
     class Meta:
         """ModelSummary Meta class
@@ -616,10 +618,10 @@ class TrainLossLatest(models.Model):
     epoch = models.IntegerField(blank=True, null=True)
     total_epoch = models.IntegerField(blank=True, null=True)
     gpu_mem = models.TextField(blank=True, null=True)
-    box = models.TextField(blank=True, null=True)
-    obj = models.TextField(blank=True, null=True)
-    cls = models.IntegerField(blank=True, null=True)
-    total = models.IntegerField(blank=True, null=True)
+    box = models.FloatField(blank=True, null=True)
+    obj = models.FloatField(blank=True, null=True)
+    cls = models.FloatField(blank=True, null=True)
+    total = models.FloatField(blank=True, null=True)
     label = models.IntegerField(blank=True, null=True)
     step = models.IntegerField(blank=True, null=True)
     total_step = models.IntegerField(blank=True, null=True) 
@@ -654,10 +656,10 @@ class TrainLossLastStep(models.Model):
     epoch = models.IntegerField(blank=True, null=True)
     total_epoch = models.IntegerField(blank=True, null=True)
     gpu_mem = models.TextField(blank=True, null=True)
-    box = models.TextField(blank=True, null=True)
-    obj = models.TextField(blank=True, null=True)
-    cls = models.IntegerField(blank=True, null=True)
-    total = models.IntegerField(blank=True, null=True)
+    box = models.FloatField(blank=True, null=True)
+    obj = models.FloatField(blank=True, null=True)
+    cls = models.FloatField(blank=True, null=True)
+    total = models.FloatField(blank=True, null=True)
     label = models.IntegerField(blank=True, null=True)
     step = models.IntegerField(blank=True, null=True)
     total_step = models.IntegerField(blank=True, null=True) 
@@ -692,10 +694,10 @@ class ValAccuracyLatest(models.Model):
     class_type = models.TextField(blank=True, null=True)   
     images = models.IntegerField(blank=True, null=True)   
     labels = models.BigIntegerField(blank=True, null=True)   
-    P = models.IntegerField(blank=True, null=True)   
-    R = models.IntegerField(blank=True, null=True)   
-    mAP50 = models.IntegerField(blank=True, null=True)   
-    mAP50_95 = models.IntegerField(blank=True, null=True)   
+    P = models.FloatField(blank=True, null=True)   
+    R = models.FloatField(blank=True, null=True)   
+    mAP50 = models.FloatField(blank=True, null=True)   
+    mAP50_95 = models.FloatField(blank=True, null=True)   
     step = models.IntegerField(blank=True, null=True)   
     total_step = models.IntegerField(blank=True, null=True)   
     time = models.TextField(blank=True, null=True)   
@@ -731,10 +733,10 @@ class ValAccuracyLastStep(models.Model):
     class_type = models.TextField(blank=True, null=True)   
     images = models.IntegerField(blank=True, null=True)   
     labels = models.BigIntegerField(blank=True, null=True)   
-    P = models.IntegerField(blank=True, null=True)   
-    R = models.IntegerField(blank=True, null=True)   
-    mAP50 = models.IntegerField(blank=True, null=True)   
-    mAP50_95 = models.IntegerField(blank=True, null=True)   
+    P = models.FloatField(blank=True, null=True)   
+    R = models.FloatField(blank=True, null=True)   
+    mAP50 = models.FloatField(blank=True, null=True)   
+    mAP50_95 = models.FloatField(blank=True, null=True)   
     step = models.IntegerField(blank=True, null=True)   
     total_step = models.IntegerField(blank=True, null=True)   
     time = models.TextField(blank=True, null=True)   
@@ -750,6 +752,43 @@ class ValAccuracyLastStep(models.Model):
 
         # DB 테이블 이름
         db_table = 'val_accuracy_laststep'
+
+class EpochSummary(models.Model):
+    """EpochSummary class
+    Note:
+    Args:
+        models.Model
+    Attributes:
+    """
+    id = models.AutoField(primary_key=True)   
+    project_id = models.IntegerField(blank=False, null=False, default=0)
+    project_version = models.IntegerField(blank=True, null=True, default=0)
+    is_use = models.BooleanField(blank=False, null=False, default=True)                              
+
+    total_epoch = models.IntegerField(blank=True, null=True, default=0)      # 전체 epoch = x축의 오른쪽 끝 좌표
+    current_epoch = models.IntegerField(blank=True, null=True, default=0)    # 현재 epoch = 지금 점을 찍을 x 좌표
+    train_loss_box = models.FloatField(blank=True, null=True, default=0.0)     # (학습 training) 현재 epoch의 box loss 누적평균값
+    train_loss_obj = models.FloatField(blank=True, null=True, default=0.0)     # (학습 training) 현재 epoch의 object loss 누적평균값
+    train_loss_cls = models.FloatField(blank=True, null=True, default=0.0)     # (학습 training) 현재 epoch의 class average loss 누적평균값
+    train_loss_total = models.FloatField(blank=True, null=True, default=0.0)   # (학습 training) 현재 epoch의 box, obj, cls loss의 가중평균값
+    val_acc_P = models.FloatField(blank=True, null=True, default=0.0)          # (검증 validation) 현재 epoch의 Precision 누적평균값
+    val_acc_R = models.FloatField(blank=True, null=True, default=0.0)           # (검증 validation) 현재 epoch의 Recall 누적평균값 
+    val_acc_map50 = models.FloatField(blank=True, null=True, default=0.0)      # (검증 validation) 현재 epoch의 mAP50 (PR-curve 적분값; IoU=50% 기준) 
+    val_acc_map = models.FloatField(blank=True, null=True, default=0.0)        # (검증 valication) 현재 epoch의 mAP50-95 (PR-curve 적분값; IoU=50%에서 95%의 가중평균값)
+    epoch_time = models.FloatField(blank=True, null=True, default=0.0)     # 현재 epoch의 준비 + 학습 + 검증 까지 걸린 총 시간(단위:s) 막대
+    total_time = models.FloatField(blank=True, null=True, default=0.0)     # 지금까지 걸린 시간 누적 (단위: s) 꺽은선
+
+    class Meta:
+        """EpochSummary Meta class
+        Note:
+        Args:
+          None
+        Attributes:
+        """
+        # managed = False
+
+        # DB 테이블 이름
+        db_table = 'epoch_summary'
 
 class AutonnStatus(models.Model):
     """AutonnStatus class
@@ -774,6 +813,7 @@ class AutonnStatus(models.Model):
     train_start = models.ForeignKey("TrainStart", related_name="train_start", on_delete=models.PROTECT, db_column="train_start", )
     train_loss_latest = models.ForeignKey("TrainLossLatest", related_name="train_loss_latest", on_delete=models.PROTECT, db_column="train_loss_latest",)
     val_accuracy_latest = models.ForeignKey("ValAccuracyLatest", related_name="val_accuracy_latest", on_delete=models.PROTECT, db_column="val_accuracy_latest", )
+    # epoch_summary = models.ForeignKey("EpochSummary", related_name="epoch_summary", on_delete=models.PROTECT, db_column="epoch_summary", null=True, blank=True)
 
     class Meta:
         """AutonnStatus Meta class
