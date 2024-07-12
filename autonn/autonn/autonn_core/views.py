@@ -283,18 +283,27 @@ def process_autonn(userid, project_id):
         target_acc = info.device
         convert =   [   'torchscript',  # convert to traced model(torchscript)
                         # 'onnx',         # convert to onnx
-                        # 'onnx_end2end', # convert to onnx with nms
-                        # 'engine',       # convert to tensor RT
-                        # 'pb',           # convert to tensor flow graph format
-                        # 'tflite'        # convert to tensor flow lite
+                        'onnx_end2end', # convert to onnx with nms (only for detection)
+                        # 'engine',       # convert to tensor RT (need onnx model first)
+                        # 'openvino',     # convert to openvino
+                        # 'coreml',       # convert to coreml(for ios)
+                        # 'saved_model',  # convert to tensorflow saved model
+                        # 'pb',           # convert to tensorflow graph (need keras model first)
+                        # 'tflite',       # convert to tensorflow lite (need keras model first)
+                        # 'edgetpu',      # convert to tensorflow tpu
+                        # 'tfjs',         # convert to tensorflow javascript
                     ]
+
+        # remove duplicates
+        convert = list(set(convert))
+
         export_weight(final_model, userid, project_id, target_acc, convert)
         #export_config(userid, project_id)
 
-        # ------- temp for test ---------
-        # import time
-        # time.sleep(15)
         status_report(userid, project_id, "completed")
+        print("=== wait for 10 sec to avoid thread exception =============")
+        import time
+        time.sleep(10)
         return
     except Exception as e:
         print(f"[AutoNN process_autonn] exception: {e}")

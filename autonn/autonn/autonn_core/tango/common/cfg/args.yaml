@@ -4,7 +4,7 @@ cfg: ''
 data: ''
 hyp: ''
 epochs: 2
-batch_size: -1
+batch_size: -1  # it'll be changed by auto-batch
 img_size: [640, 640]
 rect: False
 resume: False
@@ -22,9 +22,9 @@ adam: False
 sync_bn: False
 local_rank: -1
 workers: 8
-project: 'runs/train'
+project: 'runs/train' # it must be changed to /shared/common/{uid}/{pid}
 entity: None
-name: 'exp'
+name: 'autonn'
 exist_ok: True
 quad: False
 linear_lr: False

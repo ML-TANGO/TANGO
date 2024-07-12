@@ -43,7 +43,7 @@ def status_update(userid, project_id, update_id=None, update_content=None):
         info = Info.objects.get(userid=userid, project_id=project_id)
         if update_id in ['project_info', 'hyperparameter', 'arguments', 'system',
                          'basemodel', 'batchsize', 'model', 'model_summary',
-                         'train_dataset', 'val_dataset', 'anchor']:
+                         'train_dataset', 'val_dataset', 'anchors']:
             info.progress = "setting"
         elif update_id in ['train_start', 'train_loss', 'val_accuracy', 'epoch_summary', 'train_end']:
             info.progress = "training"

@@ -71,7 +71,7 @@ logger = logging.getLogger(__name__)
 
 def get_user_requirements(userid, projid):
     """
-        Get user requirements(dataset, project, hyperparameters, arguments)
+    Get user requirements(dataset, project, hyperparameters, arguments)
     """
     # ----------------------------- project_info -------------------------------
     PROJ_PATH = COMMON_ROOT / userid / projid
@@ -341,9 +341,9 @@ def run_autonn(userid, project_id, viz2code=False, nas=False, hpo=False):
     logger.info(f'best model = {train_final}, {mb:.1f} MB')
     logger.info(f'mAP = {results[-1]}')
 
-    print("=== wait for 10 sec to avoid thread exception =============")
-    import time
-    time.sleep(10)
+    # print("=== wait for 10 sec to avoid thread exception =============")
+    # import time
+    # time.sleep(10)
 
     return train_final  # best.pt
 
