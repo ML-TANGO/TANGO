@@ -471,17 +471,18 @@ class LoadImagesAndLabels(Dataset):  # for training/testing
                 self.im_cache_dir.mkdir(parents=True, exist_ok=True)
             gb = 0  # Gigabytes of cached images
             self.img_hw0, self.img_hw = [None] * n, [None] * n
-            results = ThreadPool(8).imap(lambda x: load_image(*x), zip(repeat(self), range(n)))
-            pbar = tqdm(enumerate(results), total=n)
-            for i, x in pbar:
-                if cache_images == 'disk':
-                    if not self.img_npy[i].exists():
-                        np.save(self.img_npy[i].as_posix(), x[0])
-                    gb += self.img_npy[i].stat().st_size
-                else:
-                    self.imgs[i], self.img_hw0[i], self.img_hw[i] = x
-                    gb += self.imgs[i].nbytes
-                pbar.desc = f'{prefix}Caching images ({gb / 1E9:.1f}GB)'
+            # results = ThreadPool(8).imap(lambda x: load_image(*x), zip(repeat(self), range(n)))
+            with ThreadPool(8).imap(lambda x: load_image(*x), zip(repeat(self), range(n))) as results:
+                pbar = tqdm(enumerate(results), total=n)
+                for i, x in pbar:
+                    if cache_images == 'disk':
+                        if not self.img_npy[i].exists():
+                            np.save(self.img_npy[i].as_posix(), x[0])
+                        gb += self.img_npy[i].stat().st_size
+                    else:
+                        self.imgs[i], self.img_hw0[i], self.img_hw[i] = x
+                        gb += self.imgs[i].nbytes
+                    pbar.desc = f'{prefix}Caching images ({gb / 1E9:.1f}GB)'
             pbar.close()
 
     def cache_labels(self, path=Path('./labels.cache'), prefix=''):

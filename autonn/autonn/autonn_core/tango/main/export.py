@@ -600,13 +600,25 @@ def export_weight(weights, uid, pid, device, include):
         if isinstance(m, (Detect, IDetect, IKeypoint, IAuxDetect, IBin)):
             m.inplace = inplace
             m.dynamic = dynamic
-            m.export = True
+            if onnx_end2end:
+                m.end2end = True
+                m.export = False
+            else:
+                m.end2end = False
+                m.export = True
 
     for _ in range(2):
         y = model(im)  # dry runs
     if half and not coreml:
         im, model = im.half(), model.half()  # to FP16
-    shape = tuple((y[0] if isinstance(y, (tuple, list)) else y).shape)  # model output shape
+
+    # shape = tuple((y[0] if isinstance(y, (tuple, list)) else y).shape)  # model output shape
+    shape = []
+    if isinstance(y, (tuple, list)):
+        for yi in y:
+            shape.append(yi.shape)
+    else:
+        shape.append(y.shape)
     metadata = {'stride': int(max(model.stride)), 'names': model.names}  # model metadata
     # logger.info(f"\n{colorstr('PyTorch:')} starting from {file} with output shape {shape} ({file_size(file):.1f} MB)")
     logger.info(f"{colorstr('PyTorch:')} starting from {file} with output shape {shape} ({os.path.getsize(file) / 1E6:.1f} MB)")

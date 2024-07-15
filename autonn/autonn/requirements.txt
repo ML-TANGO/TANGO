@@ -31,8 +31,9 @@ typing_extensions==4.1.1
 urllib3==1.26.7
 #pyyaml==6.0
 
-nvidia-tensorrt<=10.1.0 # tensorrt model export
-protobuf==3.20.1
+#nvidia-tensorrt<=10.1.0 # tensorrt model export
+protobuf==3.20.1 # onxx model export
 onnx==1.12.0 # onnx model export
 onnxsim==0.4.33 # onnx model simplifier
-tensorflow==2.8.0 # tensorflow model export
+onnxruntime==1.14 # onnx model checker
+#tensorflow==2.8.0 # tensorflow model export
