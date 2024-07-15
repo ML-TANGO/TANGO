@@ -163,6 +163,14 @@ def get_autonn_status(request):
         val_accuracy_laststep_list = list(val_accuracy_laststeps.values())
         autonn["val_accuracy_laststep_list"] = list(map(related_model_to_dict, val_accuracy_laststep_list))
 
+        epoch_summary = models.EpochSummary.objects.filter(
+            project_id = project_info.id,
+            project_version = project_info.version,
+            is_use = True
+        )
+        epoch_summary_list = list(epoch_summary.values())
+        autonn["epoch_summary_list"] = list(map(related_model_to_dict, epoch_summary_list))
+
         return HttpResponse(json.dumps({'status': 200, "autonn" : autonn}))
     except Exception as error:
         return HttpResponse(error)
@@ -192,6 +200,39 @@ def container_start(request):
 
         project_info = Project.objects.get(id=project_id, create_user=str(user_id))
 
+        if container_id == "autonn":
+            try:
+                autonn_status = AutonnStatus.objects.filter(project = project_info.id)
+                # nested_model_delete(autonn_status)
+
+                for status in list(autonn_status):
+                    nested_model_delete(status)
+            except Exception as error:
+                print("autonn status를 찾을 수 없음")
+                print(error)
+
+            models.TrainLossLastStep.objects.filter(
+                project_id = project_info.id,
+                project_version = project_info.version,
+                is_use = True
+            ).delete()
+
+            models.ValAccuracyLastStep.objects.filter(
+                project_id = project_info.id,
+                project_version = project_info.version,
+                is_use = True
+            ).delete()
+
+            models.EpochSummary.objects.filter(
+                project_id = project_info.id,
+                project_version = project_info.version,
+                is_use = True
+            ).delete()
+
+            autonnstatusinfo_AA = init_autonn_status(project_info)
+            print("autonnstatusinfo_AA")
+            print(autonnstatusinfo_AA)
+
         response = asyncio.run(start_handler(container_id, user_id, project_id, project_info.target.target_info))
         to_json = json.loads(response)
 
@@ -199,18 +240,6 @@ def container_start(request):
         project_info.container_status = 'started'
         project_info.save()
 
-        if container_id == "autonn":
-            models.TrainLossLastStep.objects.filter(
-                project_id = project_info.id,
-                project_version = project_info.version,
-                is_use = True
-            ).update(is_use = False)
-
-            models.ValAccuracyLastStep.objects.filter(
-                project_id = project_info.id,
-                project_version = project_info.version,
-                is_use = True
-            ).update(is_use = False)
         
 
         return HttpResponse(json.dumps({'status': 200, 'message': str(container_id) + ' 시작 요청\n', 'response' : to_json['request_info']}))
@@ -665,11 +694,6 @@ def project_create(request):
                        create_date=str(datetime.now()))
         data.save()
 
-        ##################################################
-        ##################################################
-        ##################################################
-        ##################################################
-        ##################################################
         init_autonn_status(data) 
 
         return Response({'result': True,
@@ -698,8 +722,10 @@ def project_delete(request):
         project = Project.objects.get(id=request.data['id'],
                                        create_user=request.user)  # Project id로 검색
         try:
-            autonn_status = AutonnStatus.objects.get(project = request.data['id'])
-            nested_model_delete(autonn_status)
+            autonn_status = AutonnStatus.objects.filter(project = request.data['id'])
+
+            for status in list(autonn_status):
+                nested_model_delete(status)
         except Exception as error:
             print("autonn status를 찾을 수 없음")
             print(error)
@@ -717,11 +743,17 @@ def project_delete(request):
     return Response(status=200)
 
 def nested_model_delete(model):
-    if isinstance(model, Model):
-        for field in model._meta.get_fields():
-            nested_model_delete(field)
-        model.delete()
-    return
+    try:
+        if isinstance(model, Model):
+            for field in model._meta.get_fields():
+                nested_model_delete(field)
+            model.delete()
+        return
+    except Exception as error:
+        print("nested_model_delete error")
+        print(error)
+        return 
+    
 
 # Project 정보 조회
 @api_view(['GET', 'POST'])

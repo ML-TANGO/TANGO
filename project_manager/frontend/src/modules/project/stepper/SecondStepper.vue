@@ -59,7 +59,6 @@ export default {
   async created() {
     try {
       this.items = await getDatasetListTango();
-      console.log("this.items", this.items);
       this.items = this.items.filter(q => q.name !== "tmp");
       this.items = this.items.filter(q => q.status === DatasetStatus.COMPLETE);
       this.getDatasetSize();

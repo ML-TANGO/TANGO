@@ -13,6 +13,7 @@ autonn_update_ids={
     "train_start":"train_start",
     "train_loss":"train_loss",
     "val_accuracy":"val_accuracy",
+    "epoch_summary":"epoch_summary",
     "train_end":"train_end",
     "nas_start":"nas_start",
     "evolution_search":"evolution_search",

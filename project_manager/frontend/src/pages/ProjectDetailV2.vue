@@ -170,11 +170,8 @@ export default {
         // }
       });
 
-      console.log("this.projectInfo", this.project);
-
       if (this.project) {
         await postStatusRequest({ user_id: this.project.create_user, project_id: this.project.id }).then(res => {
-          console.log(res);
           if (res === null) return;
           if (typeof res === "string") return;
 

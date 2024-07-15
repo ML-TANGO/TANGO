@@ -7,14 +7,18 @@ services:
   project_manager:
     build:
       context: ./project_manager
+    # command: >
+    #   sh -c "chmod 777 ./wait_for_postgres.sh &&
+    #          ./wait_for_postgres.sh &&
+    #          python manage.py makemigrations tango &&
+    #          python manage.py makemigrations datasets &&
+    #          python manage.py makemigrations targets &&
+    #          python manage.py migrate &&
+    #          python manage.py runserver 0.0.0.0:8085"
     command: >
       sh -c "chmod 777 ./wait_for_postgres.sh &&
              ./wait_for_postgres.sh &&
-             python manage.py makemigrations tango &&
-             python manage.py makemigrations datasets &&
-             python manage.py makemigrations targets &&
              python manage.py migrate &&
-             python manage.py collectstatic --no-input &&
              python manage.py loaddata base_model_data.json &&
              python manage.py runserver 0.0.0.0:8085"
     volumes:
