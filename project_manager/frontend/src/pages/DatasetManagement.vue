@@ -105,8 +105,10 @@ export default {
     startInterval() {
       this.loadDatasets();
 
+      if (this.interval) return;
+
       const time = 5 * 60 * 1000; //5 min
-      setInterval(() => {
+      this.interval = setInterval(() => {
         this.loadDatasets();
       }, time);
     },

@@ -166,3 +166,10 @@ export const ViewerMode = Object.freeze({
   CHART: "chart",
   MODEL_VIEW: "model_view"
 });
+
+export const AutonnStatus = Object.freeze({
+  PROJECT_INFO: 0,
+  SYSTEM: 1,
+  MODEL: 2,
+  DATASET: 3
+});

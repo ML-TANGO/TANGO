@@ -137,8 +137,10 @@ export default {
         Swal.fire("ID를 다시 확인해주세요.", "", "error");
       }
 
-      if (this.checkID) {
+      if (this.checkID.result) {
         Swal.fire("ID 중복 확인", "사용가능한 ID 입니다.", "info");
+      } else {
+        Swal.fire("ID 중복 확인", "중복된 ID입니다.", "error");
       }
     },
 

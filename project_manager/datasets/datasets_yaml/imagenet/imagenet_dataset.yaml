@@ -4,8 +4,8 @@
 download: ./get_imagenet.sh
 
 # diretories
-train: /shared/datasets/imagenet/images/train
-val: /shared/datasets/imagenet/images/val
+train: /shared/datasets/imagenet/train
+val: /shared/datasets/imagenet/val
 
 # number of classes
 nc: 1000
