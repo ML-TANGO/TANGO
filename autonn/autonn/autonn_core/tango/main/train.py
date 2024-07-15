@@ -174,8 +174,12 @@ def train(proj_info, hyp, opt, data_dict, tb_writer=None):
 
     # Batch size ---------------------------------------------------------------
     bs_factor = 0.8
-    autobatch_rst = get_batch_size_for_gpu(userid, project_id, model, 3 if task=='detection' else 1, imgsz, amp_enabled=True)
-    batch_size = int(autobatch_rst * bs_factor)
+    if data_dict['dataset_name'] == 'coco128':
+        # skip auto-batch since coco128 has only 128 imgs
+        batch_size = 128
+    else:
+        autobatch_rst = get_batch_size_for_gpu(userid, project_id, model, 3 if task=='detection' else 1, imgsz, amp_enabled=True)
+        batch_size = int(autobatch_rst * bs_factor)
     if opt.local_rank != -1: # DDP mode
         logger.info(f'[ local rank check ]: opt.local_rank is not -1')
         assert torch.cuda.device_count() > opt.local_rank

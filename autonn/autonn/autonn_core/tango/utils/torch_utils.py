@@ -99,7 +99,7 @@ def select_device_and_info(device=''):
         n = torch.cuda.device_count()
         for i, d in enumerate(device.split(',') if device else range(n)):
             p = torch.cuda.get_device_properties(i)
-            device_info.append([f"CUDA:{d}", f"{p.name}", f"{round(p.total_memory / 1024 ** 3, 2)}GB)"])
+            device_info.append([f"CUDA:{d}", f"{p.name}", f"{round(p.total_memory / 1024 ** 3, 2)})"])
     else:
         device_info.append([f"CPU", '', ''])
 
@@ -257,13 +257,13 @@ def model_summary(model, img_size=640):
         img_size = img_size if isinstance(img_size, list) else [img_size, img_size]  # expand if int/float
         gflops = '%.1f' % (flops * img_size[0] / stride * img_size[1] / stride)  # 640x640 GFLOPS
     except (ImportError, Exception) as e:
-        gflops = 'n/a'
+        gflops = '0.0'
 
     model_briefs = {}
     model_briefs['layers'] = len(list(model.modules()))
     model_briefs['parameters'] = n_p
     model_briefs['gradients'] = n_g
-    model_briefs['flops'] = gflops
+    model_briefs['FLOPS'] = float(gflops)
     return model_briefs
 
 def load_classifier(name='resnet101', n=2):
