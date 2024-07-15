@@ -233,15 +233,15 @@ def run_autonn(userid, project_id, viz2code=False, nas=False, hpo=False):
     # Train --------------------------------------------------------------------
     if not opt.evolve:
         tb_writer = None  # init loggers
-        if opt.global_rank in [-1, 0]:
-            prefix = colorstr('tensorboard: ')
-            try:
-                tb_writer = SummaryWriter(log_dir=str(opt.save_dir))  # Tensorboard
-                logger.info(f"{prefix}Start with 'tensorboard --logdir {str(opt.save_dir)}', view at http://localhost:6006/")
-            except Exception as e:
-                logger.warn(f'{prefix}Fail to load tensorbord because {e}')
+        # if opt.global_rank in [-1, 0]:
+        #     prefix = colorstr('tensorboard: ')
+        #     try:
+        #         tb_writer = SummaryWriter(log_dir=str(opt.save_dir))  # Tensorboard
+        #         logger.info(f"{prefix}Start with 'tensorboard --logdir {str(opt.save_dir)}', view at http://localhost:6006/")
+        #     except Exception as e:
+        #         logger.warn(f'{prefix}Fail to load tensorbord because {e}')
         results, train_final = train(proj_info, hyp, opt, data, tb_writer)
-        tb_writer.flush()
+        # tb_writer.flush()
 
     # HPO ----------------------------------------------------------------------
     else:

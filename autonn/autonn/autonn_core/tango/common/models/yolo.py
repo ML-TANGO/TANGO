@@ -100,8 +100,8 @@ class Detect(nn.Module):
 
 class IDetect(nn.Module):
     stride = None  # strides computed during build
-    export = False  # onnx export
-    end2end = False
+    export = False  # export torchscript or onnx w/o nms
+    end2end = False # export onnx w/nms
     include_nms = False
     concat = False
 
@@ -123,14 +123,14 @@ class IDetect(nn.Module):
     def forward(self, x):
         # x = x.copy()  # for profiling
         z = []  # inference output
-        # self.training |= self.export
+        self.training |= self.export
         for i in range(self.nl):
             x[i] = self.m[i](self.ia[i](x[i]))  # conv
             x[i] = self.im[i](x[i])
             bs, _, ny, nx = x[i].shape  # x(bs,255,20,20) to x(bs,3,20,20,85)
             x[i] = x[i].view(bs, self.na, self.no, ny, nx).permute(0, 1, 3, 4, 2).contiguous()
 
-            if not self.training:  # inference
+            if not self.training:  # inference or no export
                 if self.grid[i].shape[2:4] != x[i].shape[2:4]:
                     self.grid[i] = self._make_grid(nx, ny).to(x[i].device)
 
@@ -140,30 +140,29 @@ class IDetect(nn.Module):
                 z.append(y.view(bs, -1, self.no))
 
         return x if self.training else (torch.cat(z, 1), x)
-
     
     def fuseforward(self, x):
         # x = x.copy()  # for profiling
         z = []  # inference output
-        # self.training |= self.export
+        self.training |= self.export
         for i in range(self.nl):
             x[i] = self.m[i](x[i])  # conv
             bs, _, ny, nx = x[i].shape  # x(bs,255,20,20) to x(bs,3,20,20,85)
             x[i] = x[i].view(bs, self.na, self.no, ny, nx).permute(0, 1, 3, 4, 2).contiguous()
 
-            if not self.training:  # inference
+            if not self.training:  # inference or no export
                 if self.grid[i].shape[2:4] != x[i].shape[2:4]:
                     self.grid[i] = self._make_grid(nx, ny).to(x[i].device)
 
                 y = x[i].sigmoid()
-                if not torch.onnx.is_in_onnx_export():
-                    y[..., 0:2] = (y[..., 0:2] * 2. - 0.5 + self.grid[i]) * self.stride[i]  # xy
-                    y[..., 2:4] = (y[..., 2:4] * 2) ** 2 * self.anchor_grid[i]  # wh
-                else:
-                    xy, wh, conf = y.split((2, 2, self.nc + 1), 4)  # y.tensor_split((2, 4, 5), 4)  # torch 1.8.0
-                    xy = xy * (2. * self.stride[i]) + (self.stride[i] * (self.grid[i] - 0.5))  # new xy
-                    wh = wh ** 2 * (4 * self.anchor_grid[i].data)  # new wh
-                    y = torch.cat((xy, wh, conf), 4)
+                # if not torch.onnx.is_in_onnx_export():
+                #     y[..., 0:2] = (y[..., 0:2] * 2. - 0.5 + self.grid[i]) * self.stride[i]  # xy
+                #     y[..., 2:4] = (y[..., 2:4] * 2) ** 2 * self.anchor_grid[i]  # wh
+                # else:
+                xy, wh, conf = y.split((2, 2, self.nc + 1), 4)  # y.tensor_split((2, 4, 5), 4)  # torch 1.8.0
+                xy = xy * (2. * self.stride[i]) + (self.stride[i] * (self.grid[i] - 0.5))  # new xy
+                wh = wh ** 2 * (4 * self.anchor_grid[i].data)  # new wh
+                y = torch.cat((xy, wh, conf), 4)
                 z.append(y.view(bs, -1, self.no))
 
         if self.training:
@@ -174,14 +173,14 @@ class IDetect(nn.Module):
             z = self.convert(z)
             out = (z, )
         elif self.concat:
-            out = torch.cat(z, 1)            
+            out = torch.cat(z, 1)
         else:
             out = (torch.cat(z, 1), x)
 
         return out
     
     def fuse(self):
-        logger.info("IDetect.fuse")
+        logger.info("IDetect.fuse: implicit values fused into conv's weight and bias")
         # fuse ImplicitA and Convolution
         for i in range(len(self.m)):
             c1,c2,_,_ = self.m[i].weight.shape
@@ -369,7 +368,7 @@ class IAuxDetect(nn.Module):
     def fuseforward(self, x):
         # x = x.copy()  # for profiling
         z = []  # inference output
-        self.training |= self.export
+        # self.training |= self.export
         for i in range(self.nl):
             x[i] = self.m[i](x[i])  # conv
             bs, _, ny, nx = x[i].shape  # x(bs,255,20,20) to x(bs,3,20,20,85)
@@ -696,22 +695,24 @@ class Model(nn.Module):
     #         if type(m) is Bottleneck:
     #             print('%10.3g' % (m.w.detach().sigmoid() * 2))  # shortcut weights
 
-    def fuse(self):  # fuse model Conv2d() + BatchNorm2d() layers
+    def fuse(self):  # fuse cv+bn or cv+implict ops into one cv op
         logger.info('Fusing layers... ')
         for m in self.model.modules():
             if isinstance(m, RepConv):
                 #print(f" fuse_repvgg_block")
-                m.fuse_repvgg_block()
+                m.fuse_repvgg_block() # update conv, remove bn-modules, and update forward
             elif isinstance(m, RepConv_OREPA):
                 #print(f" switch_to_deploy")
-                m.switch_to_deploy()
+                m.switch_to_deploy()  # update conv, remove bn-modules, and update forward
             elif type(m) is Conv and hasattr(m, 'bn'):
                 m.conv = fuse_conv_and_bn(m.conv, m.bn)  # update conv
                 delattr(m, 'bn')  # remove batchnorm
                 m.forward = m.fuseforward  # update forward
             elif isinstance(m, (IDetect, IAuxDetect)):
-                m.fuse()
-                m.forward = m.fuseforward
+                m.fuse() # update conv
+                delattr(m, 'im') # remove implicitM
+                delattr(m, 'ia') # remove implicitA
+                m.forward = m.fuseforward # update forward
         self.info()
         return self
 
@@ -828,33 +829,3 @@ def parse_model(d, ch):  # model_dict, input_channels(3)
             ch = []
         ch.append(c2)
     return nn.Sequential(*layers), sorted(save), nodes_info
-
-
-# if __name__ == '__main__':
-#     parser = argparse.ArgumentParser()
-#     parser.add_argument('--cfg', type=str, default='yolor-csp-c.yaml', help='model.yaml')
-#     parser.add_argument('--device', default='', help='cuda device, i.e. 0 or 0,1,2,3 or cpu')
-#     parser.add_argument('--profile', action='store_true', help='profile model speed')
-#     opt = parser.parse_args()
-#     opt.cfg = check_file(opt.cfg)  # check file
-#     set_logging()
-#     device = select_device(opt.device)
-
-#     # Create model
-#     model = Model(opt.cfg).to(device)
-#     model.train()
-    
-#     if opt.profile:
-#         img = torch.rand(1, 3, 640, 640).to(device)
-#         y = model(img, profile=True)
-
-#     Profile
-#     img = torch.rand(8 if torch.cuda.is_available() else 1, 3, 640, 640).to(device)
-#     y = model(img, profile=True)
-
-#     Tensorboard
-#     from torch.utils.tensorboard import SummaryWriter
-#     tb_writer = SummaryWriter()
-#     print("Run 'tensorboard --logdir=models/runs' to view tensorboard at http://localhost:6006/")
-#     tb_writer.add_graph(model.model, img)  # add model to tensorboard
-#     tb_writer.add_image('test', img[0], dataformats='CWH')  # add model to tensorboard
