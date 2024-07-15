@@ -21,7 +21,7 @@ requests==2.27.1
 seaborn==0.11.2
 setuptools==59.5.0
 sqlparse==0.4.2
-tensorboard
+#tensorboard
 tensorboardX==2.6
 thop>=0.1.1
 torch==1.13.1
@@ -30,6 +30,9 @@ tqdm==4.62.3
 typing_extensions==4.1.1
 urllib3==1.26.7
 #pyyaml==6.0
+
+nvidia-tensorrt<=10.1.0 # tensorrt model export
 protobuf==3.20.1
-onnx==1.12.0
-onnxsim==0.4.33
+onnx==1.12.0 # onnx model export
+onnxsim==0.4.33 # onnx model simplifier
+tensorflow==2.8.0 # tensorflow model export

@@ -465,7 +465,7 @@ class BasemodelViewer:
             node['layer'] = m
             node['parameters'] = params
             layers.append(node)
-            logger.info(f"🚩 Create a node #{node['order']} : {node['layer']} - args \n {node['parameters']}")
+            logger.debug(f"🚩 Create a node #{node['order']} : {node['layer']} - args \n {node['parameters']}")
 
             # manipulate input channel -------------------------------------
             if i == 0:
@@ -486,11 +486,12 @@ class BasemodelViewer:
                 edge['prior'] = p
                 edge['next'] = i + 1
                 lines.append(edge)
-                logger.info(f"  ※ Create an edge #{edge['id']} : {edge['prior']}->{edge['next']}")
+                logger.debug(f"  ※ Create an edge #{edge['id']} : {edge['prior']}->{edge['next']}")
 
         self.base_dict = deepcopy(basemodel)
         self.layers = layers
         self.lines = lines
+        logger.info('visualizer: parse basemodel.yaml success')
 
     def update(self):
         json_data = OrderedDict()
@@ -514,6 +515,9 @@ class BasemodelViewer:
             info.save()
         except Info.DoesNotExist:
             logger.warn(f'not found {userid}/{project_id} information')
+
+        logger.info('visualizer: update nodes and edges for viz done')
+
 
 def export_pth(file_path):
     '''
@@ -573,6 +577,7 @@ def export_pth(file_path):
         graph.addedge(CEdge("{prior}".format(**edge.__dict__),
                             "{next}".format(**edge.__dict__)))
     net = CPyBinder.exportmodel(self_binder, graph)
+    logger.info('PyTorch model export success, saved as %s' % file_path)
     logger.info(net)
     torch.save(net, file_path)
     return net
@@ -622,7 +627,8 @@ def export_yml(name, yaml_path):
             "next": edge_next_list[a]
         })
 
-    logger.info(json.dumps(json_data, ensure_ascii=False, indent="\t"))
+    logger.info('json gen success')
+    logger.debug(json.dumps(json_data, ensure_ascii=False, indent="\t"))
 
     # yolo-style yaml_data generation ------------------------------------------
     yaml_data = {}
@@ -797,14 +803,14 @@ def export_yml(name, yaml_path):
         # yaml_index: 0, 1, 2, ...
         # node_index: 1, 2, 3, ...
         # json_index: 1, 2, 3, ...
-        logger.info(f"layer #{yaml_index} (node_index #{node_index}; json_index #{json_index}) : {module_}")
+        logger.debug(f"layer #{yaml_index} (node_index #{node_index}; json_index #{json_index}) : {module_}")
 
         # from
         f_ = []
         for a in range(len(edge_id_list)):
             if edge_next_list[a] == node_index:
                 f_.append(edge_prior_list[a])
-        logger.info(f"f_={f_}")
+        logger.debug(f"f_={f_}")
         if not f_:
             from_ = -1 # this has to be the first layer
             assert yaml_index == 0, f'it must be the first layer but index is {yaml_index}'
@@ -830,7 +836,7 @@ def export_yml(name, yaml_path):
             else:
                 f_multiple.sort(reverse=False)
             from_ = f_multiple
-        logger.info(f"from : {from_}")
+        logger.debug(f"from : {from_}")
 
         if module_ in TORCH_NN_MODULES:
             module_ = f"nn.{module_}"
@@ -840,11 +846,6 @@ def export_yml(name, yaml_path):
         else:
             yaml_data['backbone'].append(layer_)
 
-    # print yaml data
-    # print('-'*100)
-    # print(yaml_data)
-    # print('-'*100)
-    # print(yaml.dump(yaml_data, sort_keys=False, default_flow_style=False))
     logger.debug('-'*100)
     for k, v in yaml_data.items():
         if isinstance(v, list):
@@ -861,4 +862,5 @@ def export_yml(name, yaml_path):
     with open(yaml_path, 'w') as f:
                 yaml.dump(yaml_data, f)
 
+    logger.info('Yaml export success, saved as %s' % f)
     return yaml_data

@@ -52,132 +52,177 @@ def export_formats():
     return pd.DataFrame(x, columns=['Format', 'Argument', 'Suffix', 'CPU', 'GPU'])
 
 
+def export_torch_arch(model, im, file, prefix=colorstr('PyTorch Config:')):
+    # NN architecture(.yaml) export
+    logger.info(f'{prefix} starting export with torch {torch.__version__}...')
+    try:
+        import yaml
+        f = file.with_suffix('.yaml')
+        # cfg_dict = model2yaml(model, im)
+        # with open(f, 'w') as file:
+        #     yaml.dump(cfg_dict, file)
+        logger.info('PyTorch model config export success, saved as %s' % f)
+        return f, None
+    except Exception as e:
+        logger.warn('PyTorch model config export failure: %s' % e)
+        return None, None
+
+
 def export_torchscript(model, im, file, optimize, prefix=colorstr('TorchScript:')):
     # YOLO TorchScript model export
-    logger.info(f'\n{prefix} starting export with torch {torch.__version__}...')
-    f = file.with_suffix('.torchscript')
+    logger.info(f'{prefix} starting export with torch {torch.__version__}...')
+    try:
+        f = file.with_suffix('.torchscript')
 
-    ts = torch.jit.trace(model, im, strict=False)
-    d = {"shape": im.shape, "stride": int(max(model.stride)), "names": model.names}
-    extra_files = {'config.txt': json.dumps(d)}  # torch._C.ExtraFilesMap()
-    if optimize:  # https://pytorch.org/tutorials/recipes/mobile_interpreter.html
-        optimize_for_mobile(ts)._save_for_lite_interpreter(str(f), _extra_files=extra_files)
-    else:
-        ts.save(str(f), _extra_files=extra_files)
-    logger.info('TorchScript export success, saved as %s' % f)
-    return f, ts
+        ts = torch.jit.trace(model, im, strict=False)
+        d = {"shape": im.shape, "stride": int(max(model.stride)), "names": model.names}
+        extra_files = {'config.txt': json.dumps(d)}  # torch._C.ExtraFilesMap()
+        if optimize:  # https://pytorch.org/tutorials/recipes/mobile_interpreter.html
+            optimize_for_mobile(ts)._save_for_lite_interpreter(str(f), _extra_files=extra_files)
+        else:
+            ts.save(str(f), _extra_files=extra_files)
+        logger.info('TorchScript export success, saved as %s' % f)
+        return f, ts
+    except Exception as e:
+        logger.warn('TorchScript export failure: %s' % e)
+        return None, None
 
 
 def export_onnx(model, im, file, opset, dynamic, simplify, prefix=colorstr('ONNX:')):
     # YOLO ONNX export
-    check_requirements('onnx')
+    # check_requirements('onnx')
     import onnx
+    logger.info(f'{prefix} starting export with onnx {onnx.__version__}...')
 
-    logger.info(f'\n{prefix} starting export with onnx {onnx.__version__}...')
-    f = file.with_suffix('.onnx')
+    try:
+        f = file.with_suffix('.onnx')
 
-    output_names = ['output0', 'output1'] if isinstance(model, SegmentationModel) else ['output0']
-    if dynamic:
-        dynamic = {'images': {0: 'batch', 2: 'height', 3: 'width'}}  # shape(1,3,640,640)
-        if isinstance(model, SegmentationModel):
+        # output_names = ['output0', 'output1'] if isinstance(model, SegmentationModel) else ['output0']
+        output_names = ['output0']
+        if dynamic:
+            dynamic = {'images': {0: 'batch', 2: 'height', 3: 'width'}}  # shape(1,3,640,640)
+            # if isinstance(model, SegmentationModel):
+            #     dynamic['output0'] = {0: 'batch', 1: 'anchors'}  # shape(1,25200,85)
+            #     dynamic['output1'] = {0: 'batch', 2: 'mask_height', 3: 'mask_width'}  # shape(1,32,160,160)
+            # elif isinstance(model, DetectionModel):
+            #     dynamic['output0'] = {0: 'batch', 1: 'anchors'}  # shape(1,25200,85)
             dynamic['output0'] = {0: 'batch', 1: 'anchors'}  # shape(1,25200,85)
-            dynamic['output1'] = {0: 'batch', 2: 'mask_height', 3: 'mask_width'}  # shape(1,32,160,160)
-        elif isinstance(model, DetectionModel):
-            dynamic['output0'] = {0: 'batch', 1: 'anchors'}  # shape(1,25200,85)
 
-    torch.onnx.export(
-        model.cpu() if dynamic else model,  # --dynamic only compatible with cpu
-        im.cpu() if dynamic else im,
-        f,
-        verbose=False,
-        opset_version=opset,
-        do_constant_folding=True,
-        input_names=['images'],
-        output_names=output_names,
-        dynamic_axes=dynamic or None)
+        torch.onnx.export(
+            model.cpu() if dynamic else model,  # --dynamic only compatible with cpu
+            im.cpu() if dynamic else im,
+            f,
+            verbose=False,
+            opset_version=opset,
+            do_constant_folding=True,
+            input_names=['images'],
+            output_names=output_names,
+            dynamic_axes=dynamic or None)
 
-    # Checks
-    model_onnx = onnx.load(f)  # load onnx model
-    onnx.checker.check_model(model_onnx)  # check onnx model
+        # Checks
+        model_onnx = onnx.load(f)  # load onnx model
+        onnx.checker.check_model(model_onnx)  # check onnx model
 
-    # Metadata
-    d = {'stride': int(max(model.stride)), 'names': model.names}
-    for k, v in d.items():
-        meta = model_onnx.metadata_props.add()
-        meta.key, meta.value = k, str(v)
-    onnx.save(model_onnx, f)
+        # Metadata
+        d = {'stride': int(max(model.stride)), 'names': model.names}
+        for k, v in d.items():
+            meta = model_onnx.metadata_props.add()
+            meta.key, meta.value = k, str(v)
+        # onnx.save(model_onnx, f)
 
-    # Simplify
-    if simplify:
-        try:
-            cuda = torch.cuda.is_available()
-            check_requirements(('onnxruntime-gpu' if cuda else 'onnxruntime', 'onnx-simplifier>=0.4.1'))
-            import onnxsim
+        # Simplify
+        if simplify:
+            try:
+                cuda = torch.cuda.is_available()
+                # check_requirements(('onnxruntime-gpu' if cuda else 'onnxruntime', 'onnx-simplifier>=0.4.1'))
+                import onnxsim
 
-            logger.info(f'{prefix} simplifying with onnx-simplifier {onnxsim.__version__}...')
-            model_onnx, check = onnxsim.simplify(model_onnx)
-            assert check, 'assert check failed'
-            onnx.save(model_onnx, f)
-        except Exception as e:
-            logger.warn(f'{prefix} simplifier failure: {e}')
-    return f, model_onnx
+                logger.info(f'{prefix} simplifying with onnx-simplifier {onnxsim.__version__}...')
+                model_onnx, check = onnxsim.simplify(model_onnx)
+                assert check, 'assert check failed'
+                # onnx.save(model_onnx, f)
+                logger.info(f'{prefix} simplifier success')
+            except Exception as e:
+                logger.warn(f'{prefix} simplifier failure: {e}')
+
+        onnx.save(model_onnx, f)
+        logger.info('ONNX export success, saved as %s' % f)
+        return f, model_onnx
+    except Exception as e:
+        logger.warn('ONNX export failure: %s' % e)
+        return None, None
 
 
-def export_onnx_end2end(model, im, file, simplify, topk_all, iou_thres, conf_thres, device, labels, prefix=colorstr('ONNX END2END:')):
+def export_onnx_end2end(model,
+                        im,
+                        file,
+                        simplify,
+                        topk_all,
+                        iou_thres,
+                        conf_thres,
+                        device,
+                        labels,
+                        prefix=colorstr('ONNX END2END:')):
     # YOLO ONNX export
-    check_requirements('onnx')
+    # check_requirements('onnx')
     import onnx
-    logger.info(f'\n{prefix} starting export with onnx {onnx.__version__}...')
-    f = os.path.splitext(file)[0] + "-end2end.onnx"
-    batch_size = 'batch'
+    logger.info(f'{prefix} starting export with onnx {onnx.__version__}...')
 
-    dynamic_axes = {'images': {0 : 'batch', 2: 'height', 3:'width'}, } # variable length axes
+    try:
+        f = os.path.splitext(file)[0] + "-end2end.onnx"
+        batch_size = 'batch'
 
-    output_axes = {
-                    'num_dets': {0: 'batch'},
-                    'det_boxes': {0: 'batch'},
-                    'det_scores': {0: 'batch'},
-                    'det_classes': {0: 'batch'},
-                }
-    dynamic_axes.update(output_axes)
-    model = End2End(model, topk_all, iou_thres, conf_thres, None ,device, labels)
+        dynamic_axes = {'images': {0 : 'batch', 2: 'height', 3:'width'}, } # variable length axes
 
-    output_names = ['num_dets', 'det_boxes', 'det_scores', 'det_classes']
-    shapes = [ batch_size, 1,  batch_size,  topk_all, 4,
-               batch_size,  topk_all,  batch_size,  topk_all]
+        output_axes = {
+                        'num_dets': {0: 'batch'},
+                        'det_boxes': {0: 'batch'},
+                        'det_scores': {0: 'batch'},
+                        'det_classes': {0: 'batch'},
+                    }
+        dynamic_axes.update(output_axes)
+        model = End2End(model, topk_all, iou_thres, conf_thres, None ,device, labels)
 
-    torch.onnx.export(model,
-                          im,
-                          f,
-                          verbose=False,
-                          export_params=True,       # store the trained parameter weights inside the model file
-                          opset_version=12,
-                          do_constant_folding=True, # whether to execute constant folding for optimization
-                          input_names=['images'],
-                          output_names=output_names,
-                          dynamic_axes=dynamic_axes)
+        output_names = ['num_dets', 'det_boxes', 'det_scores', 'det_classes']
+        shapes = [ batch_size, 1,  batch_size,  topk_all, 4,
+                   batch_size,  topk_all,  batch_size,  topk_all]
 
-    # Checks
-    model_onnx = onnx.load(f)  # load onnx model
-    onnx.checker.check_model(model_onnx)  # check onnx model
-    for i in model_onnx.graph.output:
-        for j in i.type.tensor_type.shape.dim:
-            j.dim_param = str(shapes.pop(0))
+        torch.onnx.export(  model,
+                            im,
+                            f,
+                            verbose=False,
+                            export_params=True,       # store the trained parameter weights inside the model file
+                            opset_version=12,
+                            do_constant_folding=True, # whether to execute constant folding for optimization
+                            input_names=['images'],
+                            output_names=output_names,
+                            dynamic_axes=dynamic_axes)
 
-    if simplify:
-        try:
-            import onnxsim
+        # Checks
+        model_onnx = onnx.load(f)  # load onnx model
+        onnx.checker.check_model(model_onnx)  # check onnx model
+        for i in model_onnx.graph.output:
+            for j in i.type.tensor_type.shape.dim:
+                j.dim_param = str(shapes.pop(0))
 
-            logger.info('\nStarting to simplify ONNX...')
-            model_onnx, check = onnxsim.simplify(model_onnx)
-            assert check, 'assert check failed'
-        except Exception as e:
-            logger.warn(f'Simplifier failure: {e}')
+        if simplify:
+            try:
+                import onnxsim
+
+                logger.info(f'{prefix} simplifying with onnx-simplifier {onnxsim.__version__}...')
+                model_onnx, check = onnxsim.simplify(model_onnx)
+                assert check, 'assert check failed'
+                logger.info(f'{prefix} simplifier success')
+            except Exception as e:
+                logger.warn(f'{prefix} simplifier failure: {e}')
 
         # print(onnx.helper.printable_graph(onnx_model.graph))  # print a human readable model
         onnx.save(model_onnx,f)
-        logger.info('ONNX export success, saved as %s' % f)
-    return f, model_onnx
+        logger.info('ONNX END2END export success, saved as %s' % f)
+        return f, model_onnx
+    except Exception as e:
+        logger.warn('ONNX END2END export failure: %s' % e)
+        return None, None
 
 
 def export_openvino(file, metadata, half, prefix=colorstr('OpenVINO:')):
@@ -197,67 +242,89 @@ def export_openvino(file, metadata, half, prefix=colorstr('OpenVINO:')):
     return f, None
 
 
-def export_tensorrt(model, im, file, half, dynamic, simplify, workspace=4, verbose=False, prefix=colorstr('TensorRT:')):
+def export_tensorrt(model,
+                    im,
+                    file,
+                    half,
+                    dynamic,
+                    simplify,
+                    workspace=4,
+                    verbose=False,
+                    prefix=colorstr('TensorRT:')):
     # YOLO TensorRT export https://developer.nvidia.com/tensorrt
-    assert im.device.type != 'cpu', 'export running on CPU but must be on GPU, i.e. `python export.py --device 0`'
+    # assert im.device.type != 'cpu', 'export running on CPU but must be on GPU, i.e. `python export.py --device 0`'
+    onnx, _ = export_onnx(model, im, file, 12, dynamic, simplify)
+
     try:
         import tensorrt as trt
-    except Exception:
-        # if platform.system() == 'Linux':
-        #     check_requirements('nvidia-tensorrt', cmds='-U --index-url https://pypi.ngc.nvidia.com')
-        # import tensorrt as trt
-        logger.warn('failed to import tensorrt..')
+    except Exception as e:
+        logger.warn(f'{prefix} export failure: {e}')
         return None, None
 
-    if trt.__version__[0] == '7':  # TensorRT 7 handling https://github.com/ultralytics/yolov5/issues/6012
-        grid = model.model[-1].anchor_grid
-        model.model[-1].anchor_grid = [a[..., :1, :1, :] for a in grid]
-        export_onnx(model, im, file, 12, dynamic, simplify)  # opset 12
-        model.model[-1].anchor_grid = grid
-    else:  # TensorRT >= 8
-        check_version(trt.__version__, '8.0.0', hard=True)  # require tensorrt>=8.0.0
-        export_onnx(model, im, file, 12, dynamic, simplify)  # opset 12
-    onnx = file.with_suffix('.onnx')
+    import pkg_resources as pkg
+    current, minimum, maximum = (pkg.parse_version(x) for x in (trt.__version__, '8.0.0', '10.1.0'))
+    if minimum >= current or current >= maximum:
+        logger.warn(f'{prefix} export failure: {prefix}>={minimum},<={maximum} required by autonn in ml-tango')
+        return None, None
 
-    logger.info(f'\n{prefix} starting export with TensorRT {trt.__version__}...')
+    is_trt10 = int(trt.__version__.split(".")[0]) >= 10
+
+    # onnx = file.with_suffix('.onnx')
+
+    logger.info(f'{prefix} starting export with TensorRT {trt.__version__}...')
     assert onnx.exists(), f'failed to export ONNX file: {onnx}'
-    f = file.with_suffix('.engine')  # TensorRT engine file
-    logger_trt = trt.Logger(trt.Logger.INFO)
-    if verbose:
-        logger_trt.min_severity = trt.Logger.Severity.VERBOSE
+    try:
+        f = file.with_suffix('.engine')  # TensorRT engine file
+        logger_trt = trt.Logger(trt.Logger.INFO)
+        if verbose:
+            logger_trt.min_severity = trt.Logger.Severity.VERBOSE
 
-    builder = trt.Builder(logger_trt)
-    config = builder.create_builder_config()
-    config.max_workspace_size = workspace * 1 << 30
-    # config.set_memory_pool_limit(trt.MemoryPoolType.WORKSPACE, workspace << 30)  # fix TRT 8.4 deprecation notice
+        builder = trt.Builder(logger_trt)
+        config = builder.create_builder_config()
+        workspace = int(workspace * (1 << 30))
+        if is_trt10:
+            config.set_memory_pool_limit(trt.MemoryPoolType.WORKSPACE, workspace)
+        else:
+            config.max_workspace_size = workspace
 
-    flag = (1 << int(trt.NetworkDefinitionCreationFlag.EXPLICIT_BATCH))
-    network = builder.create_network(flag)
-    parser = trt.OnnxParser(network, logger_trt)
-    if not parser.parse_from_file(str(onnx)):
-        raise RuntimeError(f'failed to load ONNX file: {onnx}')
+        flag = (1 << int(trt.NetworkDefinitionCreationFlag.EXPLICIT_BATCH))
+        network = builder.create_network(flag)
+        parser = trt.OnnxParser(network, logger_trt)
+        if not parser.parse_from_file(str(onnx)):
+            raise RuntimeError(f'failed to load ONNX file: {onnx}')
 
-    inputs = [network.get_input(i) for i in range(network.num_inputs)]
-    outputs = [network.get_output(i) for i in range(network.num_outputs)]
-    for inp in inputs:
-        logger.info(f'{prefix} input "{inp.name}" with shape{inp.shape} {inp.dtype}')
-    for out in outputs:
-        logger.info(f'{prefix} output "{out.name}" with shape{out.shape} {out.dtype}')
-
-    if dynamic:
-        if im.shape[0] <= 1:
-            logger.warning(f"{prefix} WARNING ⚠️ --dynamic model requires maximum --batch-size argument")
-        profile = builder.create_optimization_profile()
+        inputs = [network.get_input(i) for i in range(network.num_inputs)]
+        outputs = [network.get_output(i) for i in range(network.num_outputs)]
         for inp in inputs:
-            profile.set_shape(inp.name, (1, *im.shape[1:]), (max(1, im.shape[0] // 2), *im.shape[1:]), im.shape)
-        config.add_optimization_profile(profile)
+            logger.info(f'{prefix} input "{inp.name}" with shape{inp.shape} {inp.dtype}')
+        for out in outputs:
+            logger.info(f'{prefix} output "{out.name}" with shape{out.shape} {out.dtype}')
 
-    logger.info(f'{prefix} building FP{16 if builder.platform_has_fast_fp16 and half else 32} engine as {f}')
-    if builder.platform_has_fast_fp16 and half:
-        config.set_flag(trt.BuilderFlag.FP16)
-    with builder.build_engine(network, config) as engine, open(f, 'wb') as t:
-        t.write(engine.serialize())
-    return f, None
+        if dynamic:
+            if im.shape[0] <= 1:
+                logger.warning(f"{prefix} WARNING ⚠️ --dynamic model requires maximum --batch-size argument")
+            profile = builder.create_optimization_profile()
+            for inp in inputs:
+                profile.set_shape(inp.name, (1, *im.shape[1:]), (max(1, im.shape[0] // 2), *im.shape[1:]), im.shape)
+            config.add_optimization_profile(profile)
+
+        logger.info(f'{prefix} building FP{16 if builder.platform_has_fast_fp16 and half else 32} engine as {f}')
+        if builder.platform_has_fast_fp16 and half:
+            config.set_flag(trt.BuilderFlag.FP16)
+
+        if is_trt10:
+            build = builder.build_serialized_network # trt version >=10.0,0
+        else:
+            build = builder.build_engine # trt version <10.0.0
+
+        with build(network, config) as engine, open(f, 'wb') as t:
+            t.write(engine if is_trt10 else engine.serialize())
+
+        logger.info('TensorRT export success, saved as %s' % f)
+        return f, None
+    except Exception as e:
+        logger.warn('TensorRT export failure: %s' % e)
+        return None, None
 
 
 def export_tf_saved_model(model,
@@ -276,13 +343,15 @@ def export_tf_saved_model(model,
     try:
         import tensorflow as tf
     except Exception:
-        check_requirements(f"tensorflow{'' if torch.cuda.is_available() else '-macos' if MACOS else '-cpu'}")
-        import tensorflow as tf
+        # check_requirements(f"tensorflow{'' if torch.cuda.is_available() else '-macos' if MACOS else '-cpu'}")
+        # import tensorflow as tf
+        logger.warn(f'{prefix} tensorflow import failure')
+        return None, None
     from tensorflow.python.framework.convert_to_constants import convert_variables_to_constants_v2
 
-    from models.tf import TFModel
+    from tango.common.models.tf import TFModel
 
-    logger.info(f'\n{prefix} starting export with tensorflow {tf.__version__}...')
+    logger.info(f'{prefix} starting export with tensorflow {tf.__version__}...')
     f = str(file).replace('.pt', '_saved_model')
     batch_size, ch, *imgsz = list(im.shape)  # BCHW
 
@@ -316,7 +385,7 @@ def export_tf_pb(keras_model, file, prefix=colorstr('TensorFlow GraphDef:')):
     import tensorflow as tf
     from tensorflow.python.framework.convert_to_constants import convert_variables_to_constants_v2
 
-    logger.info(f'\n{prefix} starting export with tensorflow {tf.__version__}...')
+    logger.info(f'{prefix} starting export with tensorflow {tf.__version__}...')
     f = file.with_suffix('.pb')
 
     m = tf.function(lambda x: keras_model(x))  # full model
@@ -478,34 +547,40 @@ def export_weight(weights, uid, pid, device, include):
     flags = [x in include for x in fmts]
     assert sum(flags) == len(include), f'ERROR: Invalid --include {include}, valid --include arguments are {fmts}'
     jit, onnx, onnx_end2end, xml, engine, coreml, saved_model, pb, tflite, edgetpu, tfjs, paddle = flags  # export booleans
-    logger.info(f'jit, onnx, onnx_end2end, xml, engine, coreml, saved_model, pb, tflite, edgetpu, tfjs, paddle = {flags}')
     # file = Path(url2file(weights) if str(weights).startswith(('http:/', 'https:/')) else weights)  # PyTorch weights
     file = Path(weights)
 
-    # options
+    # options ----------------------------------------------------------------------------------------------------------
     imgsz = [640, 640]  # input image size
-    half = True         # FP16 quantization / GPU only
-    int8 = False        # INT8 quantization / Edge device only
-    dynamic = False     # dynamic input sizes for onnx
-    simplify = False    # simplifies the graph for onnx
-    workspace = 4.0     # max space size(GB) for tensorrt
-    nms = False         # add nms to coreml
-    agnostic_nms = True # add nms to tensorflow-related formats
-    optimize = False    # mobile optimization for torchscript
     batch_size = 1      # inference batch size
-    inplace = True      # compute tensors w/o copy
-    topk_per_class= 100 # nms: top-k per class to keep for tf_js
-    topk_all = 100      # nms: top-k for all classes to keep for onnx_e2e or tf_js
-    iou_thres = 0.45    # nms: iou threshold for onnx_e2e or tf_js
-    conf_thres = 0.25   # nms: confidence threshold for onnx_e2e or tf_js
+    inplace = True      # YOLO Detect(): set to compute tensors w/o copy
+    half = True         # FP16 quantization / GPU only
+    int8 = False        # CoreML/TF: INT8 quantization
+    dynamic = False     # ONNX/TF/TensorRT: dynamic input sizes
+    simplify = True     # ONNX/ONNX-E2E/TensorRT: simplifies the graph for onnx (TensorRT requires ONNX first)
+    opset = 12          # ONNX: operator-set version
+    workspace = 4.0     # TensorRT: max space size(GB) for tensorrt
+    verbose = False     # TensorRT: detail logging for tensorrt
+    nms = False         # TF: add nms
+    agnostic_nms = True # TF: add nms to tensorflow
+    optimize = False    # TorchScript: mobile optimization / CPU only
+    keras = False       # TF: save keras model as well
+    topk_per_class= 100 # TF.js: nms - top-k per class to keep
+    topk_all = 100      # ONNX-E2E/TF.js: nms -  top-k for all classes to keep
+    iou_thres = 0.45    # ONNX-E2E/TF.js: nms -  iou threshold
+    conf_thres = 0.25   # ONNX-E2E/TF.js: nms -  confidence threshold
+    #-------------------------------------------------------------------------------------------------------------------
 
     # Load PyTorch model
     device = select_device(device)
-    if half:
-        assert device.type != 'cpu' or coreml, '--half only compatible with GPU export, i.e. use --device 0'
-        assert not dynamic, '--half not compatible with --dynamic, i.e. use either --half or --dynamic but not both'
+    if half and device.type == 'cpu':
+        logger.warn(f'model exporter: --half only compatible with GPU export, ignore --half')
+        half = False
+    if half and dynamic:
+        logger.warn(f'model exporter: --half not compatible with --dynamic, ignore --dynamic')
+        dynamic = False
     model = attempt_load(weights, map_location=device)  # load FP32 model
-    print(model)
+    logger.debug(model)
 
     # Checks
     imgsz = [imgsz] if isinstance(imgsz, int) else imgsz
@@ -517,17 +592,6 @@ def export_weight(weights, uid, pid, device, include):
     gs = int(max(model.stride))  # grid size (max stride)
     imgsz = [check_img_size(x, gs) for x in imgsz]  # verify img_size are gs-multiples
     im = torch.zeros(batch_size, 3, *imgsz).to(device)  # image size(1,3,320,192) BCHW iDetection
-
-    logger.info(f'imgsz     = {imgsz}')
-    logger.info(f'half      = {half}')
-    logger.info(f'int8      = {int8}')
-    logger.info(f'dynamic   = {dynamic}')
-    logger.info(f'simplfy   = {simplify}')
-    logger.info(f'workspace = {workspace}')
-    logger.info(f'nms       = {nms}')
-    logger.info(f'optimize  = {optimize}')
-    logger.info(f'batchsize = {batch_size}')
-    logger.info(f'inplace   = {inplace}')
 
     # Update model
     model.eval()
@@ -545,15 +609,16 @@ def export_weight(weights, uid, pid, device, include):
     shape = tuple((y[0] if isinstance(y, (tuple, list)) else y).shape)  # model output shape
     metadata = {'stride': int(max(model.stride)), 'names': model.names}  # model metadata
     # logger.info(f"\n{colorstr('PyTorch:')} starting from {file} with output shape {shape} ({file_size(file):.1f} MB)")
-    logger.info(f"\n{colorstr('PyTorch:')} starting from {file} with output shape {shape}")
+    logger.info(f"{colorstr('PyTorch:')} starting from {file} with output shape {shape} ({os.path.getsize(file) / 1E6:.1f} MB)")
 
     # Exports
     f = [''] * len(fmts)  # exported filenames
     warnings.filterwarnings(action='ignore', category=torch.jit.TracerWarning)  # suppress TracerWarning
+    warnings.filterwarnings("ignore", category=FutureWarning) # torch.onnx.__patch_torch.__graph_op will be deprecated
     if jit:  # TorchScript
         f[0], ts_model = export_torchscript(model, im, file, optimize)
-    if engine:  # TensorRT required before ONNX
-        f[1], rt_model = export_tensorrt(model, im, file, half, dynamic, simplify, workspace, verbose=True)
+    if engine:  # TensorRT required ONNX
+        f[1], rt_model = export_tensorrt(model, im, file, half, dynamic, simplify, workspace, verbose=verbose)
     if onnx or xml:  # OpenVINO requires ONNX
         f[2], _ = export_onnx(model, im, file, opset, dynamic, simplify)
     if onnx_end2end:
@@ -581,7 +646,7 @@ def export_weight(weights, uid, pid, device, include):
                                                 topk_all=topk_all,
                                                 iou_thres=iou_thres,
                                                 conf_thres=conf_thres,
-                                                keras=False)
+                                                keras=keras)
         if pb or tfjs:  # pb prerequisite to tfjs
             f[6], tf_model = export_tf_pb(s_model, file)
         if tflite or edgetpu:
@@ -597,9 +662,9 @@ def export_weight(weights, uid, pid, device, include):
     # Finish
     f = [str(x) for x in f if x]  # filter out '' and None
     if any(f):
-        logger.info(f'\nExport complete ({time.time() - t:.1f}s)'
-                    f"\nResults saved to {colorstr('bold', file.parent.resolve())}"
-                    f"\nVisualize:       https://netron.app")
+        logger.info(f'Export complete ({time.time() - t:.1f}s)')
+        logger.info(f"Results saved to {colorstr('bold', file.parent.resolve())}")
+        logger.info(f"Visualize:       https://netron.app")
 
     return f  # return list of exported files/dirs
 
