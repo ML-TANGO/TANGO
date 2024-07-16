@@ -38,22 +38,14 @@ urlpatterns = [
     # 프로젝트 설명 수정
     re_path(r'^project_description_update', viewsProject.project_description_update, name='project_description_update'),
 
-    re_path(r'^target_check', viewsProject.target_check, name='target_check'),      # 타겟 yaml 파일 생성
-    re_path(r'^dataset_check', viewsProject.dataset_check, name='dataset_check'),   # 데이터 셋 유효성 검사
-
-    re_path(r'^get_server_ip', views.get_server_ip, name='get_server_ip'),          # 서버 IP 정보 획득
 
     re_path(r'^container_start', viewsProject.container_start, name='container_start'),       # 컨테이너 실행
-    # re_path(r'^status_result', viewsProject.status_result, name='status_result'),       # 컨테이너 실행 상태 확인
     re_path(r'^status_request', viewsProject.status_request, name='status_request'),       # 컨테이너 실행 상태 확인 요청
 
     re_path(r'^download_nn_model', viewsProject.download_nn_model, name='download_nn_model'), # nn_model 다운로드(외부IDE연동)
     re_path(r'^upload_nn_model', viewsProject.upload_nn_model, name='upload_nn_model'),       # nn_model 업로드(외부IDE연동)
 
     re_path(r'^set_workflow', viewsProject.set_workflow, name='set_workflow'),       # workflow 셋팅
-    
-    
-    
     
     re_path(r'^get_autonn_status', viewsProject.get_autonn_status, name='get_autonn_status'),       # get autonnstatue 
 ]

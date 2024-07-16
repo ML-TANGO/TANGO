@@ -1,3 +1,19 @@
+from enum import Enum
+
+class ContainerId(str, Enum):
+    autonn = "autonn"
+    codeGen = "code_gen"
+    imagedeploy = "imagedeploy"
+
+class ContainerStatus(str, Enum):
+    READY = "ready"
+    STARTED = "started"
+    RUNNING = "code_gen"
+    COMPLETED = "imagedeploy"
+    STOPPED = "stopped"
+    FAILED = "failed"
+
+
 autonn_update_ids={
     "project_info":"project_info",
     "hyperparameter":"hyperparameter",
@@ -27,7 +43,8 @@ autonn_update_ids={
 autonn_process={
     autonn_update_ids["project_info"]: 0,
     autonn_update_ids["system"]: 1,
-    autonn_update_ids["model_summary"]: 2,
+    autonn_update_ids["model_summary"]: 1.5,
+    autonn_update_ids["train_dataset"]: 2,
     autonn_update_ids["anchors"]: 3,
     autonn_update_ids["train_end"]: 4,
     autonn_update_ids["finetune_end"]: 5,

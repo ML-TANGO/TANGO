@@ -1,6 +1,5 @@
 import os
 import requests
-import asyncio
 import docker
 # import zipfile
 import shutil
@@ -10,68 +9,29 @@ import textwrap
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 root_path = os.path.dirname(os.path.dirname(BASE_DIR))
 
+class DockerContainerInfo:
+    def __init__(self, _key, _port, _hostname, _docker_name, _display_name):
+            self.key = _key
+            self.port = _port
+            self.hostname = _hostname
+            self.docker_name = _docker_name
+            self.display_name = _display_name
+
+    def getURL(self):
+        return f"{self.hostname}:{self.port}"
+
+CONTAINER_INFO = {
+    "autonn" : DockerContainerInfo("autonn", 8100, "autonn", "autonn", "Auto NN"),
+    "codeGen": DockerContainerInfo("codeGen", 8888, "codeGen", "code_gen", "Code Gen"),
+    "code_gen": DockerContainerInfo("codeGen", 8888, "codeGen", "code_gen", "Code Gen"),
+    "cloud_deploy": DockerContainerInfo("imagedeploy", 8890, "cloud-deploy", "cloud_deploy", "Image Deploy"),
+    "kube_deploy": DockerContainerInfo("imagedeploy", 8901, "kube-deploy", "kube_deploy", "Image Deploy"),
+    "ondevice_deploy": DockerContainerInfo("imagedeploy", 8891, "ondevice", "ondevice_deploy", "Image Deploy"),
+}
+
+
 #region API REQUEST ...................................................................................................
-
-async def start_handler(container, user_id, project_id, target_info):
-    """
-    Container Start Request Handler
-
-    Args:
-        container : container
-        user_id : user_id
-        project_id : project_id
-        target_info : If the container is imagedenploy, receive hostname and port as targetinfo
-
-    Returns:
-        request info
-    """
-
-    if container != 'imagedeploy':
-        host, port = get_container_info(container)
-    else :
-        host, port = get_deploy_host_port(target_info)
-
-    print("container_start_api : " + host + ':' + port)
-
-    start_task = asyncio.create_task(container_start_api(host + ':' + port, user_id, project_id))
-    result = await start_task
-    # host, port = get_container_info(container)
-    # result = container_start_api(host + ':' + port, user_id, project_id)
-    return result
-
-async def container_start_api(host, user_id, project_id):
-    """
-    Request start API
-
-    Args:
-        host : hostname (Defined in docker-compose.yml) 
-        user_id : user_id
-        project_id : project_id
-
-    Returns:
-        request info
-    """
-
-    url = 'http://' + host + '/start'
-    headers = {
-        'Content-Type' : 'text/plain'
-    }
-    payload = {
-        'user_id' : user_id,
-        'project_id' : project_id,
-    }
-    response = requests.get(url, headers=headers, params=payload)
-    print_roundtrip_text = print_roundtrip(response, "Start", host)
-
-    # return response.json()
-    # return str(response.content.decode('utf-8'))
-    return json.dumps({'response': str(response.content, 'utf-8').replace('"',''), 'request_info': str(print_roundtrip_text)})
-
-
-
-#################################################################################################################
-
-async def request_handler(container, user_id, project_id, target_info):
+def call_api_handler(container, path, user_id, project_id, target_info):
     """
     Container task Status Request Handler
 
@@ -85,34 +45,23 @@ async def request_handler(container, user_id, project_id, target_info):
         request info
     """
 
-    # host, port = get_container_info(container)
-    # start_task = asyncio.create_task(container_request_api(host + ':' + port, user_id, project_id))
-    # result = await start_task
     try:
-        # host, port = get_container_info(container)
-        # result = container_request_api(host + ':' + port, user_id, project_id)
-        # return result
-
-
-        # host, port = get_container_info(container)
+        target = None
         if container != 'imagedeploy':
-            host, port = get_container_info(container)
+            target = CONTAINER_INFO[container]
         else :
-            host, port = get_deploy_host_port(target_info)
+            target = CONTAINER_INFO[get_deploy_container(target_info)]
 
-        print("status_request_api : " + host + ':' + port)
-
-        start_task = asyncio.create_task(container_request_api(host + ':' + port, user_id, project_id))
-        result = await start_task
+        result = call_container_api(target.getURL(), path, user_id, project_id)
         return result
     
     except Exception as error:
         print('request_handler - error : ' + str(error))
         return None
 
-async def container_request_api(host, user_id, project_id):
+def call_container_api(host, path, user_id, project_id):
     """
-    Request container status API
+    Request container API
 
     Args:
         host : hostname (Defined in docker-compose.yml) 
@@ -122,8 +71,7 @@ async def container_request_api(host, user_id, project_id):
     Returns:
         request info
     """
-        
-    url = 'http://' + host + '/status_request'
+    url = 'http://' + host + '/' + path
     headers = {
         'Content-Type' : 'text/plain'
     }
@@ -132,11 +80,7 @@ async def container_request_api(host, user_id, project_id):
         'project_id' : project_id,
     }
     response = requests.get(url, headers=headers, params=payload, timeout = 5)
-    print_roundtrip_text = print_roundtrip(response, "Status Request", host)
-
-    # return response.json()
-    # return str(response.content.decode('utf-8'))
-    # return str(response.content, 'utf-8').replace('"','')
+    print_roundtrip_text = print_roundtrip(response, path, host)
     return json.dumps({'response': str(response.content, 'utf-8').replace('"',''), 'request_info': str(print_roundtrip_text)})
 
 
@@ -157,7 +101,7 @@ def get_docker_log_handler(container, last_logs_timestamp):
     """
 
     client = docker.from_env()
-    dockerContainerName = get_docker_container_name(container)
+    dockerContainerName = CONTAINER_INFO[container].docker_name
     containerList = client.containers.list()
     container = next(item for item in containerList if dockerContainerName in str(item.name))
     logs = ''
@@ -171,88 +115,6 @@ def get_docker_log_handler(container, last_logs_timestamp):
 #endregion
 
 #region Get Container Info ............................................................................................
-def get_container_info(host_name):
-    """
-    Get ports into hostname
-
-    Args:
-        host : hostname (Defined in docker-compose.yml) 
-
-    Returns:
-        hostname, port
-    """
-
-    ports_by_container = {
-        'bms' : "8081",
-        'autonn' : "8100",
-        'yoloe' : "8090",
-        'codeGen' : "8888",
-        'autonn-resnet': "8092",
-        'viz2code': "8091"
-    }
-    return host_name, ports_by_container[host_name]
-
-def get_docker_container_name(container):
-    """
-    Get docker container name
-
-    Args:
-        container : container ID
-
-    Returns:
-        container name
-    """
-
-    containerName = ''
-    if container == 'init' :
-        containerName = ''
-    elif container == 'bms' :
-        containerName = 'bms'
-    elif container == 'autonn' :
-        containerName = 'autonn'
-    elif container == 'yoloe' :
-        containerName = 'autonn_yoloe'
-    elif container == 'labelling' :
-        containerName = 'labelling'
-    elif container == 'autonn-resnet' :
-        containerName = 'autonn_resnet'
-    elif container == 'autonn_bb' :
-        containerName = 'autonn_bb'
-    elif container == 'autonn_nk' :
-        containerName = 'autonn_nk'
-    elif container == 'codeGen' :
-        containerName = 'code_gen'
-    elif container == 'k8s' :
-        containerName = 'tango_k8s'
-    elif container == 'ondevice' or container == 'ondevice_deploy':
-        containerName = 'ondevice_deploy'
-    elif container == 'viz2code':
-        containerName = 'viz2code'
-    else :
-        containerName = 'bms'
-
-    return str(containerName)
-
-def get_deploy_host_port(deploy_type):
-    """
-    Get host name and port with target info for image deployment
-
-    Args:
-        deploy_type : deploy_type (Defined in shared/common/user_id/project_id/projct_info.yaml)
-
-    Returns:
-        host name, port
-    """
-
-    port = ''
-    if deploy_type == 'Cloud' :
-        return "cloud-deploy", "8890"
-    elif deploy_type == 'K8S' or deploy_type == 'K8S_Jetson_Nano':
-        return "kube-deploy", "8901"
-    else:
-        # ondevice 등등.... 
-        return "ondevice", "8891"
-    
 def get_deploy_container(deploy_type):
     """
     Get host name and port with target info for image deployment
@@ -264,7 +126,6 @@ def get_deploy_container(deploy_type):
         host name, port
     """
 
-    port = ''
     if deploy_type == 'Cloud' :
         return "cloud_deploy"
     elif deploy_type == 'K8S' or deploy_type == 'K8S_Jetson_Nano':
@@ -333,33 +194,6 @@ def get_log_container_name(container):
         return 'Image Deploy'
     elif container == 'viz2code':
         return 'viz2code'
-    
-
-def db_container_name(container):
-    """
-    Get the name of the container to store in the database
-
-    Args:
-        container : container
-
-    Returns:
-        string
-    """
-
-    if container == 'bms':
-        return 'bms'
-    elif container == 'autonn':
-        return 'autonn'
-    elif container == 'yoloe':
-        return 'yoloe'
-    elif container == 'viz2code' or container == 'visualization':
-        return 'viz2code'
-    elif container == 'autonn-resnet':
-        return 'autonn-resnet'
-    elif container == 'codeGen' or container == 'code_gen' or container == 'codegen':
-        return 'codeGen'
-    elif container == 'ondevice_deploy' or container == 'kube_deploy' or container == 'cloud_deploy':
-        return 'imagedeploy'
 
 def nn_model_zip(user_id, project_id):
     """
@@ -471,10 +305,33 @@ def findIndexByDictList(list, find_column, find_value):
             break
     
     return index
-# def db_container_name(container):
-#     if container == 'bms' or container == 'BMS':
-#         return 'bms'
-#     elif container == 'yoloe':
-#         return 'yoloe'
-#     elif container == 'codeGen' or container == 'code_gen' or container == 'codegen':
-#         return 'codeGen'
+
+# status_report를 log 형식에 맞게 변환하는 작업
+def status_report_to_log_text(request, project_info):
+    user_id = request.GET['user_id']
+    project_id = request.GET['project_id']
+    container_id = request.GET['container_id']
+    container_info = CONTAINER_INFO[container_id]
+    result = request.GET['status']
+
+    headers = ''
+    for header, value in request.META.items():
+        if not header.startswith('HTTP'):
+            continue
+        header = '-'.join([h.capitalize() for h in header[5:].lower().split('_')])
+        headers += '{}: {}\n'.format(header, value)
+    log_str =  str(project_info.current_log) 
+    log_str += '---------------- Status Report ----------------'
+    log_str += "\n" + container_info.display_name + " --> Project Manager"
+    log_str += "\n" + str(request)
+    log_str += "\n" + "method : " + request.method
+    log_str += "\n" + headers
+    log_str += '---------------- Params ----------------'
+    log_str += '\nuser_id : '+ str(user_id)
+    log_str += '\nproject_id : '+ str(project_id)
+    log_str += '\ncontainer_id : '+ str(container_id)
+    log_str += '\nstatus : '+ str(result)
+    log_str += '\n----------------------------------------'
+    log_str += '\n\n'
+
+
