@@ -31,7 +31,7 @@ export default {
         return ViewerMode.TEXT;
       }
       if (this.project.container === ContainerName.AUTO_NN) {
-        if (this.autonn_status?.progress >= 1 && this.autonn_status?.progress <= 2) {
+        if (this.autonn_status?.progress >= 1 && this.autonn_status?.progress <= 1) {
           return ViewerMode.MODEL_VIEW;
           // return ViewerMode.CHART;
         } else {
