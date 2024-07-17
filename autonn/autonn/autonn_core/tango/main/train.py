@@ -29,7 +29,8 @@ from tango.common.models.yolo import Model
 from tango.utils.autoanchor import check_anchors
 from tango.utils.autobatch import get_batch_size_for_gpu
 from tango.utils.datasets import create_dataloader
-from tango.utils.general import (   labels_to_class_weights,
+from tango.utils.general import (   DEBUG,
+                                    labels_to_class_weights,
                                     labels_to_image_weights,
                                     init_seeds,
                                     fitness,
@@ -57,7 +58,6 @@ from tango.utils.wandb_logging.wandb_utils import WandbLogger
 
 # # YOLOv7-NAS
 from tango.common.models.supernet_yolov7 import YOLOSuperNet
-
 
 logger = logging.getLogger(__name__)
 
@@ -174,12 +174,14 @@ def train(proj_info, hyp, opt, data_dict, tb_writer=None):
 
     # Batch size ---------------------------------------------------------------
     bs_factor = 0.8
-    if data_dict['dataset_name'] == 'coco128':
+    if DEBUG and data_dict['dataset_name'] == 'coco128':
         # skip auto-batch since coco128 has only 128 imgs
         batch_size = 128
     else:
-        autobatch_rst = get_batch_size_for_gpu(userid, project_id, model, 3 if task=='detection' else 1, imgsz, amp_enabled=True)
+        ch = 3 if task=='detection' else 1
+        autobatch_rst = get_batch_size_for_gpu(userid, project_id, model, ch, imgsz, amp_enabled=True)
         batch_size = int(autobatch_rst * bs_factor)
+
     if opt.local_rank != -1: # DDP mode
         logger.info(f'[ local rank check ]: opt.local_rank is not -1')
         assert torch.cuda.device_count() > opt.local_rank
@@ -598,8 +600,8 @@ def train(proj_info, hyp, opt, data_dict, tb_writer=None):
             epoch_summary['val_acc_R'] = results[1]
             epoch_summary['val_acc_map50'] = results[2]
             epoch_summary['val_acc_map'] = results[3]
-            epoch_summary['epoch_time'] = time.time() - t_epoch
-            epoch_summary['total_time'] = (time.time() - t0) / 3600
+            epoch_summary['epoch_time'] = (time.time() - t_epoch) # unit: sec
+            epoch_summary['total_time'] = (time.time() - t0) / 3600 # unit: hour
             status_update(userid, project_id,
                           update_id="epoch_summary",
                           update_content=epoch_summary)
@@ -622,7 +624,7 @@ def train(proj_info, hyp, opt, data_dict, tb_writer=None):
                         # 'wandb_id': wandb_logger.wandb_run.id if wandb_logger.wandb else None}
 
                 # Save last, best and delete
-                torch.save(ckpt, last)
+                # torch.save(ckpt, last)
                 if best_fitness == fi:
                     torch.save(ckpt, best)
                 if not opt.nosave:

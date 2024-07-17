@@ -2,6 +2,7 @@ import logging
 import argparse
 import contextlib
 import json
+import yaml
 import os
 import platform
 import re
@@ -50,22 +51,6 @@ def export_formats():
         ['TensorFlow.js', 'tfjs', '_web_model', False, False],
         ['PaddlePaddle', 'paddle', '_paddle_model', True, True],]
     return pd.DataFrame(x, columns=['Format', 'Argument', 'Suffix', 'CPU', 'GPU'])
-
-
-def export_torch_arch(model, im, file, prefix=colorstr('PyTorch Config:')):
-    # NN architecture(.yaml) export
-    logger.info(f'{prefix} starting export with torch {torch.__version__}...')
-    try:
-        import yaml
-        f = file.with_suffix('.yaml')
-        # cfg_dict = model2yaml(model, im)
-        # with open(f, 'w') as file:
-        #     yaml.dump(cfg_dict, file)
-        logger.info('PyTorch model config export success, saved as %s' % f)
-        return f, None
-    except Exception as e:
-        logger.warn('PyTorch model config export failure: %s' % e)
-        return None, None
 
 
 def export_torchscript(model, im, file, optimize, prefix=colorstr('TorchScript:')):
@@ -511,37 +496,71 @@ def add_tflite_metadata(file, metadata, num_outputs):
         tmp_file.unlink()
 
 
-def export_config(src_info_path, final_info_path, input_shape, onnx):
-    with open(src_info_path) as f:
-        nn_yaml = yaml.load(f, Loader=yaml.FullLoader)
+def export_config(src, dst, data, base, device, engine):
 
-    # final_py_list = str("['models/yolo.py', 'basemodel.yaml', 'models/common.py', 'models/experimental.py', 'utils/autoanchor.py', 'utils/datasets.py', 'utils/general.py', 'utils/torch_utils.py', 'utils/loss.py', 'utils/metrics.py', 'utils/plots.py']")
-    nn_info = dict()
-    for k in nn_yaml.keys():
-        if type(nn_yaml[k]) != str:
-            nn_info[str(k)] = str(nn_yaml[k])
-        else:
-            nn_info[str(k)] = nn_yaml[k]
-    # nn_info['class_file'] = final_py_list
-    nn_info['class_name'] = str("Model(cfg='bestmodel.yaml')")
+    nn_dict = {}
 
-    if onnx:
-        nn_info['weight_file'] = "bestmodel.onnx"
-        logger.info('weight file name is saved to bestmodel.onnx')
+    # NN Model
+    if engine == 'pytorch':
+        weight = 'bestmodel.torchscript'
+        config = ''
     else:
-        nn_info['weight_file'] = "bestmodel.pt"
-        nn_info['model_config'] = "bestmodel.yaml"
-        logger.info('weight file name is saved to bestmodel.pt')
-        logger.info('model architecture is saved to bestmodel.yaml')
+        weight = 'bestmodel.onnx'
+        config = ''
+    nn_dict['weight_file'] = weight
+    nn_dict['config_file'] = config
 
-    logger.info(f'input shape is {input_shape}')
-    nn_info['input_tensor_shape'] = [1, 3, input_shape[0], input_shape[1]]
+    # Label
+    nc = data.get('nc')
+    ch = data.get('ch', 3)
+    names = data.get('names')
+    if not nc and names:
+        nc = len(names)
+    if not names and nc:
+        names = list(range(nc)) # default name: [0, 1, ..., nc-1]
+    nn_dict['nc'] = nc
+    nn_dict['names'] = names
 
-    with open(final_info_path, 'w') as f:
-        yaml.dump(nn_info, f, default_flow_style=False)
+    # Input
+    imgsz = base.get('imgsz', 640)
+    input_tensor_shape = [1, ch, imgsz, imgsz]
+    device = select_device(device)
+    if device.type == 'cpu':
+        input_data_type = 'fp32'
+    else:
+        input_data_type = 'fp16'
+    anchors = base.get('anchors')
+    if not anchors:
+        logger.warn(f'Model Exporter: not found anchor imformation')
+
+    nn_dict['input_tensor_shape'] = input_tensor_shape
+    nn_dict['input_data_type'] = input_data_type
+    nn_dict['anchors'] = anchors
+
+    # Output
+    output_number = 3
+    stride = [8, 16, 32]
+    output_size = [
+        [1, ch, imgsz/stride[0], imgsz/stride[0], 5+nc],
+        [1, ch, imgsz/stride[1], imgsz/stride[1], 5+nc],
+        [1, ch, imgsz/stride[2], imgsz/stride[2], 5+nc]
+    ]
+    need_nms = True
+    conf_thres = 0.25
+    iou_thres = 0.45
+
+    nn_dict['output_number'] = output_number
+    nn_dict['output_size'] = output_size
+    nn_dict['stride'] = stride
+    nn_dict['need_nms'] = need_nms
+    nn_dict['conf_thres'] = conf_thres
+    nn_dict['iou_thres'] = iou_thres
+
+    with open(dst, 'w') as f:
+        yaml.dump(nn_dict, f, default_flow_style=False)
 
 
-def export_weight(weights, uid, pid, device, include):
+def export_weight(weights, device, include):
     t = time.time()
     fmts = tuple(export_formats()['Argument'][1:])
     flags = [x in include for x in fmts]

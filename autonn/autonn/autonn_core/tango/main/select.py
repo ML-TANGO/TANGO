@@ -23,6 +23,7 @@ from tensorboardX import SummaryWriter
 from . import status_update, Info
 from .train import train
 from .visualize import BasemodelViewer
+from .export import export_weight, export_config
 from tango.utils.general import (   increment_path,
                                     fitness,
                                     get_latest_run,
@@ -336,14 +337,37 @@ def run_autonn(userid, project_id, viz2code=False, nas=False, hpo=False):
     # if target == 'Galaxy_S22':
     #     train_final = run_search(opt, target, target_acc)
 
-    logger.info('train finished')
-    mb = os.path.getsize(train_final) / 1E6  # filesize
-    logger.info(f'best model = {train_final}, {mb:.1f} MB')
-    logger.info(f'mAP = {results[-1]}')
+    # Model Export -------------------------------------------------------------
+    target_acc = proj_info['acc']
+    target_engine = proj_info['engine'].replace('-', '').replace('_', '').lower()
 
-    # print("=== wait for 10 sec to avoid thread exception =============")
-    # import time
-    # time.sleep(10)
+    # if target_engine == 'pytorch':
+    #     convert = ['torchscript']
+    # elif target_engine in ('tvm', 'tensorrt')
+    #     convert = ['onnx']
+    # elif target_engine == 'onnx':
+    #     convert = ['onnx_end2end']
+    # elif target_engine in ('tflite', 'acl'):
+    #     convert = ['tflite']
 
-    return train_final  # best.pt
+    convert = ['torchscript', 'onnx']
+    export_weight(train_final, target_acc, convert)
+
+    # optional
+    export_weight(train_final, target_acc, ['onnx_end2end'])
+
+    src_bestmodel_path = COMMON_ROOT / userid / project_id / 'autonn' / 'weights' / 'best.torchscript'
+    dst_bestmodel_path = COMMON_ROOT / userid / project_id / 'bestmodel.torchscript'
+    shutil.copyfile(str(src_bestmodel_path), str(dst_bestmodel_path))
+
+    src_nninfo_path = CFG_PATH / 'neural_net_info.yaml'
+    dst_nninfo_path = COMMON_ROOT / userid / project_id / 'neural_net_info.yaml'
+    export_config(src_nninfo_path, dst_nninfo_path, data, basemodel, target_acc, target_engine)
+
+    # logger.info('train finished')
+    # mb = os.path.getsize(train_final) / 1E6  # filesize
+    # logger.info(f'best model = {train_final}, {mb:.1f} MB')
+    # logger.info(f'mAP = {results[-1]}')
+
+    return train_final  # bestmodel.pt
 

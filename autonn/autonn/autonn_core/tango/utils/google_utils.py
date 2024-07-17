@@ -17,7 +17,7 @@ def gsutil_getsize(url=''):
     return eval(s.split(' ')[0]) if len(s) else 0  # bytes
 
 
-def attempt_download(file, repo='WongKinYiu/yolov7'):
+def attempt_download(file, repo='ML-TANGO/TANGO'):
     # Attempt file download if does not exist
     file = Path(str(file).strip().replace("'", '').lower())
 

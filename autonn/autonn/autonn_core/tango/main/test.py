@@ -39,7 +39,7 @@ def test(proj_info,
          weights=None,
          batch_size=32,
          imgsz=640,
-         conf_thres=0.001,
+         conf_thres=0.001, # for NMS
          iou_thres=0.6,  # for NMS
          save_json=False,
          single_cls=False,
@@ -127,6 +127,7 @@ def test(proj_info,
     s = ('%20s' + '%12s' * 6) % ('Class', 'Images', 'Labels', 'P', 'R', 'mAP@.5', 'mAP@.5:.95')
     logger.info(s)
     p, r, f1, mp, mr, map50, map, t0, t1 = 0., 0., 0., 0., 0., 0., 0., 0., 0.
+    t2, t3 = 0., 0.
     loss = torch.zeros(3, device=device)
     jdict, stats, ap, ap_class, wandb_images = [], [], [], [], []
     # for batch_i, (img, targets, paths, shapes) in enumerate(tqdm(dataloader, desc=s)):
@@ -141,6 +142,8 @@ def test(proj_info,
             # Run model
             t = time_synchronized()
             out, train_out = model(img, augment=augment)  # inference and training outputs
+            # out.shape = (bs, 25200, 85)
+            # train_out.shape = ( (bs,3,80,80,85), (bs,3,40,40,85), (bs,3,20,20,85) )
             t0 += time_synchronized() - t
 
             # Compute loss
@@ -152,6 +155,13 @@ def test(proj_info,
             lb = [targets[targets[:, 0] == i, 1:] for i in range(nb)] if save_hybrid else []  # for autolabelling
             t = time_synchronized()
             out = non_max_suppression(out, conf_thres=conf_thres, iou_thres=iou_thres, labels=lb, multi_label=True)
+            # after nms, out = (n, 6) tensor/image : n = detected object number, 6 = (x,y,w,h,conf,cls)
+            #   (bs, 25200, 85) ==> NMS ==> (bs, n, 6)
+            # nms terms @ codegen :
+            #   n       = num_detections,
+            #   x,y,w,h = nmsed_boxes (x1,y1,x2,y2),
+            #   conf    = nmsed_scores,
+            #   cls     = nmsed_classes
             t1 += time_synchronized() - t
 
         # Statistics per image
@@ -250,10 +260,11 @@ def test(proj_info,
         # Status update
         val_acc['step'] = batch_i + 1
         val_acc['total_step'] = len(dataloader)
-        val_acc['time'] = f'{(t0 + t1):.1f} s'
+        val_acc['time'] = f'{(t0+t1)-t2:.1f} s'
         status_update(userid, project_id,
                       update_id="val_accuracy",
                       update_content=val_acc)
+        t2 = t0 + t1
     # Test end =================================================================
 
     # Compute statistics -------------------------------------------------------
@@ -278,7 +289,7 @@ def test(proj_info,
     val_acc['R'] = mr
     val_acc['mAP50'] = map50
     val_acc['mAP50-95'] = map
-    val_acc['time'] = f'{(t0 + t1) * 1E3:.1f} ms'
+    # val_acc['time'] = f'{(t0 + t1) :.1f} s' # total time
     status_update(userid, project_id,
               update_id="val_accuracy",
               update_content=val_acc)

@@ -29,6 +29,8 @@ pd.options.display.max_columns = 10
 cv2.setNumThreads(0)  # prevent OpenCV from multithreading (incompatible with PyTorch DataLoader)
 os.environ['NUMEXPR_MAX_THREADS'] = str(min(os.cpu_count(), 8))  # NumExpr max threads
 
+DEBUG = True
+
 logger = logging.getLogger(__name__)
 
 def set_logging(rank=-1):
@@ -610,7 +612,8 @@ def box_diou(box1, box2, eps: float = 1e-7):
 
 def non_max_suppression(prediction, conf_thres=0.25, iou_thres=0.45, classes=None, agnostic=False, multi_label=False,
                         labels=()):
-    """Runs Non-Maximum Suppression (NMS) on inference results
+    """
+    Runs Non-Maximum Suppression (NMS) on inference results
 
     Returns:
          list of detections, on (n,6) tensor per image [xyxy, conf, cls]
