@@ -57,7 +57,8 @@ def call_api_handler(container, path, user_id, project_id, target_info):
     
     except Exception as error:
         print('request_handler - error : ' + str(error))
-        return None
+        # return None
+        raise
 
 def call_container_api(host, path, user_id, project_id):
     """
@@ -71,18 +72,26 @@ def call_container_api(host, path, user_id, project_id):
     Returns:
         request info
     """
-    url = 'http://' + host + '/' + path
-    headers = {
-        'Content-Type' : 'text/plain'
-    }
-    payload = {
-        'user_id' : user_id,
-        'project_id' : project_id,
-    }
-    response = requests.get(url, headers=headers, params=payload, timeout = 5)
-    print_roundtrip_text = print_roundtrip(response, path, host)
-    return json.dumps({'response': str(response.content, 'utf-8').replace('"',''), 'request_info': str(print_roundtrip_text)})
-
+    try:
+        url = 'http://' + host + '/' + path
+        headers = {
+            'Content-Type' : 'text/plain'
+        }
+        payload = {
+            'user_id' : user_id,
+            'project_id' : project_id,
+        }
+        response = requests.get(url, headers=headers, params=payload, timeout = 5)
+        
+        if response.status_code == 404:
+            print("404 ERROR")
+            raise Exception("not found")
+        
+        print_roundtrip_text = print_roundtrip(response, path, host)
+        return json.dumps({'response': str(response.content, 'utf-8').replace('"',''), 'request_info': str(print_roundtrip_text)})
+    except Exception:
+        print("CALL ERROR ---------------------------------------")
+        raise
 
 #endregion
 

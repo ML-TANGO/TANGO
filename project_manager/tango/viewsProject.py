@@ -294,11 +294,20 @@ def status_request(request):
         else:
             container_info = CONTAINER_INFO[container_id]
         
-        res = call_api_handler(container_id, "status_request", user_id, project_id, project_info.target.target_info)
-        if res == None:
-            return HttpResponse(json.dumps({'container': container_id, 'container_status': '', 'message': ''}))
+        # res = call_api_handler(container_id, "status_request", user_id, project_id, project_info.target.target_info)
+        # if res == None:
+        #     return HttpResponse(json.dumps({'container': container_id, 'container_status': '', 'message': ''}))
 
-        response = json.loads(res)
+        if project_info.container_status != ContainerStatus.COMPLETED and project_info.container_status != ContainerStatus.FAILED:
+            res = {}
+            try:
+                res = call_api_handler(container_id, "status_request", user_id, project_id, project_info.target.target_info)
+            except Exception:
+                return HttpResponse(json.dumps({'container': container_id, 'container_status': '', 'message': ''}))
+
+            response = json.loads(res)
+        else :
+            response = { "response" : project_info.container_status }
                
         if len(response['response']) > 50:
             project_info.save()
@@ -320,9 +329,8 @@ def status_request(request):
         response_log += '\n' + str(logs)
         project_info.current_log = ''
 
-        if project_info.container_status == ContainerStatus.COMPLETED:
+        if response['response'] == ContainerStatus.COMPLETED:
             response_log += container_info.display_name + " 완료\n"
-            response['response'] = ContainerStatus.COMPLETED
 
         project_info.container_status = response['response']
 
@@ -374,7 +382,11 @@ def status_report(request):
             if result == ContainerStatus.COMPLETED: 
                 # autonn이 COMPLETED되면 stop API를 호출
                 # * stop API 호출되면, autonn은 해당하는 모든 임시 파일/폴더를 삭제할 예정입니다.
-                call_api_handler(container_id, "stop", user_id, project_id, project_info.target.target_info)
+                try:
+                    call_api_handler(container_id, "stop", user_id, project_id, project_info.target.target_info)
+                except Exception:
+                    print("AUTONN STOP Call Failed")
+                
             
             elif result == ContainerStatus.FAILED and project_info.autonn_retry_count + 1 <= 3:
                 # Autonn 다시 시도
@@ -389,6 +401,7 @@ def status_report(request):
                 except Exception as error:
                     print("resume API 호출 실패..")
                     project_info.container_status = ContainerStatus.FAILED
+                    result = ContainerStatus.FAILED
 
         if project_info.project_type == 'auto':
             current_container_idx = findIndexByDictList(list(workflow_order.values()), 'workflow_name', container_id)
@@ -410,8 +423,12 @@ def status_report(request):
                     log = str(project_info.current_log) + "\n" + container_info.display_name + " 완료"
                     log += "\n" + next_container_info.display_name + " 시작 요청"
                     project_info.current_log = log
-                    call_api_handler(next_container, "start", user_id, project_id, project_info.target.target_info)
-                    project_info.container_status = ContainerStatus.STARTED
+                    try:
+                        call_api_handler(next_container, "start", user_id, project_id, project_info.target.target_info)
+                        project_info.container_status = ContainerStatus.STARTED
+                    except Exception:
+                        project_info.container_status = ContainerStatus.FAILED
+                        print(f"{next_container} start call failed")
 
         else:
             project_info.container_status = result
