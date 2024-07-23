@@ -105,7 +105,7 @@ export default {
         this.denyAccess();
         return;
       }
-
+      console.log("response", response);
       const projectInfo = new Project(response);
 
       if (!projectInfo.validation()) {

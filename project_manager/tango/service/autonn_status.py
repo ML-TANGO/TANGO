@@ -2,7 +2,7 @@ import json
 
 from django.db.models import Model
 
-from ..models import Project, Hyperparameter, AutonnStatus, TrainLossLastStep, ValAccuracyLastStep, EpochSummary
+from ..models import Project, AutonnStatus, TrainLossLastStep, ValAccuracyLastStep, EpochSummary
 from ..enums import autonn_update_ids, autonn_process
 
 def create_last_step(model_class, update_data, project_id):
@@ -44,11 +44,15 @@ def create_epoch_summary(_data, project_id):
             setattr(epoch_summay, key, value)
     
         epoch_summay.save()
+
+        # EPOCH 완료 시 autonn_retry_count 초기화 
+        # (동일 EPOCH에서 failed 되었을때만 autonn을 다시 시도 하기 때문)
+        project_info.autonn_retry_count = 0
+        project_info.save()
     except Exception as error:
         print("create epoch summary error")
         print(error)
     
-
 def update_instance_with_dict(model_class, update_data):
     try:
         data = json.loads(update_data)
@@ -83,7 +87,6 @@ def update_instance_by_system(model_class, update_data):
     except Exception as error:
         print("autonn_status - system 업데이트 오류.............")
         print(error)
-
 
 def update_autonn_status(body):
     print("-----------------------------------------------")
@@ -136,6 +139,12 @@ def update_autonn_status(body):
 
     if update_id == autonn_update_ids["system"]:
         update_instance_by_system(update_instance, body['update_content'])
+    elif update_id == autonn_update_ids["model_summary"]:
+        data = json.loads(body['update_content'])
+        if 'FLOPS' in data:
+            data["flops"] = data["FLOPS"]
+            data.pop("FLOPS")
+        update_instance_with_dict(update_instance, json.dumps(data))
     elif update_id == autonn_update_ids["epoch_summary"]:
         data = json.loads(body['update_content'])
         if 'total_time' in data:
@@ -155,89 +164,5 @@ def update_autonn_status(body):
         update_instance_with_dict(update_instance, body['update_content'])
         if update_id == autonn_update_ids["train_loss"]:
             create_last_step(TrainLossLastStep, body['update_content'], body['project_id'])
-
-# def update_autonn_status(body):
-#     print("-----------------------------------------------")
-#     print(body)
-
-#     autonn_status_info = None
-
-#     try:
-#         autonn_status_info = AutonnStatus.objects.get(project = body["project_id"])
-#     except Exception:
-#         print("AutonnStatus를 찾을 수 없음")
-#         return
-
-#     if body["update_id"] == autonn_update_ids["project_info"]:
-#         print("project_info")
-#     elif body["update_id"] == autonn_update_ids["hyperparameter"]:
-#         print("hyperparameter")
-#         update_instance_with_dict(autonn_status_info.hyperparameter, body['update_content'])
-#     elif body["update_id"] == autonn_update_ids["arguments"]:
-#         print("arguments")
-#         update_instance_with_dict(autonn_status_info.arguments, body['update_content'])
-#     elif body["update_id"] == autonn_update_ids["system"]:
-#         print("system")
-#         update_instance_by_system(autonn_status_info.system, body['update_content'])
-#     elif body["update_id"] == autonn_update_ids["basemodel"]:
-#         print("basemodel")
-#         update_instance_with_dict(autonn_status_info.basemodel, body['update_content'])
-#     elif body["update_id"] == autonn_update_ids["model"]:
-#         print("model")
-#         # update_instance_with_dict(autonn_status_info.mo, body['update_content'])
-#     elif body["update_id"] == autonn_update_ids["model_summary"]:
-#         print("model_summary")
-#         update_instance_with_dict(autonn_status_info.model_summary, body['update_content'])
-#     elif body["update_id"] == autonn_update_ids["batchsize"]:
-#         print("batchsize")
-#         update_instance_with_dict(autonn_status_info.batch_size, body['update_content'])
-#     elif str(body["update_id"]) == autonn_update_ids["train_dataset"]:
-#         print("train_dataset")
-#         update_instance_with_dict(autonn_status_info.train_dataset, body['update_content'])
-#     elif body["update_id"] == autonn_update_ids["val_dataset"]:
-#         print("val_dataset")
-#         update_instance_with_dict(autonn_status_info.val_dataset, body['update_content'])
-#     elif body["update_id"] == autonn_update_ids["anchors"]:
-#         print("anchors")
-#         update_instance_with_dict(autonn_status_info.anchor, body['update_content'])
-#     elif body["update_id"] == autonn_update_ids["train_start"]:
-#         print("train_start")
-#         update_instance_with_dict(autonn_status_info.train_start, body['update_content'])
-#     elif body["update_id"] == autonn_update_ids["train_loss"]:
-#         print("train_loss")
-#         update_instance_with_dict(autonn_status_info.train_loss_latest, body['update_content'])
-#         create_last_step(TrainLossLastStep, body['update_content'], body['project_id'])
-#     elif body["update_id"] == autonn_update_ids["val_accuracy"]:
-#         print("val_accuracy")
-#         # class라는 key는 python에서 사용할 수 없으므로...
-#         data = json.loads(body['update_content'])
-#         if 'class' in data:
-#             data['class_type'] = data['class']
-#             data.pop('class')
-#         update_instance_with_dict(autonn_status_info.val_accuracy_latest, json.dumps(data))
-#         create_last_step(ValAccuracyLastStep, json.dumps(data), body['project_id'])
-#     elif body["update_id"] == autonn_update_ids["train_end"]:
-#         print("train_end")
-#     elif body["update_id"] == autonn_update_ids["nas_start"]:
-#         print("nas_start")
-#     elif body["update_id"] == autonn_update_ids["evolution_search"]:
-#         print("evolution_search")
-#     elif body["update_id"] == autonn_update_ids["nas_end"]:
-#         print("nas_end")
-#     elif body["update_id"] == autonn_update_ids["fintune_start"]:
-#         print("fintune_start")
-#     elif body["update_id"] == autonn_update_ids["finetue_loss"]:
-#         print("finetue_loss")
-#     elif body["update_id"] == autonn_update_ids["finetue_acc"]:
-#         print("finetue_acc")
-#     elif body["update_id"] == autonn_update_ids["finetune_end"]:
-#         print("finetune_end")
-
-#     print('\n\n')
-
-
-
-
-
 
 
