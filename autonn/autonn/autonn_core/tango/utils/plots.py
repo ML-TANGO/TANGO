@@ -339,9 +339,9 @@ def plot_evolution(yaml_file='data/hyp.finetune.yaml'):  # from utils.plots impo
         plt.title('%s = %.3g' % (k, mu), fontdict={'size': 9})  # limit to 40 characters
         if i % 5 != 0:
             plt.yticks([])
-        print('%15s: %.3g' % (k, mu))
+        logger.info('%15s: %.3g' % (k, mu))
     plt.savefig('evolve.png', dpi=200)
-    print('\nPlot saved as evolve.png')
+    logger.info('\nPlot saved as evolve.png')
 
 
 def profile_idetection(start=0, stop=0, labels=(), save_dir=''):
@@ -370,7 +370,7 @@ def profile_idetection(start=0, stop=0, labels=(), save_dir=''):
                 else:
                     a.remove()
         except Exception as e:
-            print('Warning: Plotting error for %s; %s' % (f, e))
+            logger.warn('Warning: Plotting error for %s; %s' % (f, e))
 
     ax[1].legend()
     plt.savefig(Path(save_dir) / 'idetection_profile.png', dpi=200)
@@ -429,11 +429,44 @@ def plot_results(start=0, stop=0, bucket='', id=(), labels=(), save_dir=''):
                 # if i in [5, 6, 7]:  # share train and val loss y axes
                 #     ax[i].get_shared_y_axes().join(ax[i], ax[i - 5])
         except Exception as e:
-            print('Warning: Plotting error for %s; %s' % (f, e))
+            logger.warn('Warning: Plotting error for %s; %s' % (f, e))
 
     ax[1].legend()
     fig.savefig(Path(save_dir) / 'results.png', dpi=200)
-    
+
+def plot_cls_results(start=0, stop=0, bucket='', id=(), labels=(), save_dir=''):
+    # Plot training 'results*.txt'. from utils.plots import *; plot_results(save_dir='runs/train/exp')
+    fig, ax = plt.subplots(2, 5, figsize=(12, 6), tight_layout=True)
+    ax = ax.ravel()
+    s = ['train Accuracy', 'train Loss', 'val Accuracy', 'val Loss']
+    if bucket:
+        # files = ['https://storage.googleapis.com/%s/results%g.txt' % (bucket, x) for x in id]
+        files = ['results%g.txt' % x for x in id]
+        c = ('gsutil cp ' + '%s ' * len(files) + '.') % tuple('gs://%s/results%g.txt' % (bucket, x) for x in id)
+        os.system(c)
+    else:
+        files = list(Path(save_dir).glob('results*.txt'))
+    assert len(files), 'No results.txt files found in %s, nothing to plot.' % os.path.abspath(save_dir)
+    for fi, f in enumerate(files):
+        try:
+            results = np.loadtxt(f, usecols=[2, 3, 6, 7], ndmin=2).T
+            n = results.shape[1]  # number of rows
+            x = range(start, min(stop, n) if stop else n)
+            for i in range(4):
+                y = results[i, x]
+                if i in [1, 3]:
+                    y[y == 0] = np.nan  # don't show zero loss values
+                    # y /= y[0]  # normalize
+                label = labels[fi] if len(labels) else f.stem
+                ax[i].plot(x, y, marker='.', label=label, linewidth=2, markersize=8)
+                ax[i].set_title(s[i])
+                # if i in [5, 6, 7]:  # share train and val loss y axes
+                #     ax[i].get_shared_y_axes().join(ax[i], ax[i - 5])
+        except Exception as e:
+            logger.warn('Warning: Plotting error for %s; %s' % (f, e))
+
+    ax[1].legend()
+    fig.savefig(Path(save_dir) / 'results.png', dpi=200)
     
 def output_to_keypoint(output):
     # Convert model output to target format [batch_id, class_id, x, y, w, h, conf]

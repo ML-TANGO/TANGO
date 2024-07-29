@@ -37,7 +37,8 @@ from tango.utils.wandb_logging.wandb_utils import check_wandb_resume
 
 TASK_TO_MODEL_TABLE = {
     "detection": "yolov7",
-    "classification": "resnet"
+    "classification": "resnet",
+    "classification-c": "resnetc",
 }
 
 MODEL_TO_SIZE_TABLE = {
@@ -54,15 +55,27 @@ MODEL_TO_SIZE_TABLE = {
         "odroidn2": "-tiny",
     },
     "resnet": {
-        "cloud": "101",
+        "cloud": "152",
         "k8s": "101",
-        "k8sjetsonnano": "50",
+        "k8sjetsonnano": "101",
         "pcweb": "50",
         "pc": "50",
-        "jetsonagxorin": "20",
-        "jetsonagxxavier": "20",
-        "jetsonnano": "20",
-        "galaxys22": "20",
+        "jetsonagxorin": "34",
+        "jetsonagxxavier": "34",
+        "jetsonnano": "34",
+        "galaxys22": "18",
+        "odroidn2": "18",
+    },
+    "resnetc": {
+        "cloud": "200",
+        "k8s": "152",
+        "k8sjetsonnano": "110",
+        "pcweb": "56",
+        "pc": "56",
+        "jetsonagxorin": "44",
+        "jetsonagxxavier": "44",
+        "jetsonnano": "44",
+        "galaxys22": "32",
         "odroidn2": "20",
     },
 }
@@ -108,7 +121,10 @@ def get_user_requirements(userid, projid):
     data_dict['dataset_name'] = dataset_on_proj
 
     # ---------------------------- basemodel -----------------------------------
-    basemodel_yaml_path, basemodel = base_model_select(userid, projid, proj_info_dict)
+    basemodel_yaml_path, basemodel = base_model_select(userid,
+                                                       projid,
+                                                       proj_info_dict,
+                                                       data_dict)
     with open(basemodel_yaml_path, "r") as f:
         basemodel_dict = yaml.load(f, Loader=yaml.SafeLoader)
     basemodel_dict['hyp'] = 'p5' if basemodel_dict['hyp'] == 'tiny' \
@@ -126,7 +142,8 @@ def get_user_requirements(userid, projid):
                   update_content=hyp_dict)
 
     # ---------------------------- arguments -----------------------------------
-    opt_yaml_path = CFG_PATH / 'args.yaml'
+    task = proj_info_dict['task_type']
+    opt_yaml_path = CFG_PATH / f'args-{task}.yaml'
     with open(opt_yaml_path, encoding='utf-8') as f:
         opt = argparse.Namespace(**yaml.safe_load(f))
     # opt.name = basemodel_dict['name']
@@ -150,28 +167,35 @@ def get_user_requirements(userid, projid):
     return proj_info_dict, opt, hyp_dict, basemodel_dict, data_dict
 
 
-def base_model_select(userid, project_id, proj_info, manual_select=False):
+def base_model_select(userid, project_id, proj_info, data, manual_select=False):
     # read condition
     task = proj_info['task_type']
     target = proj_info['target_info'].replace('-', '').replace('_', '').lower()
 
+    # trick for compact version of resnet
+    task_ = 'classification-c' if data['nc'] <= 10 and task == 'classification' else task
+
     # look up table
     if not manual_select:
-        model = TASK_TO_MODEL_TABLE[task]
+        model = TASK_TO_MODEL_TABLE[task_]
         size = MODEL_TO_SIZE_TABLE[model][target]
     else:
         model = manual_select['model']
         size = manual_select['size']
 
+    # trick for compact version of resnet
+    dirname = model if task_ != 'classification-c' else model[:-1] # remove 'c' from 'resnetc'
+    filename = f'{model}{size}.yaml'
+
     # store basemodel.yaml
     PROJ_PATH = COMMON_ROOT / userid / project_id
-    source_path = f'{CFG_PATH}/{model}/{model}{size}.yaml'
+    source_path = f'{CFG_PATH}/{dirname}/{filename}'
     target_path = f'{PROJ_PATH}/basemodel.yaml'
     shutil.copy(source_path, target_path)
 
     # construct nodes and edges
     viewer = BasemodelViewer(userid, project_id)
-    viewer.parse_yaml(target_path)
+    viewer.parse_yaml(target_path, data)
     viewer.update()
 
     # save internally
@@ -190,6 +214,7 @@ def base_model_select(userid, project_id, proj_info, manual_select=False):
         "model_name": model_p,
         "model_size": size_p,
     }
+    print(basemodel)
     return target_path, basemodel
 
 
@@ -338,23 +363,19 @@ def run_autonn(userid, project_id, viz2code=False, nas=False, hpo=False):
     #     train_final = run_search(opt, target, target_acc)
 
     # Model Export -------------------------------------------------------------
+    if not train_final:
+        return None
     target_acc = proj_info['acc']
     target_engine = proj_info['engine'].replace('-', '').replace('_', '').lower()
-
-    # if target_engine == 'pytorch':
-    #     convert = ['torchscript']
-    # elif target_engine in ('tvm', 'tensorrt')
-    #     convert = ['onnx']
-    # elif target_engine == 'onnx':
-    #     convert = ['onnx_end2end']
-    # elif target_engine in ('tflite', 'acl'):
-    #     convert = ['tflite']
-
+    task = proj_info['task_type']
+    channel = data.get('ch')
+    print(f'channle = {channel}')
     convert = ['torchscript', 'onnx']
-    export_weight(train_final, target_acc, convert)
+    export_weight(train_final, target_acc, convert, task=task, ch=channel, imgsz=opt.img_size)
 
     # optional
-    export_weight(train_final, target_acc, ['onnx_end2end'])
+    if task == 'detection':
+        export_weight(train_final, target_acc, ['onnx_end2end'])
 
     src_bestmodel_path = COMMON_ROOT / userid / project_id / 'autonn' / 'weights' / 'best.torchscript'
     dst_bestmodel_path = COMMON_ROOT / userid / project_id / 'bestmodel.torchscript'
@@ -362,7 +383,7 @@ def run_autonn(userid, project_id, viz2code=False, nas=False, hpo=False):
 
     src_nninfo_path = CFG_PATH / 'neural_net_info.yaml'
     dst_nninfo_path = COMMON_ROOT / userid / project_id / 'neural_net_info.yaml'
-    export_config(src_nninfo_path, dst_nninfo_path, data, basemodel, target_acc, target_engine)
+    export_config(src_nninfo_path, dst_nninfo_path, data, basemodel, target_acc, target_engine, task=task)
 
     # logger.info('train finished')
     # mb = os.path.getsize(train_final) / 1E6  # filesize

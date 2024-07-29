@@ -29,7 +29,7 @@ pd.options.display.max_columns = 10
 cv2.setNumThreads(0)  # prevent OpenCV from multithreading (incompatible with PyTorch DataLoader)
 os.environ['NUMEXPR_MAX_THREADS'] = str(min(os.cpu_count(), 8))  # NumExpr max threads
 
-DEBUG = True
+DEBUG = False
 
 logger = logging.getLogger(__name__)
 

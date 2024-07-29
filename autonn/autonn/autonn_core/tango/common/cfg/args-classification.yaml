@@ -1,11 +1,13 @@
-# args.yaml for Yolov7 
+# args.yaml for ResNet-Cifar10
 weights: ''
 cfg: ''
 data: ''
 hyp: ''
 epochs: 2
 batch_size: -1  # it'll be changed by auto-batch
-img_size: [640, 640]
+img_size: [256, 256]
+mean: 0.5
+std: 0.5
 rect: False
 resume: False
 nosave: False
@@ -18,7 +20,7 @@ image_weights: False
 device: ''
 multi_scale: False
 single_cls: False
-adam: False
+adam: False # optimizer = SGD
 sync_bn: False
 local_rank: -1
 workers: 8
@@ -34,4 +36,5 @@ bbox_interval: -1
 save_period: -1
 artifact_alias: 'latest'
 freeze: [0]
-v5_metric: False
+v5_metric: False # metirc
+loss_name: 'CE'

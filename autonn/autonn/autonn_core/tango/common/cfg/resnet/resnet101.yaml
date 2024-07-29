@@ -5,7 +5,7 @@ imgsz: 640
 nc: 1000
 
 backbone:
-  [[-1, 1, nn.Conv2d, [64, 7, 2, 3, False]], #0
+  [[-1, 1, nn.Conv2d, [64, 7, 2, 3, 1, 1, False]], #0
    [-1, 1, nn.BatchNorm2d, [64]],
    [-1, 1, nn.ReLU, [True]],
    [-1, 1, nn.MaxPool2d, [3, 2, 1, 1, False, False]],

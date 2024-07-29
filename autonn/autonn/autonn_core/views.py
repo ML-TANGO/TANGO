@@ -298,6 +298,10 @@ def process_autonn(userid, project_id):
         # time.sleep(10)
     except Exception as e:
         print(f"[AutoNN process_autonn] exception: {e}")
+        import torch, gc
+        if torch.cuda.is_available():
+            torch.cuda.empty_cache()
+        gc.collect()
         status_report(userid, project_id, "failed")
 
 

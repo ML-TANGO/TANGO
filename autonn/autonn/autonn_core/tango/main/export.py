@@ -53,14 +53,17 @@ def export_formats():
     return pd.DataFrame(x, columns=['Format', 'Argument', 'Suffix', 'CPU', 'GPU'])
 
 
-def export_torchscript(model, im, file, optimize, prefix=colorstr('TorchScript:')):
+def export_torchscript(model, im, file, optimize, task='detection', prefix=colorstr('TorchScript:')):
     # YOLO TorchScript model export
     logger.info(f'{prefix} starting export with torch {torch.__version__}...')
     try:
         f = file.with_suffix('.torchscript')
 
         ts = torch.jit.trace(model, im, strict=False)
-        d = {"shape": im.shape, "stride": int(max(model.stride)), "names": model.names}
+        if task == 'detection':
+            d = {"shape": im.shape, "stride": int(max(model.stride)), "names": model.names}
+        elif task == 'classification':
+            d = {"shape": im.shape, "names": model.names}
         extra_files = {'config.txt': json.dumps(d)}  # torch._C.ExtraFilesMap()
         if optimize:  # https://pytorch.org/tutorials/recipes/mobile_interpreter.html
             optimize_for_mobile(ts)._save_for_lite_interpreter(str(f), _extra_files=extra_files)
@@ -73,7 +76,7 @@ def export_torchscript(model, im, file, optimize, prefix=colorstr('TorchScript:'
         return None, None
 
 
-def export_onnx(model, im, file, opset, dynamic, simplify, prefix=colorstr('ONNX:')):
+def export_onnx(model, im, file, opset, dynamic, simplify, task='detection', prefix=colorstr('ONNX:')):
     # YOLO ONNX export
     # check_requirements('onnx')
     import onnx
@@ -109,7 +112,10 @@ def export_onnx(model, im, file, opset, dynamic, simplify, prefix=colorstr('ONNX
         onnx.checker.check_model(model_onnx)  # check onnx model
 
         # Metadata
-        d = {'stride': int(max(model.stride)), 'names': model.names}
+        if task == 'detection':
+            d = {'stride': int(max(model.stride)), 'names': model.names}
+        elif task == 'classification':
+            d = {'names': model.names}
         for k, v in d.items():
             meta = model_onnx.metadata_props.add()
             meta.key, meta.value = k, str(v)
@@ -496,7 +502,7 @@ def add_tflite_metadata(file, metadata, num_outputs):
         tmp_file.unlink()
 
 
-def export_config(src, dst, data, base, device, engine):
+def export_config(src, dst, data, base, device, engine, task='detection'):
 
     nn_dict = {}
 
@@ -530,7 +536,7 @@ def export_config(src, dst, data, base, device, engine):
     else:
         input_data_type = 'fp16'
     anchors = base.get('anchors')
-    if not anchors:
+    if not anchors and task == 'detection':
         logger.warn(f'Model Exporter: not found anchor imformation')
 
     nn_dict['input_tensor_shape'] = input_tensor_shape
@@ -538,29 +544,35 @@ def export_config(src, dst, data, base, device, engine):
     nn_dict['anchors'] = anchors
 
     # Output
-    output_number = 3
-    stride = [8, 16, 32]
-    output_size = [
-        [1, ch, imgsz/stride[0], imgsz/stride[0], 5+nc],
-        [1, ch, imgsz/stride[1], imgsz/stride[1], 5+nc],
-        [1, ch, imgsz/stride[2], imgsz/stride[2], 5+nc]
-    ]
-    need_nms = True
-    conf_thres = 0.25
-    iou_thres = 0.45
+    if task == 'detection':
+        output_number = 3
+        stride = [8, 16, 32]
+        output_size = [
+            [1, ch, imgsz/stride[0], imgsz/stride[0], 5+nc],
+            [1, ch, imgsz/stride[1], imgsz/stride[1], 5+nc],
+            [1, ch, imgsz/stride[2], imgsz/stride[2], 5+nc]
+        ]
+        need_nms = True
+        conf_thres = 0.25
+        iou_thres = 0.45
+    elif task == 'classification':
+        output_number = 1
+        output_size = [1, nc]
 
     nn_dict['output_number'] = output_number
     nn_dict['output_size'] = output_size
-    nn_dict['stride'] = stride
-    nn_dict['need_nms'] = need_nms
-    nn_dict['conf_thres'] = conf_thres
-    nn_dict['iou_thres'] = iou_thres
+
+    if task == 'detection':
+        nn_dict['stride'] = stride
+        nn_dict['need_nms'] = need_nms
+        nn_dict['conf_thres'] = conf_thres
+        nn_dict['iou_thres'] = iou_thres
 
     with open(dst, 'w') as f:
         yaml.dump(nn_dict, f, default_flow_style=False)
 
 
-def export_weight(weights, device, include):
+def export_weight(weights, device, include, task='detection', ch=3, imgsz=[640,640]):
     t = time.time()
     fmts = tuple(export_formats()['Argument'][1:])
     flags = [x in include for x in fmts]
@@ -570,7 +582,7 @@ def export_weight(weights, device, include):
     file = Path(weights)
 
     # options ----------------------------------------------------------------------------------------------------------
-    imgsz = [640, 640]  # input image size
+    # imgsz = [640, 640]  # input image size
     batch_size = 1      # inference batch size
     inplace = True      # YOLO Detect(): set to compute tensors w/o copy
     half = True         # FP16 quantization / GPU only
@@ -606,11 +618,14 @@ def export_weight(weights, device, include):
     imgsz *= 2 if len(imgsz) == 1 else 1  # expand
     if optimize:
         assert device.type == 'cpu', '--optimize not compatible with cuda devices, i.e. use --device cpu'
-
     # Input
-    gs = int(max(model.stride))  # grid size (max stride)
-    imgsz = [check_img_size(x, gs) for x in imgsz]  # verify img_size are gs-multiples
-    im = torch.zeros(batch_size, 3, *imgsz).to(device)  # image size(1,3,320,192) BCHW iDetection
+    if task == 'detection':
+        gs = int(max(model.stride))  # grid size (max stride)
+        imgsz = [check_img_size(x, gs) for x in imgsz]  # verify img_size are gs-multiples
+        im = torch.zeros(batch_size, ch, *imgsz).to(device)  # image size(1,3,320,192) BCHW iDetection
+    elif task == 'classification':
+        im = torch.zeros(batch_size, ch, *imgsz).to(device)
+
 
     # Update model
     model.eval()
@@ -638,7 +653,10 @@ def export_weight(weights, device, include):
             shape.append(yi.shape)
     else:
         shape.append(y.shape)
-    metadata = {'stride': int(max(model.stride)), 'names': model.names}  # model metadata
+    if task == 'detection':
+        metadata = {'stride': int(max(model.stride)), 'names': model.names}  # model metadata
+    elif task == 'classification':
+        metadata = {'names': model.names}  # model metadata
     # logger.info(f"\n{colorstr('PyTorch:')} starting from {file} with output shape {shape} ({file_size(file):.1f} MB)")
     logger.info(f"{colorstr('PyTorch:')} starting from {file} with output shape {shape} ({os.path.getsize(file) / 1E6:.1f} MB)")
 
@@ -647,11 +665,11 @@ def export_weight(weights, device, include):
     warnings.filterwarnings(action='ignore', category=torch.jit.TracerWarning)  # suppress TracerWarning
     warnings.filterwarnings("ignore", category=FutureWarning) # torch.onnx.__patch_torch.__graph_op will be deprecated
     if jit:  # TorchScript
-        f[0], ts_model = export_torchscript(model, im, file, optimize)
+        f[0], ts_model = export_torchscript(model, im, file, optimize, task=task)
     if engine:  # TensorRT required ONNX
         f[1], rt_model = export_tensorrt(model, im, file, half, dynamic, simplify, workspace, verbose=verbose)
     if onnx or xml:  # OpenVINO requires ONNX
-        f[2], _ = export_onnx(model, im, file, opset, dynamic, simplify)
+        f[2], _ = export_onnx(model, im, file, opset, dynamic, simplify, task=task)
     if onnx_end2end:
         # if isinstance(model, DetectionModel):
         #     labels = model.names
