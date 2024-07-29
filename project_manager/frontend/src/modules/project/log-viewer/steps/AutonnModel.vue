@@ -37,7 +37,7 @@ export default {
         { title: "Layers", content: this.data?.["layers"]?.toLocaleString() || "" },
         { title: "Params", content: this.data?.["parameters"]?.toLocaleString() || "" },
         { title: "Grads", content: this.data?.["gradients"]?.toLocaleString() || "" },
-        { title: "Flops", content: this.data?.["flops"]?.toLocaleString() || "" }
+        { title: "GFLOPS", content: this.data?.["flops"]?.toLocaleString() || "" }
       ];
     }
   }

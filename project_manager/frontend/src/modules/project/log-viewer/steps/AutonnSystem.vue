@@ -10,7 +10,7 @@
         <template #content>
           <div>
             {{ item?.["gpu_model"] || "" }} <br />
-            {{ item?.["memory"] || "" }}
+            {{ displayMemory(item?.["memory"]) }}
           </div>
         </template>
       </StepItem>
@@ -41,6 +41,15 @@ export default {
       } catch (err) {
         return [];
       }
+    }
+  },
+
+  methods: {
+    displayMemory(memory) {
+      if (!memory) return "";
+
+      if (memory.endsWith(")")) memory = memory.slice(0, memory.length - 1);
+      return `${memory}G`;
     }
   }
 };

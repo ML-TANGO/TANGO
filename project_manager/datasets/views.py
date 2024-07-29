@@ -143,7 +143,6 @@ def get_folders_size(request):
 
         return HttpResponse(json.dumps({'status': 200, 'datas': results }))
     except Exception as e:
-        print("ZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZ   get_folders_size ")
         print(e)
         return HttpResponse(json.dumps({'status': 404}))
 
@@ -159,7 +158,6 @@ def get_folders_file_count(request):
 
         return HttpResponse(json.dumps({'status': 200, 'datas': results }))
     except Exception as e:
-        print("ZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZ   get_folders_file_count ")
         print(e)
         return HttpResponse(json.dumps({'status': 404}))        
     
@@ -638,12 +636,6 @@ def create_folder_if_not_exists(path):
         print(f"{path} 폴더가 이미 존재합니다.")
 
 def dataset_start_scirpt():
-    # fix_path = root_path if os.environ.get('IS_DOCKER_COMPOSE') else BASE_DIR
-    # fix_path = root_path
-    # create_folder_if_not_exists(os.path.join(fix_path, "shared/datasets/coco"))
-    # create_folder_if_not_exists(os.path.join(fix_path, "shared/datasets/VOC"))
-    # create_folder_if_not_exists(os.path.join(fix_path, "shared/datasets/ChestXRay"))
-    # create_folder_if_not_exists(os.path.join(fix_path, "shared/datasets/imagenet"))
     for common_dataset in COMMON_DATASET_INFO.values():
         create_folder_if_not_exists(common_dataset["path"])
 
@@ -705,7 +697,6 @@ def is_download_complete_dataset(folder_path):
     file_count = 0
     for path, dirs, files in os.walk(folder_path):
         file_count += len(files)
-        print("..................... file_count  :  " + str(file_count))
         if file_count > 2:
             return True
     

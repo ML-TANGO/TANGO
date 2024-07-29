@@ -42,6 +42,7 @@ export class Project {
   validation() {
     try {
       for (const column of ProjectRequiredColumn) {
+        console.log("!this[column]", !this[column], column);
         if (!this[column]) return false;
       }
       return true;
