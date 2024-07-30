@@ -1,6 +1,0 @@
-# ResNet56 Params
-layers:
-  - 9
-  - 9
-  - 9
-num_classes: 2

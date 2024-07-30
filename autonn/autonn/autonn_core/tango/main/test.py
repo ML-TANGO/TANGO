@@ -39,7 +39,7 @@ def test(proj_info,
          weights=None,
          batch_size=32,
          imgsz=640,
-         conf_thres=0.001,
+         conf_thres=0.001, # for NMS
          iou_thres=0.6,  # for NMS
          save_json=False,
          single_cls=False,
@@ -59,11 +59,14 @@ def test(proj_info,
          is_coco=False,
          v5_metric=False):
     # Set device ---------------------------------------------------------------
+    print('XXXXXXXXXXXXXXXXXXXX')
     training = model is not None
     if training:  # called by train.py
+        print('training')
         device = next(model.parameters()).device  # get model device
 
     else:  # called directly
+        print('direct')
         set_logging()
         device = select_device(opt.device, batch_size=batch_size)
 
@@ -78,7 +81,7 @@ def test(proj_info,
         
         if trace:
             model = TracedModel(model, device, imgsz)
-
+    print('=============')
     # Half ---------------------------------------------------------------------
     half = device.type != 'cpu' and half_precision  # half precision only supported on CUDA
     if half:
@@ -109,9 +112,9 @@ def test(proj_info,
     if not training: # called directly
         if device.type != 'cpu':
             model(torch.zeros(1, 3, imgsz, imgsz).to(device).type_as(next(model.parameters())))  # run once
-        task = opt.task if opt.task in ('train', 'val', 'test') else 'val'  # path to train/val/test images
-        dataloader = create_dataloader(data[task], imgsz, batch_size, gs, opt, pad=0.5, rect=True,
-                                       prefix=colorstr(f'{task}: '))[0]
+        purpose = opt.purpose if opt.purpose in ('train', 'val', 'test') else 'val'  # path to train/val/test images
+        dataloader = create_dataloader(data[purpose], imgsz, batch_size, gs, opt, pad=0.5, rect=True,
+                                       prefix=colorstr(f'{purpose}: '))[0]
 
     # Metrics ------------------------------------------------------------------
     if v5_metric:
@@ -127,6 +130,7 @@ def test(proj_info,
     s = ('%20s' + '%12s' * 6) % ('Class', 'Images', 'Labels', 'P', 'R', 'mAP@.5', 'mAP@.5:.95')
     logger.info(s)
     p, r, f1, mp, mr, map50, map, t0, t1 = 0., 0., 0., 0., 0., 0., 0., 0., 0.
+    t2, t3 = 0., 0.
     loss = torch.zeros(3, device=device)
     jdict, stats, ap, ap_class, wandb_images = [], [], [], [], []
     # for batch_i, (img, targets, paths, shapes) in enumerate(tqdm(dataloader, desc=s)):
@@ -141,6 +145,8 @@ def test(proj_info,
             # Run model
             t = time_synchronized()
             out, train_out = model(img, augment=augment)  # inference and training outputs
+            # out.shape = (bs, 25200, 85)
+            # train_out.shape = ( (bs,3,80,80,85), (bs,3,40,40,85), (bs,3,20,20,85) )
             t0 += time_synchronized() - t
 
             # Compute loss
@@ -152,6 +158,13 @@ def test(proj_info,
             lb = [targets[targets[:, 0] == i, 1:] for i in range(nb)] if save_hybrid else []  # for autolabelling
             t = time_synchronized()
             out = non_max_suppression(out, conf_thres=conf_thres, iou_thres=iou_thres, labels=lb, multi_label=True)
+            # after nms, out = (n, 6) tensor/image : n = detected object number, 6 = (x,y,w,h,conf,cls)
+            #   (bs, 25200, 85) ==> NMS ==> (bs, n, 6)
+            # nms terms @ codegen :
+            #   n       = num_detections,
+            #   x,y,w,h = nmsed_boxes (x1,y1,x2,y2),
+            #   conf    = nmsed_scores,
+            #   cls     = nmsed_classes
             t1 += time_synchronized() - t
 
         # Statistics per image
@@ -250,10 +263,11 @@ def test(proj_info,
         # Status update
         val_acc['step'] = batch_i + 1
         val_acc['total_step'] = len(dataloader)
-        val_acc['time'] = f'{(t0 + t1):.1f} s'
+        val_acc['time'] = f'{(t0+t1)-t2:.1f} s'
         status_update(userid, project_id,
                       update_id="val_accuracy",
                       update_content=val_acc)
+        t2 = t0 + t1
     # Test end =================================================================
 
     # Compute statistics -------------------------------------------------------
@@ -278,7 +292,7 @@ def test(proj_info,
     val_acc['R'] = mr
     val_acc['mAP50'] = map50
     val_acc['mAP50-95'] = map
-    val_acc['time'] = f'{(t0 + t1) * 1E3:.1f} ms'
+    # val_acc['time'] = f'{(t0 + t1) :.1f} s' # total time
     status_update(userid, project_id,
               update_id="val_accuracy",
               update_content=val_acc)
@@ -290,7 +304,8 @@ def test(proj_info,
             logger.info(pf % (names[c], seen, nt[c], p[i], r[i], ap50[i], ap[i]))
 
     # Print speeds -------------------------------------------------------------
-    t = tuple(x / seen * 1E3 for x in (t0, t1, t0 + t1)) + (imgsz, imgsz, batch_size)  # tuple
+    # t = (inference time, nms time, total time, imgsz, imgsz, batchsize)
+    t = tuple(x / seen * 1E3 for x in (t0, t1, t0 + t1)) + (imgsz, imgsz, batch_size)
     if not training:
         logger.info('Speed: %.1f/%.1f/%.1f ms inference/NMS/total per %gx%g image at batch-size %g' % t)
 
@@ -340,6 +355,117 @@ def test(proj_info,
         maps[c] = ap[i]
     return (mp, mr, map50, map, *(loss.cpu() / len(dataloader)).tolist()), maps, t
 
+def test_cls(proj_info,
+             data,
+             weights=None,
+             batch_size=32,
+             imgsz=640,
+             augment=False,
+             verbose=False,
+             model=None,
+             dataloader=None,
+             save_dir=Path(''),  # for saving images
+             save_txt=False,  # for auto-labelling
+             save_hybrid=False,  # for hybrid auto-labelling
+             save_conf=False,  # save auto-label confidences
+             plots=False,
+             compute_loss=None,
+             half_precision=True):
+    # Set device ---------------------------------------------------------------
+    training = model is not None
+    if training: # called by train.py
+        device = next(model.parameters()).device  # get model device
+    else: # called directly
+        # logging
+        set_logginig()
+
+        # device
+        device = select_device(opt.device, batch_size=batch_size)
+
+        # Directories
+        save_dir = Path(increment_path(Path(opt.project) / opt.name, exist_ok=opt.exist_ok))  # increment run
+        (save_dir / 'labels' if save_txt else save_dir).mkdir(parents=True, exist_ok=True)  # make dir
+
+        # Load model
+        model = attempt_load(weights, map_location=device)  # load FP32 model
+
+    # Half ---------------------------------------------------------------------
+    half = device.type != 'cpu' and half_precision  # half precision only supported on CUDA
+    if half:
+        model.half()
+
+    # Configure ----------------------------------------------------------------
+    userid = proj_info['userid']
+    project_id = proj_info['project_id']
+    model.eval()
+
+    # Dataset ------------------------------------------------------------------
+    # if isinstance(data, str):
+    #     with open(data) as f:
+    #         data = yaml.load(f, Loader=yaml.SafeLoader)
+    # test_path = data['val']
+    # is_imgnet = True if data['dataset_name'] == 'imagenet' and 'imagenet' in test_path else False
+
+    # Test start ===============================================================
+    # val_loss = 0
+    # val_acc = 0
+    val_loss = torch.zeros(1, device=device)
+    val_accuracy = torch.zeros(1, device=device)
+    accumulated_data_count = 0
+    elapsed_time = 0
+    val_acc = {}
+    for i, (img, target) in enumerate(dataloader):
+        img = img.to(device, non_blocking=True)
+        img = img.half() if half else img.float()
+        target = target.to(device)
+
+        with torch.no_grad():
+            # run model
+            t = time_synchronized()
+            output = model(img, augment=augment)
+
+            # compute loss
+            if compute_loss:
+                loss = compute_loss(output, target)
+                val_loss += loss.item()
+
+            # compute top-1 accuracy
+            _, predicted = output.max(1)
+            acc = torch.eq(predicted, target).sum()
+            # val_acc += predicted.eq(target.view_as(predicted)).sum().item()
+            val_accuracy += acc
+            t0 = time_synchronized()-t
+
+        accumulated_data_count += len(target)
+        elapsed_time += t0
+        # status update
+        val_acc['step'] = i + 1
+        val_acc['images'] = accumulated_data_count
+        val_acc['labels'] = val_accuracy.item()
+        val_acc['mAP50'] = val_loss.item() / (i+1)
+        val_acc['mAP50-95'] = val_accuracy.item() / accumulated_data_count
+        val_acc['total_step'] = len(dataloader)
+        val_acc['time'] = f'{t0:.1f} s'
+        status_update(userid, project_id,
+                      update_id="val_accuracy",
+                      update_content=val_acc)
+    # Test end =================================================================
+
+    # Compute statistics -------------------------------------------------------
+    val_loss /= len(dataloader)
+    if len(dataloader.dataset) != accumulated_data_count:
+        logger.warn(f"total data = {accumulated_data_count} is not match with lenght of dataset = {len(dataloader.dataset)}")
+
+    logger.info(f'total = {accumulated_data_count}, '
+                f'correct={val_accuracy.item()}, '
+                f'accuracy = {val_accuracy.item()/accumulated_data_count}')
+    val_accuracy /= len(dataloader.dataset)
+
+    # Print results ------------------------------------------------------------
+
+    model.float()
+    return (val_accuracy.item(), val_loss.item()), elapsed_time
+
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(prog='test.py')
@@ -349,7 +475,7 @@ if __name__ == '__main__':
     parser.add_argument('--img-size', type=int, default=640, help='inference size (pixels)')
     parser.add_argument('--conf-thres', type=float, default=0.001, help='object confidence threshold')
     parser.add_argument('--iou-thres', type=float, default=0.65, help='IOU threshold for NMS')
-    parser.add_argument('--task', default='val', help='train, val, test, speed or study')
+    parser.add_argument('--purpose', default='val', help='train, val, test, speed or study')
     parser.add_argument('--device', default='', help='cuda device, i.e. 0 or 0,1,2,3 or cpu')
     parser.add_argument('--single-cls', action='store_true', help='treat as single-class dataset')
     parser.add_argument('--augment', action='store_true', help='augmented inference')
@@ -369,7 +495,7 @@ if __name__ == '__main__':
     print(opt)
     #check_requirements()
 
-    if opt.task in ('train', 'val', 'test'):  # run normally
+    if opt.purpose in ('train', 'val', 'test'):  # run normally
         test(opt.data,
              opt.weights,
              opt.batch_size,
@@ -387,12 +513,12 @@ if __name__ == '__main__':
              v5_metric=opt.v5_metric
              )
 
-    elif opt.task == 'speed':  # speed benchmarks
+    elif opt.purpose == 'speed':  # speed benchmarks
         for w in opt.weights:
             test(opt.data, w, opt.batch_size, opt.img_size, 0.25, 0.45, save_json=False, plots=False, v5_metric=opt.v5_metric)
 
-    elif opt.task == 'study':  # run over a range of settings and save/plot
-        # python test.py --task study --data coco.yaml --iou 0.65 --weights yolov7.pt
+    elif opt.purpose == 'study':  # run over a range of settings and save/plot
+        # python test.py --purpose study --data coco.yaml --iou 0.65 --weights yolov7.pt
         x = list(range(256, 1536 + 128, 128))  # x axis (image sizes)
         for w in opt.weights:
             f = f'study_{Path(opt.data).stem}_{Path(w).stem}.txt'  # filename to save to

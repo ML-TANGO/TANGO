@@ -173,6 +173,31 @@ class QFocalLoss(nn.Module):
         else:  # 'none'
             return loss
 
+
+class FocalLossCE(nn.Module):
+    """Focal Loss Custom Module"""
+    def __init__(self, loss_fcn, gamma=2, alpha=0.25, logits=False):
+        super(FocalLoss, self).__init__()
+        self.loss_fcn = loss_fcn # nn.CrossEntropyLoss()
+        self.alpha = alpha
+        self.gamma = gamma
+        self.logits = logits
+        self.reduction = loss_fcn.reduction
+        self.loss_fcn.reduction = 'none'
+
+    def forward(self, inputs, targets):
+        loss = self.loss_fcn(inputs, targets)
+        pt = torch.exp(-loss)
+        loss *= self.alpha * (1.000001 - pt) ** self.gamma
+
+        if self.reduce == 'mean':
+            return loss.mean()
+        elif self.reduce == 'sum':
+            return loss.sum()
+        else:
+            return loss
+
+
 class RankSort(torch.autograd.Function):
     @staticmethod
     def forward(ctx, logits, targets, delta_RS=0.50, eps=1e-10): 
@@ -271,6 +296,7 @@ class RankSort(torch.autograd.Function):
     def backward(ctx, out_grad1, out_grad2):
         g1, =ctx.saved_tensors
         return g1*out_grad1, None, None, None
+
 
 class aLRPLoss(torch.autograd.Function):
     @staticmethod

@@ -10,6 +10,9 @@ val: /shared/datasets/voc/images/val2012
 # number of classes
 nc: 20
 
+# channel
+ch: 3 # 3=rgb, 1=gray
+
 # class names
 names: [ 'aeroplane', 
          'bicycle', 

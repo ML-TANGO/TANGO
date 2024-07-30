@@ -19,7 +19,7 @@ from .serializers import PthSerializer
 
 from .tango.main.select import run_autonn
 from .tango.main.visualize import export_pth, export_yml
-from .tango.main.export import export_weight, export_config
+
 
 PROCESSES = {}
 
@@ -279,12 +279,18 @@ def process_autonn(userid, project_id):
         # ------- actual process --------
         final_model = run_autonn(userid, project_id, viz2code="False", nas="False", hpo="False")
 
-        info = Info.objects.get(userid=userid, project_id=project_id)
-        target_acc = info.device
+        # -------- ready to export ------
+        # best_pt_path = f'/shared/common/{userid}/{project_id}/bestmodel.pt'
+        # shutil.copyfile(final_model, best_pt_path)
 
-        export_weight(final_model, userid, project_id, target_acc, ['torchscript'])
-        export_weight(final_model, userid, project_id, target_acc, ['onnx_end2end'])
-        #export_config(userid, project_id)
+        # nn_info_template = f'/source/'
+
+        # info = Info.objects.get(userid=userid, project_id=project_id)
+        # target_acc = info.device
+        # convert = ['pytorch', 'torchscript', 'onnx']
+        # export_weight(best_pt_path, userid, project_id, target_acc, convert)
+        # export_weight(best_pt_path, userid, project_id, target_acc, ['onnx_end2end'])
+
 
         status_report(userid, project_id, "completed")
         # print("=== wait for 10 sec to avoid thread exception =============")
@@ -292,6 +298,10 @@ def process_autonn(userid, project_id):
         # time.sleep(10)
     except Exception as e:
         print(f"[AutoNN process_autonn] exception: {e}")
+        import torch, gc
+        if torch.cuda.is_available():
+            torch.cuda.empty_cache()
+        gc.collect()
         status_report(userid, project_id, "failed")
 
 

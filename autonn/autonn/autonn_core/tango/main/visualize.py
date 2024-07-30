@@ -27,7 +27,7 @@ TORCH_NN_MODULES =  {   'Conv2d', 'ConvTranspose2d',
                         'Identify', 'Linear', 'Dropout',
                         'Embedding',
                         'MSELoss', 'CrossEntropyLoss', 'BCELoss',
-                        'Upsample'
+                        'Upsample', 'Flatten'
                     }
 HEAD_MODULES = { 'Classify', 'Detect', 'IDetect', 'IAuxDetect', 'IKeypoint',
                  'IBin', 'Segment', 'Pose'}
@@ -51,7 +51,7 @@ class BasemodelViewer:
         self.layers = []
         self.lines = []
 
-    def parse_yaml(self, basemodel_yaml):
+    def parse_yaml(self, basemodel_yaml, data_dict):
         # load basemode.yaml
         if os.path.isfile(basemodel_yaml):
             with open(basemodel_yaml) as f:
@@ -63,8 +63,10 @@ class BasemodelViewer:
         self.base_yaml = basemodel_yaml
 
         # parse basemodel
-        nc = basemodel.get('nc', 80)  # default number of classes = 80 (coco)
-        ch = [basemodel.get('ch', 3)] # default channel = 3 (RGB)
+        # nc = basemodel.get('nc', 80)  # default number of classes = 80 (coco)
+        # ch = [basemodel.get('ch', 3)] # default channel = 3 (RGB)
+        basemodel['nc'] = nc = data_dict.get('nc', 80)
+        basemodel['ch'] = ch = [ data_dict.get('ch', 3) ]
         layers, lines, c2, edgeid = [], [], ch[-1], 0
         for i, (f, n, m, args) in enumerate(basemodel['backbone'] + basemodel['head']):  # from, number, module, args
             logger.debug(f"💧 Read yaml layer-{i} : ({f}, {n}, {m}, {args})")
@@ -266,12 +268,19 @@ class BasemodelViewer:
                     f"'reduction': {r2} \n"
                     f"'label_smoothing': {lsmooth}"
                 )
-            elif m == 'Flatten':
-                # reshape input into a 1-dim tensor
+            elif m in ('Flatten', 'nn.Flatten'):
+                # reshape input into a 1-dim tensor (channel-wise)
                 # hard to say how many output channel is
+                # assume default start dim = 1 and end dim = -1
+                # ex) (1,64, 1, 1) -> (1, 64)
+                # ex) (1, 16, 2, 2) -> (1, 64)
                 c1 = ch[f]
-                s_dim = args[0]
-                e_dim = args[1]
+                c2 = ch[f]
+                s_dim, e_dim = 1, -1
+                if len(args)>0:
+                    s_dim = args[0]
+                if len(args)>1:
+                   e_dim = args[1]
                 params = (
                     f"'start_dim': {s_dim} \n "
                     f"'end_dim': {e_dim}"
@@ -319,6 +328,18 @@ class BasemodelViewer:
                     f"'base_width': {basewidth} \n "
                     f"'dilation': {d} \n "
                     f"'norm_layer': {norm_layer}"
+                )
+            elif m == 'cBasicBlock':
+                expansion = 1
+                inplanes = ch[f]
+                planes = args[0]
+                c1 = inplanes
+                c2 = planes * expansion
+                s = args[1]
+                params = (
+                    f"'inplanes': {inplanes} \n "
+                    f"'planes': {planes} \n "
+                    f"'stride': ({s}, {s})"
                 )
             elif m == 'Conv':
                 c1 = ch[f]
@@ -459,9 +480,12 @@ class BasemodelViewer:
                 params = ()
 
             # append node --------------------------------------------------
+            # for n_ in range(n):
             node['order'] = i + 1 # start from 1
             if 'nn.' in m:
                 m = m.replace('nn.', '')
+            if n != 1:
+                m = f'{m} (x{n})'
             node['layer'] = m
             node['parameters'] = params
             layers.append(node)

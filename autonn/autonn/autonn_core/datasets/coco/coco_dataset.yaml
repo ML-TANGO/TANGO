@@ -11,6 +11,9 @@ val: /shared/datasets/coco/images/val2017  # 5000 images
 # number of classes
 nc: 80
 
+# channel
+ch: 3
+
 # class names
 names: [ 'person', 'bicycle', 'car', 'motorcycle', 'airplane', 'bus', 'train', 'truck', 'boat', 'traffic light',
          'fire hydrant', 'stop sign', 'parking meter', 'bench', 'bird', 'cat', 'dog', 'horse', 'sheep', 'cow',
