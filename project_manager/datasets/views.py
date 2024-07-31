@@ -530,6 +530,10 @@ def download_chest_xray_handler(user_id):
     else:
         print(f"chest_xray folder does not exist")
 
+    chest_xray_yaml_file_path = os.path.join(BASE_DIR, "datasets_yaml", "ChestXRay", "ChestXRay_dataset.yaml") 
+    chest_xray_datasets_path = os.path.join(COMMON_DATASET_INFO["CHEST_XRAY"]["path"], "dataset.yaml")
+    shutil.copy(chest_xray_yaml_file_path, chest_xray_datasets_path)
+
 
 def load_kaggle_credentials(user_id):
     # 사용자 이름을 기반으로 해당 사용자의 설정 파일 경로를 결정
