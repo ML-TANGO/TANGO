@@ -282,30 +282,68 @@ def get_folder_thumbnail(folder_path):
         Returns Thumbnails to base64
     """
 
-    file_list = []
+    # file_list = []
+
+    # # get image path in folder
+    # for path, dirs, files in os.walk(folder_path):
+    #     images = [ fi for fi in files if str(fi).lower().endswith(('.jpg','.jpeg', '.png',)) ]
+    #     for image in images:
+    #         file_list.append(os.path.join(path, image))
+    #         if len(file_list)>4:
+    #             break
+    #     if len(file_list)>4:
+    #         break
+
+    # # random choice
+    # if len(file_list) >= 4:
+    #     # random_images = random.sample(file_list,4) if len(file_list) >= 4  else random.sample(file_list, len(file_list))
+    #     random_images = file_list[0:4]
+    #     thumbnail_list = []
+    #     for image in random_images:
+    #         try:
+    #             thumbnail = make_image_thumbnail(image)
+    #             thumbnail_list.append(thumbnail)
+    #         except Exception:
+    #             print("thumbnail error")
 
     # get image path in folder
+
+    thumbnail_list = []
+    error_count = 0
     for path, dirs, files in os.walk(folder_path):
         images = [ fi for fi in files if str(fi).lower().endswith(('.jpg','.jpeg', '.png',)) ]
         for image in images:
-            file_list.append(os.path.join(path, image))
-            if len(file_list)>4:
+            try:
+                thumbnail = make_image_thumbnail(os.path.join(path, image))
+                thumbnail_list.append(thumbnail)
+            except Exception as error:
+                print(f"thumbnail 생성 실패 : {os.path.join(path, image)}")
+                print(error)
+                print("=====================================================")
+
+                error_count += 1
+                if error_count > 1000:
+                    return None
+                else:
+                    continue
+
+            if len(thumbnail_list)>=4:
                 break
-        if len(file_list)>4:
+        if len(thumbnail_list)>=4:
             break
 
-    # random choice
-    if len(file_list) >= 4:
-        # random_images = random.sample(file_list,4) if len(file_list) >= 4  else random.sample(file_list, len(file_list))
-        random_images = file_list[0:4]
-        thumbnail_list = []
-        for image in random_images:
-            thumbnail_list.append(make_image_thumbnail(image))
+    if len(thumbnail_list) <= 0:
+        print(f"{folder_path}에서 생성된 thumbnail_list가 존재하지 않음.\n")
+        return None
+
+    try:
         thumb = cv2.hconcat(thumbnail_list)
         jpg_img = cv2.imencode('.jpg', thumb)
         return "data:image/jpg;base64," + str(base64.b64encode(jpg_img[1]).decode('utf-8'))
-            
-    else :
+    
+    except Exception as error:
+        print(f" get_folder_thumbnail error : {folder_path}\n")
+        print(error)
         return None
 
 def make_image_thumbnail(path):
@@ -318,9 +356,15 @@ def make_image_thumbnail(path):
     Returns:
         Thumbnails
     """
+
     maxsize = (128, 128) 
-    img = cv2.imread(path, 1);
+    img = cv2.imread(path, cv2.IMREAD_UNCHANGED)
+
+    if img is None:
+        raise Exception("Image file not found in path.")
+
     thumbnail = cv2.resize(img, maxsize, interpolation=cv2.INTER_AREA)
+
     return thumbnail
 
 #endregion
@@ -534,6 +578,18 @@ def download_chest_xray_handler(user_id):
         shutil.rmtree(os.path.join(dataset_path, "chest_xray"))
     else:
         print(f"chest_xray folder does not exist")
+
+    if os.path.exists(os.path.join(dataset_path, "__MACOSX")):
+        shutil.rmtree(os.path.join(dataset_path, "__MACOSX"))
+
+    if os.path.exists(os.path.join(dataset_path, "train", ".DS_Store")):
+        os.remove(os.path.join(dataset_path, "train", ".DS_Store"))
+
+    if os.path.exists(os.path.join(dataset_path, "test", ".DS_Store")):
+        os.remove(os.path.join(dataset_path, "test", ".DS_Store"))
+
+    if os.path.exists(os.path.join(dataset_path, "val", ".DS_Store")):
+        os.remove(os.path.join(dataset_path, "val", ".DS_Store"))
 
     chest_xray_yaml_file_path = os.path.join(BASE_DIR, "datasets_yaml", "ChestXRay", "ChestXRay_dataset.yaml") 
     chest_xray_datasets_path = os.path.join(COMMON_DATASET_INFO["CHEST_XRAY"]["path"], "dataset.yaml")
