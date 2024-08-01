@@ -57,7 +57,7 @@ export class Project {
   async load() {
     if (this.dataset) {
       const res = await getDatasetInfo(this.dataset);
-      this.datasetObject = res.dataset;
+      this.datasetObject = res?.dataset || [];
       if (this.datasetObject) {
         getDatasetFolderSize([this.datasetObject["path"]]).then(res => {
           if (res.datas.length > 0) Vue.set(this.datasetObject, "size", res.datas[0].size);
