@@ -70,7 +70,7 @@ export default {
   methods: {
     async loadDatasets() {
       this.items = await getDatasetListTango();
-      this.items = this.items.filter(q => q.name !== "tmp");
+      this.items = this.items?.filter(q => q.name !== "tmp") || [];
       this.getDatasetSize();
       this.getDatasetCount();
     },
