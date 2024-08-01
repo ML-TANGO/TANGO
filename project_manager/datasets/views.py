@@ -88,13 +88,17 @@ def get_dataset_list(request):
             
             for future in as_completed(futures):
                 result = future.result()
-                dir_info_list.append(result)
+                if result != None :
+                    dir_info_list.append(result)
 
         dir_info_list = sorted(dir_info_list, key= lambda x: x["name"])
         return HttpResponse(json.dumps({'status': 200, 'datasets': dir_info_list }))
         # return HttpResponse(json.dumps({'status': 200}))
     except Exception as e:
-        return HttpResponse(json.dumps({'status': 404}))
+        print("get_dataset_list error ---------------------------------\n")
+        print(e)
+        print("\n ------------------------------------------------------")
+        return HttpResponse(json.dumps({'status': 404, 'datasets' : []}))
 
 @api_view(['GET'])
 @permission_classes([IsAuthenticated])   # 토큰 확인
@@ -189,6 +193,7 @@ def get_folder_info(folder_path):
         
     else:
         print("유효한 폴더 경로가 아닙니다.")
+        return None
 
     return folder_info
 
@@ -290,7 +295,7 @@ def get_folder_thumbnail(folder_path):
             break
 
     # random choice
-    if len(file_list) > 0:
+    if len(file_list) >= 4:
         # random_images = random.sample(file_list,4) if len(file_list) >= 4  else random.sample(file_list, len(file_list))
         random_images = file_list[0:4]
         thumbnail_list = []
@@ -530,6 +535,10 @@ def download_chest_xray_handler(user_id):
     else:
         print(f"chest_xray folder does not exist")
 
+    chest_xray_yaml_file_path = os.path.join(BASE_DIR, "datasets_yaml", "ChestXRay", "ChestXRay_dataset.yaml") 
+    chest_xray_datasets_path = os.path.join(COMMON_DATASET_INFO["CHEST_XRAY"]["path"], "dataset.yaml")
+    shutil.copy(chest_xray_yaml_file_path, chest_xray_datasets_path)
+
 
 def load_kaggle_credentials(user_id):
     # 사용자 이름을 기반으로 해당 사용자의 설정 파일 경로를 결정
@@ -550,6 +559,9 @@ def load_kaggle_credentials(user_id):
 def authenticate_kaggle(user_id):
     # 해당 사용자의 Kaggle 인증 정보 로드
     kaggle_username, kaggle_key = load_kaggle_credentials(user_id)
+
+    print("authenticate_kaggle - kaggle_username", kaggle_username)
+    print("authenticate_kaggle - kaggle_key", kaggle_key)
 
     # Kaggle API에 인증
     os.environ['KAGGLE_USERNAME'] = kaggle_username
@@ -592,7 +604,7 @@ def setup_kaggle_api(user_id, kaggle_userid, kaggle_key):
     # 파일 권한 설정
     os.chmod(kaggle_json_path, 0o600)
 
-    print(f'kaggle.json 파일이 {kaggle_json_path}에 저장되었습니다.')
+    print(f'kaggle.json 파일이 {kaggle_json_path}에 저장되었습니다. ')
 
 @api_view(['GET'])
 @permission_classes([AllowAny])   # 토큰 확인

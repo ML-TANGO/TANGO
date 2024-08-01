@@ -10,6 +10,9 @@ val: /shared/datasets/VOC/images/val
 # number of classes
 nc: 20
 
+# channel
+ch: 3 # 3=rgb, 1=gray
+
 # class names
 names:
   [
