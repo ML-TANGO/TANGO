@@ -23,7 +23,7 @@
         <small style="color: #aaa; font-size: 10px; min-width: 70px; line-height: 1">
           {{ item?.create_date?.slice(0, 10) }}
         </small>
-        <small style="color: #aaa; font-size: 10px; min-width: 110px; line-height: 1">
+        <small style="color: #aaa; font-size: 10px; min-width: 110px; line-height: 1" v-if="item?.create_user !== ''">
           created by
           <span style="color: #4a80ff">{{ item?.create_user }}</span>
         </small>

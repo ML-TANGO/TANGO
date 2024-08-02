@@ -27,6 +27,8 @@ urlpatterns = [
     re_path(r'^signup', views.signup, name='signup'),                         # 회원 가입 요청
     re_path(r'^user_id_check', views.user_id_check, name='user_id_check'),    # 회원 가입 - 아이디 중복 확인
 
+    re_path(r'^user_interval_time', views.user_interval_time, name='user_interval_time'),    # 사용자 세팅 - project 갱신 주기, autonn 시각화 갱신 주기 반환
+
     re_path(r'^project_list_get', viewsProject.project_list_get, name='project_list_get'),   # 프로젝트 리스트 조회
     re_path(r'^project_create', viewsProject.project_create, name='project_create'),         # 프로젝트 생성
     re_path(r'^project_delete', viewsProject.project_delete, name='project_delete'),         # 프로젝트 삭제

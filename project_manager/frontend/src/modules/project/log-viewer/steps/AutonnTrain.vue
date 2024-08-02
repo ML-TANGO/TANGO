@@ -41,7 +41,7 @@
               class="d-flex justify-center"
               style="width: 100%; height: 100%; border: 1px solid #ef3e2b; border-radius: 8px; padding-top: 25px"
             >
-              <div style="width: 300px; height: 300px">
+              <div style="width: 300px; height: 280px">
                 <LineChart xTitle="epoch" yTitle="Total loss" :chartData="lossChartData" />
               </div>
             </div>
@@ -52,12 +52,12 @@
     <div style="grid-row: 3/4; grid-column: 3/5" class="d-flex justify-center">
       <ChartContainer primaryColor="#006fc0" title="VALIDATION ACCURACY">
         <template #chart-area>
-          <div class="d-flex justify-center">
+          <div class="d-flex justify-center" v-if="taskType === TaskType.DETECTION">
             <div
               class="d-flex justify-center"
               style="width: 100%; height: 100%; border: 1px solid #006fc0; border-radius: 8px; padding-top: 25px"
             >
-              <div style="width: 300px; height: 300px">
+              <div style="width: 300px; height: 280px">
                 <LineChart xTitle="epoch" yTitle="mAP@0.5" :chartData="mAP50ChartData" />
               </div>
             </div>
@@ -66,8 +66,19 @@
               class="d-flex justify-center"
               style="width: 100%; height: 100%; border: 1px solid #006fc0; border-radius: 8px; padding-top: 25px"
             >
-              <div style="width: 300px; height: 300px">
+              <div style="width: 300px; height: 280px">
                 <LineChart xTitle="epoch" yTitle="mAP" :chartData="mAPChartData" />
+              </div>
+            </div>
+          </div>
+          <!-- ----------------------------------------------------------------------------- -->
+          <div v-else>
+            <div
+              class="d-flex justify-center"
+              style="width: 100%; height: 100%; border: 1px solid #006fc0; border-radius: 8px; padding-top: 25px"
+            >
+              <div style="width: 300px; height: 280px">
+                <LineChart xTitle="epoch" yTitle="Top-1 Accuracy" :chartData="classificationChartData" />
               </div>
             </div>
           </div>
@@ -82,7 +93,7 @@
               class="d-flex justify-center"
               style="width: 100%; height: 100%; border: 1px solid #949494; border-radius: 8px; padding-top: 25px"
             >
-              <div style="width: 300px; height: 300px">
+              <div style="width: 300px; height: 280px">
                 <BarLineMixinChart xTitle="epoch" yTitle="Time (s)" :chartData="elapsedTimeChartData" />
               </div>
             </div>
@@ -93,11 +104,16 @@
   </div>
 </template>
 <script>
+import { mapState } from "vuex";
+import { ProjectNamespace } from "@/store/modules/project";
+
 import TrainContainer from "../components/train/TrainContainer.vue";
 import ChartContainer from "../components/train/ChartContainer.vue";
 
 import LineChart from "@/modules/project/components/chart/LineChart.vue";
 import BarLineMixinChart from "@/modules/project/components/chart/BarLineMixinChart.vue";
+
+import { TaskType, AutonnLogTitle } from "@/shared/enums";
 
 export default {
   components: { TrainContainer, ChartContainer, LineChart, BarLineMixinChart },
@@ -126,6 +142,8 @@ export default {
 
   data() {
     return {
+      TaskType,
+
       trainContainerDefault: {
         summary: {
           first: { title: "", value: "" },
@@ -135,7 +153,7 @@ export default {
           left: { title: "", value: "" },
           center: { title: "", value: "" },
           right: { title: "", value: "" },
-          last: { title: "", value: "" }
+          result: { title: "", value: "" }
         },
         title: "",
         progressPercent: 0,
@@ -152,6 +170,13 @@ export default {
   },
 
   computed: {
+    ...mapState(ProjectNamespace, ["project"]),
+
+    taskType() {
+      console.log(this.project?.task_type || TaskType.DETECTION);
+      return this.project?.task_type || TaskType.DETECTION;
+    },
+
     epochProgress() {
       if (this.train === null) return 0;
       else {
@@ -169,10 +194,22 @@ export default {
             second: { title: "GPU Mem", value: this.train.gpu_mem || "" }
           },
           info: {
-            left: { title: "Box", value: this.fixedOrData(this.train.box || "") },
-            center: { title: "OBJECTNESS", value: this.fixedOrData(this.train.obj || "") },
-            right: { title: "CLASS", value: this.fixedOrData(this.train.cls || "") },
-            last: { title: "TOTAL", value: this.fixedOrData(this.train.total || "") }
+            left: {
+              title: AutonnLogTitle[this.taskType].train.left,
+              value: this.fixedOrData(this.train.box || "")
+            },
+            center: {
+              title: AutonnLogTitle[this.taskType].train.center,
+              value: this.fixedOrData(this.train.obj || "")
+            },
+            right: {
+              title: AutonnLogTitle[this.taskType].train.right,
+              value: this.fixedOrData(this.train.cls || "")
+            },
+            result: {
+              title: AutonnLogTitle[this.taskType].train.result,
+              value: this.fixedOrData(this.train.total || "")
+            }
           },
           title: "TRAINING LOSS",
           progressPercent: this.getPercent(this.train?.step || 0, this.train?.total_step || 0),
@@ -191,10 +228,22 @@ export default {
             second: { title: "Lables", value: Number(this.defaultOrData(this.val.labels, "")).toLocaleString() }
           },
           info: {
-            left: { title: "Precision", value: this.fixedOrData(this.defaultOrData(this.val.P, ""), 5) },
-            center: { title: "Recall", value: this.fixedOrData(this.defaultOrData(this.val.R, ""), 5) },
-            right: { title: "mAP50", value: this.fixedOrData(this.defaultOrData(this.val.mAP50, ""), 7) },
-            last: { title: "mAP", value: this.fixedOrData(this.defaultOrData(this.val.mAP50_95, ""), 7) }
+            left: {
+              title: AutonnLogTitle[this.taskType].val.left,
+              value: this.fixedOrData(this.defaultOrData(this.val.P, ""), 5)
+            },
+            center: {
+              title: AutonnLogTitle[this.taskType].val.center,
+              value: this.fixedOrData(this.defaultOrData(this.val.R, ""), 5)
+            },
+            right: {
+              title: AutonnLogTitle[this.taskType].val.right,
+              value: this.fixedOrData(this.defaultOrData(this.val.mAP50, ""), 7)
+            },
+            result: {
+              title: AutonnLogTitle[this.taskType].val.result,
+              value: this.fixedOrData(this.defaultOrData(this.val.mAP50_95, ""), 7)
+            }
           },
           title: "VALIDATION ACCURACY",
           progressPercent: this.getPercent(this.val?.step || 0, this.val?.total_step || 0),
@@ -235,6 +284,13 @@ export default {
       return {
         labels: this.chartXAxisLabels,
         datasets: [{ label: "mAP", backgroundColor: "#f87979", data: this.mapDatasets }]
+      };
+    },
+
+    classificationChartData() {
+      return {
+        labels: this.chartXAxisLabels,
+        datasets: [{ label: "Top-1 Accuracy", backgroundColor: "#f87979", data: this.mapDatasets }]
       };
     },
 

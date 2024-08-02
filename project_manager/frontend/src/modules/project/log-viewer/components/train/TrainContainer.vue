@@ -34,7 +34,7 @@
           </div>
         </div>
 
-        <div style="text-align: right; width: 80px; color: white" class="mr-3">{{ data.info.last.title }}</div>
+        <div style="text-align: right; width: 80px; color: white" class="mr-3">{{ data.info.result.title }}</div>
       </div>
 
       <div
@@ -54,7 +54,7 @@
           </div>
         </div>
 
-        <div style="text-align: right; width: 80px" class="mr-3">{{ data.info.last.value }}</div>
+        <div style="text-align: right; width: 80px" class="mr-3">{{ data.info.result.value }}</div>
       </div>
     </div>
 
@@ -89,7 +89,7 @@ export default {
           left: { title: "", value: "" },
           center: { title: "", value: "" },
           right: { title: "", value: "" },
-          last: { title: "", value: "" }
+          result: { title: "", value: "" }
         },
         title: "",
         progressPercent: 0,

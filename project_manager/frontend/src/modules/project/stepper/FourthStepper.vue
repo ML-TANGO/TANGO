@@ -200,6 +200,7 @@
 <script>
 import { mapState } from "vuex";
 import { ProjectNamespace } from "@/store/modules/project";
+import { TaskType } from "@/shared/enums";
 export default {
   data() {
     return {
@@ -262,7 +263,7 @@ export default {
   },
 
   created() {
-    this.taskType = this.selectedImage.OBJECT_TYPE === "C" ? "classification" : "detection";
+    this.taskType = this.project.task_type || TaskType.DETECTION;
     this.nasType = this.project.nas_type || "neck_nas";
     this.basemodel = this.project.autonn_basemodel || "basemode.yaml";
     this.dataset = this.project.autonn_dataset_file || "dataset.yaml";

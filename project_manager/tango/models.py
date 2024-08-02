@@ -46,6 +46,30 @@ class AuthUser(models.Model):
         managed = False
         db_table = 'auth_user'
 
+class UserSetting(models.Model):
+    """UserSetting class
+    Note:
+    Args:
+        models.Model
+    Attributes:
+    """
+    id = models.AutoField(primary_key=True)
+    user = models.CharField(blank=True, null=True, max_length=50)                       # 생성자
+
+    project_update_cycle = models.IntegerField(default = 10)
+    autton_update_cycle = models.IntegerField(default = 1)
+
+    class Meta:
+        """UserSetting Meta class
+        Note:
+        Args:
+          None
+        Attributes:
+        """
+        # managed = False
+
+        # DB 테이블 이름
+        db_table = 'user_setting'
 
 class Project(models.Model):
     """Project class

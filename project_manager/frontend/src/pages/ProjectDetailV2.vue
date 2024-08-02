@@ -45,7 +45,15 @@ import TabBase from "@/modules/project/TabBase.vue";
 import { Project } from "@/shared/models";
 import { DatasetStatus, ContainerName } from "@/shared/enums";
 
-import { getProjectInfo, get_autonn_status, postStatusRequest } from "@/api";
+import {
+  getProjectInfo,
+  get_autonn_status,
+  postStatusRequest,
+  stopContainer,
+  getTargetInfo,
+  getDatasetListTango,
+  getUserIntervalTime
+} from "@/api";
 
 export default {
   components: { ConfigurationTab, ProgressTab, TabBase, ProjectCreateDialog /*, KaggleUserInfoDialog */ },
@@ -56,7 +64,10 @@ export default {
       isOpenDownloadingDialog: false,
       datasetDownloadingInterval: null,
 
-      projectStatusInterval: null
+      projectStatusInterval: null,
+      projectStatusIntervalTime: 20,
+      autonnStatusInterval: null,
+      autonnStatusIntervalTime: 20
     };
   },
 
@@ -71,17 +82,45 @@ export default {
         this.SET_AUTO_NN_STATUS(res.autonn);
       });
 
+      const intervalTimes = await getUserIntervalTime();
+
+      this.projectStatusIntervalTime = intervalTimes["project_status"];
+      this.autonnStatusIntervalTime = intervalTimes["autonn_status"];
+
       if (this.project.container_status === "running" || this.project.container_status === "started") {
         this.startProjectStatusInterval();
+        setTimeout(() => {
+          this.getCurrentProjectInfo();
+        }, 2000);
       }
     } catch (err) {
       this.denyAccess();
+
+      return;
     }
+
+    this.$EventBus.$on("updateProgressTime", time => {
+      this.projectStatusIntervalTime = time;
+      if (this.projectStatusInterval) {
+        this.stopInterval();
+        this.startProjectStatusInterval();
+      }
+    });
+
+    this.$EventBus.$on("updateAutonnTime", time => {
+      this.autonnStatusIntervalTime = time;
+
+      if (this.autonnStatusInterval) {
+        this.stopInterval();
+        this.startProjectStatusInterval();
+      }
+    });
   },
 
   destroyed() {
     if (this.datasetDownloadingInterval) clearInterval(this.datasetDownloadingInterval);
     if (this.projectStatusInterval) clearInterval(this.projectStatusInterval);
+    if (this.autonnStatusInterval) clearInterval(this.autonnStatusInterval);
   },
 
   methods: {
@@ -105,7 +144,6 @@ export default {
         this.denyAccess();
         return;
       }
-      console.log("response", response);
       const projectInfo = new Project(response);
 
       if (!projectInfo.validation()) {
@@ -124,10 +162,48 @@ export default {
       this.step = step;
     },
 
-    async onEdit() {},
+    async onEdit() {
+      Swal.fire({
+        title: `프로젝트를 수정 하시겠습니까?`,
+        text: "지금까지 진행된 내용이 사라집니다.",
+        icon: "warning",
+        showCancelButton: true,
+        confirmButtonColor: "#3085d6",
+        cancelButtonColor: "#d33",
+        confirmButtonText: "확인",
+        cancelButtonText: "취소"
+      }).then(async result => {
+        if (result.isConfirmed) {
+          //선택한 target정보
+          if (this.project?.target_id && this.project.target_id !== "") {
+            const targetInfo = await getTargetInfo(this.project.target_id);
+            this.SET_SELECTED_TARGET(targetInfo);
+          }
+
+          //선택한 dataset 정보
+          if (this.project?.dataset && this.project.dataset !== "") {
+            const datasetList = await getDatasetListTango();
+            const datasetInfo = datasetList.find(q => q.name === this.project.dataset);
+            if (datasetInfo) this.SET_SELECTED_IMAGE(datasetInfo);
+          }
+
+          // 실행중인 컨테이너가 있다면 종료
+          if (this.project?.container && this.project?.container !== "" && this.project?.container !== "init") {
+            //Todo container 상태 추가
+            await stopContainer(this.project.container, this.project.create_user, this.project.id);
+          }
+        } else {
+          this.$EventBus.$emit("forcedTermination");
+        }
+      });
+    },
 
     restart() {
       this.startProjectStatusInterval();
+
+      setTimeout(() => {
+        this.getCurrentProjectInfo();
+      }, 2000);
     },
 
     start() {},
@@ -154,22 +230,27 @@ export default {
 
     // =============================================================================
     startProjectStatusInterval() {
-      if (this.projectStatusInterval) return;
+      if (this.project.container === ContainerName.AUTO_NN) {
+        if (!this.autonnStatusInterval) {
+          this.autonnStatusInterval = setInterval(() => {
+            this.getCurrentAutonnStatus();
+          }, this.secondToMillisecond(this.autonnStatusIntervalTime)); //1s
+        }
+      }
 
-      // this.getCurrentProjectInfo();
+      if (this.projectStatusInterval) return;
       this.projectStatusInterval = setInterval(() => {
         this.getCurrentProjectInfo();
-      }, 5000); //5s
+      }, this.secondToMillisecond(this.projectStatusIntervalTime)); //10s
+    },
+
+    async getCurrentAutonnStatus() {
+      get_autonn_status(this.project.id).then(res => {
+        this.SET_AUTO_NN_STATUS(res.autonn);
+      });
     },
 
     async getCurrentProjectInfo() {
-      get_autonn_status(this.project.id).then(res => {
-        this.SET_AUTO_NN_STATUS(res.autonn);
-        // if (res.autonn?.project) {
-        //   this.SET_PROJECT(res.autonn?.project);
-        // }
-      });
-
       if (this.project) {
         await postStatusRequest({ user_id: this.project.create_user, project_id: this.project.id }).then(res => {
           if (res === null) return;
@@ -207,6 +288,13 @@ export default {
     stopInterval() {
       clearInterval(this.projectStatusInterval);
       this.projectStatusInterval = null;
+
+      clearInterval(this.autonnStatusInterval);
+      this.autonnStatusInterval = null;
+    },
+
+    secondToMillisecond(second) {
+      return second * 1000;
     }
   }
 };
