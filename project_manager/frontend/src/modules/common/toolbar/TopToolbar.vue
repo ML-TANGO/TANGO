@@ -29,7 +29,7 @@
         </template>
 
         <v-list dense style="width: 200px" class="px-3">
-          <!-- <v-list-item>
+          <v-list-item @click="setConfig">
             <v-list-item-icon>
               <v-icon color="black">mdi-cog</v-icon>
             </v-list-item-icon>
@@ -37,7 +37,7 @@
               <v-list-item-title> setting </v-list-item-title>
             </v-list-item-content>
           </v-list-item>
-          <v-divider class="my-3" /> -->
+          <v-divider class="my-3" />
           <v-list-item @click="logout">
             <v-list-item-icon>
               <v-icon color="black">mdi-logout</v-icon>
@@ -49,23 +49,38 @@
         </v-list>
       </v-menu>
     </div>
+
+    <UserSettingDialog ref="userSettingDialog"></UserSettingDialog>
   </div>
 </template>
 <script>
 import { mapState } from "vuex";
 import { ProjectNamespace } from "@/store/modules/project";
 
+import UserSettingDialog from "@/modules/common/dialog/UserSettingDialog.vue";
+
 import Cookies from "universal-cookie";
 export default {
+  components: { UserSettingDialog },
+
   computed: {
     ...mapState(ProjectNamespace, ["project"])
   },
+
   methods: {
     logout() {
       const cookies = new Cookies();
       cookies.remove("userinfo", { path: "/" });
       cookies.remove("TANGO_TOKEN", { path: "/" });
       this.$router.go();
+    },
+
+    setConfig() {
+      const userSettingDialogRef = this.$refs.userSettingDialog;
+
+      if (userSettingDialogRef) {
+        userSettingDialogRef.isOpen = true;
+      }
     }
   }
 };

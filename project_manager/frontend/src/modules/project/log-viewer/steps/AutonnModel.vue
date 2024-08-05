@@ -2,7 +2,9 @@
   <StepContainer primaryColor="#5d239d" :isCompleted="isCompleted">
     <template #step-icon> <v-icon color="white">mdi-calculator-variant-outline</v-icon> </template>
     <template #step-title> MODEL </template>
-    <template #step-description> <div class="pl-3">YOLOV7 - TINY</div> </template>
+    <template #step-description>
+      <div class="pl-3">{{ baseModel?.["model_name"] || "" }} - {{ baseModel?.["model_size"] || "" }}</div>
+    </template>
     <template #items>
       <StepItem titleColor="#9363b7" contentColor="#b797cf" v-for="(item, index) in dispalyItems" :key="index">
         <template #title>
@@ -23,6 +25,10 @@ export default {
 
   props: {
     data: {
+      default: null
+    },
+
+    baseModel: {
       default: null
     },
 

@@ -82,6 +82,10 @@ body {
 .swal2-shown {
   padding-right: 0px !important;
 }
+
+button:where(.swal2-styled) {
+  color: white !important;
+}
 </style>
 
 <style lang="scss" scoped>
