@@ -36,6 +36,13 @@ def ap_per_class(tp, conf, pred_cls, target_cls, v5_metric=False, plot=False, sa
     unique_classes = np.unique(target_cls)
     nc = unique_classes.shape[0]  # number of classes, number of detections
 
+    # print(f"====shape=======")
+    # print(f"tp      (correct)  .shape = {tp.shape}")
+    # print(f"conf    (pred[:,4]).shape = {conf.shape}")
+    # print(f"pred_cls(pred[:,5]).shape = {pred_cls.shape}")
+    # print(f"target_cls         .shape = {target_cls.shape}")
+    # print(f"unique_classes     .shape = {unique_classes.shape}")
+
     # Create Precision-Recall curve and compute AP for each class
     px, py = np.linspace(0, 1, 1000), []  # for plotting
     ap, p, r = np.zeros((nc, tp.shape[1])), np.zeros((nc, 1000)), np.zeros((nc, 1000))

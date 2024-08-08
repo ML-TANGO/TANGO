@@ -43,7 +43,7 @@ def binary_search(uid, pid, low, high, test_func, want_to_get):
     while True:
         next_test = int((low + high) / 2.)
         if next_test==low or next_test==high:
-            print(f'{PREFIX} The result of Binary Search: {next_test}')
+            logger.info(f'{PREFIX} The result of Binary Search: {next_test}')
             return low if low_result==want_to_get else high
 
         judge = test_func(next_test)
@@ -62,11 +62,11 @@ def binary_search(uid, pid, low, high, test_func, want_to_get):
                       update_id="batchsize",
                       update_content=batchsize_content)
 
-def get_batch_size_for_gpu(uid, pid, model, ch, imgsz, amp_enabled=True):
+def get_batch_size_for_gpu(uid, pid, model, ch, imgsz, amp_enabled=True, max_search=True):
     with torch.cuda.amp.autocast(enabled=amp_enabled):
-        return autobatch(uid, pid, model, ch, imgsz)
+        return autobatch(uid, pid, model, ch, imgsz, max_search=max_search)
 
-def autobatch(uid, pid, model, ch, imgsz, batch_size=16):
+def autobatch(uid, pid, model, ch, imgsz, batch_size=16, max_search=True):
     # prefix = colorstr('AutoBatch: ')
     if torch.cuda.is_available():
        num_dev = torch.cuda.device_count() 
@@ -107,9 +107,10 @@ def autobatch(uid, pid, model, ch, imgsz, batch_size=16):
             break
     torch.cuda.empty_cache()
 
-    test_func = TestFuncGen(model, ch, imgsz)
-    final_batch_size = binary_search(uid, pid, final_batch_size, batch_size, test_func, want_to_get=True)
-    torch.cuda.empty_cache()
+    if max_search:
+        test_func = TestFuncGen(model, ch, imgsz)
+        final_batch_size = binary_search(uid, pid, final_batch_size, batch_size, test_func, want_to_get=True)
+        torch.cuda.empty_cache()
     gc.collect()
 
     return final_batch_size * num_dev

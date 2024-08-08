@@ -571,6 +571,7 @@ def export_config(src, dst, data, base, device, engine, task='detection'):
     with open(dst, 'w') as f:
         yaml.dump(nn_dict, f, default_flow_style=False)
 
+    logger.info(f"NN meta information export success, saved as {dst}")
 
 def export_weight(weights, device, include, task='detection', ch=3, imgsz=[640,640]):
     t = time.time()

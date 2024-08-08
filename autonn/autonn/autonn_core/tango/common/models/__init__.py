@@ -1,6 +1,8 @@
 """
 Tango modules
 """
+import torch.nn as nn
+
 from .ofa_utils import *
 
 from .common import (
@@ -116,7 +118,7 @@ from .yolo_nas import (
     YOLOModel,
 )
 from .supernet_yolov7 import (
-    YOLOSuperNet,
+    NASModel,
 )
 from .dynamic_op import (
     DynamicSeparableConv2d,
@@ -133,6 +135,11 @@ from .dynamic_layers import (
     DynamicConvLayer,
     DynamicResNetBottleneckBlock,
 )
+from .resnet_cifar10 import (
+    cBasicBlock,
+    ClassifyModel,
+)
+
 
 __all__ = (
     # "ofa_utils",
@@ -193,7 +200,8 @@ __all__ = (
     "Expand",
     "NMS",
     "autoShape",
-    "Classify",
+    "cBasicBlock",
+    "ClassifyModel",
     "ConvBN",
     "OREPA_3x3_RepConv",
     "RepConv_OREPA",
@@ -211,4 +219,30 @@ __all__ = (
     "ST2CSPA",
     "ST2CSPB",
     "ST2CSPC",
+    "DynamicSeparableConv2d",
+    "DynamicConv2d",
+    "DynamicGroupConv2d",
+    "DynamicBatchNorm2d",
+    "DynamicGroupNorm",
+    "DynamicSE",
+    "DynamicLinear",
+    "DynamicLinearLayer",
+    "DynamicMBConvLayer",
+    "DynamicConvLayer",
+    "DynamicResNetBottleneckBlock",
+    "ELAN",
+    "ELANBlock",
+    "BBoneELAN",
+    "HeadELAN",
+    "DyConv",
+    "ELAN2",
+    "TinyELAN",
+    "TinyDyConv",
+    "CrossConv",
+    "Sum",
+    "MixConv2d",
+    "Ensemble",
+    "ONNX_ORT",
+    "ONNX_TRT",
+    "End2End",
 )

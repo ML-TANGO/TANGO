@@ -7,9 +7,21 @@ import torch
 from torch import nn
 import torchvision.models.resnet as resnet
 
-from tango.common.models.common import (Concat, Shortcut, ReOrg, DownC, SPPCSPC,
-                                        MP, SP, Conv)
-from tango.common.models.yolo import IDetect
+from tango.common.models import (Concat,
+                                 Shortcut,
+                                 ReOrg,
+                                 DownC,
+                                 SPPCSPC,
+                                 MP,
+                                 SP,
+                                 Conv,
+                                 DyConv,
+                                 RepConv,
+                                 BBoneELAN,
+                                 HeadELAN,
+                                 Detect,
+                                 IDetect   )
+# from tango.common.models.yolo import IDetect
 
 # from PyBinderCustom import *
 

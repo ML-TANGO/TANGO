@@ -4,7 +4,7 @@ import json
 import os
 from pathlib import Path
 from threading import Thread
-
+from copy import deepcopy
 import numpy as np
 import torch
 import yaml
@@ -59,14 +59,11 @@ def test(proj_info,
          is_coco=False,
          v5_metric=False):
     # Set device ---------------------------------------------------------------
-    print('XXXXXXXXXXXXXXXXXXXX')
     training = model is not None
     if training:  # called by train.py
-        print('training')
         device = next(model.parameters()).device  # get model device
 
     else:  # called directly
-        print('direct')
         set_logging()
         device = select_device(opt.device, batch_size=batch_size)
 
@@ -81,7 +78,6 @@ def test(proj_info,
         
         if trace:
             model = TracedModel(model, device, imgsz)
-    print('=============')
     # Half ---------------------------------------------------------------------
     half = device.type != 'cpu' and half_precision  # half precision only supported on CUDA
     if half:
@@ -123,7 +119,7 @@ def test(proj_info,
     
     # Test start ===============================================================
     val_acc = {}
-    seen = 0
+    seen, label_cnt = 0, 0
     confusion_matrix = ConfusionMatrix(nc=nc)
     names = {k: v for k, v in enumerate(model.names if hasattr(model, 'names') else model.module.names)}
     coco91class = coco80_to_coco91_class()
@@ -142,29 +138,36 @@ def test(proj_info,
         nb, _, height, width = img.shape  # batch size, channels, height, width
 
         with torch.no_grad():
-            # Run model
+
+            # Run model --------------------------------------------------------
             t = time_synchronized()
             out, train_out = model(img, augment=augment)  # inference and training outputs
             # out.shape = (bs, 25200, 85)
             # train_out.shape = ( (bs,3,80,80,85), (bs,3,40,40,85), (bs,3,20,20,85) )
             t0 += time_synchronized() - t
 
-            # Compute loss
+            # Compute loss -----------------------------------------------------
             if compute_loss:
                 loss += compute_loss([x.float() for x in train_out], targets)[1][:3]  # box, obj, cls
 
-            # Run NMS
+            # Run NMS ----------------------------------------------------------
+            '''
+            after nms,
+                out = (bs, n, 6) : bs = batch size, n = detected object number, 6 = (x,y,w,h,conf,cls)
+                (bs, 25200, 85) ==> NMS ==> approx. (bs, n, 6)
+                in fact, 'out' is list-type and it can have a different 'n' as an image
+                out = [ [n1, 6], [n2, 6], ... [nbs, 6] ]
+
+            nms terms for codegen :
+              n       = num_detections,
+              x,y,w,h = nmsed_boxes (x1,y1,x2,y2),
+              conf    = nmsed_scores,
+              cls     = nmsed_classes
+            '''
             targets[:, 2:] *= torch.Tensor([width, height, width, height]).to(device)  # to pixels
             lb = [targets[targets[:, 0] == i, 1:] for i in range(nb)] if save_hybrid else []  # for autolabelling
             t = time_synchronized()
             out = non_max_suppression(out, conf_thres=conf_thres, iou_thres=iou_thres, labels=lb, multi_label=True)
-            # after nms, out = (n, 6) tensor/image : n = detected object number, 6 = (x,y,w,h,conf,cls)
-            #   (bs, 25200, 85) ==> NMS ==> (bs, n, 6)
-            # nms terms @ codegen :
-            #   n       = num_detections,
-            #   x,y,w,h = nmsed_boxes (x1,y1,x2,y2),
-            #   conf    = nmsed_scores,
-            #   cls     = nmsed_classes
             t1 += time_synchronized() - t
 
         # Statistics per image
@@ -174,6 +177,7 @@ def test(proj_info,
             tcls = labels[:, 0].tolist() if nl else []  # target class
             path = Path(paths[si])
             seen += 1
+            label_cnt += nl
 
             if len(pred) == 0:
                 if nl:
@@ -231,8 +235,8 @@ def test(proj_info,
 
                 # Per target class
                 for cls in torch.unique(tcls_tensor):
-                    ti = (cls == tcls_tensor).nonzero(as_tuple=False).view(-1)  # prediction indices
-                    pi = (cls == pred[:, 5]).nonzero(as_tuple=False).view(-1)  # target indices
+                    ti = (cls == tcls_tensor).nonzero(as_tuple=False).view(-1)  # target indices
+                    pi = (cls == pred[:, 5]).nonzero(as_tuple=False).view(-1)  # prediction indices
 
                     # Search for detections
                     if pi.shape[0]:
@@ -244,8 +248,8 @@ def test(proj_info,
                         for j in (ious > iouv[0]).nonzero(as_tuple=False):
                             d = ti[i[j]]  # detected target
                             if d.item() not in detected_set:
-                                detected_set.add(d.item())
-                                detected.append(d)
+                                detected_set.add(d.item()) # set of int
+                                detected.append(d) # list of tensor
                                 correct[pi[j]] = ious[j] > iouv  # iou_thres is 1xn
                                 if len(detected) == nl:  # all targets already located in image
                                     break
@@ -260,7 +264,23 @@ def test(proj_info,
         #     f = save_dir / f'test_batch{batch_i}_pred.jpg'  # predictions
         #     Thread(target=plot_images, args=(img, output_to_target(out), paths, f, names), daemon=True).start()
 
+        _p, _r, _f1, _mp, _mr, _map50, _map = 0., 0., 0., 0., 0., 0., 0.
+        statsn, _ap, _ap_class = [], [], []
+        statsn = deepcopy(stats)
+        statsn = [np.concatenate(x, 0) for x in zip(*statsn)]  # to numpy
+        if len(statsn) and statsn[0].any():
+            _p, _r, _ap, _f1, _ap_class = ap_per_class(*statsn, plot=plots, v5_metric=v5_metric, save_dir=save_dir, names=names)
+            _ap50, _ap = _ap[:, 0], _ap.mean(1)  # AP@0.5, AP@0.5:0.95
+            _mp, _mr, _map50, _map = _p.mean(), _r.mean(), _ap50.mean(), _ap.mean()
         # Status update
+        # label_cnt += targets.size(0)
+        val_acc['class'] = 'all'
+        val_acc['images'] = seen
+        val_acc['labels'] = label_cnt
+        val_acc['P'] = _mp
+        val_acc['R'] = _mr
+        val_acc['mAP50'] = _map50
+        val_acc['mAP50-95'] = _map
         val_acc['step'] = batch_i + 1
         val_acc['total_step'] = len(dataloader)
         val_acc['time'] = f'{(t0+t1)-t2:.1f} s'
@@ -284,18 +304,18 @@ def test(proj_info,
     pf = '%20s' + '%12i' * 2 + '%12.3g' * 4  # print format
     logger.info(pf % ('all', seen, nt.sum(), mp, mr, map50, map))
 
-    nt_sum_value = nt.sum().item()
-    val_acc['class'] = 'all'
-    val_acc['images'] = seen
-    val_acc['labels'] = nt_sum_value
-    val_acc['P'] = mp
-    val_acc['R'] = mr
-    val_acc['mAP50'] = map50
-    val_acc['mAP50-95'] = map
-    # val_acc['time'] = f'{(t0 + t1) :.1f} s' # total time
-    status_update(userid, project_id,
-              update_id="val_accuracy",
-              update_content=val_acc)
+    # nt_sum_value = nt.sum().item()
+    # val_acc['class'] = 'all'
+    # val_acc['images'] = seen
+    # val_acc['labels'] = nt_sum_value
+    # val_acc['P'] = mp
+    # val_acc['R'] = mr
+    # val_acc['mAP50'] = map50
+    # val_acc['mAP50-95'] = map
+    # # val_acc['time'] = f'{(t0 + t1) :.1f} s' # total time
+    # status_update(userid, project_id,
+    #           update_id="val_accuracy",
+    #           update_content=val_acc)
 
 
     # Print results per class --------------------------------------------------
@@ -441,7 +461,9 @@ def test_cls(proj_info,
         # status update
         val_acc['step'] = i + 1
         val_acc['images'] = accumulated_data_count
-        val_acc['labels'] = val_accuracy.item()
+        val_acc['labels'] = output.size(1) # val_accuracy.item()
+        val_acc['P'] = accumulated_data_count
+        val_acc['R'] = val_accuracy.item()
         val_acc['mAP50'] = val_loss.item() / (i+1)
         val_acc['mAP50-95'] = val_accuracy.item() / accumulated_data_count
         val_acc['total_step'] = len(dataloader)

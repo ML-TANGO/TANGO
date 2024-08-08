@@ -66,10 +66,10 @@ class BasemodelViewer:
         # nc = basemodel.get('nc', 80)  # default number of classes = 80 (coco)
         # ch = [basemodel.get('ch', 3)] # default channel = 3 (RGB)
         basemodel['nc'] = nc = data_dict.get('nc', 80)
-        basemodel['ch'] = ch = [ data_dict.get('ch', 3) ]
+        basemodel['ch'] = ch = [ data_dict.get('ch', 3) ] # TODO: it doesn't matter whether input is 1 channel or 3 channels for now
         layers, lines, c2, edgeid = [], [], ch[-1], 0
         for i, (f, n, m, args) in enumerate(basemodel['backbone'] + basemodel['head']):  # from, number, module, args
-            logger.debug(f"💧 Read yaml layer-{i} : ({f}, {n}, {m}, {args})")
+            logger.info(f"💧 Read yaml layer-{i} : ({f}, {n}, {m}, {args})")
 
             # node parsing -------------------------------------------------
             # m = eval(m) if isinstance(m, str) else m  # eval strings
@@ -344,11 +344,17 @@ class BasemodelViewer:
             elif m == 'Conv':
                 c1 = ch[f]
                 c2 = args[0]
-                k = args[1]
-                s = args[2]
-                p = args[3]
-                g = args[4]
-                a = args[5]
+                k, s, p, g, a = 1, 1, None, 1, True # default
+                if len(args) > 1:
+                    k = args[1]
+                if len(args) > 2:
+                    s = args[2]
+                if len(args) > 3:
+                    p = args[3]
+                if len(args) > 4:
+                    g = args[4]
+                if len(args) > 5:
+                    a = args[5]
                 params = (
                     f"'in_channels': {c1} \n "
                     f"'out_channels': {c2} \n "
@@ -357,6 +363,49 @@ class BasemodelViewer:
                     f"'pad': {p} \n "
                     f"'groups': {g} \n "
                     f"'act': {a}"
+                )
+            elif m == 'DyConv':
+                c1 = ch[f]
+                c2 = args[0]
+                k, s, a = 1, 1, True # default
+                if len(args) > 1:
+                    k = args[1]
+                if len(args) > 2:
+                    s = args[2]
+                if len(args) > 3:
+                    a = args[3]
+                params = (
+                    f"'in_channels': {c1} \n "
+                    f"'out_channels': {c2} \n "
+                    f"'kernel_size': {k} \n "
+                    f"'stride': {s} \n "
+                    f"'act': {a}"
+                )
+            elif m == 'RepConv':
+                c1 = ch[f]
+                c2 = args[0]
+                k, s, p, g, a, d = 1, 1, None, 1, True, False # default
+                if len(args) > 1:
+                    k = args[1]
+                if len(args) > 2:
+                    s = args[2]
+                if len(args) > 3:
+                    p = args[3]
+                if len(args) > 4:
+                    g = args[4]
+                if len(args) > 5:
+                    a = args[5]
+                if len(args) > 6:
+                    d = args[6]
+                params = (
+                    f"'in_channels': {c1} \n "
+                    f"'out_channels': {c2} \n "
+                    f"'kernel_size': {k} \n "
+                    f"'stride': {s} \n "
+                    f"'pad': {p} \n "
+                    f"'groups': {g} \n "
+                    f"'act': {a} \n "
+                    f"'deploy': {d}"
                 )
             elif m == 'Concat':
                 d = args[0]
@@ -404,18 +453,24 @@ class BasemodelViewer:
             elif m == 'SPPCSPC':
                 c1 = ch[f]
                 c2 = args[0]
-                n = args[1]
-                shortcut = args[2]
-                g = args[3]
-                e = args[4]
-                k = args[5]
+                n, shortcut, g, e, k = 1, False, 1, 0.5, (5,9,13) # default
+                if len(args) > 1:
+                    n = args[1]
+                if len(args) > 2:
+                    shortcut = args[2]
+                if len(args) > 3:
+                    g = args[3]
+                if len(args) > 4:
+                    e = args[4]
+                if len(args) > 5:
+                    k = args[5]
                 params = (
                     f"'in_channels': {c1} \n "
                     f"'out_channels': {c2} \n "
                     f"'n': {n} \n "
                     f"'shortcut': {shortcut} \n "
-                    f"'groups': {g} \n"
-                    f"'expansion': {e} \n"
+                    f"'groups': {g} \n "
+                    f"'expansion': {e} \n "
                     f"'kernels': {k}"
                 )
             elif m == 'ReOrg':
@@ -445,6 +500,35 @@ class BasemodelViewer:
                     f"'kernel_size': {k} \n "
                     f"'stride': {s}"
                 )
+            elif m == 'Detect':
+                c2 = None
+                nc = args[0]
+                if isinstance(f, list):
+                    nl = len(f) # number of detection layers
+                    c1 = [ch[x] for x in f]
+                else:
+                    logger.warn("warning! detection module needs two or more inputs")
+                    nl = 1
+                    c1 = [ch[f]]
+                anchors = [] # viz2code needs to store this
+                if len(args)>1:
+                    if isinstance(args[1], list):
+                        # anchors = len(args[1])
+                        if len(args[1]) != nl:
+                            logger.warn(f"warning! the number of detection layer is {nl},"
+                                  f" but anchors is for {len(args[1])} layers.")
+                        anchors = args[1]
+                    else:
+                        anchors = [list(range(args[1]*2))] * nl
+                # ch_ = [] # actually, ch_ should be c1
+                ch_ = c1
+                if len(args)>2:
+                    ch_ = args[2]
+                params = (
+                    f"'nc': {nc} \n "
+                    f"'anchors': {anchors} \n "
+                    f"'ch': {ch_}"
+                )
             elif m == 'IDetect':
                 c2 = None
                 nc = args[0]
@@ -465,7 +549,8 @@ class BasemodelViewer:
                         anchors = args[1]
                     else:
                         anchors = [list(range(args[1]*2))] * nl
-                ch_ = []
+                # ch_ = [] # actually, ch_ should be c1
+                ch_ = c1
                 if len(args)>2:
                     ch_ = args[2]
                 params = (
@@ -473,6 +558,30 @@ class BasemodelViewer:
                     f"'anchors': {anchors} \n "
                     f"'ch': {ch_}"
                 )
+            elif m == 'BBoneELAN':
+                c1 = ch[f]
+                k = args[1]
+                d = args[2]
+                c2 = int(args[0]*(d+1))
+                params = (
+                    f"'in_channels': {c1} \n "
+                    f"'out_channels': {c2} \n "
+                    f"'kernels': {k} \n "
+                    f"'depth': {d}"
+                )
+                m = f'{m} d={d}'
+            elif m == 'HeadELAN':
+                c1 = ch[f]
+                k = args[1]
+                d = args[2]
+                c2 = int(args[0]*2 + args[0]/2*(d-1))
+                params = (
+                    f"'in_channels': {c1} \n "
+                    f"'out_channels': {c2} \n "
+                    f"'kernels': {k} \n "
+                    f"'depth': {d}"
+                )
+                m = f'{m} d={d}'
             else:
                 logger.warn(f"unsupported module... {m}")
                 c1 = ch[f]

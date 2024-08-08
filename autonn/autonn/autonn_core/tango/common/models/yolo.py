@@ -9,6 +9,7 @@ import os
 import torch
 from tango.common.models.common import *
 from tango.common.models.experimental import *
+from tango.common.models.search_block import *
 from tango.utils.autoanchor import check_anchor_order
 from tango.utils.general import make_divisible #, check_file, set_logging
 from tango.utils.torch_utils import (   time_synchronized,
@@ -516,7 +517,41 @@ class IBin(nn.Module):
 
 
 class Model(nn.Module):
-    def __init__(self, cfg='yolor-csp-c.yaml', ch=3, nc=None, anchors=None):  # model, input channels, number of classes
+    """ Create YOLO-based Detector NN-Model
+
+    Args:
+    -----------
+    cfg: str
+        path to model configuration yaml file
+    ch: int
+        number of input channels
+    nc: int
+        number of classes
+    anchors: 2d-list or int
+        anchors : np * 3(anchros/floor) * 2(width & height)
+
+    Attributes:
+    -----------
+    traced: bool
+        true if this model is traced by torchscript, onnx
+    yaml: dict
+        dict loaded from model configuration yaml file
+    yaml_file: str
+        path to model configuration yaml file
+    model: nn.Sequential
+        a sequence of nn.Modules
+    save: list of int
+        a save list of output channels at nn.Modules
+    nodes_info: dict
+        results parsing model, for viz reference
+    names: list of str
+        class names (labelmaps)
+    stride: int
+        yolo-specific grid size
+    brief:
+        model summary for log visualization
+    """
+    def __init__(self, cfg='basemodel.yaml', ch=3, nc=None, anchors=None):  # model, input channels, number of classes
         super(Model, self).__init__()
         self.traced = False
         if isinstance(cfg, dict):
@@ -530,10 +565,10 @@ class Model(nn.Module):
         # Define model
         ch = self.yaml['ch'] = self.yaml.get('ch', ch)  # input channels
         if nc and nc != self.yaml['nc']:
-            logger.info(f"Overriding model.yaml nc={self.yaml['nc']} with nc={nc}")
+            logger.info(f"Overriding basemodel.yaml nc={self.yaml['nc']} with nc={nc}")
             self.yaml['nc'] = nc  # override yaml value
         if anchors:
-            logger.info(f'Overriding model.yaml anchors with anchors={anchors}')
+            logger.info(f'Overriding basemodel.yaml anchors with anchors={anchors}')
             self.yaml['anchors'] = round(anchors)  # override yaml value
         self.model, self.save, self.nodes_info = parse_model(deepcopy(self.yaml), ch=[ch])  # model, savelist
         self.names = [str(i) for i in range(self.yaml['nc'])]  # default names
@@ -705,11 +740,15 @@ class Model(nn.Module):
         logger.info('Fusing layers... ')
         for m in self.model.modules():
             if isinstance(m, RepConv):
-                #print(f" fuse_repvgg_block")
+                # print(f" fuse_repvgg_block")
                 m.fuse_repvgg_block() # update conv, remove bn-modules, and update forward
             elif isinstance(m, RepConv_OREPA):
-                #print(f" switch_to_deploy")
+                # print(f" switch_to_deploy")
                 m.switch_to_deploy()  # update conv, remove bn-modules, and update forward
+            elif isinstance(m, (DyConv, DyConvBlock, TinyDyConv)) and hasattr(m, 'bn'):
+                m.conv = m.fuse_conv_and_bn()
+                delattr(m, 'bn')  # remove batchnorm
+                m.forward = m.fuseforward
             elif type(m) is Conv and hasattr(m, 'bn'):
                 m.conv = fuse_conv_and_bn(m.conv, m.bn)  # update conv
                 delattr(m, 'bn')  # remove batchnorm
@@ -719,7 +758,7 @@ class Model(nn.Module):
                 delattr(m, 'im') # remove implicitM
                 delattr(m, 'ia') # remove implicitA
                 m.forward = m.fuseforward # update forward
-        self.info()
+        # self.info(verbose=True)
         return self
 
     def nms(self, mode=True):  # add or remove NMS module
@@ -745,8 +784,8 @@ class Model(nn.Module):
     def info(self, verbose=False, img_size=640):  # print model information
         model_info(self, verbose, img_size)
 
-    def summary(self, img_size=640):
-        return model_summary(self, img_size)
+    def summary(self, img_size=640, verbose=False):
+        return model_summary(self, img_size, verbose)
 
 
 def parse_model(d, ch):  # model_dict, input_channels(3)
@@ -765,7 +804,6 @@ def parse_model(d, ch):  # model_dict, input_channels(3)
                 args[j] = eval(a) if isinstance(a, str) else a  # eval strings
             except:
                 pass
-
         n = max(round(n * gd), 1) if n > 1 else n  # depth gain
         if m in [nn.Conv2d, Conv, RobustConv, RobustConv2, DWConv, GhostConv, RepConv, RepConv_OREPA, DownC, 
                  SPP, SPPF, SPPCSPC, GhostSPPCSPC, MixConv2d, Focus, Stem, GhostStem, CrossConv, 
@@ -777,7 +815,8 @@ def parse_model(d, ch):  # model_dict, input_channels(3)
                  RepResX, RepResXCSPA, RepResXCSPB, RepResXCSPC, 
                  Ghost, GhostCSPA, GhostCSPB, GhostCSPC,
                  SwinTransformerBlock, STCSPA, STCSPB, STCSPC,
-                 SwinTransformer2Block, ST2CSPA, ST2CSPB, ST2CSPC]:
+                 SwinTransformer2Block, ST2CSPA, ST2CSPB, ST2CSPC,
+                 DyConv]:
             c1, c2 = ch[f], args[0]
             if c2 != no:  # if not output
                 c2 = make_divisible(c2 * gw, 8)
@@ -795,6 +834,20 @@ def parse_model(d, ch):  # model_dict, input_channels(3)
                      ST2CSPA, ST2CSPB, ST2CSPC]:
                 args.insert(2, n)  # number of repeats
                 n = 1
+        elif m is BBoneELAN:
+            c1, c2 = ch[f], int(args[0]*(args[-1]+1))
+            args = [c1, *args]
+        elif m is HeadELAN:
+            c1, c2 = ch[f], int((args[0]*2) + (args[0]/2 * (args[-1]-1)))
+            args = [c1, *args]
+        elif m is TinyELAN: # TinyELAN
+            c1, c2 = ch[f], args[0]
+            args = [c1, c2, *args[1:]]
+        elif m is TinyDyConv:
+            c1, c2 = args[0], int(args[0]//2)
+            if c2 != no:  # if not output
+                c2 = make_divisible(c2 * gw, 8)
+            args = [c1, c2, *args[1:]]
         elif m is nn.BatchNorm2d:
             args = [ch[f]]
         elif m is Concat:

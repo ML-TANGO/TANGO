@@ -2,6 +2,9 @@ import copy
 import random
 from tqdm import tqdm, trange
 import numpy as np
+import logging
+
+logger = logging.getLogger(__name__)
 
 
 class ArchManager:
@@ -9,19 +12,31 @@ class ArchManager:
         self.num_blocks = [4, 4]
         self.depths = [[1,2,3], [1,2,3,4,5]]
         # self.resolutions = [160, 176, 192, 208, 224]
+        self.sample_list = []
 
     def random_sample(self):
         sample = {}
         d = []
-        for i in range(self.num_blocks[0]):
-            d.append(random.choice(self.depths[0]))
-        for i in range(self.num_blocks[1]):
-            d.append(random.choice(self.depths[1]))
+
+        def pick_sample():
+            for i in range(self.num_blocks[0]):
+                d.append(random.choice(self.depths[0]))
+            for i in range(self.num_blocks[1]):
+                d.append(random.choice(self.depths[1]))
+
+        pick_sample()
+
+        for s in self.sample_list:
+            if s == d:
+                d = []
+                pick_sample()
+
+        self.sample_list.append(d)
 
         sample = {
             "d": d,
         }
-
+        print(sample)
         return sample
 
     def random_resample_depth(self, sample, i):
@@ -49,27 +64,32 @@ class EvolutionFinder:
         accuracy_predictor,
         **kwargs
     ):
+        # self.constraint_type = kwargs.get("constraint_type", "galaxy22")
         self.constraint_type = constraint_type
-        if not constraint_type in self.valid_constraint_range.keys():
+        if not self.constraint_type in self.valid_constraint_range.keys():
             self.invite_reset_constraint_type()
+
+        # self.efficiency_constraint = kwargs.get("efficiency_constraint", 3000)
         self.efficiency_constraint = efficiency_constraint
         if not (
-            efficiency_constraint <= self.valid_constraint_range[constraint_type][1]
-            and efficiency_constraint >= self.valid_constraint_range[constraint_type][0]
+            self.efficiency_constraint <= self.valid_constraint_range[self.constraint_type][1]
+            and self.efficiency_constraint >= self.valid_constraint_range[self.constraint_type][0]
         ):
             self.invite_reset_constraint()
 
         self.efficiency_predictor = efficiency_predictor
         self.accuracy_predictor = accuracy_predictor
+
         self.arch_manager = ArchManager()
         self.num_blocks = self.arch_manager.num_blocks # [4, 4]
 
-        self.mutate_prob = kwargs.get("mutate_prob", 0.1)
         self.population_size = kwargs.get("population_size", 1)
-        self.max_time_budget = kwargs.get("max_time_budget", 1)
+        self.num_generations = kwargs.get("num_generations", 500)
         self.parent_ratio = kwargs.get("parent_ratio", 1.)
+        self.mutate_prob = kwargs.get("mutate_prob", 0.1)
         self.mutation_ratio = kwargs.get("mutation_ratio", 0.5)
-        
+        self.max_time_budget = kwargs.get("max_time_budget", 1)
+
     def invite_reset_constraint_type(self):
         print(
             "Invalid constraint type! Please input one of:",
@@ -115,10 +135,12 @@ class EvolutionFinder:
 
     def random_sample(self):
         constraint = self.efficiency_constraint
+        logger.info(f"\n... 1 ... random sampling with FLOPS < {constraint} MFLOPS")
         while True:
             sample = self.arch_manager.random_sample()
             efficiency = self.efficiency_predictor.predict_efficiency(sample)
             if efficiency <= constraint:
+                logger.info(f"......... done. sample = {sample}")
                 return sample, efficiency
 
     def mutate_sample(self, sample):
@@ -166,10 +188,13 @@ class EvolutionFinder:
         for _ in trange(population_size, desc="Generate random population..."):
             sample, efficiency = self.random_sample()
             subnet, acc = self.accuracy_predictor.predict_accuracy_once(sample)
-            population.append((acc, sample, efficiency, subnet))
+            population.append( (acc, sample, efficiency.item(), subnet) )
 
         if verbose:
-            print("Start Evolution...")
+            for i, (a, s, e, n) in enumerate(population):
+                logger.info(f"[{i}] acc={a}, config={s['d']}, flops={e:.1f}M, model={n}")
+            logger.info("Start Evolution...")
+
         # After the population is seeded, proceed with evolving the population.
         for iter in tqdm(
             range(max_time_budget),
@@ -179,7 +204,7 @@ class EvolutionFinder:
             parents = sorted(population, key=lambda x: x[0])[::-1][:parents_size]
             acc = parents[0][0]
             if verbose:
-                print("Iter: {} Acc: {}".format(iter - 1, parents[0][0]))
+                logger.info("Iter: {} Acc: {}".format(iter + 1, parents[0][0]))
 
             if acc > best_valids[-1]:
                 best_valids.append(acc)
@@ -207,7 +232,7 @@ class EvolutionFinder:
                 efficiency_pool.append(efficiency)
 
             for i in trange(population_size, desc=f"[{iter+1}|{max_time_budget}] Mutate and Crossover..."):
-                _, acc = self.accuracy_predictor.predict_accuracy_once(child_pool[i])                
-                population.append((acc, child_pool[i], efficiency_pool[i]))
+                subnet, acc = self.accuracy_predictor.predict_accuracy_once(child_pool[i])
+                population.append( (acc, child_pool[i], efficiency_pool[i].item(), subnet) )
 
-        return best_valids, best_info
+        return best_valids, best_info   # best_acc_history, (acc, config, flops, subnet)

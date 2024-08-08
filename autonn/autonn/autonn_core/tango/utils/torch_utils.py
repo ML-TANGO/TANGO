@@ -270,6 +270,7 @@ def model_summary(model, img_size=640, verbose=False):
     model_briefs['parameters'] = n_p
     model_briefs['gradients'] = n_g
     model_briefs['FLOPS'] = float(gflops)
+    print(model_briefs)
     return model_briefs
 
 def load_classifier(name='resnet101', n=2):

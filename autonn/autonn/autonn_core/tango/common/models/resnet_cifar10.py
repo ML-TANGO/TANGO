@@ -10,7 +10,6 @@ import logging
 
 from tango.common.models.common import *
 from tango.common.models.experimental import *
-from tango.utils.autoanchor import check_anchor_order
 from tango.utils.general import make_divisible #, check_file, set_logging
 from tango.utils.torch_utils import (   fuse_conv_and_bn,
                                         model_summary,

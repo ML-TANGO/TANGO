@@ -1,3 +1,7 @@
+name: yolov7-supernet
+hyp: p5
+imgsz: 640
+
 # parameters
 nc: 80  # number of classes
 depth_multiple: 1.0  # model depth multiple
@@ -99,5 +103,5 @@ head:
    [46, 1, RepConv, [512, 3, 1]],
    [53, 1, RepConv, [1024, 3, 1]],
 
-   [[54,55,56], 1, Detect, [nc, anchors]],   # Detect(P3, P4, P5)
+   [[54,55,56], 1, IDetect, [nc, anchors]],   # Detect(P3, P4, P5)
   ]

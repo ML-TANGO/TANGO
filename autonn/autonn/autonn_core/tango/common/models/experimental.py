@@ -245,13 +245,17 @@ class End2End(nn.Module):
 
 
 
-def attempt_load(weights, map_location=None):
+def attempt_load(weights, map_location=None, fused=True):
     # Loads an ensemble of models weights=[a,b,c] or a single model weights=[a] or weights=a
     model = Ensemble()
     for w in weights if isinstance(weights, list) else [weights]:
         attempt_download(w)
         ckpt = torch.load(w, map_location=map_location)  # load
-        model.append(ckpt['ema' if ckpt.get('ema') else 'model'].float().fuse().eval())  # FP32 model
+        if fused:
+            model.append(ckpt['ema' if ckpt.get('ema') else 'model'].float().fuse().eval())  # FP32 fused model
+        else:
+            model.append(ckpt['ema' if ckpt.get('ema') else 'model'].float().eval())  # FP32 original model
+
     # Compatibility updates
     for m in model.modules():
         if type(m) in [nn.Hardswish, nn.LeakyReLU, nn.ReLU, nn.ReLU6, nn.SiLU]:

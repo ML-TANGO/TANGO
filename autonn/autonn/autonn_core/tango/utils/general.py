@@ -36,8 +36,8 @@ logger = logging.getLogger(__name__)
 def set_logging(rank=-1):
     logging.basicConfig(
         format="%(message)s",
-        # level=logging.WARN)
-        level=logging.INFO if rank in [-1, 0] else logging.WARN)
+        level=logging.WARN)
+        # level=logging.INFO if rank in [-1, 0] else logging.WARN)
 
 
 def init_seeds(seed=0):
@@ -811,7 +811,9 @@ def strip_optimizer(f='best.pt', s=''):  # from utils.general import *; strip_op
     for k in 'optimizer', 'training_results', 'wandb_id', 'ema', 'updates':  # keys
         x[k] = None
     x['epoch'] = -1
-    x['model'].half()  # to FP16
+    # [TENACE] modified for TANGO-----------------------------------------------
+    # x['model'].half()  # to FP16
+
     for p in x['model'].parameters():
         p.requires_grad = False
     torch.save(x, s or f)

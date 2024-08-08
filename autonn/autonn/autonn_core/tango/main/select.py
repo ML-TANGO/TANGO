@@ -20,8 +20,10 @@ import torch.optim.lr_scheduler as lr_scheduler
 
 # from torch.utils.tensorboard import SummaryWriter
 from tensorboardX import SummaryWriter
+
 from . import status_update, Info
 from .train import train
+from .search import search
 from .visualize import BasemodelViewer
 from .export import export_weight, export_config
 from tango.utils.general import (   increment_path,
@@ -43,6 +45,18 @@ TASK_TO_MODEL_TABLE = {
 
 MODEL_TO_SIZE_TABLE = {
     "yolov7": {
+        "cloud": "-tiny",
+        "k8s": "-tiny",
+        "k8sjetsonnano": "-tiny",
+        "pcweb": "-tiny",
+        "pc": "-tiny",
+        "jetsonagxorin": "-tiny",
+        "jetsonagxxavier": "-tiny",
+        "jetsonnano": "-tiny",
+        "galaxys22": "-supernet",
+        "odroidn2": "-tiny",
+    },
+    "yolov9": {
         "cloud": "-tiny",
         "k8s": "-tiny",
         "k8sjetsonnano": "-tiny",
@@ -231,6 +245,12 @@ def run_autonn(userid, project_id, viz2code=False, nas=False, hpo=False):
     proj_info['viz'] = viz2code
     proj_info['hpo'] = hpo
 
+    target = proj_info['target_info'] # PC, Galaxy_S22, etc.
+    target_acc = proj_info['acc'] # cuda, opencl, cpu
+    target_engine = proj_info['engine'].replace('-', '').replace('_', '').lower() # tensorrt, pytorch, tvm, etc.
+    task = proj_info['task_type'] # detection, classification, llm
+
+
     # Clear CUDA memory --------------------------------------------------------
     torch.cuda.empty_cache()
     gc.collect()
@@ -266,7 +286,9 @@ def run_autonn(userid, project_id, viz2code=False, nas=False, hpo=False):
         #         logger.info(f"{prefix}Start with 'tensorboard --logdir {str(opt.save_dir)}', view at http://localhost:6006/")
         #     except Exception as e:
         #         logger.warn(f'{prefix}Fail to load tensorbord because {e}')
+        #=======================================================================
         results, train_final = train(proj_info, hyp, opt, data, tb_writer)
+        #=======================================================================
         # tb_writer.flush()
 
     # HPO ----------------------------------------------------------------------
@@ -359,17 +381,19 @@ def run_autonn(userid, project_id, viz2code=False, nas=False, hpo=False):
               f'Command to train a new model with these hyperparameters: $ python train.py --hyp {yaml_file}')
 
     # NAS ----------------------------------------------------------------------
-    # if target == 'Galaxy_S22':
-    #     train_final = run_search(opt, target, target_acc)
+    if nas or target == 'Galaxy_S22':
+        #=======================================================================
+        train_final = search(proj_info, hyp, opt, data, train_final)
+        #=======================================================================
 
     # Model Export -------------------------------------------------------------
     if not train_final:
         return None
-    target_acc = proj_info['acc']
-    target_engine = proj_info['engine'].replace('-', '').replace('_', '').lower()
-    task = proj_info['task_type']
+    # target_acc = proj_info['acc']
+    # target_engine = proj_info['engine'].replace('-', '').replace('_', '').lower()
+    # task = proj_info['task_type']
     channel = data.get('ch')
-    print(f'channle = {channel}')
+    # print(f'channle = {channel}')
     convert = ['torchscript', 'onnx']
     export_weight(train_final, target_acc, convert, task=task, ch=channel, imgsz=opt.img_size)
 

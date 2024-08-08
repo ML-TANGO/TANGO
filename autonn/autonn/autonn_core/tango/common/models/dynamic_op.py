@@ -148,15 +148,22 @@ class DynamicConv2d(nn.Module):
         if out_channel is None:
             out_channel = self.active_out_channel
         in_channel = x.size(1)
+
         filters = self.get_active_filter(out_channel, in_channel).contiguous()
 
-        padding = get_same_padding(self.kernel_size)
+        self.padding = get_same_padding(self.kernel_size)
         filters = (
             self.conv.weight_standardization(filters)
             if isinstance(self.conv, MyConv2d)
             else filters
         )
-        y = F.conv2d(x, filters, None, self.stride, padding, self.dilation, 1)
+        y = F.conv2d(x, filters,
+                     bias=None,
+                     stride=self.stride,
+                     padding=self.padding,
+                     dilation=self.dilation,
+                     groups=1
+                    )
         return y
 
 

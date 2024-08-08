@@ -25,8 +25,10 @@ from tqdm import tqdm
 from . import status_update, Info
 from . import test  # import test.py to get mAP or val_accuracy after each epoch
 from tango.common.models.experimental import attempt_load
-from tango.common.models.yolo import Model
-from tango.common.models.resnet_cifar10 import ClassifyModel
+from tango.common.models.yolo               import Model
+from tango.common.models.resnet_cifar10     import ClassifyModel
+from tango.common.models.supernet_yolov7    import NASModel
+# from tango.common.models import *
 from tango.utils.autoanchor import check_anchors
 from tango.utils.autobatch import get_batch_size_for_gpu
 from tango.utils.datasets import create_dataloader
@@ -61,8 +63,6 @@ from tango.utils.torch_utils import (   ModelEMA,
                                     )
 from tango.utils.wandb_logging.wandb_utils import WandbLogger
 
-# # YOLOv7-NAS
-from tango.common.models.supernet_yolov7 import YOLOSuperNet
 
 logger = logging.getLogger(__name__)
 
@@ -143,13 +143,14 @@ def train(proj_info, hyp, opt, data_dict, tb_writer=None):
             attempt_download(weights)  # download if not found locally
         ckpt = torch.load(weights, map_location=device)  # load checkpoint
         exclude = []
-        # if target == 'Galaxy_S22':
-        #     model = YOLOSuperNet(opt.cfg or ckpt['model'].yaml, ch=3, nc=nc, anchors=hyp.get('anchors')).to(device)  # create
-        # else:
+
         if task == 'classification':
             model = ClassifyModel(opt.cfg or ckpt['model'].yaml, ch=ch, nc=nc).to(device)
-        else:
-            model = Model(opt.cfg or ckpt['model'].yaml, ch=ch, nc=nc, anchors=hyp.get('anchors')).to(device)  # create
+        elif task == 'detection':
+            if nas or target == 'Galaxy_S22':
+                model = NASModel(opt.cfg or ckpt['model'].yaml, ch=ch, nc=nc, anchors=hyp.get('anchors')).to(device)  # create
+            else:
+                model = Model(opt.cfg or ckpt['model'].yaml, ch=ch, nc=nc, anchors=hyp.get('anchors')).to(device)  # create
             exclude = ['anchor'] if (opt.cfg or hyp.get('anchors')) and not opt.resume else []  # exclude keys
         state_dict = ckpt['model'].float().state_dict()  # to FP32
         state_dict = intersect_dicts(state_dict, model.state_dict(), exclude=exclude)  # intersect
@@ -162,9 +163,11 @@ def train(proj_info, hyp, opt, data_dict, tb_writer=None):
         # else:
         if task == 'classification':
             model = ClassifyModel(opt.cfg, ch=ch, nc=nc).to(device)
-        else:
-            model = Model(opt.cfg, ch=ch, nc=nc, anchors=hyp.get('anchors')).to(device)  # create
-
+        elif task == 'detection':
+            if nas or target == 'Galaxy_S22':
+                model = NASModel(opt.cfg, ch=ch, nc=nc, anchors=hyp.get('anchors')).to(device)  # create
+            else:
+                model = Model(opt.cfg, ch=ch, nc=nc, anchors=hyp.get('anchors')).to(device)  # create
     status_update(userid, project_id,
                   update_id="model",
                   update_content=model.nodes_info)
@@ -191,18 +194,19 @@ def train(proj_info, hyp, opt, data_dict, tb_writer=None):
 
     # Batch size ---------------------------------------------------------------
     bs_factor = 0.8
-    if DEBUG and data_dict['dataset_name'] == 'coco128':
-        # skip auto-batch since coco128 has only 128 imgs
-        batch_size = 128
-    else:
-        # ch = 3 if task=='detection' else 1
-        autobatch_rst = get_batch_size_for_gpu( userid,
-                                                project_id,
-                                                model,
-                                                ch,
-                                                imgsz,
-                                                amp_enabled=True )
-        batch_size = int(autobatch_rst * bs_factor)
+    # if DEBUG and data_dict['dataset_name'] == 'coco128':
+    #     # skip auto-batch since coco128 has only 128 imgs
+    #     # warning! large model like supernet should compute batch size from 2
+    #     batch_size = 128
+    # else:
+    # ch = 3 if task=='detection' else 1
+    autobatch_rst = get_batch_size_for_gpu( userid,
+                                            project_id,
+                                            model,
+                                            ch,
+                                            imgsz,
+                                            amp_enabled=True )
+    batch_size = int(autobatch_rst * bs_factor)
 
     if opt.local_rank != -1: # DDP mode
         logger.info(f'[ local rank check ]: opt.local_rank is not -1')
@@ -535,6 +539,7 @@ def train(proj_info, hyp, opt, data_dict, tb_writer=None):
 
 
     # Start training -----------------------------------------------------------
+
     t0 = time.time() # time_synchronized()
     nw = max(round(hyp['warmup_epochs'] * nb), 1000)  # number of warmup iterations, max(3 epochs, 1k iterations)
     nw = min(nw, (epochs - start_epoch) / 2 * nb)  # limit warmup to < 1/2 of training
@@ -560,7 +565,7 @@ def train(proj_info, hyp, opt, data_dict, tb_writer=None):
     info.save()
 
     # torch.save(model, wdir / 'init.pt')
-    for epoch in range(start_epoch, epochs):  # epoch ------------------------------------------------------------------
+    for epoch in range(start_epoch, epochs):
         t_epoch = time.time() #time_synchronized()
         model.train()
 
@@ -790,12 +795,13 @@ def train(proj_info, hyp, opt, data_dict, tb_writer=None):
         lr = [x['lr'] for x in optimizer.param_groups]  # for tensorboard
         for i, lr_element in enumerate(lr):
             hyp[f'lr_group{j}'] = lr_element
-        status_update(userid, project_id,
-                  update_id="hyperparameter",
-                  update_content=hyp)
-        scheduler.step()
+        # status_update(userid, project_id,
+        #           update_id="hyperparameter",
+        #           update_content=hyp)
+        # scheduler.step()
 
-        if rank in [-1, 0]: # (DDP process 0 or single-GPU) test ===============
+        # (DDP process 0 or single-GPU) test ===================================
+        if rank in [-1, 0]:
             # mAP
             if task == 'detection':
                 ema.update_attr(model, include=['yaml', 'nc', 'hyp', 'gr', 'names', 'stride', 'class_weights'])
@@ -955,35 +961,36 @@ def train(proj_info, hyp, opt, data_dict, tb_writer=None):
 
         # Test best.pt after fusing layers
         # [tenace's note] argument of type 'PosixPath' is not iterable
+        # [tenace's note] a bit redundant testing, rather inproper fusing to fine-tune it next time
         if best.exists():
             m = str(best)
         else:
             m = str(last)
-        if task == 'detection':
-            results, _, _ = test.test(proj_info,
-                                      data_dict,
-                                      batch_size=batch_size * 2,
-                                      imgsz=imgsz_test,
-                                      conf_thres=0.001,
-                                      iou_thres=0.7,
-                                      model=attempt_load(m, device), #.half(),
-                                      single_cls=opt.single_cls,
-                                      dataloader=testloader,
-                                      save_dir=save_dir,
-                                      save_json=False, #True,
-                                      plots=False,
-                                      is_coco=is_coco,
-                                      v5_metric=opt.v5_metric)
-        elif task == 'classification':
-            results, _ = test.test_cls(proj_info,
-                                       data_dict,
-                                       batch_size=batch_size * 2,
-                                       imgsz=imgsz_test,
-                                       model=attempt_load(m, device),
-                                       dataloader=testloader,
-                                       save_dir=save_dir,
-                                       plots=False,
-                                       half_precision=True)
+        # if task == 'detection':
+        #     results, _, _ = test.test(proj_info,
+        #                               data_dict,
+        #                               batch_size=batch_size * 2,
+        #                               imgsz=imgsz_test,
+        #                               conf_thres=0.001,
+        #                               iou_thres=0.7,
+        #                               model=attempt_load(m, device), #.half(),
+        #                               single_cls=opt.single_cls,
+        #                               dataloader=testloader,
+        #                               save_dir=save_dir,
+        #                               save_json=False, #True,
+        #                               plots=False,
+        #                               is_coco=is_coco,
+        #                               v5_metric=opt.v5_metric)
+        # elif task == 'classification':
+        #     results, _ = test.test_cls(proj_info,
+        #                                data_dict,
+        #                                batch_size=batch_size * 2,
+        #                                imgsz=imgsz_test,
+        #                                model=attempt_load(m, device),
+        #                                dataloader=testloader,
+        #                                save_dir=save_dir,
+        #                                plots=False,
+        #                                half_precision=True)
 
         # Strip optimizers
         final_model = best if best.exists() else last  # final model
@@ -999,6 +1006,9 @@ def train(proj_info, hyp, opt, data_dict, tb_writer=None):
         # wandb_logger.finish_run()
     else:
         dist.destroy_process_group()
+
+    # delete Model -------------------------------------------------------------
+    del model
     torch.cuda.empty_cache()
     gc.collect()
 
