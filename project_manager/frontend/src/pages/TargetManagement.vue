@@ -19,9 +19,9 @@
           </div>
           <div class="d-flex align-center mt-3" style="gap: 10px">
             <small style="color: #aaa; font-size: 11px; min-width: 70px">{{ item.create_date.slice(0, 10) }}</small>
-            <small style="color: #aaa; font-size: 11px; min-width: 95px">
+            <small style="color: #aaa; font-size: 11px; min-width: 95px" v-if="item?.create_user !== ''">
               created by
-              <span style="color: #4a80ff">{{ item.create_user }}</span>
+              <span style="color: #4a80ff">{{ item?.create_user }}</span>
             </small>
           </div>
         </div>

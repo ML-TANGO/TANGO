@@ -5,6 +5,10 @@
       <div style="white-space: normal">{{ value }}</div>
       <v-divider></v-divider>
     </div> -->
+    <!-- <div class="d-flex justify-end align-center" style="gap: 8px">
+      <v-icon> mdi-refresh</v-icon>
+      <div>Auto NN Refresh</div>
+    </div> -->
     <div class="d-flex flex-wrap" style="gap: 38px">
       <div class="hyper">
         <AutonnSetting
@@ -13,7 +17,11 @@
         />
       </div>
       <AutonnSystem :data="displayData['system']" :isCompleted="displayData['progress'] >= AutonnStatus.SYSTEM" />
-      <AutonnModel :data="displayData['model_summary']" :isCompleted="displayData['progress'] >= AutonnStatus.MODEL" />
+      <AutonnModel
+        :data="displayData['model_summary']"
+        :baseModel="displayData['basemodel']"
+        :isCompleted="displayData['progress'] >= AutonnStatus.MODEL"
+      />
       <AutonnDataset
         :valDataset="displayData['val_dataset']"
         :trainDataset="displayData['train_dataset']"

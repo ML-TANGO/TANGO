@@ -173,3 +173,14 @@ export const AutonnStatus = Object.freeze({
   MODEL: 2,
   DATASET: 3
 });
+
+export const AutonnLogTitle = Object.freeze({
+  [TaskType.CLASSIFICATION]: {
+    train: { left: "Image", center: "Correct", right: "Accuracy", result: "Loss" },
+    val: { left: "Images", center: "Correct", right: "Loss", result: "Accuracy" }
+  },
+  [TaskType.DETECTION]: {
+    train: { left: "Box", center: "OBJECTNESS", right: "CLASS", result: "TOTAL" },
+    val: { left: "Precision", center: "Recall", right: "mAP50", result: "mAP" }
+  }
+});
