@@ -551,7 +551,7 @@ class ClassifyModel(nn.Module):
         return model_summary(self, img_size, verbose)
 
 
-def parse_model(d, ch):  # model_dict, input_channels(3)
+def parse_model(d, ch):  # model_dict, input_channels(1 or 3)
     # logger.info('\n%3s%18s%3s%10s  %-40s%-30s' % ('', 'from', 'n', 'params', 'module', 'arguments'))
     nodes_info = {}
     nc = d['nc']

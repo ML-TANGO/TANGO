@@ -21,6 +21,7 @@ try:
     import thop  # for FLOPS computation
 except ImportError:
     thop = None
+
 logger = logging.getLogger(__name__)
 
 
@@ -36,13 +37,22 @@ def torch_distributed_zero_first(local_rank: int):
         torch.distributed.barrier()
 
 
-def init_torch_seeds(seed=0):
-    # Speed-reproducibility tradeoff https://pytorch.org/docs/stable/notes/randomness.html
+# def init_torch_seeds(seed=0):
+#     # Speed-reproducibility tradeoff https://pytorch.org/docs/stable/notes/randomness.html
+#     torch.manual_seed(seed)
+#     if seed == 0:  # slower, more reproducible
+#         cudnn.benchmark, cudnn.deterministic = False, True
+#     else:  # faster, less reproducible
+#         cudnn.benchmark, cudnn.deterministic = True, False
+def init_torch_seeds(seed=0, deterministic=False):
     torch.manual_seed(seed)
-    if seed == 0:  # slower, more reproducible
-        cudnn.benchmark, cudnn.deterministic = False, True
-    else:  # faster, less reproducible
-        cudnn.benchmark, cudnn.deterministic = True, False
+    torch.cuda.manual_seed(seed)
+    torch.cuda.manual_seed_all(seed)
+    if deterministic:
+        torch.use_deterministic_algorithms(True)
+        cudnn.deterministic = True
+        os.environ['CUBLAS_WORKSPACE_CONFIG'] = ':4096:8'
+        os.environ['PYTHONHASHSEED'] = str(seed)
 
 
 def date_modified(path=__file__):
@@ -58,6 +68,7 @@ def git_describe(path=Path(__file__).parent):  # path must be a directory
         return subprocess.check_output(s, shell=True, stderr=subprocess.STDOUT).decode()[:-1]
     except subprocess.CalledProcessError as e:
         return ''  # not a git repository
+
 
 def select_device(device='', batch_size=None):
     # device = 'cpu' or '0' or '0,1,2,3'
@@ -83,6 +94,7 @@ def select_device(device='', batch_size=None):
 
     logger.info(s.encode().decode('ascii', 'ignore') if platform.system() == 'Windows' else s)  # emoji-safe
     return torch.device('cuda:0' if cuda else 'cpu')
+
 
 def select_device_and_info(device=''):
     # device = 'cpu' or '0' or '0,1,2,3'
@@ -123,8 +135,8 @@ def profile(x, ops, n=100, device=None):
     device = device or torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
     x = x.to(device)
     x.requires_grad = True
-    print(torch.__version__, device.type, torch.cuda.get_device_properties(0) if device.type == 'cuda' else '')
-    print(f"\n{'Params':>12s}{'GFLOPS':>12s}{'forward (ms)':>16s}{'backward (ms)':>16s}{'input':>24s}{'output':>24s}")
+    logger.info(torch.__version__, device.type, torch.cuda.get_device_properties(0) if device.type == 'cuda' else '')
+    logger.info(f"\n{'Params':>12s}{'GFLOPS':>12s}{'forward (ms)':>16s}{'backward (ms)':>16s}{'input':>24s}{'output':>24s}")
     for m in ops if isinstance(ops, list) else [ops]:
         m = m.to(device) if hasattr(m, 'to') else m  # device
         m = m.half() if hasattr(m, 'half') and isinstance(x, torch.Tensor) and x.dtype is torch.float16 else m  # type
@@ -149,7 +161,7 @@ def profile(x, ops, n=100, device=None):
         s_in = tuple(x.shape) if isinstance(x, torch.Tensor) else 'list'
         s_out = tuple(y.shape) if isinstance(y, torch.Tensor) else 'list'
         p = sum(list(x.numel() for x in m.parameters())) if isinstance(m, nn.Module) else 0  # parameters
-        print(f'{p:12}{flops:12.4g}{dtf:16.4g}{dtb:16.4g}{str(s_in):>24s}{str(s_out):>24s}')
+        logger.info(f'{p:12}{flops:12.4g}{dtf:16.4g}{dtb:16.4g}{str(s_in):>24s}{str(s_out):>24s}')
 
 
 def is_parallel(model):
@@ -190,12 +202,12 @@ def sparsity(model):
 def prune(model, amount=0.3):
     # Prune model to requested global sparsity
     import torch.nn.utils.prune as prune
-    print('Pruning model... ', end='')
+    logger.info('Pruning model... ', end='')
     for name, m in model.named_modules():
         if isinstance(m, nn.Conv2d):
             prune.l1_unstructured(m, name='weight', amount=amount)  # prune
             prune.remove(m, 'weight')  # make permanent
-    print(' %.3g global sparsity' % sparsity(model))
+    logger.info(' %.3g global sparsity' % sparsity(model))
 
 
 def fuse_conv_and_bn(conv, bn):
@@ -226,10 +238,10 @@ def model_info(model, verbose=False, img_size=640):
     n_p = sum(x.numel() for x in model.parameters())  # number parameters
     n_g = sum(x.numel() for x in model.parameters() if x.requires_grad)  # number gradients
     if verbose:
-        print('%5s %40s %9s %12s %20s %10s %10s' % ('layer', 'name', 'gradient', 'parameters', 'shape', 'mu', 'sigma'))
+        logger.info('%5s %40s %9s %12s %20s %10s %10s' % ('layer', 'name', 'gradient', 'parameters', 'shape', 'mu', 'sigma'))
         for i, (name, p) in enumerate(model.named_parameters()):
             name = name.replace('module_list.', '')
-            print('%5g %40s %9s %12g %20s %10.3g %10.3g' %
+            logger.info('%5g %40s %9s %12g %20s %10.3g %10.3g' %
                   (i, name, p.requires_grad, p.numel(), list(p.shape), p.mean(), p.std()))
 
     try:  # FLOPS
@@ -240,20 +252,21 @@ def model_info(model, verbose=False, img_size=640):
         img_size = img_size if isinstance(img_size, list) else [img_size, img_size]  # expand if int/float
         fs = ', %.1f GFLOPS' % (flops * img_size[0] / stride * img_size[1] / stride)  # 640x640 GFLOPS
     except (ImportError, Exception) as e:
-        print(e)
+        logger.warn(e)
         fs = ''
 
     logger.info(f"Model Summary: {len(list(model.modules()))} layers, {n_p} parameters, {n_g} gradients{fs}")
+
 
 def model_summary(model, img_size=640, verbose=False):
     # Model information. img_size may be int or list, i.e. img_size=640 or img_size=[640, 320]
     n_p = sum(x.numel() for x in model.parameters())  # number parameters
     n_g = sum(x.numel() for x in model.parameters() if x.requires_grad)  # number gradients
     if verbose:
-        print('%5s %40s %9s %12s %20s %10s %10s' % ('layer', 'name', 'gradient', 'parameters', 'shape', 'mu', 'sigma'))
+        logger.info('%5s %40s %9s %12s %20s %10s %10s' % ('layer', 'name', 'gradient', 'parameters', 'shape', 'mu', 'sigma'))
         for i, (name, p) in enumerate(model.named_parameters()):
             name = name.replace('module_list.', '')
-            print('%5g %40s %9s %12g %20s %10.3g %10.3g' %
+            logger.info('%5g %40s %9s %12g %20s %10.3g %10.3g' %
                   (i, name, p.requires_grad, p.numel(), list(p.shape), p.mean(), p.std()))
     try:  # FLOPS
         from thop import profile
@@ -270,8 +283,9 @@ def model_summary(model, img_size=640, verbose=False):
     model_briefs['parameters'] = n_p
     model_briefs['gradients'] = n_g
     model_briefs['FLOPS'] = float(gflops)
-    print(model_briefs)
+    logger.info(model_briefs)
     return model_briefs
+
 
 def load_classifier(name='resnet101', n=2):
     # Loads a pretrained model reshaped to n-class output
@@ -313,6 +327,25 @@ def copy_attr(a, b, include=(), exclude=()):
         else:
             setattr(a, k, v)
 
+
+class EarlyStopping:
+    def __init__(self, patience=30):
+        self.best_fitness = 0.0 
+        self.best_epoch = 0
+        self.patience = patience or float('inf')
+        self.possible_stop = False
+    
+    def __call__(self, epoch, fitness):
+        if fitness >= self.best_fitness:
+            self.best_eopch = epoch
+            self.best_fitness = fitness
+        delta = epoch - self.best_eopch
+        self.possible_stop = delta >= (self.patience - 1)
+        stop = delta >= self.patience
+        if stop:
+            logger.info(f"stopping training early as no improvment observed in last {self.patience} eopchs."
+                        f"best results at epoch {self.best_eopch}, best model saved as best.pt")
+        return stop
 
 class ModelEMA:
     """ Model Exponential Moving Average from https://github.com/rwightman/pytorch-image-models
@@ -363,6 +396,7 @@ class BatchNormXd(torch.nn.modules.batchnorm._BatchNorm):
         #  we could return the one that was originally created)
         return
 
+
 def revert_sync_batchnorm(module):
     # this is very similar to the function that it is trying to revert:
     # https://github.com/pytorch/pytorch/blob/c8b3686a3e4ba63dc59e5dcfe5db3430df256833/torch/nn/modules/batchnorm.py#L679
@@ -393,7 +427,7 @@ class TracedModel(nn.Module):
     def __init__(self, model=None, device=None, img_size=(640,640)): 
         super(TracedModel, self).__init__()
         
-        print(" Convert model to Traced-model... ") 
+        logger.info(" Convert model to Traced-model... ")
         self.stride = model.stride
         self.names = model.names
         self.model = model
@@ -410,11 +444,11 @@ class TracedModel(nn.Module):
         traced_script_module = torch.jit.trace(self.model, rand_example, strict=False)
         #traced_script_module = torch.jit.script(self.model)
         traced_script_module.save("traced_model.pt")
-        print(" traced_script_module saved! ")
+        logger.info(" traced_script_module saved! ")
         self.model = traced_script_module
         self.model.to(device)
         self.detect_layer.to(device)
-        print(" model is traced! \n") 
+        logger.info(" model is traced! \n")
 
     def forward(self, x, augment=False, profile=False):
         out = self.model(x)

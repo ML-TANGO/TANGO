@@ -46,6 +46,7 @@ from tango.utils.general import (   DEBUG,
 from tango.utils.google_utils import attempt_download
 from tango.utils.loss import    (   ComputeLoss,
                                     ComputeLossOTA,
+                                    ComputeLossTAL,
                                     FocalLossCE
                                 )
 from tango.utils.plots import   (   plot_images,
@@ -55,13 +56,14 @@ from tango.utils.plots import   (   plot_images,
                                     plot_lr_scheduler
                                 )
 from tango.utils.torch_utils import (   ModelEMA,
+                                        EarlyStopping,
                                         select_device_and_info,
                                         intersect_dicts,
                                         torch_distributed_zero_first,
                                         is_parallel,
                                         time_synchronized
                                     )
-from tango.utils.wandb_logging.wandb_utils import WandbLogger
+# from tango.utils.wandb_logging.wandb_utils import WandbLogger
 
 
 logger = logging.getLogger(__name__)
@@ -69,8 +71,8 @@ logger = logging.getLogger(__name__)
 
 def train(proj_info, hyp, opt, data_dict, tb_writer=None):
     # Options ------------------------------------------------------------------
-    save_dir, epochs, batch_size, weights, rank, freeze = \
-        Path(opt.save_dir), opt.epochs, opt.batch_size, opt.weights, opt.global_rank, opt.freeze
+    save_dir, epochs, batch_size, weights, rank, local_rank, freeze = \
+        Path(opt.save_dir), opt.epochs, opt.batch_size, opt.weights, opt.global_rank, opt.local_rank, opt.freeze
 
     userid, project_id, task, nas, hpo, target, target_acc = \
         proj_info['userid'], proj_info['project_id'], proj_info['task_type'], \
@@ -114,11 +116,6 @@ def train(proj_info, hyp, opt, data_dict, tb_writer=None):
                   update_id="system",
                   update_content=system)
 
-    # Configure ----------------------------------------------------------------
-    plots = not opt.evolve  # create plots
-    cuda = device.type != 'cpu'
-    init_seeds(2 + rank)
-
     # Logging- Doing this before checking the dataset. Might update data_dict
     # loggers = {'wandb': None}  # loggers dict
     # if rank in [-1, 0]:
@@ -130,6 +127,13 @@ def train(proj_info, hyp, opt, data_dict, tb_writer=None):
     #     if wandb_logger.wandb:
     #         weights, epochs, hyp = opt.weights, opt.epochs, opt.hyp  # WandbLogger might update weights, epochs if resuming
 
+    # Configure ----------------------------------------------------------------
+    plots = not opt.evolve # create plots
+    cuda = device.type != 'cpu'
+    # init_seeds(2 + rank)
+    seed = opt.seed if opt.seed else 1
+    init_seeds(seed + 1 + rank, deterministric=True) # from yolov9
+
     nc = 1 if opt.single_cls else int(data_dict['nc'])  # number of classes
     ch = int(data_dict.get('ch', 3))
     names = ['item'] if opt.single_cls and len(data_dict['names']) != 1 else data_dict['names']  # class names
@@ -139,7 +143,7 @@ def train(proj_info, hyp, opt, data_dict, tb_writer=None):
     pretrained = weights.endswith('.pt')
     if pretrained:
         ''' transfer learning / fine tuning / resume '''
-        with torch_distributed_zero_first(rank):
+        with torch_distributed_zero_first(local_rank): # rank):
             attempt_download(weights)  # download if not found locally
         ckpt = torch.load(weights, map_location=device)  # load checkpoint
         exclude = []
@@ -158,9 +162,6 @@ def train(proj_info, hyp, opt, data_dict, tb_writer=None):
         logger.info('Transferred %g/%g items from %s' % (len(state_dict), len(model.state_dict()), weights))  # report
     else:
         ''' learning from scratch '''
-        # if target == 'Galaxy_S22':
-        #     model = YOLOSuperNet(opt.cfg, ch=3, nc=nc, anchors=hyp.get('anchors')).to(device)  # create
-        # else:
         if task == 'classification':
             model = ClassifyModel(opt.cfg, ch=ch, nc=nc).to(device)
         elif task == 'detection':
@@ -188,7 +189,6 @@ def train(proj_info, hyp, opt, data_dict, tb_writer=None):
     imgsz, imgsz_test = [x for x in opt.img_size]
     if task == 'detection':
         gs = max(int(model.stride.max()), 32)  # grid size (max stride)
-        nl = model.model[-1].nl  # number of detection layers (used for scaling hyp['obj'])
         # verify imgsz are gs-multiples (gs=grid stride)
         imgsz, imgsz_test = [check_img_size(x, gs) for x in opt.img_size]
 
@@ -205,17 +205,20 @@ def train(proj_info, hyp, opt, data_dict, tb_writer=None):
                                             model,
                                             ch,
                                             imgsz,
-                                            amp_enabled=True )
-    batch_size = int(autobatch_rst * bs_factor)
+                                            bs_factor,
+                                            amp_enabled=True,
+                                            max_search=True )
+    # batch_size = int(autobatch_rst * bs_factor)
+    batch_size = int(autobatch_rst) # autobatch_rst = result * bs_factor * gpu_number
 
     if opt.local_rank != -1: # DDP mode
-        logger.info(f'[ local rank check ]: opt.local_rank is not -1')
+        logger.info(f'LOCAL RANK is not -1; Multi-GPU training')
         assert torch.cuda.device_count() > opt.local_rank
         torch.cuda.set_device(opt.local_rank)
         device = torch.device('cuda', opt.local_rank)
         dist.init_process_group(backend='nccl', init_method='env://')  # distributed backend
-        assert batch_size % opt.world_size == 0, '--batch-size must be multiple of CUDA device count'
-        total_batch_size = opt.world_size * batch_size
+        # assert batch_size % opt.world_size == 0, '--batch-size must be multiple of CUDA device count'
+        total_batch_size = opt.world_size * batch_size # assume all gpus are identical
     else: # Single-GPU
         total_batch_size = batch_size
 
@@ -229,7 +232,7 @@ def train(proj_info, hyp, opt, data_dict, tb_writer=None):
                   update_content=vars(opt))
 
     # Dataset ------------------------------------------------------------------
-    with torch_distributed_zero_first(rank):
+    with torch_distributed_zero_first(local_rank): #rank):
         check_dataset(data_dict)  # check
     train_path = data_dict['train']
     test_path = data_dict['val']
@@ -331,6 +334,8 @@ def train(proj_info, hyp, opt, data_dict, tb_writer=None):
     logger.info('Using ModelEMA()')
 
     # Resume (option) ----------------------------------------------------------
+    # see line 140 - 159, it is connected to the model loading procedure
+    # we should delete ckpt, state_dict to avoid cuda memory leak 
     start_epoch, best_fitness = 0, 0.0
     if pretrained:
         # Optimizer
@@ -357,7 +362,7 @@ def train(proj_info, hyp, opt, data_dict, tb_writer=None):
     # DP mode (option) ---------------------------------------------------------
     if cuda and rank == -1 and torch.cuda.device_count() > 1:
         model = torch.nn.DataParallel(model)
-        logger.info('Using DataParallel()')
+        logger.warn('Using DataParallel(): not recommened, use DDP instead.')
 
     # SyncBatchNorm (option) ---------------------------------------------------
     if opt.sync_bn and cuda and rank != -1:
@@ -371,7 +376,7 @@ def train(proj_info, hyp, opt, data_dict, tb_writer=None):
                                             project_id,
                                             train_path,
                                             imgsz,
-                                            batch_size,
+                                            batch_size // opt.world_size,
                                             gs, # stride
                                             opt,
                                             hyp=hyp,
@@ -435,7 +440,7 @@ def train(proj_info, hyp, opt, data_dict, tb_writer=None):
                                        project_id,
                                        test_path,
                                        imgsz_test,
-                                       batch_size,
+                                       batch_size // opt.world_size,
                                        gs,
                                        opt,
                                        hyp=hyp,
@@ -506,6 +511,8 @@ def train(proj_info, hyp, opt, data_dict, tb_writer=None):
 
     # Model parameters ---------------------------------------------------------
     if task == 'detection':
+        nl = model.module.model[-1].nl if is_parallel(model) else model.model[-1].nl
+        # nl = model.model[-1].nl  # number of detection layers (used for scaling hyp['obj'])
         hyp['box'] *= 3. / nl  # scale to layers
         hyp['cls'] *= nc / 80. * 3. / nl  # scale to classes and layers
         hyp['obj'] *= (imgsz / 640) ** 2 * 3. / nl  # scale to image size and layers
@@ -534,9 +541,18 @@ def train(proj_info, hyp, opt, data_dict, tb_writer=None):
         else:
             logger.warn(f'not supported loss function {opt.loss_name}')
     else: # if task == 'detection':
-        compute_loss_ota = ComputeLossOTA(model)  # init loss class
-        compute_loss = ComputeLoss(model)  # init loss class
+        if opt.loss_name == 'TAL':
+            compute_loss = ComputeLossTAL(model)
+        elif opt.loss_name == 'OTA':
+            compute_loss = ComputeLossOTA(model)  # init loss class
+        else:
+            compute_loss = ComputeLoss(model)  # init loss class
 
+    # Ealry Stopper ------------------------------------------------------------
+    # how many epochs could you be waiting for patiently 
+    # although accuracy was not better?
+    patience_epochs = opt.patience if opt.patience else 10
+    stopper, stop = EarlyStopping(patience=patience_epochs), False
 
     # Start training -----------------------------------------------------------
 
@@ -548,6 +564,7 @@ def train(proj_info, hyp, opt, data_dict, tb_writer=None):
         results = (0, 0, 0, 0, 0, 0, 0)  # P, R, mAP@.5, mAP@.5-.95, val_loss(box, obj, cls)
     elif task == 'classification':
         results = (0, 0) # val_accuracy, val_loss
+    last_opt_step = -1
     scheduler.last_epoch = start_epoch - 1  # do not move
     scaler = amp.GradScaler(enabled=cuda) # use amp(automatic mixed precision)
 
@@ -631,9 +648,9 @@ def train(proj_info, hyp, opt, data_dict, tb_writer=None):
                         else:
                             hyp[f'momentum_group{j}'] = None
                         hyp[f'lr_group{j}'] = x['lr']
-                    status_update(userid, project_id,
-                              update_id="hyperparameter",
-                              update_content=hyp)
+                    # status_update(userid, project_id,
+                    #           update_id="hyperparameter",
+                    #           update_content=hyp)
 
                 # Multi-scale
                 if opt.multi_scale:
@@ -647,25 +664,32 @@ def train(proj_info, hyp, opt, data_dict, tb_writer=None):
                 optimizer.zero_grad()
                 with amp.autocast(enabled=cuda):
                     pred = model(imgs)  # forward
-                    if 'loss_ota' not in hyp or hyp['loss_ota'] == 1:
-                        loss, loss_items = compute_loss_ota(pred, targets.to(device), imgs)  # loss scaled by batch_size
+
+                    # if 'loss_ota' not in hyp or hyp['loss_ota'] == 1:
+                    if opt.loss_name == 'OTA':
+                        loss, loss_items = compute_loss(pred, targets.to(device), imgs)  # loss scaled by batch_size
                     else:
                         loss, loss_items = compute_loss(pred, targets.to(device))  # loss scaled by batch_size
                     if rank != -1:
                         loss *= opt.world_size  # gradient averaged between devices in DDP mode
                     if opt.quad:
                         loss *= 4.
-
+                
                 # Backward
                 scaler.scale(loss).backward()
 
                 # Optimize
-                if ni % accumulate == 0:
+                # if ni % accumulate == 0:
+                if ni - last_opt_step >= accumulate:
+                    # https://pytorch.org/docs/master/notes/amp_examples.html
+                    scaler.unscale_(optimizer)  # unscale gradients
+                    torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=10.0)  # clip gradients                    
                     scaler.step(optimizer)  # optimizer.step
                     scaler.update()
                     optimizer.zero_grad()
                     if ema:
                         ema.update(model)
+                    last_opt_step = ni
 
                 # Report & Plot(option)
                 if rank in [-1, 0]:
@@ -723,9 +747,9 @@ def train(proj_info, hyp, opt, data_dict, tb_writer=None):
                         else:
                             hyp[f'momentum_group{j}'] = None
                         hyp[f'lr_group{j}'] = x['lr']
-                    status_update(userid, project_id,
-                              update_id="hyperparameter",
-                              update_content=hyp)
+                    # status_update(userid, project_id,
+                    #           update_id="hyperparameter",
+                    #           update_content=hyp)
 
                 # Forward
                 optimizer.zero_grad()
@@ -798,7 +822,7 @@ def train(proj_info, hyp, opt, data_dict, tb_writer=None):
         # status_update(userid, project_id,
         #           update_id="hyperparameter",
         #           update_content=hyp)
-        # scheduler.step()
+        scheduler.step()
 
         # (DDP process 0 or single-GPU) test ===================================
         if rank in [-1, 0]:
@@ -807,7 +831,7 @@ def train(proj_info, hyp, opt, data_dict, tb_writer=None):
                 ema.update_attr(model, include=['yaml', 'nc', 'hyp', 'gr', 'names', 'stride', 'class_weights'])
             elif task == 'classification':
                 ema.update_attr(model, include=['yaml', 'nc', 'hyp', 'names', 'class_weights'])
-            final_epoch = epoch + 1 == epochs
+            final_epoch = (epoch + 1 == epochs) or stopper.possible_stop
             if not opt.notest or final_epoch:  # Calculate mAP
                 # wandb_logger.current_epoch = epoch + 1
                 if task == 'detection':
@@ -816,7 +840,7 @@ def train(proj_info, hyp, opt, data_dict, tb_writer=None):
                     # times: tuple      (inf, nms, total, imgsz, imgsz, batchsz)
                     results, maps, times = test.test(proj_info,
                                                      data_dict,
-                                                     batch_size=batch_size, # multiplying by 2 may cause out of gpu memory
+                                                     batch_size=batch_size // opt.world_size, # multiplying by 2 may cause out of gpu memory
                                                      imgsz=imgsz_test,
                                                      model=ema.ema,
                                                      single_cls=opt.single_cls,
@@ -828,7 +852,7 @@ def train(proj_info, hyp, opt, data_dict, tb_writer=None):
                                                      half_precision=True,
                                                      compute_loss=compute_loss,
                                                      is_coco=is_coco,
-                                                     v5_metric=opt.v5_metric)
+                                                     metric=opt.metric)
                 elif task == 'classification':
                     # results: tuple - (val_accuracy, val_loss)
                     # times:   float - total
@@ -900,6 +924,7 @@ def train(proj_info, hyp, opt, data_dict, tb_writer=None):
                 fi = fitness(np.array(results).reshape(1, -1))  # weighted combination of [P, R, mAP@.5, mAP@.5-.95]
             elif task == 'classification':
                 fi = results[0] # validation accuracy itself
+            stop = stopper(epoch=epoch, fitness=fi)
             if fi > best_fitness:
                 best_fitness = fi
             # wandb_logger.end_epoch(best_result=best_fitness == fi)
@@ -941,12 +966,22 @@ def train(proj_info, hyp, opt, data_dict, tb_writer=None):
                 info = Info.objects.get(userid=userid, project_id=project_id)
                 info.epoch = epoch
                 info.save()
+        
+            # EarlyStopping
+            if rank != -1: # if DDP training
+                broadcast_list = [stop if rank == 0 else None]
+                dist.broadcast_object_list(broadcast_list, 0)
+                if rank != 0:
+                    stop = broadcast_list[0]
+            if stop:
+                logger.info(f"early stopping...")
+                break
         # end validation =======================================================
 
     # end training -------------------------------------------------------------
 
     if rank in [-1, 0]:
-        # Plots
+        # Plots ----------------------------------------------------------------
         if plots:
             if task == 'detection':
                 plot_results(save_dir=save_dir)  # save as results.png
@@ -959,9 +994,9 @@ def train(proj_info, hyp, opt, data_dict, tb_writer=None):
 
         logger.info('%g epochs completed in %.3f hours.\n' % (epoch - start_epoch + 1, (time.time() - t0) / 3600))
 
-        # Test best.pt after fusing layers
+        # Test best.pt after fusing layers -------------------------------------
         # [tenace's note] argument of type 'PosixPath' is not iterable
-        # [tenace's note] a bit redundant testing, rather inproper fusing to fine-tune it next time
+        # [tenace's note] a bit redundant testing
         if best.exists():
             m = str(best)
         else:
@@ -992,13 +1027,25 @@ def train(proj_info, hyp, opt, data_dict, tb_writer=None):
         #                                plots=False,
         #                                half_precision=True)
 
-        # Strip optimizers
+        # Strip optimizers -----------------------------------------------------
+        # [tenace's note] what strip_optimizer does is ...
+        # 1. load cpu model
+        # 2. get attribute 'ema' if it exists
+        # 3. replace attribute 'model' with 'ema'
+        # 4. reset attributes 'optimizer', 'training_results', 'ema', and 'updates' to None
+        # 5. reset attribute 'epoch' to -1
+        # 6. convert model to FP16 precision (not anymore by tenace)
+        # 7. set [model].[parameters].requires_grad = False
+        # 8. save model to original file path
         final_model = best if best.exists() else last  # final model
         for f in last, best:
             if f.exists():
                 strip_optimizer(f)  # strip optimizers
-        if opt.bucket:
-            os.system(f'gsutil cp {final_model} gs://{opt.bucket}/weights')  # upload
+
+        # [tenace's note] we don't use google cloud as a storage
+        #                 we don't use w-and-b as a web server based logger
+        # if opt.bucket:
+        #     os.system(f'gsutil cp {final_model} gs://{opt.bucket}/weights')  # upload
         # if wandb_logger.wandb and not opt.evolve:  # Log the stripped model
         #     wandb_logger.wandb.log_artifact(str(final), type='model',
         #                                     name='run_' + wandb_logger.wandb_run.id + '_model',
@@ -1007,11 +1054,12 @@ def train(proj_info, hyp, opt, data_dict, tb_writer=None):
     else:
         dist.destroy_process_group()
 
-    # delete Model -------------------------------------------------------------
+    # remove Model from cuda ---------------------------------------------------
     del model
     torch.cuda.empty_cache()
     gc.collect()
 
+    # report to PM -------------------------------------------------------------
     mb = os.path.getsize(final_model) / 1E6  # filesize
     train_end = {}
     train_end['status'] = 'end'
@@ -1022,4 +1070,5 @@ def train(proj_info, hyp, opt, data_dict, tb_writer=None):
     status_update(userid, project_id,
                   update_id="train_end",
                   update_content=train_end)
+    
     return results, final_model

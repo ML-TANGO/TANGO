@@ -15,7 +15,7 @@ import logging
 import torch
 
 from tango.common.models.experimental import attempt_load
-from tango.utils.torch_utils import ModelEMA, select_device, is_parallel
+from tango.utils.torch_utils import select_device
 from tango.nas.search_algorithm import EvolutionFinder
 from tango.nas.predictors.efficiency_predictor import LatencyPredictor
 from tango.nas.predictors.accuracy_predictor import AccuracyCalculator
@@ -29,15 +29,12 @@ def search(proj_info, hyp, opt, data_dict, model):
     project_id = proj_info['project_id']
     target = proj_info['target_info'] # PC, Galaxy_S22, etc.
     acc = proj_info['acc'] # cuda, opencl, cpu
-    engine = proj_info['engine'] # tensorrt, pytorch, tvm, etc.
-    task = proj_info['task_type'] # detection, classification, llm
 
     if not 'Galaxy' in target:
         logger.warn(f'not supported target: {target}')
         return model
 
     # options ------------------------------------------------------------------
-    # search_yml = Path(os.path.dirname(__file__)) / 'cfg' / 'supernet' / 'search.yml'
     search_yml = str(CFG_PATH / 'args-search.yaml')
     with open(search_yml, 'r') as f:
         search_opt = yaml.safe_load(f)
@@ -55,17 +52,16 @@ def search(proj_info, hyp, opt, data_dict, model):
     device = select_device(opt.device)
 
     # create model -------------------------------------------------------------
-    # opt.weights = str(Path('/shared/common') / opt.weights)
     if model:
         opt.weights = str(model)
     elif opt.weights:
         opt.weights = CFG_PATH / opt.weights
-    supernet = attempt_load(opt.weights, map_location=device, fused=False) # mkae sure it is not a fused model
+    supernet = attempt_load(opt.weights, map_location=device, fused=False) # make sure it is not a fused model
 
-    # latency predictor --------------------------------------------------------
+    # build latency predictor --------------------------------------------------
     efficiency_predictor = LatencyPredictor(target=target, target_acc=acc, device=device)
 
-    # accuracy predictor -------------------------------------------------------
+    # build accuracy predictor -------------------------------------------------
     accuracy_predictor = AccuracyCalculator(proj_info, hyp, opt, data_dict, supernet)
 
     # build the evolution finder -----------------------------------------------
@@ -77,7 +73,7 @@ def search(proj_info, hyp, opt, data_dict, model):
         **vars(opt)
     )
 
-    # start searching ----------------------------------------------------------
+    # network architecture searching -------------------------------------------
     logger.info(f"Start NAS process...")
     result_list = []
     efficiency_constraint = efficiency_constraint \
@@ -92,16 +88,11 @@ def search(proj_info, hyp, opt, data_dict, model):
         logger.info(f"found best architecture at flops <= {flops:.2f} MFLOPS in {ed-st:.2f} seconds! "
                     f"{best_info[0]*100:.2f}% predicted accuracy with {best_info[2]:.2f} MFLOPS.")
         result_list.append(best_info)
+    logger.info(f"Complete NAS process")
 
     # save weights and configs -------------------------------------------------
-    # result[0] : float - acc
-    # result[1] : dict - {'d': [depth-list ...]}
-    # result[2] : float - mflops
-    # result[3] : str - path/to/subnet/pt
     for i, (ec, result) in enumerate(zip(efficiency_constraint, result_list)):
-        print(i, ec, result)
-
-        # weights & config
+        # load weights & config
         best_subnet_pt = result[3]
         best_subnet = attempt_load(best_subnet_pt, map_location=device, fused=True)
         best_subnet_config = best_subnet.yaml
@@ -110,13 +101,10 @@ def search(proj_info, hyp, opt, data_dict, model):
         # save weights & config
         PROJ_PATH = COMMON_ROOT / userid / project_id
         yaml_file = str(PROJ_PATH / 'best_search.yaml')
-        # if not os.path.exists(os.path.dirname(yaml_file)):
-        #     os.makedirs(os.path.dirname(yaml_file))
         with open(yaml_file, 'w') as f:
             yaml.dump(best_subnet_config, f, sort_keys=False)
         logger.info(f'# Depth: {best_depth} | Saved best {i} model\'s config in {yaml_file}')
 
-    logger.info(f"Complete NAS process")
-    final = result_list[0][3]
-    # print(result_list)
+
+    final = result_list[0][3] # str: path/to/best/subnet/pt
     return final

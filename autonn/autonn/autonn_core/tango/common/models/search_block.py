@@ -121,6 +121,8 @@ class HeadELAN(ELAN):
     def get_active_net(self):
         raise NotImplementedError
 
+
+# DyConvBlock for subnet
 class DyConvBlock(nn.Module):
     # Dynamic Convolution for elastic channel size
     def __init__(self, conv, bn, act, in_channels):
@@ -208,7 +210,8 @@ class DyConv(nn.Module):
             del self.bn
 
         return fusedconv
-    
+
+
 #===============================================================================
 #=============================== YOLOv7-tiny ===================================
 #===============================================================================

@@ -33,6 +33,7 @@ DEBUG = False
 
 logger = logging.getLogger(__name__)
 
+
 def set_logging(rank=-1):
     logging.basicConfig(
         format="%(message)s",
@@ -40,11 +41,11 @@ def set_logging(rank=-1):
         # level=logging.INFO if rank in [-1, 0] else logging.WARN)
 
 
-def init_seeds(seed=0):
+def init_seeds(seed=0, deterministric=False):
     # Initialize random number generator (RNG) seeds
     random.seed(seed)
     np.random.seed(seed)
-    init_torch_seeds(seed)
+    init_torch_seeds(seed, deterministric)
 
 
 def get_latest_run(search_dir='.'):
@@ -55,7 +56,7 @@ def get_latest_run(search_dir='.'):
 
 def isdocker():
     # Is environment a Docker container
-    return Path('/workspace').exists()  # or Path('/.dockerenv').exists()
+    return Path('/shared').exists()  # or Path('/.dockerenv').exists()
 
 
 def emojis(str=''):
@@ -176,6 +177,18 @@ def check_dataset(dict):
                 logger.info('Dataset autodownload %s\n' % ('success' if r == 0 else 'failure'))  # analyze return value
             else:
                 raise Exception('Dataset not found.')
+
+
+def check_version(current='0.0.0', minimum='0.0.0', name='version', pinned=False, hard=False, verbose=False):
+    import pkg_resources as pkg
+    current, minimum = (pkg.parse_version(x) for x in (current, minimum))
+    result = (current == minimum) if pinned else (current >=minimum)
+    s = f'WARNING {name}{minimum} is required by TANGO, but {name}{current} is currently installed'
+    if hard:
+        assert result, s
+    if verbose and not result:
+        logger.warn(s)
+    return result
 
 
 def make_divisible(x, divisor):
@@ -392,6 +405,50 @@ def bbox_iou(box1, box2, x1y1x2y2=True, GIoU=False, DIoU=False, CIoU=False, eps=
         return iou  # IoU
 
 
+def bboxes_iou(box1, box2, xywh=True, GIoU=False, DIoU=False, CIoU=False, MDPIoU=False, feat_h=640, feat_w=640, eps=1e-7):
+    # Returns Intersection over Union (IoU) of box1(1,4) to box2(n,4)
+
+    # Get the coordinates of bounding boxes
+    if xywh:  # transform from xywh to xyxy
+        (x1, y1, w1, h1), (x2, y2, w2, h2) = box1.chunk(4, -1), box2.chunk(4, -1)
+        w1_, h1_, w2_, h2_ = w1 / 2, h1 / 2, w2 / 2, h2 / 2
+        b1_x1, b1_x2, b1_y1, b1_y2 = x1 - w1_, x1 + w1_, y1 - h1_, y1 + h1_
+        b2_x1, b2_x2, b2_y1, b2_y2 = x2 - w2_, x2 + w2_, y2 - h2_, y2 + h2_
+    else:  # x1, y1, x2, y2 = box1
+        b1_x1, b1_y1, b1_x2, b1_y2 = box1.chunk(4, -1)
+        b2_x1, b2_y1, b2_x2, b2_y2 = box2.chunk(4, -1)
+        w1, h1 = b1_x2 - b1_x1, b1_y2 - b1_y1 + eps
+        w2, h2 = b2_x2 - b2_x1, b2_y2 - b2_y1 + eps
+
+    # Intersection area
+    inter = (torch.min(b1_x2, b2_x2) - torch.max(b1_x1, b2_x1)).clamp(0) * \
+            (torch.min(b1_y2, b2_y2) - torch.max(b1_y1, b2_y1)).clamp(0)
+
+    # Union Area
+    union = w1 * h1 + w2 * h2 - inter + eps
+
+    # IoU
+    iou = inter / union
+    if CIoU or DIoU or GIoU:
+        cw = torch.max(b1_x2, b2_x2) - torch.min(b1_x1, b2_x1)  # convex (smallest enclosing box) width
+        ch = torch.max(b1_y2, b2_y2) - torch.min(b1_y1, b2_y1)  # convex height
+        if CIoU or DIoU:  # Distance or Complete IoU https://arxiv.org/abs/1911.08287v1
+            c2 = cw ** 2 + ch ** 2 + eps  # convex diagonal squared
+            rho2 = ((b2_x1 + b2_x2 - b1_x1 - b1_x2) ** 2 + (b2_y1 + b2_y2 - b1_y1 - b1_y2) ** 2) / 4  # center dist ** 2
+            if CIoU:  # https://github.com/Zzh-tju/DIoU-SSD-pytorch/blob/master/utils/box/box_utils.py#L47
+                v = (4 / math.pi ** 2) * torch.pow(torch.atan(w2 / h2) - torch.atan(w1 / h1), 2)
+                with torch.no_grad():
+                    alpha = v / (v - iou + (1 + eps))
+                return iou - (rho2 / c2 + v * alpha)  # CIoU
+            return iou - rho2 / c2  # DIoU
+        c_area = cw * ch + eps  # convex area
+        return iou - (c_area - union) / c_area  # GIoU https://arxiv.org/pdf/1902.09630.pdf
+    elif MDPIoU:
+        d1 = (b2_x1 - b1_x1) ** 2 + (b2_y1 - b1_y1) ** 2
+        d2 = (b2_x2 - b1_x2) ** 2 + (b2_y2 - b1_y2) ** 2
+        mpdiou_hw_pow = feat_h ** 2 + feat_w ** 2
+        return iou - d1 / mpdiou_hw_pow - d2 / mpdiou_hw_pow  # MPDIoU
+    return iou  # IoU
 
 
 def bbox_alpha_iou(box1, box2, x1y1x2y2=False, GIoU=False, DIoU=False, CIoU=False, alpha=2, eps=1e-9):

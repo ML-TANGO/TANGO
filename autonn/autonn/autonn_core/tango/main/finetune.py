@@ -122,7 +122,8 @@ def finetune(proj_info, subnet, hyp, opt, data_dict, tb_writer=None):
     # plots = not opt.evolve  # create plots
     plots = False  # create plots
     cuda = device.type != 'cpu'
-    init_seeds(2 + rank)
+    # init_seeds(2 + rank)
+    init_seeds(opt.seed + 1 + rank, deterministric=True) # from yolov9
 
     nc = 1 if opt.single_cls else int(data_dict['nc'])  # number of classes
     ch = int(data_dict.get('ch', 3))
@@ -137,7 +138,6 @@ def finetune(proj_info, subnet, hyp, opt, data_dict, tb_writer=None):
 
     # Image sizes --------------------------------------------------------------
     gs = max(int(subnet.stride.max()), 32)  # grid size (max stride)
-    nl = subnet.model[-1].nl  # number of detection layers (used for scaling hyp['obj'])
     imgsz, imgsz_test = [check_img_size(x, gs) for x in opt.img_size]  # verify imgsz are gs-multiples
 
     # Batch size ---------------------------------------------------------------
@@ -148,7 +148,7 @@ def finetune(proj_info, subnet, hyp, opt, data_dict, tb_writer=None):
                                             imgsz,
                                             amp_enabled=False,
                                             max_search=False )
-    print(f"autobatch result = {autobatch_rst}, supernet_batchsize = {batch_size}")
+    logger.info(f"autobatch result = {autobatch_rst}, supernet_batchsize = {batch_size}")
 
     # Dataset ------------------------------------------------------------------
     with torch_distributed_zero_first(rank):
@@ -325,6 +325,7 @@ def finetune(proj_info, subnet, hyp, opt, data_dict, tb_writer=None):
                     find_unused_parameters=any(isinstance(layer, nn.MultiheadAttention) for layer in subnet.modules()))
 
     # Model parameters ---------------------------------------------------------
+    # nl = subnet.model[-1].nl  # number of detection layers (used for scaling hyp['obj'])
     # hyp['box'] *= 3. / nl  # scale to layers
     # hyp['cls'] *= nc / 80. * 3. / nl  # scale to classes and layers
     # hyp['obj'] *= (imgsz / 640) ** 2 * 3. / nl  # scale to image size and layers

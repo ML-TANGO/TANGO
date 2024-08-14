@@ -27,6 +27,15 @@ def check_anchors(uid, pid, dataset, model, thr=4.0, imgsz=640):
     prefix = colorstr('autoanchor: ')
     logger.info(f'{prefix}Analyzing anchors... ')
     m = model.module.model[-1] if hasattr(model, 'module') else model.model[-1]  # Detect()
+    if not hasattr(m, 'anchor_grid'):
+        logger.info(f"this head {m.type} is anchor-free module")
+        anchor_summary = {}
+        anchor_summary['anchor2target_ratio'] = 0.00
+        anchor_summary['best_possible_recall'] = 0.0000
+        status_update(uid, pid,
+                    update_id="anchors",
+                    update_content=anchor_summary)
+        return
     shapes = imgsz * dataset.shapes / dataset.shapes.max(1, keepdims=True)
     scale = np.random.uniform(0.9, 1.1, size=(shapes.shape[0], 1))  # augment scale
     wh = torch.tensor(np.concatenate([l[:, 3:5] * s for s, l in zip(shapes * scale, dataset.labels)])).float()  # wh

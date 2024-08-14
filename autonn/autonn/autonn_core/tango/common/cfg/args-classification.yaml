@@ -36,5 +36,8 @@ bbox_interval: -1
 save_period: -1
 artifact_alias: 'latest'
 freeze: [0]
-v5_metric: False # metirc
+metric: 'v5' # metirc
 loss_name: 'CE'
+seed: 1
+patience: 10
+

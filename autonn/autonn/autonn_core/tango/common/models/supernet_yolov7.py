@@ -116,7 +116,7 @@ class NASModel(Model):
             y.append(x if m.i in self.save else None)  # save output
 
         if profile:
-            print('%.1fms total' % sum(dt))
+            logger.info('%.1fms total' % sum(dt))
         return x
 
     def set_max_net(self):

@@ -36,7 +36,9 @@ class ArchManager:
         sample = {
             "d": d,
         }
-        print(sample)
+        logger.info(sample)
+        # [TENACE] let's send 'basemodel' status_update
+        #          ex) SUBNET-11234521
         return sample
 
     def random_resample_depth(self, sample, i):
@@ -64,12 +66,10 @@ class EvolutionFinder:
         accuracy_predictor,
         **kwargs
     ):
-        # self.constraint_type = kwargs.get("constraint_type", "galaxy22")
         self.constraint_type = constraint_type
         if not self.constraint_type in self.valid_constraint_range.keys():
             self.invite_reset_constraint_type()
 
-        # self.efficiency_constraint = kwargs.get("efficiency_constraint", 3000)
         self.efficiency_constraint = efficiency_constraint
         if not (
             self.efficiency_constraint <= self.valid_constraint_range[self.constraint_type][1]
@@ -91,13 +91,13 @@ class EvolutionFinder:
         self.max_time_budget = kwargs.get("max_time_budget", 1)
 
     def invite_reset_constraint_type(self):
-        print(
+        logger.warn(
             "Invalid constraint type! Please input one of:",
             list(self.valid_constraint_range.keys()),
         )
         new_type = input()
         while new_type not in self.valid_constraint_range.keys():
-            print(
+            logger.warn(
                 "Invalid constraint type! Please input one of:",
                 list(self.valid_constraint_range.keys()),
             )
@@ -105,7 +105,7 @@ class EvolutionFinder:
         self.constraint_type = new_type
 
     def invite_reset_constraint(self):
-        print(
+        logger.warn(
             "Invalid constraint_value! Please input an integer in interval: [%d, %d]!"
             % (
                 self.valid_constraint_range[self.constraint_type][0],
@@ -119,7 +119,7 @@ class EvolutionFinder:
             or (int(new_cons) > self.valid_constraint_range[self.constraint_type][1])
             or (int(new_cons) < self.valid_constraint_range[self.constraint_type][0])
         ):
-            print(
+            logger.warn(
                 "Invalid constraint_value! Please input an integer in interval: [%d, %d]!"
                 % (
                     self.valid_constraint_range[self.constraint_type][0],
@@ -135,12 +135,10 @@ class EvolutionFinder:
 
     def random_sample(self):
         constraint = self.efficiency_constraint
-        logger.info(f"\n... 1 ... random sampling with FLOPS < {constraint} MFLOPS")
         while True:
             sample = self.arch_manager.random_sample()
             efficiency = self.efficiency_predictor.predict_efficiency(sample)
             if efficiency <= constraint:
-                logger.info(f"......... done. sample = {sample}")
                 return sample, efficiency
 
     def mutate_sample(self, sample):
@@ -181,7 +179,7 @@ class EvolutionFinder:
         constraint = self.efficiency_constraint
 
         best_valids = [-100]
-        population = []  # (validation, sample, latency) tuples
+        population = []  # (validation, sample, latency, subnet_pt) tuples
         child_pool = []
         best_info = None
 
