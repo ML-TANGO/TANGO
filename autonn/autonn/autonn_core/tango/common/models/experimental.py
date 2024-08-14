@@ -66,22 +66,6 @@ class MixConv2d(nn.Module):
         return x + self.act(self.bn(torch.cat([m(x) for m in self.m], 1)))
 
 
-class Ensemble(nn.ModuleList):
-    # Ensemble of models
-    def __init__(self):
-        super(Ensemble, self).__init__()
-
-    def forward(self, x, augment=False):
-        y = []
-        for module in self:
-            y.append(module(x, augment)[0])
-        # y = torch.stack(y).max(0)[0]  # max ensemble
-        # y = torch.stack(y).mean(0)  # mean ensemble
-        y = torch.cat(y, 1)  # nms ensemble
-        return y, None  # inference, train output
-
-
-
 
 
 class ORT_NMS(torch.autograd.Function):
@@ -158,7 +142,7 @@ class TRT_NMS(torch.autograd.Function):
 
 class ONNX_ORT(nn.Module):
     '''onnx module with ONNX-Runtime NMS operation.'''
-    def __init__(self, max_obj=100, iou_thres=0.45, score_thres=0.25, max_wh=640, device=None, n_classes=80):
+    def __init__(self, max_obj=100, iou_thres=0.45, score_thres=0.25, max_wh=640, device=None, n_classes=80, v9=False):
         super().__init__()
         self.device = device if device else torch.device("cpu")
         self.max_obj = torch.tensor([max_obj]).to(device)
@@ -169,8 +153,11 @@ class ONNX_ORT(nn.Module):
                                            dtype=torch.float32,
                                            device=self.device)
         self.n_classes=n_classes
+        self.v9 = v9
 
     def forward(self, x):
+        if self.v9:
+            return self.forward_v9(x)
         boxes = x[:, :, :4]
         conf = x[:, :, 4:5]
         scores = x[:, :, 5:]
@@ -192,10 +179,37 @@ class ONNX_ORT(nn.Module):
         X = X.unsqueeze(1).float()
         return torch.cat([X, selected_boxes, selected_categories, selected_scores], 1)
 
+    def forward_v9(self, x):
+        ## https://github.com/thaitc-hust/yolov9-tensorrt/blob/main/torch2onnx.py
+        ## thanks https://github.com/thaitc-hust
+        if isinstance(x, list):  ## yolov9-c.pt and yolov9-e.pt return list
+            x = x[1]
+        x = x.permute(0, 2, 1)
+        bboxes_x = x[..., 0:1]
+        bboxes_y = x[..., 1:2]
+        bboxes_w = x[..., 2:3]
+        bboxes_h = x[..., 3:4]
+        bboxes = torch.cat([bboxes_x, bboxes_y, bboxes_w, bboxes_h], dim = -1)
+        bboxes = bboxes.unsqueeze(2) # [n_batch, n_bboxes, 4] -> [n_batch, n_bboxes, 1, 4]
+        obj_conf = x[..., 4:]
+        scores = obj_conf
+        bboxes @= self.convert_matrix
+        max_score, category_id = scores.max(2, keepdim=True)
+        dis = category_id.float() * self.max_wh
+        nmsbox = bboxes + dis
+        max_score_tp = max_score.transpose(1, 2).contiguous()
+        selected_indices = ORT_NMS.apply(nmsbox, max_score_tp, self.max_obj, self.iou_threshold, self.score_threshold)
+        X, Y = selected_indices[:, 0], selected_indices[:, 2]
+        selected_boxes = bboxes[X, Y, :]
+        selected_categories = category_id[X, Y, :].float()
+        selected_scores = max_score[X, Y, :]
+        X = X.unsqueeze(1).float()
+        return torch.cat([X, selected_boxes, selected_categories, selected_scores], 1)
+
 
 class ONNX_TRT(nn.Module):
     '''onnx module with TensorRT NMS operation.'''
-    def __init__(self, max_obj=100, iou_thres=0.45, score_thres=0.25, max_wh=None ,device=None, n_classes=80):
+    def __init__(self, max_obj=100, iou_thres=0.45, score_thres=0.25, max_wh=None ,device=None, n_classes=80, v9=False):
         super().__init__()
         assert max_wh is None
         self.device = device if device else torch.device('cpu')
@@ -207,8 +221,11 @@ class ONNX_TRT(nn.Module):
         self.score_activation = 0
         self.score_threshold = score_thres
         self.n_classes=n_classes
+        self.v9 = v9
 
     def forward(self, x):
+        if self.v9:
+            return self.forward_v9(x)
         boxes = x[:, :, :4]
         conf = x[:, :, 4:5]
         scores = x[:, :, 5:]
@@ -223,17 +240,39 @@ class ONNX_TRT(nn.Module):
                                                                     self.score_threshold)
         return num_det, det_boxes, det_scores, det_classes
 
+    def forward_v9(self, x):
+        if isinstance(x, list):
+            x = x[1]
+        x = x.permute(0, 2, 1)
+        bboxes_x = x[..., 0:1]
+        bboxes_y = x[..., 1:2]
+        bboxes_w = x[..., 2:3]
+        bboxes_h = x[..., 3:4]
+        bboxes = torch.cat([bboxes_x, bboxes_y, bboxes_w, bboxes_h], dim = -1)
+        bboxes = bboxes.unsqueeze(2) # [n_batch, n_bboxes, 4] -> [n_batch, n_bboxes, 1, 4]
+        obj_conf = x[..., 4:]
+        scores = obj_conf
+        num_det, det_boxes, det_scores, det_classes = TRT_NMS.apply(bboxes, 
+                                                                    scores, 
+                                                                    self.background_class, 
+                                                                    self.box_coding,
+                                                                    self.iou_threshold,
+                                                                    self.max_obj,
+                                                                    self.plugin_version,
+                                                                    self.score_activation,
+                                                                    self.score_threshold) 
+        return num_det, det_boxes, det_scores, det_classes           
 
 class End2End(nn.Module):
     '''export onnx or tensorrt model with NMS operation.'''
-    def __init__(self, model, max_obj=100, iou_thres=0.45, score_thres=0.25, max_wh=None, device=None, n_classes=80):
+    def __init__(self, model, max_obj=100, iou_thres=0.45, score_thres=0.25, max_wh=None, device=None, n_classes=80, v9=False):
         super().__init__()
         device = device if device else torch.device('cpu')
         assert isinstance(max_wh,(int)) or max_wh is None
         self.model = model.to(device)
         self.model.model[-1].end2end = True
         self.patch_model = ONNX_TRT if max_wh is None else ONNX_ORT
-        self.end2end = self.patch_model(max_obj, iou_thres, score_thres, max_wh, device, n_classes)
+        self.end2end = self.patch_model(max_obj, iou_thres, score_thres, max_wh, device, n_classes, v9)
         self.end2end.eval()
 
     def forward(self, x):
@@ -244,14 +283,37 @@ class End2End(nn.Module):
 
 
 
+class Ensemble(nn.ModuleList):
+    # Ensemble of models
+    def __init__(self):
+        super(Ensemble, self).__init__()
 
-def attempt_load(weights, map_location=None):
+    def forward(self, x, augment=False):
+        y = []
+        for module in self:
+            y.append(module(x, augment)[0])
+        # y = torch.stack(y).max(0)[0]  # max ensemble
+        # y = torch.stack(y).mean(0)  # mean ensemble
+        y = torch.cat(y, 1)  # nms ensemble
+        return y, None  # inference, train output
+
+
+def attempt_load(weights, map_location=None, fused=True):
     # Loads an ensemble of models weights=[a,b,c] or a single model weights=[a] or weights=a
     model = Ensemble()
     for w in weights if isinstance(weights, list) else [weights]:
         attempt_download(w)
         ckpt = torch.load(w, map_location=map_location)  # load
-        model.append(ckpt['ema' if ckpt.get('ema') else 'model'].float().fuse().eval())  # FP32 model
+
+        # Model compatibility updates
+        # if not hasattr(ckpt, 'stride'):
+        #     ckpt.stride = torch.tensor([32.])
+
+        if fused:
+            model.append(ckpt['ema' if ckpt.get('ema') else 'model'].float().fuse().eval())  # FP32 fused model
+        else:
+            model.append(ckpt['ema' if ckpt.get('ema') else 'model'].float().eval())  # FP32 original model
+
     # Compatibility updates
     for m in model.modules():
         if type(m) in [nn.Hardswish, nn.LeakyReLU, nn.ReLU, nn.ReLU6, nn.SiLU]:
@@ -260,12 +322,11 @@ def attempt_load(weights, map_location=None):
             m.recompute_scale_factor = None  # torch 1.11.0 compatibility
         elif type(m) is Conv:
             m._non_persistent_buffers_set = set()  # pytorch 1.6.0 compatibility
+
     if len(model) == 1:
         return model[-1]  # return model
     else:
         print('Ensemble created with %s\n' % weights)
-        for k in ['names', 'stride']:
+        for k in ['names', 'stride', 'nc', 'yaml']:
             setattr(model, k, getattr(model[-1], k))
         return model  # return ensemble
-
-

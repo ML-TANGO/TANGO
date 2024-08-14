@@ -10,7 +10,6 @@ import logging
 
 from tango.common.models.common import *
 from tango.common.models.experimental import *
-from tango.utils.autoanchor import check_anchor_order
 from tango.utils.general import make_divisible #, check_file, set_logging
 from tango.utils.torch_utils import (   fuse_conv_and_bn,
                                         model_summary,
@@ -552,7 +551,7 @@ class ClassifyModel(nn.Module):
         return model_summary(self, img_size, verbose)
 
 
-def parse_model(d, ch):  # model_dict, input_channels(3)
+def parse_model(d, ch):  # model_dict, input_channels(1 or 3)
     # logger.info('\n%3s%18s%3s%10s  %-40s%-30s' % ('', 'from', 'n', 'params', 'module', 'arguments'))
     nodes_info = {}
     nc = d['nc']

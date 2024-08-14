@@ -30,7 +30,7 @@ TORCH_NN_MODULES =  {   'Conv2d', 'ConvTranspose2d',
                         'Upsample', 'Flatten'
                     }
 HEAD_MODULES = { 'Classify', 'Detect', 'IDetect', 'IAuxDetect', 'IKeypoint',
-                 'IBin', 'Segment', 'Pose'}
+                 'IBin', 'DDetect', 'DualDDetect', 'TripleDDetect', 'Segment', 'Pose'}
 
 
 class BasemodelViewer:
@@ -66,10 +66,10 @@ class BasemodelViewer:
         # nc = basemodel.get('nc', 80)  # default number of classes = 80 (coco)
         # ch = [basemodel.get('ch', 3)] # default channel = 3 (RGB)
         basemodel['nc'] = nc = data_dict.get('nc', 80)
-        basemodel['ch'] = ch = [ data_dict.get('ch', 3) ]
+        basemodel['ch'] = ch = [ data_dict.get('ch', 3) ] # TODO: it doesn't matter whether input is 1 channel or 3 channels for now
         layers, lines, c2, edgeid = [], [], ch[-1], 0
         for i, (f, n, m, args) in enumerate(basemodel['backbone'] + basemodel['head']):  # from, number, module, args
-            logger.debug(f"💧 Read yaml layer-{i} : ({f}, {n}, {m}, {args})")
+            logger.info(f"💧 Read yaml layer-{i} : ({f}, {n}, {m}, {args})")
 
             # node parsing -------------------------------------------------
             # m = eval(m) if isinstance(m, str) else m  # eval strings
@@ -157,6 +157,29 @@ class BasemodelViewer:
                 o = args[0]
                 params = (
                     f"'output_size': ({o}, {o})"
+                )
+            elif m == 'MP':
+                c1 = ch[f]
+                c2 = c1
+                k = 2
+                if len(args) > 0:
+                    k = args[0]
+                params = (
+                    f"'k': {k}"
+                )
+            elif m == 'SP':
+                c1 = ch[f]
+                c2 = c1
+                k = 3
+                s = 1
+                if len(args) > 1:
+                    k = args[0]
+                    s = args[1]
+                elif len(args) == 1:
+                    k = args[0]
+                params = (
+                    f"'kernel_size': {k} \n "
+                    f"'stride': {s}"
                 )
             elif m == 'nn.ConstantPad2d':
                 c1 = ch[f]
@@ -285,6 +308,10 @@ class BasemodelViewer:
                     f"'start_dim': {s_dim} \n "
                     f"'end_dim': {e_dim}"
                 )
+            elif m == 'ReOrg':
+                c1 = ch[f]
+                c2 = 4 * c1
+                params = ()            
             elif m == 'nn.Upsample':
                 c1 = ch[f]
                 c2 = c1
@@ -344,11 +371,17 @@ class BasemodelViewer:
             elif m == 'Conv':
                 c1 = ch[f]
                 c2 = args[0]
-                k = args[1]
-                s = args[2]
-                p = args[3]
-                g = args[4]
-                a = args[5]
+                k, s, p, g, a = 1, 1, None, 1, True # default
+                if len(args) > 1:
+                    k = args[1]
+                if len(args) > 2:
+                    s = args[2]
+                if len(args) > 3:
+                    p = args[3]
+                if len(args) > 4:
+                    g = args[4]
+                if len(args) > 5:
+                    a = args[5]
                 params = (
                     f"'in_channels': {c1} \n "
                     f"'out_channels': {c2} \n "
@@ -356,6 +389,23 @@ class BasemodelViewer:
                     f"'stride': {s} \n "
                     f"'pad': {p} \n "
                     f"'groups': {g} \n "
+                    f"'act': {a}"
+                )
+            elif m in ('DyConv', 'TinyDyConv'):
+                c1 = ch[f]
+                c2 = args[0]
+                k, s, a = 1, 1, True # default
+                if len(args) > 1:
+                    k = args[1]
+                if len(args) > 2:
+                    s = args[2]
+                if len(args) > 3:
+                    a = args[3]
+                params = (
+                    f"'in_channels': {c1} \n "
+                    f"'out_channels': {c2} \n "
+                    f"'kernel_size': {k} \n "
+                    f"'stride': {s} \n "
                     f"'act': {a}"
                 )
             elif m == 'Concat':
@@ -373,6 +423,13 @@ class BasemodelViewer:
                 params = (
                     f"'dim': {d}"
                 )
+            elif m in ('ADown', 'AConv'):
+                c1 = ch[f] 
+                c2 = args[0]
+                params = (
+                    f"'in_channels': {c1} \n "
+                    f"'out_channels': {c2}"
+                )
             elif m == 'Shortcut':
                 d = args[0]
                 if isinstance(f, int):
@@ -387,14 +444,45 @@ class BasemodelViewer:
                 params = (
                     f"'dim': {d}"
                 )
+            elif m == 'CBFuse': # basically, it is like point-wise sum
+                idx = args[0] # list-type
+                if not isinstance(f, list): # only 1 input for fusing ? 
+                    c1 = ch[f]
+                    c2 = c1
+                else:
+                    c1 = [ch[x] for x in f]
+                    c2 = c1[-1]
+                params = (
+                    f"index': {idx}"
+                )
+            elif m == 'CBLinear': # basically, it is like channel-wise split
+                c1 = ch[f] 
+                c2s = args[0] # list-type
+                k, s, p, g = 1, 1, None, 1 # default
+                if len(args) > 1:
+                    k = args[1]
+                if len(args) > 2:
+                    s = args[2]
+                if len(args) > 3:
+                    p = args[3]
+                if len(args) > 4:
+                    g = args[4]
+                params = (
+                    f"'in_channels': {c1} \n "
+                    f"'out_channels': {c2s} \n "
+                    f"'kernel_size': {k} \n "
+                    f"'stride': {s} \n "
+                    f"'padding': {p} \n "
+                    f"'groups': {g}"
+                )
             elif m == 'DownC':
                 c1 = ch[f]
                 c2 = args[0]
                 n = 1
                 if len(args) > 1:
                     n = args[1]
-                    if len(args) > 2:
-                        k = args[2]
+                if len(args) > 2:
+                    k = args[2]
                 params = (
                     f"'in_channels': {c1} \n "
                     f"'out_channels': {c2} \n "
@@ -404,48 +492,27 @@ class BasemodelViewer:
             elif m == 'SPPCSPC':
                 c1 = ch[f]
                 c2 = args[0]
-                n = args[1]
-                shortcut = args[2]
-                g = args[3]
-                e = args[4]
-                k = args[5]
+                n, shortcut, g, e, k = 1, False, 1, 0.5, (5,9,13) # default
+                if len(args) > 1:
+                    n = args[1]
+                if len(args) > 2:
+                    shortcut = args[2]
+                if len(args) > 3:
+                    g = args[3]
+                if len(args) > 4:
+                    e = args[4]
+                if len(args) > 5:
+                    k = args[5]
                 params = (
                     f"'in_channels': {c1} \n "
                     f"'out_channels': {c2} \n "
                     f"'n': {n} \n "
                     f"'shortcut': {shortcut} \n "
-                    f"'groups': {g} \n"
-                    f"'expansion': {e} \n"
+                    f"'groups': {g} \n "
+                    f"'expansion': {e} \n "
                     f"'kernels': {k}"
                 )
-            elif m == 'ReOrg':
-                c1 = ch[f]
-                c2 = 4 * c1
-                params = ()
-            elif m == 'MP':
-                c1 = ch[f]
-                c2 = c1
-                k = 2
-                if len(args) > 0:
-                    k = args[0]
-                params = (
-                    f"'k': {k}"
-                )
-            elif m == 'SP':
-                c1 = ch[f]
-                c2 = c1
-                k = 3
-                s = 1
-                if len(args) > 1:
-                    k = args[0]
-                    s = args[1]
-                elif len(args) == 1:
-                    k = args[0]
-                params = (
-                    f"'kernel_size': {k} \n "
-                    f"'stride': {s}"
-                )
-            elif m == 'IDetect':
+            elif m in ('Detect', 'IDetect', 'IAuxDetect', 'IKeypoint'):
                 c2 = None
                 nc = args[0]
                 if isinstance(f, list):
@@ -465,7 +532,8 @@ class BasemodelViewer:
                         anchors = args[1]
                     else:
                         anchors = [list(range(args[1]*2))] * nl
-                ch_ = []
+                # ch_ = [] # actually, ch_ should be c1
+                ch_ = c1
                 if len(args)>2:
                     ch_ = args[2]
                 params = (
@@ -473,6 +541,146 @@ class BasemodelViewer:
                     f"'anchors': {anchors} \n "
                     f"'ch': {ch_}"
                 )
+            elif m in ('DDetect', 'DualDDetect', 'TripleDDetect'):
+                c2 = None
+                nc = args[0]
+                if isinstance(f, list):
+                    nl = len(f) # number of detection layers
+                    c1 = [ch[x] for x in f]
+                else:
+                    logger.warn("warning! detection module needs two or more inputs")
+                    nl = 1
+                    c1 = [ch[f]]
+                # anchors = [] # anchor-free heads
+                ch_ = c1
+                if len(args)>1:
+                    ch_ = args[1]
+                inplace_= True
+                if len(args)>2:
+                    inplace_ = args[2]
+                params = (
+                    f"'nc': {nc} \n "
+                    f"'ch': {ch_} \n "
+                    f"'inplace': {inplace_}"
+                )
+            elif m == 'BBoneELAN':
+                c1 = ch[f]
+                k = args[1]
+                d = args[2]
+                c2 = int(args[0]*(d+1))
+                params = (
+                    f"'in_channels': {c1} \n "
+                    f"'out_channels': {c2} \n "
+                    f"'kernels': {k} \n "
+                    f"'depth': {d}"
+                )
+                m = f'{m} d={d}'
+            elif m == 'HeadELAN':
+                c1 = ch[f]
+                k = args[1]
+                d = args[2]
+                c2 = int(args[0]*2 + args[0]/2*(d-1))
+                params = (
+                    f"'in_channels': {c1} \n "
+                    f"'out_channels': {c2} \n "
+                    f"'kernels': {k} \n "
+                    f"'depth': {d}"
+                )
+                m = f'{m} d={d}'
+            elif m == 'SPPELAN':
+                c1 = ch[f]
+                c2 = args[0]
+                c3 = args[1]
+                params = (
+                    f"'in_channels': {c1} \n "
+                    f"'out_channels': {c2} \n "
+                    f"'hidden_channels' {c2}"
+                )
+            elif m == 'RepConv':
+                c1 = ch[f]
+                c2 = args[0]
+                k, s, p, g, a, d = 1, 1, None, 1, True, False # default
+                if len(args) > 1:
+                    k = args[1]
+                if len(args) > 2:
+                    s = args[2]
+                if len(args) > 3:
+                    p = args[3]
+                if len(args) > 4:
+                    g = args[4]
+                if len(args) > 5:
+                    a = args[5]
+                if len(args) > 6:
+                    d = args[6]
+                params = (
+                    f"'in_channels': {c1} \n "
+                    f"'out_channels': {c2} \n "
+                    f"'kernel_size': {k} \n "
+                    f"'stride': {s} \n "
+                    f"'pad': {p} \n "
+                    f"'groups': {g} \n "
+                    f"'act': {a} \n "
+                    f"'deploy': {d}"
+                )            
+            elif m == 'RepNBottelneck':
+                c1 = ch[f] 
+                c2 = args[0]
+                shortcut, g, k, e = True, 1, (3,3), 0.5 # default
+                if len(args) > 1:
+                    shortcut = args[1]
+                if len(args) > 2:
+                    g = args[2]
+                if len(args) > 3:
+                    k = args[3]
+                if len(args) > 4:
+                    e = args[4]
+                params = (
+                    f"'in_channels': {c1} \n "
+                    f"'out_channels': {c2} \n "
+                    f"'shortcut': {shortcut} \n "
+                    f"'groups': {g} \n "
+                    f"'kernel_size': ({k[0], k[1]}) \n "
+                    f"'expansion': {e}"
+                )
+            elif m == 'RepNCSP':
+                c1 = ch[f]
+                c2 = args[0]
+                n, shortcut, g, e = 1, True, 1, 0.5 # default
+                if len(args) > 1:
+                    n = args[1]
+                if len(args) > 2:
+                    shortcut = args[2]
+                if len(args) > 3:
+                    g = args[3]
+                if len(args) > 4:
+                    e = args[4]
+                params = (
+                    f"'in_channels': {c1} \n "
+                    f"'out_channels': {c2} \n "
+                    f"'repetition': {n} \n "
+                    f"'shortcut': {shortcut} \n "
+                    f"'groups': {g} \n"
+                    f"'expansion': {e}"
+                )
+            elif m == 'RepNCSPELAN4':
+                c1 = ch[f]
+                c2 = args[0]
+                c3 = args[1]
+                c4 = args[2]
+                c5 = 1 # default
+                if len(args) > 4:
+                    c5 = args[3]
+                params = (
+                    f"'in_channels': {c1} \n "
+                    f"'out_channels': {c2} \n "
+                    f"'1st_hidden_channels': {c3} \n "
+                    f"'2nd_hidden_channels': {c4} \n "
+                    f"'3rd_hidden_channels': {c5}"
+                )
+            elif m == 'Silence':
+                c1 = ch[f] 
+                c2 = c1
+                params = ()
             else:
                 logger.warn(f"unsupported module... {m}")
                 c1 = ch[f]
@@ -766,7 +974,7 @@ def export_yml(name, yaml_path):
         elif module_ in ('BCELoss', 'CrossEntropyLoss', 'MESLoss'):
             r_ = params_['reduction']
             args_ = [r_]
-        elif module_ == 'Flatten':
+        elif module_ in 'Flatten':
             # TODO: needs to wrap this with export-friendly classes
             d_st = params_['start_dim']
             d_ed = params_['end_dim']
@@ -789,6 +997,11 @@ def export_yml(name, yaml_path):
             w_ = params_['base_width']
             norm_ = params_['norm_layer']
             args_ = [ch_, s_, downsample_, g_, w_, d_, norm_]
+        elif module_ == 'cBasicBlock':
+            # resent-cifar10
+            ch_ = params_['planes']
+            s_ = params_['stride']
+            args_ = [ch_, s_]
         elif module_ == 'Conv':
             ch_ = params_['out_channels']
             k_ = params_['kernel_size']
@@ -797,12 +1010,31 @@ def export_yml(name, yaml_path):
             g_ = params_['groups']
             a_ = params_['act']
             args_ = [ch_, k_, s_, p_, g_, a_]
+        elif module_ in ('DyConv', 'TinyDyConv'):
+            ch_ = params_['out_channels']
+            k_ = params_['kernel_size']
+            s_ = params_['stride']
+            a_ = params_['act']
+            args_ = [ch_, k_, s_, a_]
         elif module_ == 'Concat':
             d_ = params_['dim']
             args_ = [d_]
+        elif module_ in ('ADown', 'AConv'):
+            ch_ = params_['out_channels']
+            args_ = [ch_]
         elif module_ == 'Shortcut':
             d_ = params_['dim']
             args_ = [d_]
+        elif module_ == 'CBFuse':
+            idx_ = params_['index']
+            args_ = [idx_]
+        elif module_ == 'CBLinear':
+            ch_ = params_['out_channels']
+            k_ = params_['kernel_size']
+            s_ = params_['stride']
+            p_ = params_['padding']
+            g_ = params_['groups']
+            args_ = [ch_, k_, s_, p_, g_]
         elif module_ == 'DownC':
             ch_ = params_['out_channels']
             n_ = params_['n']
@@ -816,11 +1048,56 @@ def export_yml(name, yaml_path):
             e_ = params_['expansion']
             k_ = params_['kernels']
             args_ = [ch_, n_, sh_, g_, e_, k_]
-        elif module_ == 'IDetect':
+        elif module_ in ('Detect', 'IDetect', 'IAuxDetect', 'IKeypoint'):
             nc_ = params_['nc']
             anchors_ = params_['anchors']
             ch_ = params_['ch']
             args_ = [nc_, anchors_, ch_]
+        elif module_ in ('DDetect', 'DualDDetect', 'TripleDDetect'):
+            nc_ = params_['nc']
+            ch_ = params_['ch']
+            inplace_ = params_['inplace']
+            args_ = [nc_, ch_, inplace_]        
+        elif module_ in ('BBoneELAN', 'HeadELAN'):
+            ch_ = params_['out_channels']
+            k_ = params_['kernel_size']
+            d_ = params_['depth']
+            args_ = [ch_, k_, d_]
+        elif module_ == 'SPPELAN':
+            ch_ = params_['out_channels']
+            hdch_ = params_['hidden_channels']
+            args_ = [ch_, hdch_]
+        elif module_ == 'RepConvN':
+            ch_ = params_['out_channels']
+            k_ = params_['kernel_size']
+            s_ = params_['stride']
+            p_ = params_['padding']
+            g_ = params_['groups']
+            d_ = params_['depth']
+            a_ = params_['act']
+            args_ = [ch_, k_, s_, p_, g_, d_, a_]
+        elif module_ == 'RepNBottleneck':
+            ch_ = params_['out_channels']
+            shortcut_ = params_['shortcut']
+            g_ = params_['groups']
+            k_ = params_['kernel_size']
+            e_ = params_['expansion']
+            args_ = [ch_, shortcut_, g_, k_, e_]
+        elif module_ == 'RepNCSP':
+            ch_ = params_['out_channels']
+            n_ = params_['repetition']
+            shortcut_ = params_['shortcut']
+            g_ = params_['groups']
+            e_ = params_['expansion']
+            args_ = [ch_, n_, shortcut_, g_, e_]
+        elif module_ == 'RepNCSPELAN4':
+            ch_ = params_['out_channels']
+            hdch_ = params_['1st_hidden_channels']
+            hdch2_ = params_['2nd_hidden_channels']
+            hdch3_ = params_['3rd_hidden_channels']
+            args_ = [ch_, hdch_, hdch2_, hdch3_] 
+        elif module_ == 'Silence':
+            args_ = []
         else:
             print(f"{module_} is not supported yet")
             continue

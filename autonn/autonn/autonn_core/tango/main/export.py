@@ -18,6 +18,9 @@ from torch.utils.mobile_optimizer import optimize_for_mobile
 
 from tango.common.models.experimental import attempt_load, End2End
 from tango.common.models.yolo import    (   Detect,
+                                            DDetect,
+                                            DualDDetect,
+                                            TripleDDetect,
                                             IDetect,
                                             IKeypoint,
                                             IAuxDetect,
@@ -153,6 +156,7 @@ def export_onnx_end2end(model,
                         conf_thres,
                         device,
                         labels,
+                        v9,
                         prefix=colorstr('ONNX END2END:')):
     # YOLO ONNX export
     # check_requirements('onnx')
@@ -172,7 +176,8 @@ def export_onnx_end2end(model,
                         'det_classes': {0: 'batch'},
                     }
         dynamic_axes.update(output_axes)
-        model = End2End(model, topk_all, iou_thres, conf_thres, None ,device, labels)
+
+        model = End2End(model, topk_all, iou_thres, conf_thres, None ,device, labels, v9)
 
         output_names = ['num_dets', 'det_boxes', 'det_scores', 'det_classes']
         shapes = [ batch_size, 1,  batch_size,  topk_all, 4,
@@ -571,6 +576,7 @@ def export_config(src, dst, data, base, device, engine, task='detection'):
     with open(dst, 'w') as f:
         yaml.dump(nn_dict, f, default_flow_style=False)
 
+    logger.info(f"NN meta information export success, saved as {dst}")
 
 def export_weight(weights, device, include, task='detection', ch=3, imgsz=[640,640]):
     t = time.time()
@@ -629,8 +635,13 @@ def export_weight(weights, device, include, task='detection', ch=3, imgsz=[640,6
 
     # Update model
     model.eval()
+    v9 = False
     for k, m in model.named_modules():
-        # if isinstance(m, (Detect, DDetect, DualDetect, DualDDetect)):
+        if isinstance(m, (Detect, DDetect, DualDDetect, DualDDetect)):
+            m.inplace = inplace
+            m.dynamic = dynamic
+            m.export = True
+            v9 = True
         if isinstance(m, (Detect, IDetect, IKeypoint, IAuxDetect, IBin)):
             m.inplace = inplace
             m.dynamic = dynamic
@@ -646,13 +657,15 @@ def export_weight(weights, device, include, task='detection', ch=3, imgsz=[640,6
     if half and not coreml:
         im, model = im.half(), model.half()  # to FP16
 
-    # shape = tuple((y[0] if isinstance(y, (tuple, list)) else y).shape)  # model output shape
     shape = []
-    if isinstance(y, (tuple, list)):
-        for yi in y:
-            shape.append(yi.shape)
+    if v9:
+        shape = tuple((y[0] if isinstance(y, (tuple, list)) else y).shape)  # model output shape
     else:
-        shape.append(y.shape)
+        if isinstance(y, (tuple, list)):
+            for yi in y:
+                shape.append(yi.shape)
+        else:
+            shape.append(y.shape)
     if task == 'detection':
         metadata = {'stride': int(max(model.stride)), 'names': model.names}  # model metadata
     elif task == 'classification':
@@ -677,7 +690,16 @@ def export_weight(weights, device, include, task='detection', ch=3, imgsz=[640,6
         # else:
         #     raise RuntimeError("The model is not a DetectionModel.")
         labels = model.names
-        f[2], onnx_model = export_onnx_end2end(model, im, file, simplify, topk_all, iou_thres, conf_thres, device, len(labels))
+        f[2], onnx_model = export_onnx_end2end( model, 
+                                                im, 
+                                                file, 
+                                                simplify, 
+                                                topk_all, 
+                                                iou_thres, 
+                                                conf_thres, 
+                                                device, 
+                                                len(labels),
+                                                v9)
     if xml:  # OpenVINO
         f[3], _ = export_openvino(file, metadata, half)
     if coreml:  # CoreML

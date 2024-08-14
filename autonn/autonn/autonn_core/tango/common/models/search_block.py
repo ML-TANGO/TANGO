@@ -4,7 +4,7 @@ import torch.nn as nn
 from tango.common.models.common import Conv, Concat
 from tango.common.models.dynamic_op import DynamicConv2d, DynamicBatchNorm2d
 
-
+# ELAN base module
 class ELAN(nn.Module):
     def __init__(self, c1, c2, k, depth):
         super(ELAN, self).__init__()
@@ -12,6 +12,8 @@ class ELAN(nn.Module):
         self.c2 = c2
         self.depth = depth
 
+
+# ELANBlock in real
 class ELANBlock(nn.Module):
     def __init__(self, mode, layers, depth):
         super(ELANBlock, self).__init__()
@@ -65,7 +67,7 @@ class BBoneELAN(ELAN):
             if i == 0: # left output in depth 1
                 outputs.append(m(x))
             else: # right outputs in depth 1 ~
-                x = m(x)
+                x = m(x)    # it is equivalent with f = [-1] in config(self.yaml)
                 outputs.append(x)
                 
         if d is not None:
@@ -118,8 +120,56 @@ class HeadELAN(ELAN):
     
     def get_active_net(self):
         raise NotImplementedError
-    
-    
+
+
+# DyConvBlock for subnet
+class DyConvBlock(nn.Module):
+    # Dynamic Convolution for elastic channel size
+    def __init__(self, conv, bn, act, in_channels):
+        super(DyConvBlock, self).__init__()
+        c1 = in_channels
+        c2 = conv.max_out_channels
+        k  = conv.kernel_size
+        p  = conv.padding
+        s  = conv.stride
+        b  = False
+
+        filters = conv.get_active_filter(c2, c1)
+        self.conv = DynamicConv2d(c1, c2, k, s)
+        with torch.no_grad():
+            self.conv.conv.weight.copy_(filters)
+
+        self.bn = bn
+        self.act = act
+
+    def forward(self, x):
+        return self.act(self.bn(self.conv(x)))
+
+    def fuseforward(self, x):
+        return self.act(self.conv(x))
+
+    def fuse_conv_and_bn(self):
+        conv = self.conv.conv
+        bn = self.bn.bn
+        fusedconv = nn.Conv2d(conv.in_channels,
+                              conv.out_channels,
+                              kernel_size=conv.kernel_size,
+                              stride=conv.stride,
+                              padding=conv.padding,
+                              groups=conv.groups,
+                              bias=True).requires_grad_(False).to(conv.weight.device)
+        # prepare filters
+        w_conv = conv.weight.clone().view(conv.out_channels, -1)
+        w_bn = torch.diag(bn.weight.div(torch.sqrt(bn.eps + bn.running_var)))
+        fusedconv.weight.copy_(torch.mm(w_bn, w_conv).view(fusedconv.weight.shape))
+
+        # prepare spatial bias
+        b_conv = torch.zeros(conv.weight.size(0), device=conv.weight.device) if conv.bias is None else conv.bias
+        b_bn = bn.bias - bn.weight.mul(bn.running_mean).div(torch.sqrt(bn.running_var + bn.eps))
+        fusedconv.bias.copy_(torch.mm(w_bn, b_conv.reshape(-1, 1)).reshape(-1) + b_bn)
+
+        return fusedconv
+
 # Dynamic Convolution for elastic channel size
 class DyConv(nn.Module):
     # Dynamic Convolution for elastic channel size
@@ -134,10 +184,37 @@ class DyConv(nn.Module):
 
     def fuseforward(self, x):
         return self.act(self.conv(x))
-    
-#==============================================================
-#======================= YOLOv7-tiny ==========================
-#==============================================================
+
+    def fuse_conv_and_bn(self):
+        conv = self.conv.conv
+        bn = self.bn.bn
+        fusedconv = nn.Conv2d(conv.in_channels,
+                              conv.out_channels,
+                              kernel_size=conv.kernel_size,
+                              stride=conv.stride,
+                              padding=conv.padding,
+                              groups=conv.groups,
+                              bias=True).requires_grad_(False).to(conv.weight.device)
+
+        # prepare filters
+        w_conv = conv.weight.clone().view(conv.out_channels, -1)
+        w_bn = torch.diag(bn.weight.div(torch.sqrt(bn.eps + bn.running_var)))
+        fusedconv.weight.copy_(torch.mm(w_bn, w_conv).view(fusedconv.weight.shape))
+
+        # prepare spatial bias
+        b_conv = torch.zeros(conv.weight.size(0), device=conv.weight.device) if conv.bias is None else conv.bias
+        b_bn = bn.bias - bn.weight.mul(bn.running_mean).div(torch.sqrt(bn.running_var + bn.eps))
+        fusedconv.bias.copy_(torch.mm(w_bn, b_conv.reshape(-1, 1)).reshape(-1) + b_bn)
+
+        if self.bn is not None:
+            del self.bn
+
+        return fusedconv
+
+
+#===============================================================================
+#=============================== YOLOv7-tiny ===================================
+#===============================================================================
 
 class ELAN2(nn.Module):
     def __init__(self, c1, c2, k, depth, act):
@@ -197,3 +274,29 @@ class TinyDyConv(nn.Module):
 
     def fuseforward(self, x):
         return self.act(self.conv(x))
+
+    def fuse_conv_and_bn(self):
+        conv = self.conv.conv
+        bn = self.bn.bn
+        fusedconv = nn.Conv2d(conv.in_channels,
+                              conv.out_channels,
+                              kernel_size=conv.kernel_size,
+                              stride=conv.stride,
+                              padding=conv.padding,
+                              groups=conv.groups,
+                              bias=True).requires_grad_(False).to(conv.weight.device)
+
+        # prepare filters
+        w_conv = conv.weight.clone().view(conv.out_channels, -1)
+        w_bn = torch.diag(bn.weight.div(torch.sqrt(bn.eps + bn.running_var)))
+        fusedconv.weight.copy_(torch.mm(w_bn, w_conv).view(fusedconv.weight.shape))
+
+        # prepare spatial bias
+        b_conv = torch.zeros(conv.weight.size(0), device=conv.weight.device) if conv.bias is None else conv.bias
+        b_bn = bn.bias - bn.weight.mul(bn.running_mean).div(torch.sqrt(bn.running_var + bn.eps))
+        fusedconv.bias.copy_(torch.mm(w_bn, b_conv.reshape(-1, 1)).reshape(-1) + b_bn)
+
+        if self.bn is not None:
+            del self.bn
+
+        return fusedconv

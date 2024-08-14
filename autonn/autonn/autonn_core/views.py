@@ -202,6 +202,70 @@ def start(request):
 
 
 @api_view(['GET'])
+def resume(request):
+    """
+    API for project manager having autonn resumed
+    """
+    # print("_________GET /resume_____________")
+    params = request.query_params
+    userid = params['user_id']
+    project_id = params['project_id']
+
+    synchronize_project_manager_db(userid)
+
+    try:
+        info = Info.objects.get(userid=userid, project_id=project_id)
+        print(info)
+        if info.status in ['started', 'running']:
+            return Response("failed", status=status.HTTP_406_NOT_ACCEPTABLE, content_type="text/plain")
+    except Info.DoesNotExist:
+        print('not found autonn info')
+        return Response("failed", status=status.HTTP_404_BAD_REQUEST, content_type="text/plain")
+
+    last_epoch = info.epoch
+    last_bs_factor = info.batch_multiplier
+    last_bs = info.batch_size
+    last_process_number = info.process_id
+
+    print("================ RESUME =====================")
+    print(f'epoch = {last_epoch}, bs_factor={last_bs_factor}, bs={last_bs}, process={last_process_number}')
+    try:
+        process_done = PROCESSES.pop(str(last_process_number))
+        if process_done.is_alive():
+            process_done.terminate()
+            process_done.join()
+    except Exception as e:
+        print(e)
+
+    print(f"[TENACE] RESUME is Not Implemented Yet... "
+          f"I'll just signal `completed` to PM for now to avoid infinite loop")
+    status_report(userid, project_id, "completed")
+    return Response("completed", status=status.HTTP_200_OK, content_type="text/plain")
+
+    '''
+    try:
+        # data_yaml, proj_yaml = get_user_requirements(userid, project_id)
+
+        pr = mp.Process(target = process_autonn, args=(userid, project_id))
+        pr_id = get_process_id()
+        PROCESSES[pr_id] = pr
+        PROCESSES[pr_id].start()
+
+        # info.target_device=str(proj_yaml)
+        # info.data_yaml=str(data_yaml)
+        info.status="started"
+        info.progress="setting"
+        info.process_id = pr_id
+        info.save()
+        return Response("started", status=status.HTTP_200_OK, content_type="text/plain")
+    except Exception as e:
+        print(f"[AutoNN GET/start] exception: {e}")
+        info.status="failed"
+        info.save()
+        return Response("failed", status=status.HTTP_400_BAD_REQUEST, content_type="text/plain")
+    '''
+
+@api_view(['GET'])
 def status_request(request):
     """
     API for project manager pooling autonn status
@@ -277,7 +341,7 @@ def process_autonn(userid, project_id):
     '''
     try:
         # ------- actual process --------
-        final_model = run_autonn(userid, project_id, viz2code="False", nas="False", hpo="False")
+        final_model = run_autonn(userid, project_id, viz2code=False, nas=False, hpo=False)
 
         # -------- ready to export ------
         # best_pt_path = f'/shared/common/{userid}/{project_id}/bestmodel.pt'
@@ -291,7 +355,9 @@ def process_autonn(userid, project_id):
         # export_weight(best_pt_path, userid, project_id, target_acc, convert)
         # export_weight(best_pt_path, userid, project_id, target_acc, ['onnx_end2end'])
 
-
+        info = Info.objects.get(userid=userid, project_id=project_id)
+        info.status = "completed"
+        info.save()
         status_report(userid, project_id, "completed")
         # print("=== wait for 10 sec to avoid thread exception =============")
         # import time
@@ -302,8 +368,15 @@ def process_autonn(userid, project_id):
         if torch.cuda.is_available():
             torch.cuda.empty_cache()
         gc.collect()
+        info = Info.objects.get(userid=userid, project_id=project_id)
+        info.status = "failed"
+        info.save()
         status_report(userid, project_id, "failed")
-
+    # finally:
+    #     import torch, gc
+    #     if torch.cuda.is_available():
+    #         torch.cuda.empty_cache()
+    #     gc.collect()
 
 def get_process_id():
     """

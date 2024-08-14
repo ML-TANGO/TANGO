@@ -10,6 +10,9 @@ val: /shared/datasets/imagenet/images/val2012
 # number of classes
 nc: 1000
 
+# channel
+ch: 3
+
 # class names
 # Simplified class names from https://github.com/anishathalye/imagenet-simple-labels
 names:

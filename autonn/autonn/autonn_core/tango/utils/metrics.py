@@ -14,7 +14,15 @@ def fitness(x):
     return (x[:, :4] * w).sum(1)
 
 
-def ap_per_class(tp, conf, pred_cls, target_cls, v5_metric=False, plot=False, save_dir='.', names=()):
+def smooth(y, f=0.05):
+    # Box filter of fraction f
+    nf = round(len(y) * f * 2) // 2 + 1  # number of filter elements (must be odd)
+    p = np.ones(nf // 2)  # ones padding
+    yp = np.concatenate((p * y[0], y, p * y[-1]), 0)  # y padded
+    return np.convolve(yp, np.ones(nf) / nf, mode='valid')  # y-smoothed
+
+
+def ap_per_class(tp, conf, pred_cls, target_cls, metric='v5', plot=False, save_dir='.', names=()):
     """ Compute the average precision, given the recall and precision curves.
     Source: https://github.com/rafaelpadilla/Object-Detection-Metrics.
     # Arguments
@@ -35,6 +43,13 @@ def ap_per_class(tp, conf, pred_cls, target_cls, v5_metric=False, plot=False, sa
     # Find unique classes
     unique_classes = np.unique(target_cls)
     nc = unique_classes.shape[0]  # number of classes, number of detections
+
+    # print(f"====shape=======")
+    # print(f"tp      (correct)  .shape = {tp.shape}")
+    # print(f"conf    (pred[:,4]).shape = {conf.shape}")
+    # print(f"pred_cls(pred[:,5]).shape = {pred_cls.shape}")
+    # print(f"target_cls         .shape = {target_cls.shape}")
+    # print(f"unique_classes     .shape = {unique_classes.shape}")
 
     # Create Precision-Recall curve and compute AP for each class
     px, py = np.linspace(0, 1, 1000), []  # for plotting
@@ -61,7 +76,7 @@ def ap_per_class(tp, conf, pred_cls, target_cls, v5_metric=False, plot=False, sa
 
             # AP from recall-precision curve
             for j in range(tp.shape[1]):
-                ap[ci, j], mpre, mrec = compute_ap(recall[:, j], precision[:, j], v5_metric=v5_metric)
+                ap[ci, j], mpre, mrec = compute_ap(recall[:, j], precision[:, j], metric=metric)
                 if plot and j == 0:
                     py.append(np.interp(px, mrec, mpre))  # precision at mAP@0.5
 
@@ -73,22 +88,23 @@ def ap_per_class(tp, conf, pred_cls, target_cls, v5_metric=False, plot=False, sa
         plot_mc_curve(px, p, Path(save_dir) / 'P_curve.png', names, ylabel='Precision')
         plot_mc_curve(px, r, Path(save_dir) / 'R_curve.png', names, ylabel='Recall')
 
-    i = f1.mean(0).argmax()  # max F1 index
+    # i = f1.mean(0).argmax()  # max F1 index
+    i = smooth(f1.mean(0), 0.1).argmax()  # max F1 index
     return p[:, i], r[:, i], ap, f1[:, i], unique_classes.astype('int32')
 
 
-def compute_ap(recall, precision, v5_metric=False):
+def compute_ap(recall, precision, metric='v5'):
     """ Compute the average precision, given the recall and precision curves
     # Arguments
         recall:    The recall curve (list)
         precision: The precision curve (list)
-        v5_metric: Assume maximum recall to be 1.0, as in YOLOv5, MMDetetion etc.
+        metric: 'v5' assumes maximum recall to be 1.0, as in YOLOv5, MMDetetion etc.
     # Returns
         Average precision, precision curve, recall curve
     """
 
     # Append sentinel values to beginning and end
-    if v5_metric:  # New YOLOv5 metric, same as MMDetection and Detectron2 repositories
+    if metric == 'v5':  # New YOLOv5 metric, same as MMDetection and Detectron2 repositories
         mrec = np.concatenate(([0.], recall, [1.0]))
     else:  # Old YOLOv5 metric, i.e. default YOLOv7 metric
         mrec = np.concatenate(([0.], recall, [recall[-1] + 0.01]))
@@ -127,6 +143,12 @@ class ConfusionMatrix:
         Returns:
             None, updates confusion matrix accordingly
         """
+        if detections is None:
+            gt_classes = labels.int()
+            for gc in gt_classes:
+                self.matrix[self.nc, gc] += 1  # background FN
+            return
+        
         detections = detections[detections[:, 4] > self.conf]
         gt_classes = labels[:, 0].int()
         detection_classes = detections[:, 5].int()
@@ -161,6 +183,12 @@ class ConfusionMatrix:
     def matrix(self):
         return self.matrix
 
+    def tp_fp(self):
+        tp = self.matrix.diagonal()  # true positives
+        fp = self.matrix.sum(1) - tp  # false positives
+        # fn = self.matrix.sum(0) - tp  # false negatives (missed detections)
+        return tp[:-1], fp[:-1]  # remove background class
+    
     def plot(self, save_dir='', names=()):
         try:
             import seaborn as sn
@@ -177,6 +205,7 @@ class ConfusionMatrix:
             fig.axes[0].set_xlabel('True')
             fig.axes[0].set_ylabel('Predicted')
             fig.savefig(Path(save_dir) / 'confusion_matrix.png', dpi=250)
+            plt.close(fig)
         except Exception as e:
             pass
 
@@ -217,7 +246,7 @@ def plot_mc_curve(px, py, save_dir='mc_curve.png', names=(), xlabel='Confidence'
     else:
         ax.plot(px, py.T, linewidth=1, color='grey')  # plot(confidence, metric)
 
-    y = py.mean(0)
+    y = smooth(py.mean(0), 0.05)
     ax.plot(px, y, linewidth=3, color='blue', label=f'all classes {y.max():.2f} at {px[y.argmax()]:.3f}')
     ax.set_xlabel(xlabel)
     ax.set_ylabel(ylabel)

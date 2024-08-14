@@ -26,6 +26,7 @@ class TestFuncGen:
         try:
             y = self.model(img)
             y = y[1] if isinstance(y, list) else y
+            y = y[-1] if isinstance(y, list) else y # one more time (just in case dual or triple heads: yolov9)
             loss = y.mean()
             loss.backward() # need to free the variables of the graph
             del img
@@ -43,7 +44,7 @@ def binary_search(uid, pid, low, high, test_func, want_to_get):
     while True:
         next_test = int((low + high) / 2.)
         if next_test==low or next_test==high:
-            print(f'{PREFIX} The result of Binary Search: {next_test}')
+            logger.info(f'{PREFIX} The result of Binary Search: {next_test}')
             return low if low_result==want_to_get else high
 
         judge = test_func(next_test)
@@ -62,30 +63,45 @@ def binary_search(uid, pid, low, high, test_func, want_to_get):
                       update_id="batchsize",
                       update_content=batchsize_content)
 
-def get_batch_size_for_gpu(uid, pid, model, ch, imgsz, amp_enabled=True):
+def get_batch_size_for_gpu(uid, pid, model, ch, imgsz, bs_factor=0.8, amp_enabled=True, max_search=True):
     with torch.cuda.amp.autocast(enabled=amp_enabled):
-        return autobatch(uid, pid, model, ch, imgsz)
+        return autobatch(uid, pid, model, ch, imgsz, bs_factor, max_search=max_search)
 
-def autobatch(uid, pid, model, ch, imgsz, batch_size=16):
-    # prefix = colorstr('AutoBatch: ')
-    if torch.cuda.is_available():
+def autobatch(uid, pid, model, ch, imgsz, bs_factor=0.8, batch_size=16, max_search=True):
+    # Check device
+    # device = torch.device(f'cuda:0')
+    device = next(model.parameters()).device
+    if device != 'cpu' and torch.cuda.is_available():
        num_dev = torch.cuda.device_count() 
     else:
        logger.info(f'{PREFIX} CUDA not detected, using default CPU batch size {batch_size}')
        return batch_size
+    if torch.backends.cudnn.benchmark:
+        logger.info(f'{PREFIX} requires cudnn.benchmark=False, using default batch size {batch_size}')
+        return batch_size
 
-    device = torch.device(f'cuda:0')
+    # Inspect CUDA memory
+    gb = 1 << 30 # bytes in GiB (1024**3)
+    d = str(device).upper() # 'CUDA:0'
+    properties = torch.cuda.get_device_properties(device)
+    t = properties.total_memory / gb            # total
+    r = torch.cuda.memory_reserved(device) / gb # reserved
+    a = torch.cuda.memory_allocated(device)/ gb # allocated
+    f = t - (r + a)                             # free = total - (reserved + allocated)
+    logger.info(f'{PREFIX}{d} ({properties.name}) {t:.2f}G total, {r:.2f}G reserved, {a:.2f}G allocated, {f:.2f}G free')
+
+
     model.to(device)
     model.train()
-
     batchsize_content = {}
-    batch_size = 2
+    batch_size = 2 # 2, 4, 8, 16, 32, 64, 128, 256, ...
     while True:
         img = torch.zeros(batch_size, ch, imgsz, imgsz).float()
         img = img.to(device)
         try:
             y = model(img)
             y = y[1] if isinstance(y, list) else y
+            y = y[-1] if isinstance(y, list) else y # one more time (just in case dual or triple heads: yolov9)
             loss = y.mean()
             loss.backward() # need to free the variables of the graph
             if DEBUG: logger.debug(f'{PREFIX} success: ', batch_size)
@@ -107,11 +123,14 @@ def autobatch(uid, pid, model, ch, imgsz, batch_size=16):
             break
     torch.cuda.empty_cache()
 
-    test_func = TestFuncGen(model, ch, imgsz)
-    final_batch_size = binary_search(uid, pid, final_batch_size, batch_size, test_func, want_to_get=True)
-    torch.cuda.empty_cache()
+    if max_search: # search maximum batch size (allow size other than multiple of 2)
+        test_func = TestFuncGen(model, ch, imgsz)
+        final_batch_size = binary_search(uid, pid, final_batch_size, batch_size, test_func, want_to_get=True)
+        final_batch_size *= bs_factor # need some spare 
+        torch.cuda.empty_cache()
     gc.collect()
 
+    # print(f"FINAL BATCH SIZE = {final_batch_size * num_dev}")
     return final_batch_size * num_dev
 
 

@@ -20,8 +20,10 @@ import torch.optim.lr_scheduler as lr_scheduler
 
 # from torch.utils.tensorboard import SummaryWriter
 from tensorboardX import SummaryWriter
+
 from . import status_update, Info
 from .train import train
+from .search import search
 from .visualize import BasemodelViewer
 from .export import export_weight, export_config
 from tango.utils.general import (   increment_path,
@@ -36,23 +38,36 @@ from tango.utils.wandb_logging.wandb_utils import check_wandb_resume
 
 
 TASK_TO_MODEL_TABLE = {
-    "detection": "yolov7",
+    "detection7": "yolov7",
+    "detection": "yolov9",
     "classification": "resnet",
     "classification-c": "resnetc",
 }
 
 MODEL_TO_SIZE_TABLE = {
     "yolov7": {
-        "cloud": "-tiny",
-        "k8s": "-tiny",
-        "k8sjetsonnano": "-tiny",
-        "pcweb": "-tiny",
-        "pc": "-tiny",
-        "jetsonagxorin": "-tiny",
-        "jetsonagxxavier": "-tiny",
-        "jetsonnano": "-tiny",
+        "cloud": "-d6",
+        "k8s": "-e6",
+        "k8sjetsonnano": "-e6",
+        "pcweb": "-w6",
+        "pc": "-w6",
+        "jetsonagxorin": "x",
+        "jetsonagxxavier": "x",
+        "jetsonnano": "x",
         "galaxys22": "-supernet",
         "odroidn2": "-tiny",
+    },
+    "yolov9": {
+        "cloud": "-e",
+        "k8s": "-c",
+        "k8sjetsonnano": "-c",
+        "pcweb": "-m",
+        "pc": "-m",
+        "jetsonagxorin": "-s",
+        "jetsonagxxavier": "-s",
+        "jetsonnano": "-s",
+        "galaxys22": "-supernet",
+        "odroidn2": "-t",
     },
     "resnet": {
         "cloud": "152",
@@ -92,7 +107,6 @@ def get_user_requirements(userid, projid):
     proj_yaml_path = PROJ_PATH / "project_info.yaml"
     with open(proj_yaml_path, "r") as f:
         proj_info_dict = yaml.safe_load(f)
-    # proj_info_json = json.dumps(proj_info_dict)
     status_update(userid, projid,
                   update_id="project_info",
                   update_content=proj_info_dict)
@@ -112,8 +126,8 @@ def get_user_requirements(userid, projid):
     if os.path.isdir(str(DATASET_ROOT / dataset_on_proj)):
         dataset_yaml_path = DATASET_ROOT / dataset_on_proj / "dataset.yaml"
     else:
-        print(f"There is no {DATASET_ROOT}/{dataset_on_proj}. "
-              f"Instead embedded COCO128 dataset will be used.")
+        logger.warn(f"There is no {DATASET_ROOT}/{dataset_on_proj}. "
+                    f"Instead embedded COCO128 dataset will be used.")
         dataset_on_proj = 'coco128'
         dataset_yaml_path = CORE_DIR / 'datasets' / 'coco128' / 'dataset.yaml'
     with open(dataset_yaml_path) as f:
@@ -136,7 +150,7 @@ def get_user_requirements(userid, projid):
     with open(hyp_yaml_path) as f:
         hyp_dict = yaml.safe_load(f)
     # hyp_dict['lrc'] = hyp_dict['lr0']
-    # hyp_content = json.dumps(hyp_dict)
+    hyp_dict['anchor_t'] = 5.0 # from yolov9
     status_update(userid, projid,
                   update_id="hyperparameter",
                   update_content=hyp_dict)
@@ -146,12 +160,19 @@ def get_user_requirements(userid, projid):
     opt_yaml_path = CFG_PATH / f'args-{task}.yaml'
     with open(opt_yaml_path, encoding='utf-8') as f:
         opt = argparse.Namespace(**yaml.safe_load(f))
-    # opt.name = basemodel_dict['name']
     opt.project = str(PROJ_PATH)
     opt.data = str(dataset_yaml_path)
     opt.cfg = str(basemodel_yaml_path)
     opt.hyp = str(hyp_yaml_path)
     opt.img_size = [basemodel_dict['imgsz'], basemodel_dict['imgsz']]
+    '''
+    WORLD_SIZE: the total number of processes participating in the traininig 
+                (typically the number of GPUs across all nodes)
+    RANK:       global rank, the unique ID for each process involved in the training
+                (ranging from 0 to WORLD_SIZE-1)
+    LOCAL_RANK: the ID under the same node
+                (often GPU is specified with LOCAL_RANK, but not necessarily 1-to-1)  
+    '''
     opt.world_size = int(os.environ['WORLD_SIZE']) if 'WORLD_SIZE' in os.environ else 1
     opt.global_rank = int(os.environ['RANK']) if 'RANK' in os.environ else -1
     opt_content = vars(opt)
@@ -159,7 +180,6 @@ def get_user_requirements(userid, projid):
                   update_id="arguments",
                   update_content=opt_content)
 
-    # basemodel_content = json.dumps(basemodel)
     status_update(userid, projid,
                   update_id="basemodel",
                   update_content=basemodel)
@@ -214,7 +234,7 @@ def base_model_select(userid, project_id, proj_info, data, manual_select=False):
         "model_name": model_p,
         "model_size": size_p,
     }
-    print(basemodel)
+    # print(basemodel)
     return target_path, basemodel
 
 
@@ -230,6 +250,12 @@ def run_autonn(userid, project_id, viz2code=False, nas=False, hpo=False):
     proj_info['nas'] = nas
     proj_info['viz'] = viz2code
     proj_info['hpo'] = hpo
+
+    target = proj_info['target_info'] # PC, Galaxy_S22, etc.
+    target_acc = proj_info['acc'] # cuda, opencl, cpu
+    target_engine = proj_info['engine'].replace('-', '').replace('_', '').lower() # tensorrt, pytorch, tvm, etc.
+    task = proj_info['task_type'] # detection, classification, llm
+
 
     # Clear CUDA memory --------------------------------------------------------
     torch.cuda.empty_cache()
@@ -266,7 +292,9 @@ def run_autonn(userid, project_id, viz2code=False, nas=False, hpo=False):
         #         logger.info(f"{prefix}Start with 'tensorboard --logdir {str(opt.save_dir)}', view at http://localhost:6006/")
         #     except Exception as e:
         #         logger.warn(f'{prefix}Fail to load tensorbord because {e}')
+        #=======================================================================
         results, train_final = train(proj_info, hyp, opt, data, tb_writer)
+        #=======================================================================
         # tb_writer.flush()
 
     # HPO ----------------------------------------------------------------------
@@ -355,21 +383,24 @@ def run_autonn(userid, project_id, viz2code=False, nas=False, hpo=False):
 
         # Plot results
         plot_evolution(yaml_file)
-        print(f'Hyperparameter evolution complete. Best results saved as: {yaml_file}\n'
-              f'Command to train a new model with these hyperparameters: $ python train.py --hyp {yaml_file}')
+        logger.info(f'Hyperparameter evolution complete. Best results saved as: {yaml_file}\n'
+                    f'Command to train a new model with these hyperparameters: $ python train.py --hyp {yaml_file}')
 
     # NAS ----------------------------------------------------------------------
-    # if target == 'Galaxy_S22':
-    #     train_final = run_search(opt, target, target_acc)
+    if nas or target == 'Galaxy_S22':
+        #=======================================================================
+        train_final = search(proj_info, hyp, opt, data, train_final)
+        #=======================================================================
 
     # Model Export -------------------------------------------------------------
     if not train_final:
+        logger.warn("train end but no trained weights")
         return None
-    target_acc = proj_info['acc']
-    target_engine = proj_info['engine'].replace('-', '').replace('_', '').lower()
-    task = proj_info['task_type']
+    # target_acc = proj_info['acc']
+    # target_engine = proj_info['engine'].replace('-', '').replace('_', '').lower()
+    # task = proj_info['task_type']
     channel = data.get('ch')
-    print(f'channle = {channel}')
+    # print(f'channle = {channel}')
     convert = ['torchscript', 'onnx']
     export_weight(train_final, target_acc, convert, task=task, ch=channel, imgsz=opt.img_size)
 

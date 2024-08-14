@@ -1,3 +1,7 @@
+name: yolov7-d6
+hyp: p6
+imgsz: 1280
+
 # parameters
 nc: 80  # number of classes
 depth_multiple: 1.0  # model depth multiple

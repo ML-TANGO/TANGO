@@ -1,4 +1,4 @@
-# args.yaml for Yolov7 
+# args.yaml for Yolov7 and Yolov9 
 weights: ''
 cfg: ''
 data: ''
@@ -34,4 +34,7 @@ bbox_interval: -1
 save_period: -1
 artifact_alias: 'latest'
 freeze: [0]
-v5_metric: False # metirc
+metric: 'v5' # metirc
+loss_name: 'TAL' # anchor-free: TAL, anchor: OTA
+seed: 1
+patience: 10
