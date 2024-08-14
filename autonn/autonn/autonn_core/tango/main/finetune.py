@@ -476,7 +476,7 @@ def finetune(proj_info, subnet, hyp, opt, data_dict, tb_writer=None):
                                                   save_json=False,
                                                   plots=False,
                                                   is_coco=is_coco,
-                                                  v5_metric=opt.v5_metric)
+                                                  metric=opt.metric)
             # Update best mAP
             fi = fitness(np.array(results).reshape(1, -1))  # weighted combination of [P, R, mAP@.5, mAP@.5-.95]
             if fi > best_fitness:

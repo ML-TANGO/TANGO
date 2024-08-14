@@ -1,0 +1,40 @@
+# args.yaml for Yolov9 
+weights: ''
+cfg: ''
+data: ''
+hyp: ''
+epochs: 2
+batch_size: -1  # it'll be changed by auto-batch
+img_size: [640, 640]
+rect: False
+resume: False
+nosave: False
+notest: False
+noautoanchor: False
+evolve: False
+bucket: ''
+cache_images: False
+image_weights: False
+device: ''
+multi_scale: False
+single_cls: False
+adam: False # optimizer
+sync_bn: False
+local_rank: -1
+workers: 8
+project: 'runs/train' # it must be changed to /shared/common/{uid}/{pid}
+entity: None
+name: 'autonn'
+exist_ok: True
+quad: False
+linear_lr: False
+label_smoothing: 0.0
+upload_dataset: False
+bbox_interval: -1
+save_period: -1
+artifact_alias: 'latest'
+freeze: [0]
+metric: 'v5' # metirc
+loss_name: ''
+seed: 1
+patience: 10

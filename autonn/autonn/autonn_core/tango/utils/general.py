@@ -37,8 +37,8 @@ logger = logging.getLogger(__name__)
 def set_logging(rank=-1):
     logging.basicConfig(
         format="%(message)s",
-        level=logging.WARN)
-        # level=logging.INFO if rank in [-1, 0] else logging.WARN)
+        # level=logging.WARN)
+        level=logging.INFO if rank in [-1, 0] else logging.WARN)
 
 
 def init_seeds(seed=0, deterministric=False):
