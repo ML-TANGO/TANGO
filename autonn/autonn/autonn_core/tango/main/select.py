@@ -112,7 +112,8 @@ def get_user_requirements(userid, projid):
                   update_content=proj_info_dict)
 
     info = Info.objects.get(userid=userid, project_id=projid)
-    info.target = proj_info_dict['target_info'].replace('-', '').replace('_', '').lower()
+    target = proj_info_dict['target_info'].replace('-', '').replace('_', '').lower()
+    info.target = target
     info.device = proj_info_dict['acc']
     info.dataset = proj_info_dict['dataset']
     info.task = proj_info_dict['task_type']
@@ -157,7 +158,9 @@ def get_user_requirements(userid, projid):
 
     # ---------------------------- arguments -----------------------------------
     task = proj_info_dict['task_type']
-    opt_yaml_path = CFG_PATH / f'args-{task}.yaml'
+    # trick for nas (temp.)
+    _task =  'detection7' if target == 'galaxys22' else task
+    opt_yaml_path = CFG_PATH / f'args-{_task}.yaml'
     with open(opt_yaml_path, encoding='utf-8') as f:
         opt = argparse.Namespace(**yaml.safe_load(f))
     opt.project = str(PROJ_PATH)
@@ -194,6 +197,10 @@ def base_model_select(userid, project_id, proj_info, data, manual_select=False):
 
     # trick for compact version of resnet
     task_ = 'classification-c' if data['nc'] <= 10 and task == 'classification' else task
+
+    # trick for nas (temp.)
+    if target == 'galaxys22':
+        task_ = 'detection7'
 
     # look up table
     if not manual_select:
@@ -408,7 +415,8 @@ def run_autonn(userid, project_id, viz2code=False, nas=False, hpo=False):
     if task == 'detection':
         export_weight(train_final, target_acc, ['onnx_end2end'])
 
-    src_bestmodel_path = COMMON_ROOT / userid / project_id / 'autonn' / 'weights' / 'best.torchscript'
+    # src_bestmodel_path = COMMON_ROOT / userid / project_id / 'autonn' / 'weights' / 'best.torchscript'
+    src_bestmodel_path = Path(train_final).with_suffix('.torchscript')
     dst_bestmodel_path = COMMON_ROOT / userid / project_id / 'bestmodel.torchscript'
     shutil.copyfile(str(src_bestmodel_path), str(dst_bestmodel_path))
 

@@ -1,4 +1,4 @@
-# args.yaml for Yolov7 and Yolov9 
+# args.yaml for Yolov9 
 weights: ''
 cfg: ''
 data: ''

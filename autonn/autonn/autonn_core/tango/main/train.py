@@ -543,11 +543,10 @@ def train(proj_info, hyp, opt, data_dict, tb_writer=None):
     else: # if task == 'detection':
         if opt.loss_name == 'TAL':
             compute_loss = ComputeLossTAL(model)
-        elif opt.loss_name == 'OTA':
-            compute_loss = ComputeLossOTA(model)  # init loss class
         else:
+            compute_loss_ota = ComputeLossOTA(model)  # init loss class
             compute_loss = ComputeLoss(model)  # init loss class
-
+    
     # Ealry Stopper ------------------------------------------------------------
     # how many epochs could you be waiting for patiently 
     # although accuracy was not better?
@@ -666,8 +665,8 @@ def train(proj_info, hyp, opt, data_dict, tb_writer=None):
                     pred = model(imgs)  # forward
 
                     # if 'loss_ota' not in hyp or hyp['loss_ota'] == 1:
-                    if opt.loss_name == 'OTA':
-                        loss, loss_items = compute_loss(pred, targets.to(device), imgs)  # loss scaled by batch_size
+                    if opt.loss_name == 'OTA' or hyp['loss_ota'] == 1:
+                        loss, loss_items = compute_loss_ota(pred, targets.to(device), imgs)  # loss scaled by batch_size
                     else:
                         loss, loss_items = compute_loss(pred, targets.to(device))  # loss scaled by batch_size
                     if rank != -1:
