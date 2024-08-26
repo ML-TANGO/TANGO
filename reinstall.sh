@@ -1,7 +1,13 @@
 #!/bin/sh
 
-docker-compose down
+echo 'make all docker containers exit and removed'
+docker compose down
+
+echo 'remove all docker images'
 docker rmi $(docker images -q)
+
+echo 'delete labelling/datadb to avoid permission error'
 sudo rm -R labelling/datadb
-docker-compose up --build
-echo 'go and try http://localhost:8085 or http://0.0.0.0:8085'
+
+echo 'build all docker containers'
+docker compose build
