@@ -429,5 +429,19 @@ def run_autonn(userid, project_id, viz2code=False, nas=False, hpo=False):
     # logger.info(f'best model = {train_final}, {mb:.1f} MB')
     # logger.info(f'mAP = {results[-1]}')
 
+    # Inference ----------------------------------------------------------------
+    # version 1. call a function from main codes
+    # from .detect import detect
+    # weights = dst_bestmodel_path
+    # cfg = COMMON_ROOT / userid / project_id / 'basemodel.yaml'
+    # detect(weights, cfg, save_img=False)
+    # INF_DIR = CORE_DIR / 'tango' / 'inference'
+
+    # version 2. run an inference app directly
+    # from tango.inference.detection_app import run
+    # weights = './yolov9-m.torchscript'
+    # source = str(INF_DIR / 'horses.jpg')
+    # run(weights, source, view_img=False, save_img=True, save_txt=True, save_dir=str(INF_DIR))
+
     return train_final  # bestmodel.pt
 

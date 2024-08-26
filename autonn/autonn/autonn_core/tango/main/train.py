@@ -665,7 +665,7 @@ def train(proj_info, hyp, opt, data_dict, tb_writer=None):
                     pred = model(imgs)  # forward
 
                     # if 'loss_ota' not in hyp or hyp['loss_ota'] == 1:
-                    if opt.loss_name == 'OTA' or hyp['loss_ota'] == 1:
+                    if opt.loss_name == 'OTA':
                         loss, loss_items = compute_loss_ota(pred, targets.to(device), imgs)  # loss scaled by batch_size
                     else:
                         loss, loss_items = compute_loss(pred, targets.to(device))  # loss scaled by batch_size
