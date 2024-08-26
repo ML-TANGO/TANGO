@@ -21,6 +21,7 @@ from tango.utils.general import (   coco80_to_coco91_class,
                                     check_requirements,
                                     box_iou,
                                     non_max_suppression,
+                                    non_max_suppression_v9,
                                     scale_coords,
                                     xyxy2xywh,
                                     xywh2xyxy,
@@ -139,14 +140,14 @@ def test(proj_info,
     seen, label_cnt = 0, 0
     confusion_matrix = ConfusionMatrix(nc=nc)
     names = {k: v for k, v in enumerate(model.names if hasattr(model, 'names') else model.module.names)}
-    coco91class = coco80_to_coco91_class()
+    coco91class = coco80_to_coco91_class() if is_coco else list(range(1000))
     s = ('%20s' + '%12s' * 6) % ('Class', 'Images', 'Labels', 'P', 'R', 'mAP@.5', 'mAP@.5:.95')
     logger.info(s)
     tp, fp = 0., 0.
     p, r, f1, mp, mr, map50, map  = 0., 0., 0., 0., 0., 0., 0.
     t, t0, t1, t2 = 0., 0., 0., 0.
     loss = torch.zeros(3, device=device)
-    jdict, stats, ap, ap_class, wandb_images = [], [], [], [], []
+    jdict, stats, ap, ap_class = [], [], [], []
     # for batch_i, (img, targets, paths, shapes) in enumerate(tqdm(dataloader, desc=s)):
     for batch_i, (img, targets, paths, shapes) in enumerate(dataloader):
         img = img.to(device, non_blocking=True)
@@ -155,18 +156,37 @@ def test(proj_info,
         targets = targets.to(device)
         nb, _, height, width = img.shape  # batch size, channels, height, width
 
-        with torch.no_grad():
+        print(f"batch #{batch_i}: {len(paths)} imgs")
+        print('\t'+'_'*100)
+        for cnt, path in enumerate(paths):
+            s = ''
+            for target in targets:
+                idx = int(target[0].item())
+                if cnt == idx:
+                    cls_idx = int(target[1].item())
+                    s += f"{cls_idx} "
+            print(f"\t{cnt}: {path}, [ {s}]")
+        print('\t'+'_'*100)
 
+        with torch.no_grad():
             # Run model --------------------------------------------------------
             t = time_synchronized()
             out, train_out = model(img, augment=augment)  # inference and training outputs
-            # for 1 head
-            # out.shape = (bs, 25200, 85) : tensor
-            # train_out.shape = ( (bs,3,80,80,85), (bs,3,40,40,85), (bs,3,20,20,85) ) : list
+            '''
+            for single anchor-based head (v7)
+                out.shape = (bs, 25200, 85) : tensor
+                train_out.shape = ( (bs,3,80,80,85), (bs,3,40,40,85), (bs,3,20,20,85) ) : list
+            for dual anchor-free heads (v9)
+                out.shape = ( (bs, 84, 8400), (bs, 84, 8400) ) : list
+                train_out.shape = ( ((bs,80,80,84), (bs,40,40,84), (bs,20,20,84)),
+                                    ((bs,80,80,84), (bs,40,40,84), (bs,20,20,84))  ) : list
+            '''
             if v9 and nh > 1:
                 out = out[nh-1]
                 # train_out = train_out[nh-1]
-            t0 += time_synchronized() - t
+            _t0 = time_synchronized() - t
+            t0 += _t0
+            print(f"batch #{batch_i}: running model for {1E3*_t0:.2f} msec")
 
             # Compute loss -----------------------------------------------------
             if compute_loss:
@@ -174,13 +194,15 @@ def test(proj_info,
                     loss = compute_loss(train_out, targets)[1][:3]
                 else:
                     loss += compute_loss([x.float() for x in train_out], targets)[1][:3]  # box, obj(dfl), cls
-            
+                print(f"batch #{batch_i}: compute loss - {loss}")
+
             # Run NMS ----------------------------------------------------------
             '''
             after nms,
                 out = (bs, n, 6) : bs = batch size, n = detected object number, 6 = (x,y,w,h,conf,cls)
-                (bs, 25200, 85) ==> NMS ==> approx. (bs, n, 6)
-                in fact, 'out' is list-type and it can have a different 'n' as an image
+                (v7) (bs, 25200, 85) ==> NMS   ==> approx. (bs, n, 6)
+                (v9) (bs, 84, 8400)  ==> NMSv9 ==> approx. (bs, n, 6)
+                in fact, 'out' is list-type and it can have a different 'n' which image it is on
                 out = [ [n1, 6], [n2, 6], ... [nbs, 6] ]
 
             nms terms for codegen :
@@ -192,8 +214,13 @@ def test(proj_info,
             targets[:, 2:] *= torch.Tensor([width, height, width, height]).to(device)  # to pixels
             lb = [targets[targets[:, 0] == i, 1:] for i in range(nb)] if save_hybrid else []  # for autolabelling
             t = time_synchronized()
-            out = non_max_suppression(out, conf_thres=conf_thres, iou_thres=iou_thres, labels=lb, multi_label=True)
-            t1 += time_synchronized() - t
+            if v9:
+                out = non_max_suppression_v9(out, conf_thres=conf_thres, iou_thres=iou_thres, labels=lb, multi_label=True)
+            else:
+                out = non_max_suppression(out, conf_thres=conf_thres, iou_thres=iou_thres, labels=lb, multi_label=True)
+            _t1 = time_synchronized() - t
+            t1 += _t1
+            print(f"batch #{batch_i}: running nms for {_t1} sec")
 
         # Metrics per image ----------------------------------------------------
         for si, pred in enumerate(out):
