@@ -2,7 +2,6 @@ import os
 import glob
 
 from ..models import Project
-import traceback
 
 def get_project_name(project_id):
     try:
@@ -49,8 +48,5 @@ def get_folder_structure(folder_path):
     
         return structure
     except Exception as error:
-        print("error", error)
-        traceback_message = traceback.format_exc()
-        print("ㅠㅠㅠ", traceback_message)
         return []
     
