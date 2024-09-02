@@ -519,11 +519,11 @@ def export_config(src, dst, data, base, device, engine, task='detection'):
         weight = 'bestmodel.onnx'
         config = ''
     nn_dict['weight_file'] = weight
-    nn_dict['config_file'] = config
+    nn_dict['config_file'] = config # not neccessary
 
     # Label
     nc = data.get('nc')
-    ch = data.get('ch', 3)
+    ch = data.get('ch', 3) # need to check (ChestXRay: ch=1)
     names = data.get('names')
     if not nc and names:
         nc = len(names)
@@ -533,7 +533,7 @@ def export_config(src, dst, data, base, device, engine, task='detection'):
     nn_dict['names'] = names
 
     # Input
-    imgsz = base.get('imgsz', 640)
+    imgsz = base.get('imgsz', 640) # need to check (ChestXRay: imgsz=256)
     input_tensor_shape = [1, ch, imgsz, imgsz]
     device = select_device(device)
     if device.type == 'cpu':
@@ -541,8 +541,9 @@ def export_config(src, dst, data, base, device, engine, task='detection'):
     else:
         input_data_type = 'fp16'
     anchors = base.get('anchors')
-    if not anchors and task == 'detection':
-        logger.warn(f'Model Exporter: not found anchor imformation')
+    if (not anchors or anchors == 'None') and task == 'detection':
+        # logger.warn(f'Model Exporter: not found anchor imformation')
+        logger.info(f'Mode Exporter: anchor-free detection heads')
 
     nn_dict['input_tensor_shape'] = input_tensor_shape
     nn_dict['input_data_type'] = input_data_type
@@ -552,14 +553,23 @@ def export_config(src, dst, data, base, device, engine, task='detection'):
     if task == 'detection':
         output_number = 3
         stride = [8, 16, 32]
-        output_size = [
-            [1, ch, imgsz/stride[0], imgsz/stride[0], 5+nc],
-            [1, ch, imgsz/stride[1], imgsz/stride[1], 5+nc],
-            [1, ch, imgsz/stride[2], imgsz/stride[2], 5+nc]
-        ]
         need_nms = True
         conf_thres = 0.25
         iou_thres = 0.45
+        total_pred_num = 0
+        if anchors and (anchors != 'None'): # v7 (num of anchors = 3)
+            total_pred_num = sum([3*imgsz/stride[i]**2 for i in range(output_number)])
+            output_size = [
+                [1, ch, imgsz/stride[0], imgsz/stride[0], 5+nc],
+                [1, ch, imgsz/stride[1], imgsz/stride[1], 5+nc],
+                [1, ch, imgsz/stride[2], imgsz/stride[2], 5+nc]
+            ]
+        else: # v9 (no anchors)
+            total_pred_num = sum([imgsz/stride[i]**2 for i in range(output_number)])
+            output_size = [
+                [1, 4+nc, total_pred_num], # <= for training
+                [1, 4+nc, total_pred_num]  # <= for prediction
+            ]
     elif task == 'classification':
         output_number = 1
         output_size = [1, nc]
@@ -573,10 +583,38 @@ def export_config(src, dst, data, base, device, engine, task='detection'):
         nn_dict['conf_thres'] = conf_thres
         nn_dict['iou_thres'] = iou_thres
 
+    # for backward compatibility
+    nn_dict['base_dir_autonn'] = 'autonn_core/tango'
+    nn_dict['class_file'] = ['common/models/yolo.py',
+                             'common/models/common.py',
+                             'common/models/experimental.py',
+                             'common/models/dynamic_op.py',
+                             'common/models/resnet_cifar10.py',
+                             'common/models/search_block.py',
+                             'common/models/supernet_yolov7.py',
+                             'common/models/my_modules.py',
+                            ]
+    # nn_dict['class_name'] = None
+    # nn_dict['label_info_file'] = None
+    # nn_dict['vision_lib'] = None
+    # nn_dict['norm'] = None
+    # nn_dict['mean'] = None
+    # nn_dict['output_format_allow_list'] = None
+    if anchors and (anchors != 'None'):
+        nn_dict['output_pred_format'] = ['x', 'y', 'w', 'h', 'confidence', 'probability_of_classes']
+    else:
+        nn_dict['output_pred_format'] = ['x', 'y', 'w', 'h', 'probability_of_classes']
+
     with open(dst, 'w') as f:
         yaml.dump(nn_dict, f, default_flow_style=False)
 
+    import pprint
+    print('-'*100)
+    pprint.pprint(nn_dict)
+    print('-'*100)
+
     logger.info(f"NN meta information export success, saved as {dst}")
+
 
 def export_weight(weights, device, include, task='detection', ch=3, imgsz=[640,640]):
     t = time.time()

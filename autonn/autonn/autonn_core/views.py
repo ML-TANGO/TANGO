@@ -121,7 +121,7 @@ def pth_list(request):
     '''
     if request.method == 'GET':
         pth = Pth.objects.all()
-        serializer = PathSerializer(pth, many=True)
+        serializer = PthSerializer(pth, many=True)
         return Response(serializer.data)
 
     elif request.method == 'POST':
@@ -173,6 +173,7 @@ def start(request):
         info = Info.objects.get(userid=userid, project_id=project_id)
         if info.status in ['started', 'running']:
             # duplicate project
+            print(f'Please restart, old one is not being completed for some reason..')
             return Response("failed", status=status.HTTP_406_NOT_ACCEPTABLE, content_type="text/plain")
     except Info.DoesNotExist:
         # new project

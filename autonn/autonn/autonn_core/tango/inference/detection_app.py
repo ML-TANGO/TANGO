@@ -4,6 +4,7 @@ import glob
 import math
 import time
 import datetime
+from threading import Thread
 import argparse
 from pathlib import Path
 import cv2
@@ -183,7 +184,41 @@ def check_imshow():
     except Exception as e:
         print(f'WARNING: Environment does not support cv2.imshow() or PIL Image.show() image displays\n{e}')
         return False
-    
+
+def check_requirements(requirements='requirements.txt', exclude=()):
+    # Check installed dependencies meet requirements (pass *.txt file or list of packages)
+    import pkg_resources as pkg    
+    import subprocess    
+    prefix = 'reqquirements:'    
+    if isinstance(requirements, (str, Path)):  # requirements.txt file
+        file = Path(requirements)
+        if not file.exists():
+            print(f"{prefix} {file.resolve()} not found, check failed.")
+            return
+        requirements = [f'{x.name}{x.specifier}' for x in pkg.parse_requirements(file.open()) if x.name not in exclude]
+    else:  # list or tuple of packages
+        requirements = [x for x in requirements if x not in exclude]
+
+    n = 0  # number of packages updates
+    for r in requirements:
+        try:
+            pkg.require(r)
+        except Exception as e:  # DistributionNotFound or VersionConflict if requirements not met
+            n += 1
+            print(f"{prefix} {e.req} not found and is required by TANGO, attempting auto-update...")
+            print(subprocess.check_output(f"pip install '{e.req}'", shell=True).decode())
+
+    if n:  # if packages updated
+        source = file.resolve() if 'file' in locals() else requirements
+        s = f"{prefix} {n} package{'s' * (n > 1)} updated per {source}\n" \
+            f"{prefix} ⚠️ Restart runtime or rerun command for updates to take effect\n"
+        print(s)
+
+def clean_str(s):
+    # Cleans a string by replacing special characters with underscore _
+    import re
+    return re.sub(pattern="[|@#!¡·$€%&()=?¿^*;:,¨´><+]", repl="_", string=s)
+
 def make_divisible(x, divisor):
     # Returns x evenly divisible by divisor
     return math.ceil(x / divisor) * divisor
@@ -381,6 +416,30 @@ def xywh2xyxy(x):
     y[:, 3] = x[:, 1] + x[:, 3] / 2  # bottom right y
     return y
 
+def box_iou(box1, box2):
+    # https://github.com/pytorch/vision/blob/master/torchvision/ops/boxes.py
+    """
+    Return intersection-over-union (Jaccard index) of boxes.
+    Both sets of boxes are expected to be in (x1, y1, x2, y2) format.
+    Arguments:
+        box1 (Tensor[N, 4])
+        box2 (Tensor[M, 4])
+    Returns:
+        iou (Tensor[N, M]): the NxM matrix containing the pairwise
+            IoU values for every element in boxes1 and boxes2
+    """
+
+    def box_area(box):
+        # box = 4xn
+        return (box[2] - box[0]) * (box[3] - box[1])
+
+    area1 = box_area(box1.T)
+    area2 = box_area(box2.T)
+
+    # inter(N,M) = (rb(N,M,2) - lt(N,M,2)).clamp(0).prod(2)
+    inter = (torch.min(box1[:, None, 2:], box2[:, 2:]) - torch.max(box1[:, None, :2], box2[:, :2])).clamp(0).prod(2)
+    return inter / (area1[:, None] + area2 - inter)  # iou = inter / (area1 + area2 - inter)
+
 def plot_one_box(x, img, color=None, label=None, line_thickness=3):
     # Plots one bounding box on image img
     tl = line_thickness or round(0.002 * (img.shape[0] + img.shape[1]) / 2) + 1  # line/font thickness
@@ -448,6 +507,58 @@ class LoadModel(nn.Module):
             return d['stride'], d['names']  # assign stride, names
         return None, None
 
+
+class LoadOnnxModel(nn.Module):
+    def __init__(self, weights='bestmodel.onnx', device=torch.device('cpu')):
+        super().__init__()
+        w = str(weights[0] if isinstance(weights, list) else weights)
+        fp16 = False
+        stride = 32  # default stride
+        cuda = torch.cuda.is_available() and device.type != 'cpu'  # use CUDA
+        print(f'Loading {w} for ONNX inference...')
+        extra_files = {'config.txt': ''}  # model metadata
+        model = torch.jit.load(w, _extra_files=extra_files, map_location=device)
+        # model.half() if fp16 else model.float()
+        model.float()
+        if extra_files['config.txt']:  # load metadata dict
+            d = json.loads(extra_files['config.txt'],
+                            object_hook=lambda d: {int(k) if k.isdigit() else k: v
+                                                    for k, v in d.items()})
+            stride, names = int(d['stride']), d['names']
+        model.eval()
+        self.__dict__.update(locals())  # assign all variables to self
+
+    def forward(self, im):
+        if self.fp16 and im.dtype != torch.float16:
+            im = im.half()  # to FP16
+
+        print('model forward: torchscript model')
+        y = self.model(im)
+
+        if isinstance(y, (list, tuple)):
+            return self.from_numpy(y[0]) if len(y) == 1 else [self.from_numpy(x) for x in y]
+        else:
+            return self.from_numpy(y)
+
+    def from_numpy(self, x):
+        return torch.from_numpy(x).to(self.device) if isinstance(x, np.ndarray) else x
+
+    def warmup(self, imgsz=(1, 3, 640, 640)):
+        # Warmup model by running inference once
+        # warmup_types = self.pt, self.jit, self.onnx, self.engine, self.saved_model, self.pb, self.triton
+        # if any(warmup_types) and (self.device.type != 'cpu' or self.triton):
+        im = torch.empty(*imgsz, dtype=torch.half if self.fp16 else torch.float, device=self.device)  # input
+        for _ in range(2): # if self.jit else 1): 
+            self.forward(im)  # warmup
+
+    @staticmethod
+    def _load_metadata(filepath=Path('path/to/meta.yaml')):
+        # Load metadata from meta.yaml if it exists
+        if filepath.exists():
+            with open(filepath, 'r') as f:
+                d = yaml.safe_load(f)
+            return d['stride'], d['names']  # assign stride, names
+        return None, None
 
 # image loader -----------------------------------------------------------------
 img_formats = ['bmp', 'jpg', 'jpeg', 'png', 'tif', 'tiff', 'dng', 'webp', 'mpo']  # acceptable image suffixes
@@ -710,12 +821,14 @@ class LoadStreams:  # multiple IP or RTSP cameras
 # options ----------------------------------------------------------------------
 def parse_opt():
     parser = argparse.ArgumentParser()
-    parser.add_argument('--weights', nargs='+', type=str, default='bestmodel.torchscript', help='bestmodel.torchscript path')
+    parser.add_argument('--weights', type=str, default='bestmodel.torchscript', help='bestmodel.torchscript path')
     parser.add_argument('--source', type=str, default=0, help='path/to/img or 0(webcam)')
     parser.add_argument('--view-img', action='store_true', help='show results')
     parser.add_argument('--save-img', action='store_true', help='save result images')
     parser.add_argument('--save-txt', action='store_true', help='save results to .txt')
     parser.add_argument('--save-dir', default='results', help='diretory to save results')
+    opt = parser.parse_args()
+    return opt
 
 def main(opt):
     run(**vars(opt))
