@@ -4,7 +4,7 @@
       <div class="d-flex justify-space-between" style="width: 100%">
         <p class="text-h5 mb-4" style="color: #4a80ff">DataSet</p>
         <p class="mr-4" v-if="selected !== -1">
-          Selected Dataset: <span style="color: #4a80ff"> {{ selelctedItem.name }} </span>
+          Selected Dataset: <span style="color: #4a80ff"> {{ selectedItem.name }} </span>
         </p>
       </div>
       <div style="width: 100%; height: 350px; backface-visibility: hidden; flex: 1 1 auto; overflow-y: auto">
@@ -36,7 +36,7 @@ import { ProjectNamespace, ProjectMutations } from "@/store/modules/project";
 
 import DatasetCard from "@/modules/common/card/DatasetCard.vue";
 
-import { DatasetStatus } from "@/shared/enums";
+import { DatasetStatus, CommonDatasetName, LearningType } from "@/shared/enums";
 
 import { getDatasetListTango, getDatasetFolderSize, getDatasetFileCount } from "@/api";
 
@@ -47,13 +47,13 @@ export default {
     return {
       hoverIndex: -1,
       selected: -1,
-      selelctedItem: null,
+      selectedItem: null,
       items: []
     };
   },
 
   computed: {
-    ...mapState(ProjectNamespace, ["selectedImage"])
+    ...mapState(ProjectNamespace, ["selectedImage", "project"])
   },
 
   async created() {
@@ -66,7 +66,7 @@ export default {
 
       if (this.selectedImage?.name) {
         this.selected = this.items.findIndex(q => q.name === this.selectedImage.name);
-        this.selelctedItem = this.selectedImage;
+        this.selectedItem = this.selectedImage;
       }
     } catch {
       this.items = [];
@@ -110,8 +110,15 @@ export default {
     },
 
     next() {
-      this.$emit("next", { dataset: this.selelctedItem.name });
-      this.SET_SELECTED_IMAGE(this.selelctedItem);
+      if (!this.selectedItem) return;
+
+      let learning_type = this.project.learning_type;
+      if (this.selectedItem.name !== CommonDatasetName.COCO && learning_type === LearningType.INCREMENTAL) {
+        learning_type = LearningType.NORMAL;
+      }
+
+      this.$emit("next", { dataset: this.selectedItem.name, learning_type });
+      this.SET_SELECTED_IMAGE(this.selectedItem);
     },
 
     onMouseover(index) {
@@ -126,7 +133,7 @@ export default {
       // TODO index 대신 item id로 변경
       this.selected = index;
 
-      this.selelctedItem = item;
+      this.selectedItem = item;
     }
   }
 };

@@ -5,10 +5,10 @@
         <div style="gap: 15px" class="d-flex align-center">
           <v-btn
             class="mb-3"
-            color="#4a80ff"
+            :color="projectInfo?.project_type === ProjectType.MANUAL ? '#4a80ff' : '#ddd'"
             width="380"
             dark
-            @click="menualCreate"
+            @click="manualCreate"
             :disabled="projectInfo?.container_status === 'started' || projectInfo?.container_status === 'running'"
           >
             Manually Generation of Neural Networks
@@ -16,7 +16,7 @@
 
           <v-btn
             class="mb-3"
-            color="#4a80ff"
+            :color="projectInfo?.project_type === ProjectType.AUTO ? '#4a80ff' : '#ddd'"
             width="380"
             dark
             @click="autoCreate"
@@ -29,8 +29,20 @@
       <h4 class="ml-3 mb-3">
         Progress - {{ DisplayName[projectInfo?.container] }} {{ projectInfo?.container_status }}
       </h4>
-      <v-card color="#DFDFDF" class="ma-1" style="border-radius: 4px" height="180">
-        <div style="height: 100%">
+      <v-card color="#DFDFDF" class="ma-1" style="border-radius: 4px" height="230">
+        <div v-if="isIncremental" style="width: 100%" class="d-flex justify-center">
+          <div :style="{ width: isEditing ? '60%' : '53%' }">
+            <div style="width: 100%; height: 60px" class="d-flex justify-center align-center">
+              <v-btn color="tango" dark :disabled="!isStartNextPipeline" @click="onNextPipeline">
+                next version dataset iteration
+              </v-btn>
+            </div>
+            <div style="border: 3px dashed black; height: 30px; border-bottom: none" class="d-flex align-end">
+              <div style="width: 3px; height: 3px" class="arrow-head"></div>
+            </div>
+          </div>
+        </div>
+        <div :style="{ height: isIncremental ? 'calc(100% - 90px)' : '100%' }">
           <ProgressCanvas
             :running="projectInfo?.container"
             :status="projectInfo?.container_status"
@@ -58,7 +70,7 @@ import ProgressCanvas from "@/modules/project/components/ProgressCanvas.vue";
 import LogViewer from "@/modules/project/log-viewer/LogViewer.vue";
 
 import { ProjectType } from "@/shared/consts";
-import { DisplayName, TaskType, ContainerName } from "@/shared/enums";
+import { DisplayName, TaskType, ContainerName, LearningType, ProjectStatus } from "@/shared/enums";
 
 import { containerStart, updateProjectType } from "@/api";
 export default {
@@ -75,12 +87,32 @@ export default {
       open: false,
       DisplayName,
       TaskType,
-      ContainerName
+      ContainerName,
+      ProjectType
     };
   },
 
   computed: {
-    ...mapState(ProjectNamespace, ["project", "autonn_status"])
+    ...mapState(ProjectNamespace, ["project", "autonn_status"]),
+    isIncremental() {
+      return this.project?.learning_type === LearningType.INCREMENTAL;
+    },
+
+    isEditing() {
+      return this.project.workflow?.length >= 4;
+    },
+
+    isStartNextPipeline() {
+      const workflowLength = this.project.workflow?.length;
+      if (!workflowLength) return false;
+
+      const currentWorkflowName = this.project.workflow?.[workflowLength - 1]?.workflow_name;
+      if (!currentWorkflowName) return false;
+
+      const isCompleted = this.project?.container_status === ProjectStatus.COMPLETED;
+
+      return this.isIncremental && currentWorkflowName === this.project.container && isCompleted;
+    }
   },
 
   mounted() {},
@@ -118,28 +150,66 @@ export default {
             container_status: "started"
           });
 
-          this.$emit("restart", container);
-          await updateProjectType(this.projectInfo.id, ProjectType.MANUAL);
+          this.$emit("start");
+          // await updateProjectType(this.projectInfo.id, ProjectType.MANUAL);
+          // this.SET_PROJECT({ project_type: ProjectType.MANUAL });
           await this.containerStartRequest(container);
-          this.SET_PROJECT({ project_type: ProjectType.MANUAL });
         }
       });
     },
 
     async immediateLaunch(container) {
-      this.$emit("restart", container);
+      this.$emit("start");
       await updateProjectType(this.projectInfo.id, ProjectType.MANUAL);
       await this.containerStartRequest(container);
       this.SET_PROJECT({ project_type: ProjectType.MANUAL, container: container });
     },
 
-    async autoCreate() {},
-    async menualCreate() {},
+    async autoCreate() {
+      await updateProjectType(this.projectInfo.id, ProjectType.AUTO);
+      this.SET_PROJECT({ project_type: ProjectType.AUTO });
+
+      if (this.projectInfo?.container_status === ProjectStatus.COMPLETED) {
+        const curIndex = this.projectInfo?.workflow?.findIndex(q => q.workflow_name === this.projectInfo.container);
+        if (curIndex < 0) return;
+
+        const containerName = this.projectInfo?.workflow?.[curIndex + 1]?.workflow_name;
+        if (!containerName) return;
+
+        this.SET_PROJECT({ container: containerName, container_status: ProjectStatus.STARTED });
+        this.$emit("start");
+        await this.containerStartRequest(containerName);
+      } else if (
+        this.projectInfo?.container_status !== ProjectStatus.RUNNING &&
+        this.projectInfo?.container_status !== ProjectStatus.STARTED
+      ) {
+        if (!this.projectInfo?.container || this.projectInfo?.container === "init") {
+          const workflow = this.projectInfo?.workflow?.[0]?.workflow_name;
+          const containerName = workflow || ContainerName.AUTO_NN;
+          this.SET_PROJECT({ container: containerName, container_status: ProjectStatus.STARTED });
+          this.$emit("start");
+          await this.containerStartRequest(containerName);
+        } else {
+          this.SET_PROJECT({ container: this.projectInfo?.container, container_status: ProjectStatus.STARTED });
+          this.$emit("start");
+          await this.containerStartRequest(this.projectInfo?.container);
+        }
+      }
+    },
+
+    async manualCreate() {
+      await updateProjectType(this.projectInfo.id, ProjectType.MANUAL);
+      this.SET_PROJECT({ project_type: ProjectType.MANUAL });
+    },
 
     async containerStartRequest(container) {
       const res = await containerStart(container, this.projectInfo.create_user, this.projectInfo.id);
       this.$EventBus.$emit("logUpdate", { message: res.message });
       this.$EventBus.$emit("logUpdate", { message: res.response });
+    },
+
+    onNextPipeline() {
+      this.$emit("nextPipeline");
     }
   }
 };
@@ -171,5 +241,28 @@ export default {
 <style>
 .custom .v-banner__wrapper {
   padding: 4px !important;
+}
+</style>
+
+<style>
+.arrow-head::after {
+  height: 16px;
+  width: 3px;
+  background-color: black;
+  transform-origin: top center;
+  transform: translateY(-14px) translateX(-3px) rotate(-135deg);
+
+  content: " ";
+  display: block;
+}
+.arrow-head::before {
+  height: 16px;
+  width: 3px;
+  background-color: black;
+  transform-origin: top center;
+  transform: translateY(2px) translateX(-3px) rotate(135deg);
+
+  content: " ";
+  display: block;
 }
 </style>

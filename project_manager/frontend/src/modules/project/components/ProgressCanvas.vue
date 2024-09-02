@@ -75,7 +75,6 @@ export default {
 
   data() {
     return {
-      // runningOrder: ["bms", "yoloe", "codeGen", "imagedeploy"],
       isUserEditingDialog: false,
       DisplayName,
       ContainerName

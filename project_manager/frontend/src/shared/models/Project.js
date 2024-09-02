@@ -1,6 +1,7 @@
 import { ProjectRequiredColumn } from "@/shared/enums";
+import { ProjectType } from "@/shared/consts";
 
-import { getDatasetInfo, getDatasetFolderSize, getDatasetFileCount } from "@/api";
+import { getDatasetInfo, getDatasetFolderSize, getDatasetFileCount, updateProjectType } from "@/api";
 import Vue from "vue";
 
 export class Project {
@@ -15,6 +16,8 @@ export class Project {
     this.dataset = projectInfo["dataset"];
     this.datasetObject = null;
     this.task_type = projectInfo["task_type"];
+    this.learning_type = projectInfo["learning_type"];
+    this.weight_file = projectInfo["weight_file"];
     this.autonn_dataset_file = projectInfo["autonn_dataset_file"];
     this.autonn_basemodel = projectInfo["autonn_basemodel"];
     this.nas_type = projectInfo["nas_type"];
@@ -42,8 +45,9 @@ export class Project {
   validation() {
     try {
       for (const column of ProjectRequiredColumn) {
-        console.log("!this[column]", !this[column], column);
-        if (!this[column]) return false;
+        if (!this[column]) {
+          return false;
+        }
       }
       return true;
     } catch (err) {
@@ -67,6 +71,11 @@ export class Project {
           if (res.datas.length > 0) Vue.set(this.datasetObject, "file_count", res.datas[0].count);
         });
       }
+    }
+
+    if (!this.project_type) {
+      await updateProjectType(this.id, ProjectType.MANUAL);
+      this.project_type = ProjectType.MANUAL;
     }
   }
 }

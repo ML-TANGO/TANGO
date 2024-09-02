@@ -22,8 +22,7 @@ class DockerContainerInfo:
 
 CONTAINER_INFO = {
     "autonn" : DockerContainerInfo("autonn", 8100, "autonn", "autonn", "Auto NN"),
-    "codeGen": DockerContainerInfo("codeGen", 8888, "codeGen", "code_gen", "Code Gen"),
-    "code_gen": DockerContainerInfo("codeGen", 8888, "codeGen", "code_gen", "Code Gen"),
+    "code_gen": DockerContainerInfo("code_gen", 8888, "codeGen", "code_gen", "Code Gen"),
     "cloud_deploy": DockerContainerInfo("imagedeploy", 8890, "cloud-deploy", "cloud_deploy", "Image Deploy"),
     "kube_deploy": DockerContainerInfo("imagedeploy", 8901, "kube-deploy", "kube_deploy", "Image Deploy"),
     "ondevice_deploy": DockerContainerInfo("imagedeploy", 8891, "ondevice", "ondevice_deploy", "Image Deploy"),
@@ -195,9 +194,9 @@ def get_log_container_name(container):
 
     if container == 'bms':
         return 'BMS'
-    elif container == 'yoloe' or container == 'autonn-resnet' or container == 'autonn':
+    elif container == 'autonn':
         return 'Auto NN'
-    elif container == 'codeGen' or container == 'code_gen' or container == 'codegen':
+    elif container == 'code_gen':
         return 'Code Gen'
     elif container == 'imagedeploy':
         return 'Image Deploy'

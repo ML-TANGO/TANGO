@@ -45,7 +45,7 @@ export const ContainerName = {
   AUTO_NN: "autonn",
   AUTO_NN_YOLOE: "yoloe",
   AUTO_NN_RESNET: "autonn-resnet",
-  CODE_GEN: "codeGen",
+  CODE_GEN: "code_gen",
   IMAGE_DEPLOY: "imagedeploy",
   USER_EDITING: "user_edit",
   VISUALIZATION: "viz2code"
@@ -156,9 +156,12 @@ export const DatasetStatus = Object.freeze({
 
 export const ProjectStatus = Object.freeze({
   PREPARING: "preparing",
+  READY: "ready",
+  STARTED: "started",
   FAILED: "failed",
   RUNNING: "running",
-  COMPLETED: "completed"
+  COMPLETED: "completed",
+  STOPPED: "stopped"
 });
 
 export const ViewerMode = Object.freeze({
@@ -183,4 +186,10 @@ export const AutonnLogTitle = Object.freeze({
     train: { left: "Box", center: "OBJECTNESS", right: "CLASS", result: "TOTAL" },
     val: { left: "Precision", center: "Recall", right: "mAP50", result: "mAP" }
   }
+});
+
+export const LearningType = Object.freeze({
+  NORMAL: "normal",
+  INCREMENTAL: "incremental",
+  TRANSFER: "transfer"
 });

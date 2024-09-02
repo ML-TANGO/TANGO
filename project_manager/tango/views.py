@@ -141,8 +141,8 @@ def login(request):
 
     try:
         # TODO : 사용자 정보 확인 및 토큰 유무 확인
-        user_id = request.data['user_id']
-        user_pw = request.data['password']
+        user_id = str(request.data['user_id']).strip()
+        user_pw = str(request.data['password']).strip()
 
         user_info = authenticate(username=user_id,
                                  password=user_pw)
@@ -186,7 +186,6 @@ def login(request):
 
     except Exception as e:
         print(e)
-
         return Response(status=500)
 
 
