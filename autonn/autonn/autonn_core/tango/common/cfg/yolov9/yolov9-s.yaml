@@ -10,7 +10,7 @@ width_multiple: 1.0  # layer channel multiple
 #activation: nn.ReLU()
 
 # anchors
-anchors: 3
+anchors: None
 
 # gelan backbone
 backbone:
