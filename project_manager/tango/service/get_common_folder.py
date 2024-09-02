@@ -4,8 +4,11 @@ import glob
 from ..models import Project
 
 def get_project_name(project_id):
-    project_info = Project.objects.get(id = project_id)
-    return project_info.project_name
+    try:
+        project_info = Project.objects.get(id = project_id)
+        return project_info.project_name
+    except Exception as error:
+        return None
 
 def get_folder_structure(folder_path):
     try:
@@ -22,13 +25,18 @@ def get_folder_structure(folder_path):
                 for dir in dirs:
                     project_name = get_project_name(dir)
 
+                    if project_name == None:
+                        continue
+
                     if path_split[-1] not in project_id_to_name:
                         project_id_to_name[path_split[-1]] = {}
                     project_id_to_name[path_split[-1]][dir] = project_name
-
-                    dir = project_name
+                    # dir = project_name
                 
-                dirs = list(project_id_to_name[path_split[-1]].values())
+                try:
+                    dirs = list(project_id_to_name[path_split[-1]].values())
+                except Exception:
+                    dirs = []
 
             # 각 하위 Path의 project_id로 되어있는 경로를 project_name으로 변경
             if len(path_split) > 4 :
@@ -40,6 +48,5 @@ def get_folder_structure(folder_path):
     
         return structure
     except Exception as error:
-        print("error", error)
         return []
     
