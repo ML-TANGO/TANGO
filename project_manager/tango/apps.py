@@ -21,7 +21,8 @@ class TangoConfig(AppConfig):
     name = 'tango'
 
     def ready(self) -> None:
-        from .models import WorkflowOrder
+        from .models import WorkflowOrder, Project
         WorkflowOrder.objects.filter(workflow_name="codeGen").update(workflow_name="code_gen")
+        Project.objects.filter(container="codeGen").update(container="code_gen")
         
         return super().ready()
