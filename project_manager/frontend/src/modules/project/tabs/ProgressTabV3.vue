@@ -30,7 +30,7 @@
         Progress - {{ DisplayName[projectInfo?.container] }} {{ projectInfo?.container_status }}
       </h4>
       <v-card color="#DFDFDF" class="ma-1" style="border-radius: 4px" height="230">
-        <div v-if="isIncremental" style="width: 100%" class="d-flex justify-center">
+        <div v-if="isNextVersion" style="width: 100%" class="d-flex justify-center">
           <div :style="{ width: isEditing ? '60%' : '53%' }">
             <div style="width: 100%; height: 60px" class="d-flex justify-center align-center">
               <v-btn color="tango" dark :disabled="!isStartNextPipeline" @click="onNextPipeline">
@@ -42,7 +42,7 @@
             </div>
           </div>
         </div>
-        <div :style="{ height: isIncremental ? 'calc(100% - 90px)' : '100%' }">
+        <div :style="{ height: isNextVersion ? 'calc(100% - 90px)' : '100%' }">
           <ProgressCanvas
             :running="projectInfo?.container"
             :status="projectInfo?.container_status"
@@ -94,6 +94,11 @@ export default {
 
   computed: {
     ...mapState(ProjectNamespace, ["project", "autonn_status"]),
+
+    isNextVersion() {
+      return this.isIncremental && this.project.version < 5;
+    },
+
     isIncremental() {
       return this.project?.learning_type === LearningType.INCREMENTAL;
     },

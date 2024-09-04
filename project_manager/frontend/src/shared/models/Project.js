@@ -36,6 +36,7 @@ export class Project {
     this.current_log = projectInfo["current_log"];
     this.target_info = projectInfo["target_info"];
     this.workflow = projectInfo["workflow"];
+    this.version = projectInfo?.["version"] || 0;
   }
 
   /**
