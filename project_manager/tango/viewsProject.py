@@ -33,7 +33,10 @@ from targets.views import target_to_response
 
 from .service.autonn_status import update_autonn_status
 
-from .enums import ContainerId, ContainerStatus
+from .enums import ContainerId, ContainerStatus, LearningType
+
+from datasets.views import copy_train_file_for_version
+from .service.get_common_folder import get_folder_structure
 
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -171,7 +174,112 @@ def delete_autonn_status(project_info):
         is_use = True
     ).delete()   
 
+def start_container(user_id, project_id, project_info, container_id):
+    # autonn을 시작할때 setting
+    # 1. 이전에 진행했던 이력 제거 
+    # 2. retry count 초기화
+    if container_id == ContainerId.autonn:
+        delete_autonn_status(project_info) # 이전에 진행했던 이력 제거 
+        project_info.autonn_retry_count = 0 # retry count 초기화
+        init_autonn_status(project_info) #  새로운 autonn_status 생성
+
+    response = None
+    try:
+        response = call_api_handler(container_id, "start", user_id, project_id, project_info.target.target_info)
+    except Exception as error:
+        raise error
+    
+    # start 요청 log
+    to_json = json.loads(response)
+
+    return to_json['request_info']
+
+def project_info_to_dict(project_info):
+    try:
+        result = None
+
+        workflow_order = WorkflowOrder.objects.filter(project_id=project_info.id).order_by('order')
+        workflow_dic = {"workflow": list(workflow_order.values())}
+    
+        project = dict(related_model_to_dict(project_info), **workflow_dic)
+    
+        # TODO : 타겟이 0이 아닌 경우 SW 정보 전달
+        if project['target'] is not None:
+            target_info_dic = {
+                "target_info": target_to_response(project['target']),
+                "target_id": project['target']["id"] 
+            }
+    
+            result = dict(project,  **target_info_dic)
+            result.pop("target")
+        else:
+            # 딕셔너리 정보 합치기
+            result = dict(project)
+    
+        return result
+    except Exception:
+        return {}
+
 # ============================================================================
+
+@api_view(['GET'])
+@permission_classes([AllowAny])   # 토큰 확인
+def get_common_folder_structure(request):
+    try:
+        path = os.path.join(root_path, "shared", "common")
+        print("path =================================================> " ,path)
+        folder_structure = get_folder_structure(path)
+        return HttpResponse(json.dumps({'status': 200, "structure" : folder_structure}))
+    except Exception as error:
+        return HttpResponse(error)
+
+
+@api_view(['POST'])
+@permission_classes([AllowAny])   # 토큰 확인
+def next_pipeline_start(request):
+    '''
+        CI/CD pipeline 반복 기능 -> 다음 pipeline 실행
+
+        - update project version
+        - update dataset version
+        - Call Autonn Start API
+    '''
+    
+    try:
+        user_id = request.data['user_id']
+        project_id = request.data['project_id']
+        container_id = ContainerId.autonn
+        project_info = Project.objects.get(id=project_id, create_user=str(user_id))
+        
+        # update project version----------------------------------------------------
+        project_info.version = project_info.version + 1
+
+        # update dataset version----------------------------------------------------
+        copy_train_file_for_version(project_info.version)
+
+        # Call Autonn Start API----------------------------------------------------
+
+        log = ''
+        try:
+            log = start_container(user_id, project_id, project_info, container_id)
+        except Exception:
+            print(str(container_id) + " Container Start 요청 실패")
+            print(error)
+            project_info.save()
+            return HttpResponse(error)
+
+        project_info.container = container_id
+        project_info.container_status = ContainerStatus.STARTED
+        project_info.save()
+        return HttpResponse(json.dumps({'status': 200, 'project': project_info_to_dict(project_info), 
+                                        'message': str(container_id) + ' 시작 요청\n', 
+                                        'response' : log}
+                                        ))
+    except Project.DoesNotExist:
+        print(f"project_id : {project_id}를 찾을 수 없음.")
+        return HttpResponse(error)
+    except Exception as error:
+        return HttpResponse(error)
 
 @api_view(['POST'])
 @permission_classes([AllowAny])   # 토큰 확인
@@ -234,29 +342,26 @@ def container_start(request):
 
         project_info = Project.objects.get(id=project_id, create_user=str(user_id))
 
-        # autonn을 시작할때 setting
-        # 1. 이전에 진행했던 이력 제거 
-        # 2. retry count 초기화
-        if container_id == ContainerId.autonn:
-            delete_autonn_status(project_info) # 이전에 진행했던 이력 제거 
-            project_info.autonn_retry_count = 0 # retry count 초기화
-            init_autonn_status(project_info) #  새로운 autonn_status 생성
+        if container_id == ContainerId.autonn and project_info.learning_type == LearningType.INCREMENTAL:
+            copy_train_file_for_version(project_info.version)
 
-        response = None
+        elif container_id == ContainerId.autonn and project_info.learning_type != LearningType.INCREMENTAL:
+            copy_train_file_for_version(5)
+        
+
+        log = ''
         try:
-            response = call_api_handler(container_id, "start", user_id, project_id, project_info.target.target_info)
-        except Exception as error:
+            log = start_container(user_id, project_id, project_info, container_id)
+        except Exception:
             print(str(container_id) + " Container Start 요청 실패")
             print(error)
             project_info.save()
             return HttpResponse(error)
-        
-        to_json = json.loads(response)
 
         project_info.container = container_id
         project_info.container_status = ContainerStatus.STARTED
         project_info.save()
-        return HttpResponse(json.dumps({'status': 200, 'message': str(container_id) + ' 시작 요청\n', 'response' : to_json['request_info']}))
+        return HttpResponse(json.dumps({'status': 200, 'message': str(container_id) + ' 시작 요청\n', 'response' : log}))
     except Project.DoesNotExist:
         print(f"project_id : {project_id}를 찾을 수 없음.")
         return HttpResponse(error)
@@ -372,12 +477,16 @@ def status_report(request):
         container_info = CONTAINER_INFO[container_id]
         result = request.GET['status']
 
+        if result == 'success':
+            result = ContainerStatus.COMPLETED
+
         project_info = Project.objects.get(id=project_id, create_user=str(user_id))
         project_info.container = container_info.key
         project_info.current_log = status_report_to_log_text(request, project_info)
 
         # 현재 project의 workflow 순서를 가지고 옴.
         workflow_order = WorkflowOrder.objects.filter(project_id=project_id).order_by('order')
+        
         if container_id == ContainerId.autonn:
             if result == ContainerStatus.COMPLETED: 
                 # autonn이 COMPLETED되면 stop API를 호출
@@ -393,10 +502,13 @@ def status_report(request):
                 # (Autonn에서 Cuda cache memory를 비우고, batch size를 줄인 후, 중단된 Epoch에서 다시 학습을 재개)
                 # 최대 다시시도 횟수 3번
                 try:
+                    print("AUTONN FAILED............... resume API 호출.....")
+                    print("retry count : ", project_info.autonn_retry_count + 1)
+                    print("^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^")
                     call_api_handler(container_id, "resume", user_id, project_id, project_info.target.target_info)
                     project_info.autonn_retry_count = project_info.autonn_retry_count + 1
                     project_info.container_status = ContainerStatus.RUNNING
-                    project_info. save()
+                    project_info.save()
                     return HttpResponse(json.dumps({'status': 200}))
                 except Exception as error:
                     print("resume API 호출 실패..")
@@ -406,11 +518,13 @@ def status_report(request):
         if project_info.project_type == 'auto':
             current_container_idx = findIndexByDictList(list(workflow_order.values()), 'workflow_name', container_id)
 
+            if current_container_idx == None:
+                current_container_idx = 999
+
             is_completed = result == ContainerStatus.COMPLETED
-            is_valid_idx = current_container_idx != None
             is_not_last_container = len(list(workflow_order.values())) - 1 > current_container_idx # workflow의 마지막이 아닌 경우
 
-            if is_completed and is_valid_idx and is_not_last_container :
+            if is_completed and is_not_last_container :
                 next_container = list(workflow_order.values())[current_container_idx + 1]['workflow_name']
                 if next_container:
                     project_info.container = next_container
@@ -429,12 +543,12 @@ def status_report(request):
                     except Exception:
                         project_info.container_status = ContainerStatus.FAILED
                         print(f"{next_container} start call failed")
-
-        else:
+            else : 
+                project_info.container_status = result    
+        else :
             project_info.container_status = result
 
         project_info.save()
-
         return HttpResponse(json.dumps({'status': 200}))
 
     except Exception as error:
@@ -693,6 +807,9 @@ def project_delete(request):
         project = Project.objects.get(id=request.data['id'])  # Project id로 검색
 
         delete_autonn_status(project)
+
+        WorkflowOrder.objects.filter(project_id=request.data['id']).delete()
+
         project.delete()
        
         project_path = os.path.join(root_path, f"shared/common/{request.user}/{request.data['id']}")
@@ -704,7 +821,6 @@ def project_delete(request):
     
     return Response(status=200)
 
-    
 # Project 정보 조회
 @api_view(['GET', 'POST'])
 @authentication_classes([OAuth2Authentication])   # 토큰 확인
@@ -719,29 +835,9 @@ def project_info(request):
         _type_: _description_
     """
     try:
-        result = None
-
         project_info = Project.objects.get(id=request.data['id'])  # Project id로 검색
-        
-        workflow_order = WorkflowOrder.objects.filter(project_id=request.data['id']).order_by('order')
-        workflow_dic = {"workflow": list(workflow_order.values())}
-
-        project = dict(related_model_to_dict(project_info), **workflow_dic)
-
-        # TODO : 타겟이 0이 아닌 경우 SW 정보 전달
-        if project['target'] is not None:
-            target_info_dic = {
-                "target_info": target_to_response(project['target']),
-                "target_id": project['target']["id"] 
-            }
-
-            result = dict(project,  **target_info_dic)
-            result.pop("target")
-        else:
-            # 딕셔너리 정보 합치기
-            result = dict(project)
-
-        return Response(result)
+    
+        return Response(project_info_to_dict(project_info))
     except Exception as e:
         print('error - project_info-=============')
         print(e)
@@ -782,10 +878,14 @@ def project_update(request):
         deploy_output_method = str(request.data['deploy_output_method'])
         deploy_input_source = str(request.data['deploy_input_source'])
 
+        learning_type = str(request.data['learning_type'])
+
         project_info = Project.objects.get(id=request.data['project_id'])
 
         project_info.dataset = dataset
         project_info.task_type = task_type
+        project_info.learning_type = learning_type
+        # project_info.weight_file = str(request.data.get('weight_file', ""))
         project_info.autonn_dataset_file = autonn_dataset_file
         project_info.autonn_basemodel = autonn_basemodel
         project_info.nas_type = nas_type
@@ -808,13 +908,26 @@ def project_update(request):
         
         data = Target.objects.get(id=int(target))
         project_info.target = data
+
+
+        if learning_type == LearningType.TRANSFER:
+            project_info.weight_file = str(request.data.get('weight_file', ""))
+        else:
+            project_info.weight_file = ""
         project_info.save()
 
         target_info = str(data.target_info) if data.target_info != 'ondevice' else "ondevice"
-        project_info_content = (
-            f"# common\n"
-            f"task_type : {str(task_type)}\n"
-            f"target_info : {str(target_info)}\n"
+
+        project_info_content = f"# common\n"
+        project_info_content += f"task_type : {str(task_type)}\n"
+        project_info_content += f"target_info : {str(target_info)}\n"
+        project_info_content += f"learning_type : {str(learning_type)}\n"
+
+        if learning_type == LearningType.TRANSFER:
+            s_weight_file = str(request.data.get('weight_file', ""))
+            project_info_content += f"weight_file : {s_weight_file}\n"
+
+        project_info_content += (
             f"cpu : {str(data.target_cpu)}\n"
             f"acc : {str(data.target_acc)}\n"
             f"memory : {str(int(int(data.target_memory) / 1024))}\n"
@@ -843,7 +956,7 @@ def project_update(request):
         # project_info.yaml 파일 생성
         common_path = os.path.join(root_path, f"shared/common/{request.user}/{request.data['project_id']}")
 
-        # 디렉토리 유뮤 확인
+        # 디렉토리 유무 확인
         if os.path.isdir(common_path) is False:
             os.makedirs(common_path)
 
@@ -887,4 +1000,4 @@ def set_workflow(request):
 
     except Exception as e:
         return Response(status=500)
-    
+

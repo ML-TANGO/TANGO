@@ -8,6 +8,7 @@ Todo:
 from django.apps import AppConfig
 
 
+
 class TangoConfig(AppConfig):
     """TangoConfig class
     Note:
@@ -18,3 +19,10 @@ class TangoConfig(AppConfig):
 
     default_auto_field = 'django.db.models.BigAutoField'
     name = 'tango'
+
+    def ready(self) -> None:
+        from .models import WorkflowOrder, Project
+        WorkflowOrder.objects.filter(workflow_name="codeGen").update(workflow_name="code_gen")
+        Project.objects.filter(container="codeGen").update(container="code_gen")
+        
+        return super().ready()

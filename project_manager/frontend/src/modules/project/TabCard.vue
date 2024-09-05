@@ -143,7 +143,8 @@ export default {
     ...mapMutations(ProjectNamespace, {
       SET_PROJECT: ProjectMutations.SET_PROJECT,
       SET_SELECTED_TARGET: ProjectMutations.SET_SELECTED_TARGET,
-      SET_SELECTED_IMAGE: ProjectMutations.SET_SELECTED_IMAGE
+      SET_SELECTED_IMAGE: ProjectMutations.SET_SELECTED_IMAGE,
+      INIT_PROJECT: ProjectMutations.INIT_PROJECT
     }),
 
     async setupBtn() {
@@ -210,6 +211,7 @@ export default {
 
     close() {
       this.$EventBus.$emit("projectDialogclose");
+      this.INIT_PROJECT();
     },
 
     onStepChange(step) {

@@ -8,11 +8,15 @@ class ContainerId(str, Enum):
 class ContainerStatus(str, Enum):
     READY = "ready"
     STARTED = "started"
-    RUNNING = "code_gen"
-    COMPLETED = "imagedeploy"
+    RUNNING = "running"
+    COMPLETED = "completed"
     STOPPED = "stopped"
     FAILED = "failed"
 
+class LearningType(str, Enum):
+    NORMAL = "normal"
+    INCREMENTAL = "incremental"
+    TRANSFER = "transfer"
 
 autonn_update_ids={
     "project_info":"project_info",

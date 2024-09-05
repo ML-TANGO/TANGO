@@ -94,9 +94,6 @@ export default {
 
       this.progressTime = intervalTimes["project_status"];
       this.autonnTime = intervalTimes["autonn_status"];
-
-      console.log("this.progressTime", this.progressTime);
-      console.log("this.autonnTime", this.autonnTime);
     },
 
     onSave() {},

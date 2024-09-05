@@ -73,6 +73,7 @@ export default {
     },
 
     next() {
+      if (!this.selelctedItem) return;
       this.$emit("next", { target_id: this.selelctedItem.id });
       this.SET_SELECTED_TARGET(this.selelctedItem);
     },
