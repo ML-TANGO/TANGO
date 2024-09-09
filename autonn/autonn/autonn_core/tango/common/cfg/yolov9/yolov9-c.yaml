@@ -1,4 +1,7 @@
 # YOLOv9
+name: yolov9-c
+hyp: p5
+imgsz: 640
 
 # parameters
 nc: 80  # number of classes

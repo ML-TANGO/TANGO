@@ -24,11 +24,12 @@ def check_anchor_order(m):
 
 def check_anchors(uid, pid, dataset, model, thr=4.0, imgsz=640):
     # Check anchor fit to data, recompute if necessary
-    prefix = colorstr('autoanchor: ')
-    logger.info(f'{prefix}Analyzing anchors... ')
+    prefix = colorstr('AutoAnchor: ')
+    logger.info(f'\n{prefix}Analyzing anchors... ')
     m = model.module.model[-1] if hasattr(model, 'module') else model.model[-1]  # Detect()
+
     if not hasattr(m, 'anchor_grid'):
-        logger.info(f"this head {m.type} is anchor-free module")
+        logger.info(f"{prefix}This head [{m.type}] is an anchor-free module\n")
         anchor_summary = {}
         anchor_summary['anchor2target_ratio'] = 0.00
         anchor_summary['best_possible_recall'] = 0.0000
@@ -36,6 +37,7 @@ def check_anchors(uid, pid, dataset, model, thr=4.0, imgsz=640):
                     update_id="anchors",
                     update_content=anchor_summary)
         return
+
     shapes = imgsz * dataset.shapes / dataset.shapes.max(1, keepdims=True)
     scale = np.random.uniform(0.9, 1.1, size=(shapes.shape[0], 1))  # augment scale
     wh = torch.tensor(np.concatenate([l[:, 3:5] * s for s, l in zip(shapes * scale, dataset.labels)])).float()  # wh
@@ -50,7 +52,7 @@ def check_anchors(uid, pid, dataset, model, thr=4.0, imgsz=640):
 
     anchors = m.anchor_grid.clone().cpu().view(-1, 2)  # current anchors
     bpr, aat = metric(anchors)
-    logger.info(f'anchors/target = {aat:.2f}, Best Possible Recall (BPR) = {bpr:.4f}')
+    logger.info(f'{prefix}Anchors/Target = {aat:.2f}, Best Possible Recall (BPR) = {bpr:.4f}')
     anchor_summary = {}
     anchor_summary['anchor2target_ratio'] = f"{aat:.2f}"
     anchor_summary['best_possible_recall'] = f"{bpr:.4f}"
@@ -59,7 +61,7 @@ def check_anchors(uid, pid, dataset, model, thr=4.0, imgsz=640):
                   update_content=anchor_summary)
 
     if bpr < 0.98:  # threshold to recompute
-        logger.info('. Attempting to improve anchors, please wait...')
+        logger.info(f'{prefix}Attempting to improve anchors, please wait...')
         na = m.anchor_grid.numel() // 2  # number of anchors
         try:
             anchors = kmean_anchors(dataset, n=na, img_size=imgsz, thr=thr, gen=1000, verbose=False)
@@ -74,7 +76,7 @@ def check_anchors(uid, pid, dataset, model, thr=4.0, imgsz=640):
             logger.info(f'{prefix}New anchors saved to model. Update model *.yaml to use these anchors in the future.')
         else:
             logger.info(f'{prefix}Original anchors better than new anchors. Proceeding with original anchors.')
-    logger.info('')  # newline
+    logger.info(f'\n')  # newline
 
 
 def kmean_anchors(path='./data/coco.yaml', n=9, img_size=640, thr=4.0, gen=1000, verbose=True):

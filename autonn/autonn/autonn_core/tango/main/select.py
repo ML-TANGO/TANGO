@@ -1,9 +1,8 @@
 import os
 import gc
-import time
 import shutil
 import argparse
-import yaml, json
+import yaml
 import logging
 
 from pathlib import Path
@@ -24,14 +23,14 @@ from tensorboardX import SummaryWriter
 from . import status_update, Info
 from .train import train
 from .search import search
+from .evolve import evolve
 from .visualize import BasemodelViewer
 from .export import export_weight, export_config
 from tango.utils.general import (   increment_path,
-                                    fitness,
                                     get_latest_run,
                                     check_file,
-                                    print_mutation,
                                     set_logging,
+                                    strip_optimizer,
                                     colorstr        )
 from tango.utils.plots import plot_evolution
 from tango.utils.wandb_logging.wandb_utils import check_wandb_resume
@@ -45,60 +44,98 @@ TASK_TO_MODEL_TABLE = {
 }
 
 MODEL_TO_SIZE_TABLE = {
+    # "yolov7": {
+    #     "cloud": "-d6",
+    #     "k8s": "-e6",
+    #     "k8sjetsonnano": "-e6",
+    #     "pcweb": "-w6",
+    #     "pc": "-w6",
+    #     "jetsonagxorin": "x",
+    #     "jetsonagxxavier": "x",
+    #     "jetsonnano": "x",
+    #     "galaxys22": "-supernet",
+    #     "odroidn2": "-tiny",
+    # },
+    # "yolov9": {
+    #     "cloud": "-e",
+    #     "k8s": "-c",
+    #     "k8sjetsonnano": "-c",
+    #     "pcweb": "-m",
+    #     "pc": "-m",
+    #     "jetsonagxorin": "-s",
+    #     "jetsonagxxavier": "-s",
+    #     "jetsonnano": "-s",
+    #     "galaxys22": "-supernet",
+    #     "odroidn2": "-t",
+    # },
+    # "resnet": {
+    #     "cloud": "152",
+    #     "k8s": "101",
+    #     "k8sjetsonnano": "101",
+    #     "pcweb": "50",
+    #     "pc": "50",
+    #     "jetsonagxorin": "34",
+    #     "jetsonagxxavier": "34",
+    #     "jetsonnano": "34",
+    #     "galaxys22": "18",
+    #     "odroidn2": "18",
+    # },
+    # "resnetc": {
+    #     "cloud": "200",
+    #     "k8s": "152",
+    #     "k8sjetsonnano": "110",
+    #     "pcweb": "56",
+    #     "pc": "56",
+    #     "jetsonagxorin": "44",
+    #     "jetsonagxxavier": "44",
+    #     "jetsonnano": "44",
+    #     "galaxys22": "32",
+    #     "odroidn2": "20",
+    # },
     "yolov7": {
-        "cloud": "-d6",
-        "k8s": "-e6",
-        "k8sjetsonnano": "-e6",
-        "pcweb": "-w6",
-        "pc": "-w6",
-        "jetsonagxorin": "x",
-        "jetsonagxxavier": "x",
-        "jetsonnano": "x",
-        "galaxys22": "-supernet",
-        "odroidn2": "-tiny",
+        "XXL": "-e6e",      # >  20.0G
+        "XL" : "-d6",       # <= 20.0G
+        "L"  : "-e6",       # <= 16.0G
+        "M"  : "-w6",       # <= 12.0G
+        "MS" : "x",         # <=  8.0G
+        "S"  : "",          # <=  6.0G
+        "T"  : "-tiny",     # <=  4.0G
+        "NAS": "-supernet"
     },
     "yolov9": {
-        "cloud": "-e",
-        "k8s": "-c",
-        "k8sjetsonnano": "-c",
-        "pcweb": "-m",
-        "pc": "-m",
-        "jetsonagxorin": "-s",
-        "jetsonagxxavier": "-s",
-        "jetsonnano": "-s",
-        "galaxys22": "-supernet",
-        "odroidn2": "-t",
+        "XXL": "-e",        # >  20.0G
+        "XL" : "-e",        # <= 20.0G
+        "L"  : "-c",        # <= 16.0G
+        "M"  : "-m",        # <= 12.0G
+        "MS" : "-m",        # <=  8.0G
+        "S"  : "-s",        # <=  6.0G
+        "T"  : "-t",        # <=  4.0G
+        "NAS": "-supernet"
     },
     "resnet": {
-        "cloud": "152",
-        "k8s": "101",
-        "k8sjetsonnano": "101",
-        "pcweb": "50",
-        "pc": "50",
-        "jetsonagxorin": "34",
-        "jetsonagxxavier": "34",
-        "jetsonnano": "34",
-        "galaxys22": "18",
-        "odroidn2": "18",
+        "XXL": "152",
+        "XL" : "152",
+        "L"  : "101",
+        "M"  : "50",
+        "MS" : "50",
+        "S"  : "34",
+        "T"  : "18",
     },
     "resnetc": {
-        "cloud": "200",
-        "k8s": "152",
-        "k8sjetsonnano": "110",
-        "pcweb": "56",
-        "pc": "56",
-        "jetsonagxorin": "44",
-        "jetsonagxxavier": "44",
-        "jetsonnano": "44",
-        "galaxys22": "32",
-        "odroidn2": "20",
-    },
+        "XXL": "200",
+        "XL" : "152",
+        "L"  : "110",
+        "M"  : "56",
+        "MS" : "44",
+        "S"  : "32",
+        "T"  : "20",
+    }
 }
 
 logger = logging.getLogger(__name__)
 
 
-def get_user_requirements(userid, projid):
+def get_user_requirements(userid, projid, resume=False):
     """
     Get user requirements(dataset, project, hyperparameters, arguments)
     """
@@ -159,7 +196,7 @@ def get_user_requirements(userid, projid):
     # ---------------------------- arguments -----------------------------------
     task = proj_info_dict['task_type']
     # trick for nas (temp.)
-    _task =  'detection7' if target == 'galaxys22' else task
+    _task =  'detection7' if basemodel['model_name'] == 'YOLOV7' or target == 'galaxys22' else task
     opt_yaml_path = CFG_PATH / f'args-{_task}.yaml'
     with open(opt_yaml_path, encoding='utf-8') as f:
         opt = argparse.Namespace(**yaml.safe_load(f))
@@ -168,6 +205,9 @@ def get_user_requirements(userid, projid):
     opt.cfg = str(basemodel_yaml_path)
     opt.hyp = str(hyp_yaml_path)
     opt.img_size = [basemodel_dict['imgsz'], basemodel_dict['imgsz']]
+    if resume:
+        opt.resume = str(PROJ_PATH / 'autonn' / 'weights' / 'last.pt')
+        opt.bs_factor = info.batch_multiplier - 0.1
     '''
     WORLD_SIZE: the total number of processes participating in the traininig 
                 (typically the number of GPUs across all nodes)
@@ -195,22 +235,47 @@ def base_model_select(userid, project_id, proj_info, data, manual_select=False):
     task = proj_info['task_type']
     target = proj_info['target_info'].replace('-', '').replace('_', '').lower()
 
-    # trick for compact version of resnet
-    task_ = 'classification-c' if data['nc'] <= 10 and task == 'classification' else task
+    target_acc = proj_info['acc']
+    target_mem = proj_info['memory']
+    target_mem = float(target_mem)
+    if target_acc == 'cpu':
+        model_size = "T"
+    else:
+        if target_mem <= 4.0:
+            model_size = "T"
+        elif target_mem <= 6.0:
+            model_size = "S"
+        elif target_mem <= 8.0:
+            model_size = "MS"
+        elif target_mem <= 12.0:
+            model_size = "M"
+        elif target_mem <= 16.0:
+            model_size = "L"
+        elif target_mem <= 20.0:
+            model_size = "XL"
+        else: # target_mem > 20G
+            model_size = "XXL"
 
-    # trick for nas (temp.)
-    if target == 'galaxys22':
+    logger.info(f"\nBMS: Based on memory = {target_mem}G, acc = {target_acc}")
+    # for supporting both v7 and v9, resent-c and resnet
+    task_ = 'classification-c' if data['nc'] <= 10 and task == 'classification' else task
+    task_ = 'detection7' if data['nc'] <= 50 and task == 'detection' else task
+
+    # for supporting nas
+    if target == 'galaxys22' and task == 'detection':
         task_ = 'detection7'
+        model_size = 'NAS'
 
     # look up table
     if not manual_select:
         model = TASK_TO_MODEL_TABLE[task_]
-        size = MODEL_TO_SIZE_TABLE[model][target]
+        # size = MODEL_TO_SIZE_TABLE[model][target]
+        size = MODEL_TO_SIZE_TABLE[model][model_size]
     else:
         model = manual_select['model']
         size = manual_select['size']
 
-    # trick for compact version of resnet
+    # resnet and resnet-c is in the same directory
     dirname = model if task_ != 'classification-c' else model[:-1] # remove 'c' from 'resnetc'
     filename = f'{model}{size}.yaml'
 
@@ -219,6 +284,7 @@ def base_model_select(userid, project_id, proj_info, data, manual_select=False):
     source_path = f'{CFG_PATH}/{dirname}/{filename}'
     target_path = f'{PROJ_PATH}/basemodel.yaml'
     shutil.copy(source_path, target_path)
+    logger.info(f'BMS: Selected model is [{model.upper()}{size.upper()}]\n')
 
     # construct nodes and edges
     viewer = BasemodelViewer(userid, project_id)
@@ -241,21 +307,24 @@ def base_model_select(userid, project_id, proj_info, data, manual_select=False):
         "model_name": model_p,
         "model_size": size_p,
     }
-    # print(basemodel)
+
     return target_path, basemodel
 
 
-def run_autonn(userid, project_id, viz2code=False, nas=False, hpo=False):
+def run_autonn(userid, project_id, resume=False, viz2code=False, nas=False, hpo=False):
     # Set Logging --------------------------------------------------------------
     set_logging(int(os.environ['RANK']) if 'RANK' in os.environ else -1)
 
     # Load settings ------------------------------------------------------------
-    proj_info, opt, hyp, basemodel, data = get_user_requirements(userid, project_id)
+    proj_info, opt, hyp, basemodel, data = get_user_requirements(userid, project_id, resume)
 
     proj_info['userid'] = userid
     proj_info['project_id'] = project_id
-    proj_info['nas'] = nas
     proj_info['viz'] = viz2code
+    lt = proj_info.get('learning_type', None)
+
+    if (lt and lt == 'hpo') or opt.evolve:
+        hpo = True
     proj_info['hpo'] = hpo
 
     target = proj_info['target_info'] # PC, Galaxy_S22, etc.
@@ -263,16 +332,17 @@ def run_autonn(userid, project_id, viz2code=False, nas=False, hpo=False):
     target_engine = proj_info['engine'].replace('-', '').replace('_', '').lower() # tensorrt, pytorch, tvm, etc.
     task = proj_info['task_type'] # detection, classification, llm
 
+    if target == 'Galaxy_S22' and task == 'detection':
+        nas = True
+    proj_info['nas'] = nas
 
     # Clear CUDA memory --------------------------------------------------------
     torch.cuda.empty_cache()
     gc.collect()
 
     if basemodel['imgsz']==1280:
-        return run_autonn_aux(proj_path, dataset_yaml_path, data, target, train_mode, final_arch)
+        opt.loss_name = 'AuxOTA'
 
-    # wandb_run = check_wandb_resume(opt)
-    # if opt.resume and not wandb_run:
     if opt.resume: # resume an interrupted run ---------------------------------
         ckpt = opt.resume if isinstance(opt.resume, str) else get_latest_run()  # specified or most recent path
         assert os.path.isfile(ckpt), 'ERROR: --resume checkpoint does not exist'
@@ -289,145 +359,136 @@ def run_autonn(userid, project_id, viz2code=False, nas=False, hpo=False):
         opt.name = 'evolve' if opt.evolve else opt.name
         opt.save_dir = increment_path(Path(opt.project) / opt.name, exist_ok=opt.exist_ok | opt.evolve)  # increment run
 
-    # Train --------------------------------------------------------------------
-    if not opt.evolve:
-        tb_writer = None  # init loggers
-        # if opt.global_rank in [-1, 0]:
-        #     prefix = colorstr('tensorboard: ')
-        #     try:
-        #         tb_writer = SummaryWriter(log_dir=str(opt.save_dir))  # Tensorboard
-        #         logger.info(f"{prefix}Start with 'tensorboard --logdir {str(opt.save_dir)}', view at http://localhost:6006/")
-        #     except Exception as e:
-        #         logger.warn(f'{prefix}Fail to load tensorbord because {e}')
-        #=======================================================================
-        results, train_final = train(proj_info, hyp, opt, data, tb_writer)
-        #=======================================================================
-        # tb_writer.flush()
 
-    # HPO ----------------------------------------------------------------------
-    else:
-        # Hyperparameter evolution metadata (mutation scale 0-1, lower_limit, upper_limit)
-        meta = {'lr0': (1, 1e-5, 1e-1),  # initial learning rate (SGD=1E-2, Adam=1E-3)
-                'lrf': (1, 0.01, 1.0),  # final OneCycleLR learning rate (lr0 * lrf)
-                'momentum': (0.3, 0.6, 0.98),  # SGD momentum/Adam beta1
-                'weight_decay': (1, 0.0, 0.001),  # optimizer weight decay
-                'warmup_epochs': (1, 0.0, 5.0),  # warmup epochs (fractions ok)
-                'warmup_momentum': (1, 0.0, 0.95),  # warmup initial momentum
-                'warmup_bias_lr': (1, 0.0, 0.2),  # warmup initial bias lr
-                'box': (1, 0.02, 0.2),  # box loss gain
-                'cls': (1, 0.2, 4.0),  # cls loss gain
-                'cls_pw': (1, 0.5, 2.0),  # cls BCELoss positive_weight
-                'obj': (1, 0.2, 4.0),  # obj loss gain (scale with pixels)
-                'obj_pw': (1, 0.5, 2.0),  # obj BCELoss positive_weight
-                'iou_t': (0, 0.1, 0.7),  # IoU training threshold
-                'anchor_t': (1, 2.0, 8.0),  # anchor-multiple threshold
-                'anchors': (2, 2.0, 10.0),  # anchors per output grid (0 to ignore)
-                'fl_gamma': (0, 0.0, 2.0),  # focal loss gamma (efficientDet default gamma=1.5)
-                'hsv_h': (1, 0.0, 0.1),  # image HSV-Hue augmentation (fraction)
-                'hsv_s': (1, 0.0, 0.9),  # image HSV-Saturation augmentation (fraction)
-                'hsv_v': (1, 0.0, 0.9),  # image HSV-Value augmentation (fraction)
-                'degrees': (1, 0.0, 45.0),  # image rotation (+/- deg)
-                'translate': (1, 0.0, 0.9),  # image translation (+/- fraction)
-                'scale': (1, 0.0, 0.9),  # image scale (+/- gain)
-                'shear': (1, 0.0, 10.0),  # image shear (+/- deg)
-                'perspective': (0, 0.0, 0.001),  # image perspective (+/- fraction), range 0-0.001
-                'flipud': (1, 0.0, 1.0),  # image flip up-down (probability)
-                'fliplr': (0, 0.0, 1.0),  # image flip left-right (probability)
-                'mosaic': (1, 0.0, 1.0),  # image mixup (probability)
-                'mixup': (1, 0.0, 1.0),   # image mixup (probability)
-                'copy_paste': (1, 0.0, 1.0),  # segment copy-paste (probability)
-                'paste_in': (1, 0.0, 1.0)}    # segment copy-paste (probability)
-
-        with open(opt.hyp, errors='ignore') as f:
-            hyp = yaml.safe_load(f)  # load hyps dict
-            if 'anchors' not in hyp:  # anchors commented in hyp.yaml
-                hyp['anchors'] = 3
-
-        assert opt.local_rank == -1, 'DDP mode not implemented for --evolve'
-        opt.notest, opt.nosave = True, True  # only test/save final epoch
-        # ei = [isinstance(x, (int, float)) for x in hyp.values()]  # evolvable indices
-        yaml_file = Path(opt.save_dir) / 'hyp_evolved.yaml'  # save best result here
-        if opt.bucket:
-            os.system('gsutil cp gs://%s/evolve.txt .' % opt.bucket)  # download evolve.txt if exists
-
-        for _ in range(300):  # generations to evolve
-            if Path('evolve.txt').exists():  # if evolve.txt exists: select best hyps and mutate
-                # Select parent(s)
-                parent = 'single'  # parent selection method: 'single' or 'weighted'
-                x = np.loadtxt('evolve.txt', ndmin=2)
-                n = min(5, len(x))  # number of previous results to consider
-                x = x[np.argsort(-fitness(x))][:n]  # top n mutations
-                w = fitness(x) - fitness(x).min()  # weights
-                if parent == 'single' or len(x) == 1:
-                    # x = x[random.randint(0, n - 1)]  # random selection
-                    x = x[random.choices(range(n), weights=w)[0]]  # weighted selection
-                elif parent == 'weighted':
-                    x = (x * w.reshape(n, 1)).sum(0) / w.sum()  # weighted combination
-
-                # Mutate
-                mp, s = 0.8, 0.2  # mutation probability, sigma
-                npr = np.random
-                npr.seed(int(time.time()))
-                g = np.array([x[0] for x in meta.values()])  # gains 0-1
-                ng = len(meta)
-                v = np.ones(ng)
-                while all(v == 1):  # mutate until a change occurs (prevent duplicates)
-                    v = (g * (npr.random(ng) < mp) * npr.randn(ng) * npr.random() * s + 1).clip(0.3, 3.0)
-                for i, k in enumerate(hyp.keys()):  # plt.hist(v.ravel(), 300)
-                    hyp[k] = float(x[i + 7] * v[i])  # mutate
-
-            # Constrain to limits
-            for k, v in meta.items():
-                hyp[k] = max(hyp[k], v[1])  # lower limit
-                hyp[k] = min(hyp[k], v[2])  # upper limit
-                hyp[k] = round(hyp[k], 5)  # significant digits
-
-            # Train mutation
-            results, train_final = train(hyp.copy(), opt, device, target=target)
-
-            # Write mutation results
-            print_mutation(hyp.copy(), results, yaml_file, opt.bucket)
-
-        # Plot results
-        plot_evolution(yaml_file)
-        logger.info(f'Hyperparameter evolution complete. Best results saved as: {yaml_file}\n'
-                    f'Command to train a new model with these hyperparameters: $ python train.py --hyp {yaml_file}')
+    # Pre-train --------------------------------------------------------------------
+    tb_writer = None  # init loggers
+    # if opt.global_rank in [-1, 0]:
+    #     prefix = colorstr('tensorboard: ')
+    #     try:
+    #         tb_writer = SummaryWriter(log_dir=str(opt.save_dir))  # Tensorboard
+    #         logger.info(f"{prefix}Start with 'tensorboard --logdir {str(opt.save_dir)}',"
+    #                     f" view at http://localhost:6006/")
+    #     except Exception as e:
+    #         logger.warn(f'{prefix}Fail to load tensorbord because {e}')
+    #===========================================================================
+    results, train_final = train(proj_info, hyp, opt, data, tb_writer)
+    #===========================================================================
+    # tb_writer.flush()
+    best_acc = results[3] if task == 'detection' else results[0]
+    logger.info(f'Train: Training complete. Best results: {best_acc:.2f},'
+                f' Best model saved as: {train_final}\n')
 
     # NAS ----------------------------------------------------------------------
-    if nas or target == 'Galaxy_S22':
+    if nas:
         #=======================================================================
-        train_final = search(proj_info, hyp, opt, data, train_final)
+        train_final, yaml_file = search(proj_info, hyp, opt, data, train_final)
         #=======================================================================
 
+        opt.resume = True
+        opt.weight = str(train_final)
+        # results, train_final = train(proj_info, hyp, opt, data, tb_writer=None)
+
+
+    # HPO ----------------------------------------------------------------------
+    if hpo:
+        #=======================================================================
+        hyp, yaml_file = evolve(proj_info, hyp, opt, data, train_final)
+        #=======================================================================
+
+        # plot results
+        plot_evolution(yaml_file)
+        logger.info(f'\nHPO: Hyperparameter optimization complete. '
+                    f'Best results saved as: {yaml_file}\n')
+
+    # Train --------------------------------------------------------------------
+    # re-train a model with the best architecture & hyperparameters
+    # if nas or hpo:
+    #     #=======================================================================
+    #     results, train_final = train(proj_info, hyp, opt, data, tb_writer)
+    #     #=======================================================================
+    #     best_acc = results[3] if task == 'detection' else results[0]
+    #     logger.info(f'\nTrain: Final training complete. Best results: {best_acc:.2f},'
+    #                 f' Best model saved as: {train_final}\n')
+
+
     # Model Export -------------------------------------------------------------
+    '''
+    cloud           : pytorch (torchscript)
+    k8s             : pytorch (torchscript)
+    k8sjetsonnano   : ? (tensorrt)
+    pcweb           : ? (tf.js w/o nms)
+    pc              : pytorch (torchscript)
+    jetsonagxorin   : tensorrt
+    jetsonagxxavier : tensorrt
+    jetsonnano      : tensorrt
+    galaxys22       : tflite
+    odroidn2        : ? (onnx) ; acl 
+    '''
     if not train_final:
-        logger.warn("train end but no trained weights")
-        return None
+        logger.warn("Model Exporter: Training complete but no trained weights")
+        return
+
+    # Strip optimizers ---------------------------------------------------------
+    # [tenace's note] what strip_optimizer does is ...
+    # 1. load cpu model
+    # 2. get attribute 'ema' if it exists
+    # 3. replace attribute 'model' with 'ema'
+    # 4. reset attributes 'optimizer', 'training_results', 'ema', and 'updates' to None
+    # 5. reset attribute 'epoch' to -1
+    # 6. convert model to FP16 precision (not anymore by tenace)
+    # 7. set [model].[parameters].requires_grad = False
+    # 8. save model to original file path
+    if train_final.exists():
+        striped_train_final = COMMON_ROOT / userid / project_id / 'bestmodel.pt'
+        shutil.copyfile(str(train_final), str(striped_train_final))
+        strip_optimizer(striped_train_final)  # strip optimizers
+
+    logger.info(f'\nModel Exporter: Converting models for target [{target}({target_acc}):{target_engine}]...')
+    logger.info('='*100)
+
     # target_acc = proj_info['acc']
-    # target_engine = proj_info['engine'].replace('-', '').replace('_', '').lower()
+    target_engine = proj_info['engine']
     # task = proj_info['task_type']
     channel = data.get('ch')
     # print(f'channle = {channel}')
     convert = ['torchscript', 'onnx']
-    export_weight(train_final, target_acc, convert, task=task, ch=channel, imgsz=opt.img_size)
+    if target_engine == 'tensorrt':
+        convert.append('engine')
+    if task == 'detection':
+        convert.append('onnx_end2end')
+    export_weight(striped_train_final, target_acc, convert, task=task, ch=channel, imgsz=opt.img_size)
 
     # optional
-    if task == 'detection':
-        export_weight(train_final, target_acc, ['onnx_end2end'])
-
-    # src_bestmodel_path = COMMON_ROOT / userid / project_id / 'autonn' / 'weights' / 'best.torchscript'
-    src_bestmodel_path = Path(train_final).with_suffix('.torchscript')
-    dst_bestmodel_path = COMMON_ROOT / userid / project_id / 'bestmodel.torchscript'
-    shutil.copyfile(str(src_bestmodel_path), str(dst_bestmodel_path))
+    # if task == 'detection':
+    #     export_weight(striped_train_final, target_acc, ['onnx_end2end'])
 
     src_nninfo_path = CFG_PATH / 'neural_net_info.yaml'
     dst_nninfo_path = COMMON_ROOT / userid / project_id / 'neural_net_info.yaml'
     export_config(src_nninfo_path, dst_nninfo_path, data, basemodel, target_acc, target_engine, task=task)
 
-    # logger.info('train finished')
-    # mb = os.path.getsize(train_final) / 1E6  # filesize
-    # logger.info(f'best model = {train_final}, {mb:.1f} MB')
-    # logger.info(f'mAP = {results[-1]}')
+    logger.info(f'\nModel Exporer: Export complete')
+    mb = os.path.getsize(striped_train_final) / 1E6  # filesize
+    logger.info(f'Source Model = {striped_train_final}({mb:.1f} MB), {results[3]} mAP')
+    logger.info('='*100)
+    for model_type in convert:
+        if model_type == 'onnx_end2end':
+            dir = Path(striped_train_final).parent / Path(striped_train_final).stem
+            suffix = '-end2end.onnx'
+            exported_bestmodel_path = f"{str(dir)}{suffix}"
+        else:
+            model_type = 'tensor-rt' if model_type == 'engine' else model_type
+            suffix = f'.{model_type}'
+            exported_bestmodel_path = Path(striped_train_final).with_suffix(suffix)
+
+        if not os.path.isfile(exported_bestmodel_path):
+            exported_bestmodel_path = 'not exist'
+            mb = 0.0
+        else:
+            mb = os.path.getsize(exported_bestmodel_path) / 1E6  # filesize
+        logger.info(f'{model_type.upper():>20s} Model: {exported_bestmodel_path}({mb:.1f} MB)')
+    logger.info('='*100)
+    logger.info(f'Meta data = {dst_nninfo_path}\n')
+
 
     # Inference ----------------------------------------------------------------
     # version 1. call a function from main codes
@@ -443,5 +504,6 @@ def run_autonn(userid, project_id, viz2code=False, nas=False, hpo=False):
     # source = str(INF_DIR / 'horses.jpg')
     # run(weights, source, view_img=False, save_img=True, save_txt=True, save_dir=str(INF_DIR))
 
-    return train_final  # bestmodel.pt
+    # return train_final  # bestmodel.pt, bestmodel.torchscript, bestmodel.onnx
+    return
 

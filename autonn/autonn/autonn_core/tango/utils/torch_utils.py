@@ -283,7 +283,9 @@ def model_summary(model, img_size=640, verbose=False):
     model_briefs['parameters'] = n_p
     model_briefs['gradients'] = n_g
     model_briefs['FLOPS'] = float(gflops)
-    logger.info(model_briefs)
+    logger.info(f"Models: Summary [Layers: {len(list(model.modules())):,}], "
+                f"[Params: {n_p:,} (Grads: {n_g:,})], "
+                f"[FLOPs: {float(gflops):.1f} GFLOPs]\n")
     return model_briefs
 
 

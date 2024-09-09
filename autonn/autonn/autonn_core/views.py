@@ -182,7 +182,6 @@ def start(request):
 
     try:
         # data_yaml, proj_yaml = get_user_requirements(userid, project_id)
-
         pr = mp.Process(target = process_autonn, args=(userid, project_id))
         pr_id = get_process_id()
         PROCESSES[pr_id] = pr
@@ -216,55 +215,56 @@ def resume(request):
 
     try:
         info = Info.objects.get(userid=userid, project_id=project_id)
-        print(info)
-        if info.status in ['started', 'running']:
-            return Response("failed", status=status.HTTP_406_NOT_ACCEPTABLE, content_type="text/plain")
+        # if info.status in ['started', 'running']:
+        #     return Response("failed", status=status.HTTP_406_NOT_ACCEPTABLE, content_type="text/plain")
     except Info.DoesNotExist:
         print('not found autonn info')
         return Response("failed", status=status.HTTP_404_BAD_REQUEST, content_type="text/plain")
 
-    last_epoch = info.epoch
-    last_bs_factor = info.batch_multiplier
-    last_bs = info.batch_size
-    last_process_number = info.process_id
+    if info.progress != 'oom':
+        last_epoch = info.epoch
+        last_bs_factor = info.batch_multiplier
+        last_bs = info.batch_size
+        last_process_number = info.process_id
 
-    print("================ RESUME =====================")
-    print(f'epoch = {last_epoch}, bs_factor={last_bs_factor}, bs={last_bs}, process={last_process_number}')
     try:
+        # terminate prev. process
         process_done = PROCESSES.pop(str(last_process_number))
         if process_done.is_alive():
             process_done.terminate()
             process_done.join()
-    except Exception as e:
-        print(e)
 
-    print(f"[TENACE] RESUME is Not Implemented Yet... "
-          f"I'll just signal `completed` to PM for now to avoid infinite loop")
-    status_report(userid, project_id, "completed")
-    return Response("completed", status=status.HTTP_200_OK, content_type="text/plain")
-
-    '''
-    try:
-        # data_yaml, proj_yaml = get_user_requirements(userid, project_id)
-
-        pr = mp.Process(target = process_autonn, args=(userid, project_id))
+        # re-start a new process
+        resume = True
+        pr = mp.Process(target = process_autonn, \
+                        args=(userid, project_id, resume))
         pr_id = get_process_id()
         PROCESSES[pr_id] = pr
         PROCESSES[pr_id].start()
 
-        # info.target_device=str(proj_yaml)
-        # info.data_yaml=str(data_yaml)
         info.status="started"
         info.progress="setting"
         info.process_id = pr_id
         info.save()
-        return Response("started", status=status.HTTP_200_OK, content_type="text/plain")
+
     except Exception as e:
-        print(f"[AutoNN GET/start] exception: {e}")
-        info.status="failed"
+        print(f"[AutoNN process_autonn] exception: {e}")
+        import torch, gc
+        if torch.cuda.is_available():
+            torch.cuda.empty_cache()
+        gc.collect()
+        info = Info.objects.get(userid=userid, project_id=project_id)
+        if 'CUDA' in e:
+            print(f"[AutoNN process_autonn] CUDA OOM, try to reduce batch size next time...")
+            last_epoch = info.epoch
+            last_bs_factor = info.batch_multiplier
+            last_bs = info.batch_size
+            print(f'[AutoNN process_autonn] Epoch = {last_epoch}, BS_factor={last_bs_factor}, BatchSize={last_bs}')
+            info.progress = "oom"
+        info.status = "failed"
         info.save()
-        return Response("failed", status=status.HTTP_400_BAD_REQUEST, content_type="text/plain")
-    '''
+        status_report(userid, project_id, "failed")
+
 
 @api_view(['GET'])
 def status_request(request):
@@ -334,27 +334,15 @@ def status_report(userid, project_id, status="success"):
         print(f"[AutoNN status_report] exception: {e}")
 
 
-def process_autonn(userid, project_id):
+def process_autonn(userid, project_id, resume=False):
     '''
-    1. Run autonn (setup w/bms - pre-train - nas - hpo - train - test)
+    1. Run autonn (setup w/bms - pre-train - nas - hpo - train - export)
     2. Export model weights and architecure (pt, yaml)
     3. Report status to PM (completed / failed)
     '''
     try:
         # ------- actual process --------
-        final_model = run_autonn(userid, project_id, viz2code=False, nas=False, hpo=False)
-
-        # -------- ready to export ------
-        # best_pt_path = f'/shared/common/{userid}/{project_id}/bestmodel.pt'
-        # shutil.copyfile(final_model, best_pt_path)
-
-        # nn_info_template = f'/source/'
-
-        # info = Info.objects.get(userid=userid, project_id=project_id)
-        # target_acc = info.device
-        # convert = ['pytorch', 'torchscript', 'onnx']
-        # export_weight(best_pt_path, userid, project_id, target_acc, convert)
-        # export_weight(best_pt_path, userid, project_id, target_acc, ['onnx_end2end'])
+        run_autonn(userid, project_id, resume=resume, viz2code=False, nas=False, hpo=False)
 
         info = Info.objects.get(userid=userid, project_id=project_id)
         info.status = "completed"
@@ -363,8 +351,8 @@ def process_autonn(userid, project_id):
         # print("=== wait for 10 sec to avoid thread exception =============")
         # import time
         # time.sleep(10)
-    except Exception as e:
-        print(f"[AutoNN process_autonn] exception: {e}")
+    except FileNotFoundError as e1:
+        print(f"[AutoNN process_autonn] exception: {e1}")
         import torch, gc
         if torch.cuda.is_available():
             torch.cuda.empty_cache()
@@ -373,11 +361,32 @@ def process_autonn(userid, project_id):
         info.status = "failed"
         info.save()
         status_report(userid, project_id, "failed")
+    except Exception as e:
+        print(f"[AutoNN process_autonn] exception: {e}")
+        import torch, gc
+        if torch.cuda.is_available():
+            torch.cuda.empty_cache()
+        gc.collect()
+        info = Info.objects.get(userid=userid, project_id=project_id)
+        if 'CUDA' in str(e):
+            print(f"[AutoNN process_autonn] CUDA OOM, try to reduce batch size next time...")
+            last_epoch = info.epoch
+            last_bs_factor = info.batch_multiplier
+            last_bs = info.batch_size
+            print(f'[AutoNN process_autonn] Epoch = {last_epoch}, BS_factor={last_bs_factor}, BatchSize={last_bs}')
+            info.progress = "oom"
+        else:
+            print(f"[AutoNN process_autonn] ignore this exception")
+
+        info.status = "failed"
+        info.save()
+        status_report(userid, project_id, "failed")
     # finally:
     #     import torch, gc
     #     if torch.cuda.is_available():
     #         torch.cuda.empty_cache()
     #     gc.collect()
+
 
 def get_process_id():
     """

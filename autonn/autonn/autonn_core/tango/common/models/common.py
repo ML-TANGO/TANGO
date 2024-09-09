@@ -2049,7 +2049,7 @@ class ADown(nn.Module):
         super().__init__()
         self.c = c2 // 2
         self.cv1 = Conv(c1 // 2, self.c, 3, 2, 1)
-        self.cv2 = Conv(c1 // 2, self.c, 1, 1, 1)
+        self.cv2 = Conv(c1 // 2, self.c, 1, 1, 0)
     
     def forward(self,x):
         x = F.avg_pool2d(x, 2, 1, 0, False, True)

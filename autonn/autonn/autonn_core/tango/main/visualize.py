@@ -68,8 +68,10 @@ class BasemodelViewer:
         basemodel['nc'] = nc = data_dict.get('nc', 80)
         basemodel['ch'] = ch = [ data_dict.get('ch', 3) ] # TODO: it doesn't matter whether input is 1 channel or 3 channels for now
         layers, lines, c2, edgeid = [], [], ch[-1], 0
+        logger.info(f'\nVisualizer: Reading basemodel.yaml...')
+        logger.info('-'*100)
         for i, (f, n, m, args) in enumerate(basemodel['backbone'] + basemodel['head']):  # from, number, module, args
-            logger.info(f"💧 Read yaml layer-{i} : ({f}, {n}, {m}, {args})")
+            logger.info(f"\tlayer-{i:2d} : {f}, {n}, {m}, {args}")
 
             # node parsing -------------------------------------------------
             # m = eval(m) if isinstance(m, str) else m  # eval strings
@@ -516,7 +518,10 @@ class BasemodelViewer:
                 c2 = None
                 nc = args[0]
                 if isinstance(f, list):
-                    nl = len(f) # number of detection layers
+                    if m == 'IAuxDetect':
+                        nl = len(f) // 2 # one is an auxiliary head
+                    else:
+                        nl = len(f) # number of detection layers
                     c1 = [ch[x] for x in f]
                 else:
                     logger.warn("warning! detection module needs two or more inputs")
@@ -562,6 +567,17 @@ class BasemodelViewer:
                     f"'nc': {nc} \n "
                     f"'ch': {ch_} \n "
                     f"'inplace': {inplace_}"
+                )
+            elif m == 'ELAN1':
+                c1 = ch[f]
+                c2 = args[0] # ch_out
+                c3 = args[1] # ch_hidden1
+                c4 = args[2] # ch_hidden2
+                params = (
+                    f"'in_channels': {c1} \n "
+                    f"'out_channels': {c2} \n "
+                    f"'1st_hidden_channels': {c3} \n "
+                    f"'2nd_hidden_channels': {c4}"
                 )
             elif m == 'BBoneELAN':
                 c1 = ch[f]
@@ -723,7 +739,8 @@ class BasemodelViewer:
         self.base_dict = deepcopy(basemodel)
         self.layers = layers
         self.lines = lines
-        logger.info('visualizer: parse basemodel.yaml success')
+        logger.info('-'*100)
+        logger.info('Visualizer: Parsing basemodel.yaml complete')
 
     def update(self):
         json_data = OrderedDict()
@@ -746,9 +763,9 @@ class BasemodelViewer:
             info.progress = 'viz_update'
             info.save()
         except Info.DoesNotExist:
-            logger.warn(f'not found {userid}/{project_id} information')
+            logger.warn(f'not found {self.userid}/{self.project_id} information')
 
-        logger.info('visualizer: update nodes and edges for viz done')
+        logger.info(f'Visualizer: Updating nodes and edges complete\n')
 
 
 def export_pth(file_path):
@@ -1057,7 +1074,12 @@ def export_yml(name, yaml_path):
             nc_ = params_['nc']
             ch_ = params_['ch']
             inplace_ = params_['inplace']
-            args_ = [nc_, ch_, inplace_]        
+            args_ = [nc_, ch_, inplace_]
+        elif module_ == 'ELAN1':
+            ch_ = params_['out_channels']
+            hdch_ = params_['1st_hidden_channels']
+            hdch2_ = params_['2nd_hidden_channels']
+            args_ = [ch_, hdch_, hdch2_]
         elif module_ in ('BBoneELAN', 'HeadELAN'):
             ch_ = params_['out_channels']
             k_ = params_['kernel_size']
