@@ -84,7 +84,7 @@ export default {
         // { key: "BMS", allowed: ["bms"] },
         // { key: "Visualization", allowed: ["visualization", "viz2code"] },
         { key: "Auto NN", allowed: ["autonk", "yoloe", "autobb", "autonn-resnet", "autonn"] },
-        { key: "Code Gen", allowed: ["codeGen"] },
+        { key: "Code Gen", allowed: ["code_gen"] },
         { key: "Image Deploy", allowed: ["imagedeploy"] }
         // { key: "Run Image", allowed: ["run_image"] }
       ]
@@ -132,6 +132,7 @@ export default {
     },
 
     async close() {
+      this.INIT_PROJECT();
       await this.initProjectList();
     },
 

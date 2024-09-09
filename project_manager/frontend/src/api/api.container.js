@@ -1,6 +1,6 @@
-import axios from "axios";
+// import axios from "axios";
 import request from "./axios";
-import { ContainerPort } from "@/shared/enums";
+// import { ContainerPort } from "@/shared/enums";
 
 // export async function startContainer(container, uid, pid) {
 //   let response = null;
@@ -24,21 +24,22 @@ import { ContainerPort } from "@/shared/enums";
 // }
 
 export async function stopContainer(container, uid, pid) {
-  let response = null;
-  const host = window.location.hostname;
-  const port = ContainerPort[container];
+  // let response = null;
+  // const host = window.location.hostname;
+  // const port = ContainerPort[container];
 
-  try {
-    response = await axios.get(
-      "http://" + host + ":" + port + "/stop",
-      { params: { user_id: uid, project_id: pid } },
-      { withCredentials: true }
-    );
-  } catch (error) {
-    throw new Error(error);
-  }
+  // try {
+  //   response = await axios.get(
+  //     "http://" + host + ":" + port + "/stop",
+  //     { params: { user_id: uid, project_id: pid } },
+  //     { withCredentials: true }
+  //   );
+  // } catch (error) {
+  //   throw new Error(error);
+  // }
 
-  return response.data;
+  // return response.data;
+  return { container, uid, pid };
 }
 
 // export async function checkContainerStatus(container, uid, pid) {
@@ -113,6 +114,27 @@ export async function containerStart(container, user, project) {
       user_id: user,
       project_id: project,
       container_id: container
+    });
+  } catch (error) {
+    throw new Error(error);
+  }
+
+  return response.data;
+}
+
+/* 컨테이너 상태 요청 */
+/**
+ * user_id , project_id , container_id
+ * @param {*} data
+ * @returns
+ */
+export async function next_pipeline_start(user, project) {
+  let response = null;
+
+  try {
+    response = await request.post("/api/next_pipeline_start", {
+      user_id: user,
+      project_id: project
     });
   } catch (error) {
     throw new Error(error);

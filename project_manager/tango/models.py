@@ -17,6 +17,8 @@ from django.contrib.auth.models import User
 from django.db import models
 from django.contrib.postgres.fields import ArrayField  
 
+from .enums import LearningType
+
 
 class AuthUser(models.Model):
     """AuthUser class
@@ -91,6 +93,8 @@ class Project(models.Model):
     version = models.IntegerField(blank=False, null=False, default=0)
 
     task_type = models.CharField(blank=True, null=True, max_length=50, default='')
+    learning_type = models.CharField(blank=True, null=True, max_length=20, default='')
+    weight_file = models.TextField(blank=True, null=True, default='')
     autonn_dataset_file = models.CharField(blank=True, null=True, max_length=50, default='')
     autonn_basemodel = models.CharField(blank=True, null=True, max_length=50, default='')
     nas_type = models.CharField(blank=True, null=True, max_length=50, default='')
@@ -106,7 +110,6 @@ class Project(models.Model):
 
     container = models.CharField(blank=True, null=True, max_length=50, default='')               # 신경망 생성 단계
     container_status = models.CharField(blank=True, null=True, max_length=50, default='')        # 신경망 생성 상태
-
 
     last_logs_timestamp = models.FloatField(blank=True, null=True, default=0)               # 마지막 로그 출력 시간
     last_log_container = models.CharField(blank=True, null=True, max_length=50, default='') # 마지막 로그를 불러온 컨테이너

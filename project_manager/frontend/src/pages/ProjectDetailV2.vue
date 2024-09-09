@@ -13,10 +13,13 @@
       </TabBase>
       <div>
         <TabBase :count="-1" title="Progress" :defaultBanner="true" ref="ProgressRef">
-          <template #content> <ProgressTab :projectInfo="project" @restart="restart" @start="start" /> </template>
+          <template #content>
+            <ProgressTab :projectInfo="project" @start="start" @nextPipeline="nextPipeline" />
+          </template>
         </TabBase>
       </div>
     </v-card>
+
     <v-dialog v-model="isOpenDownloadingDialog" width="450" persistent>
       <v-card style="text-align: center">
         <div style="padding: 30px">
@@ -52,7 +55,8 @@ import {
   stopContainer,
   getTargetInfo,
   getDatasetListTango,
-  getUserIntervalTime
+  getUserIntervalTime,
+  next_pipeline_start
 } from "@/api";
 
 export default {
@@ -93,6 +97,13 @@ export default {
           this.getCurrentProjectInfo();
         }, 2000);
       }
+
+      // if (
+      //   this.project?.container === ContainerName.IMAGE_DEPLOY &&
+      //   this.project?.container_status === ProjectStatus.COMPLETED
+      // ) {
+      //   await this.nextPipeline();
+      // }
     } catch (err) {
       this.denyAccess();
 
@@ -144,7 +155,12 @@ export default {
         this.denyAccess();
         return;
       }
-      const projectInfo = new Project(response);
+
+      await this.setProjectInfo(response);
+    },
+
+    async setProjectInfo(data) {
+      const projectInfo = new Project(data);
 
       if (!projectInfo.validation()) {
         this.denyAccess();
@@ -198,15 +214,13 @@ export default {
       });
     },
 
-    restart() {
+    start() {
       this.startProjectStatusInterval();
 
       setTimeout(() => {
         this.getCurrentProjectInfo();
       }, 2000);
     },
-
-    start() {},
 
     onBack() {
       this.$router.push("/");
@@ -230,6 +244,7 @@ export default {
 
     // =============================================================================
     startProjectStatusInterval() {
+      console.log("this.project.container", this.project.container);
       if (this.project.container === ContainerName.AUTO_NN) {
         if (!this.autonnStatusInterval) {
           this.autonnStatusInterval = setInterval(() => {
@@ -252,7 +267,7 @@ export default {
 
     async getCurrentProjectInfo() {
       if (this.project) {
-        await postStatusRequest({ user_id: this.project.create_user, project_id: this.project.id }).then(res => {
+        await postStatusRequest({ user_id: this.project.create_user, project_id: this.project.id }).then(async res => {
           if (res === null) return;
           if (typeof res === "string") return;
 
@@ -295,6 +310,31 @@ export default {
 
     secondToMillisecond(second) {
       return second * 1000;
+    },
+
+    async nextPipeline() {
+      const result = await Swal.fire({
+        title: `진행`,
+        text: "다음 파이프라인을 실행 하시겠습니까?",
+        icon: "info",
+        showCancelButton: true,
+        allowOutsideClick: false,
+        allowEscapeKey: false,
+        confirmButtonColor: "#3085d6",
+        cancelButtonColor: "#d33",
+        confirmButtonText: "확인",
+        cancelButtonText: "취소"
+      });
+
+      if (!result.isConfirmed) return;
+
+      const response = await next_pipeline_start(this.project.create_user, this.project.id);
+      await this.setProjectInfo(response.project);
+
+      this.startProjectStatusInterval();
+      setTimeout(() => {
+        this.getCurrentProjectInfo();
+      }, 2000);
     }
   }
 };

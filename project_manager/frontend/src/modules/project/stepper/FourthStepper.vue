@@ -5,7 +5,7 @@
 
       <!-- TASK TYPE -->
       <div class="d-flex align-center" style="gap: 25px">
-        <div style="width: 150px">TASK TYPE</div>
+        <div style="width: 150px">Task Type</div>
         <v-radio-group v-model="taskType" row hide-details="" class="ma-0">
           <v-radio label="Classification" value="classification"></v-radio>
           <v-radio label="Detection" value="detection"></v-radio>
@@ -13,6 +13,39 @@
       </div>
 
       <v-divider class="mt-3 mb-3"></v-divider>
+
+      <div class="d-flex align-center" style="gap: 25px">
+        <div style="width: 150px">Learning Type</div>
+        <v-radio-group v-model="learningType" row hide-details="" class="ma-0">
+          <v-radio label="Normal" :value="LearningType.NORMAL"></v-radio>
+          <v-radio label="Incremental" :value="LearningType.INCREMENTAL" v-if="isIncremental"></v-radio>
+          <v-radio label="Transfer" :value="LearningType.TRANSFER"></v-radio>
+        </v-radio-group>
+      </div>
+
+      <v-divider class="mt-3 mb-3"></v-divider>
+
+      <div v-if="learningType === LearningType.TRANSFER">
+        <div class="d-flex align-center" style="gap: 25px">
+          <div style="width: 150px">Weight File</div>
+          <v-text-field
+            :value="weightFilePath"
+            :key="`weight file`"
+            outlined
+            dense
+            :label="'Weight File Selector'"
+            hide-details
+            readonly
+            @click="onClickWeightFilePath"
+          />
+          <!-- 
+            :label="weightFilePath || 'Weight File Selector'"
+
+           -->
+        </div>
+
+        <v-divider class="mt-3 mb-3"></v-divider>
+      </div>
 
       <!-- AUTONN -->
       <!-- <div class="d-flex align-center" style="gap: 25px">
@@ -195,16 +228,28 @@
       <v-btn class="ma-0 pa-0" text style="color: #4a80ff" @click="pre"> PREV </v-btn>
       <v-btn class="ma-0 pa-0" text style="color: #4a80ff" @click="create"> FINISH </v-btn>
     </div>
+
+    <!-- <v-dialog v-model="openWeightFileDialog"> </v-dialog> -->
+    <PTFileSelector ref="PTFileSelector" :structure="structure" @select="onSelectPtFile" />
   </div>
 </template>
 <script>
 import { mapState } from "vuex";
 import { ProjectNamespace } from "@/store/modules/project";
-import { TaskType } from "@/shared/enums";
+import { LearningType, TaskType, CommonDatasetName } from "@/shared/enums";
+
+import PTFileSelector from "@/modules/common/dialog/PTFileSelector.vue";
+
+import { get_common_folder_structure } from "@/api";
 export default {
+  components: { PTFileSelector },
+
   data() {
     return {
       taskType: "",
+      learningType: "",
+      weightFilePath: "",
+      openWeightFileDialog: false,
       nasType: "",
       basemodel: "basemode.yaml",
       dataset: "dataset.yaml",
@@ -242,12 +287,20 @@ export default {
 
       lightWeightLvKey: 0,
       precisionLvKey: 0,
-      inputSourceKey: 0
+      inputSourceKey: 0,
+
+      structure: [],
+
+      LearningType
     };
   },
 
   computed: {
-    ...mapState(ProjectNamespace, ["selectedImage", "selectedTarget", "project"])
+    ...mapState(ProjectNamespace, ["selectedImage", "selectedTarget", "project"]),
+
+    isIncremental() {
+      return this.selectedImage?.name === CommonDatasetName.COCO && this.taskType === TaskType.DETECTION;
+    }
   },
 
   watch: {
@@ -259,11 +312,19 @@ export default {
       } else {
         this.outputMethod = this.project.deploy_output_method || "0";
       }
+    },
+
+    isIncremental() {
+      if (!this.isIncremental && this.learningType === LearningType.INCREMENTAL) {
+        this.learningType = LearningType.NORMAL;
+      }
     }
   },
 
-  created() {
+  mounted() {
     this.taskType = this.project.task_type || TaskType.DETECTION;
+    this.learningType = this.project.learning_type || LearningType.NORMAL;
+    this.weightFilePath = this.project?.weight_file || "";
     this.nasType = this.project.nas_type || "neck_nas";
     this.basemodel = this.project.autonn_basemodel || "basemode.yaml";
     this.dataset = this.project.autonn_dataset_file || "dataset.yaml";
@@ -291,6 +352,11 @@ export default {
     } else {
       this.inputSourceType = "URL or File/Directory Path";
     }
+
+    if (!this.isIncremental && this.learningType === LearningType.INCREMENTAL) {
+      // 선택 한 데이터 셋이 COCO가 아니고, INCREMENTAL이 선택되어있을 경우 Normal로 강제로 변경
+      this.learningType = LearningType.NORMAL;
+    }
   },
 
   methods: {
@@ -300,6 +366,8 @@ export default {
     create() {
       this.$emit("create", {
         task_type: this.taskType,
+        learning_type: this.learningType,
+        weight_file: this.weightFilePath || "",
         nas_type: this.nasType,
         autonn_basemodel: this.basemodel || "",
         autonn_dataset_file: this.dataset || "",
@@ -351,6 +419,20 @@ export default {
       } else {
         return inputSource;
       }
+    },
+
+    async onClickWeightFilePath() {
+      // this.openWeightFileDialog = true;
+      const res = await get_common_folder_structure();
+      this.structure = res.structure;
+
+      const ptFileSelector = this.$refs.PTFileSelector;
+      ptFileSelector.isOpen = true;
+    },
+
+    onSelectPtFile(path) {
+      console.log("onSelectPtFile - path", path);
+      this.weightFilePath = path;
     }
   }
 };

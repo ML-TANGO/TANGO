@@ -794,6 +794,21 @@ def check_dataset_status(dataset):
     # 데이터셋 다운로드 전.
     return DATASET_STATUS.NONE.value
 
+def copy_train_file_for_version(version):
+    try:
+        print("copy file name : ", f"train_{str(version).zfill(4)}.txt")
+        src = os.path.join(BASE_DIR, "datasets_yaml", "coco", f"train_{str(version).zfill(4)}.txt") 
+        print("copy_train_file_for_version - src : ", src)
+    
+        dst = os.path.join(COMMON_DATASET_INFO["COCO"]["path"], f"train2017.txt")
+        print("copy_train_file_for_version - dst : ", dst)
+        
+        shutil.copy(src, dst)
+    except Exception as error:
+        print(f"copy_train_file_for_version ERROR : {error}")
+        raise error
+    
+
 #endregion
 
 

@@ -173,7 +173,6 @@ export default {
     ...mapState(ProjectNamespace, ["project"]),
 
     taskType() {
-      console.log(this.project?.task_type || TaskType.DETECTION);
       return this.project?.task_type || TaskType.DETECTION;
     },
 

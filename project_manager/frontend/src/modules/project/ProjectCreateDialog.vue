@@ -100,6 +100,8 @@ export default {
           project_target: this.project.target_id || "",
           project_dataset: this.project.dataset || "",
           task_type: this.project.task_type || "",
+          learning_type: this.project.learning_type || "",
+          weight_file: this.project.weight_file || "",
           autonn_dataset_file: this.project.autonn_dataset_file || "",
           autonn_base_model: this.project.autonn_basemodel || "",
           nas_type: this.project.nas_type || "",
@@ -132,6 +134,8 @@ export default {
         project_target: this.project.target_id,
         project_dataset: this.project.dataset,
         task_type: this.project.task_type,
+        learning_type: this.project.learning_type || "",
+        weight_file: this.project.weight_file || "",
         autonn_dataset_file: this.project.autonn_dataset_file,
         autonn_base_model: this.project.autonn_basemodel,
         nas_type: this.project.nas_type,
@@ -147,28 +151,6 @@ export default {
       };
 
       await updateProjectInfo(param);
-
-      // 20240610........ 이전 버전...................
-      // const workflow =
-      //   this.project.task_type === TaskType.DETECTION
-      //     ? [ContainerName.BMS, ContainerName.AUTO_NN, ContainerName.CODE_GEN, ContainerName.IMAGE_DEPLOY]
-      //     : [
-      //         ContainerName.BMS,
-      //         ContainerName.VISUALIZATION,
-      //         ContainerName.AUTO_NN_RESNET,
-      //         ContainerName.CODE_GEN,
-      //         ContainerName.IMAGE_DEPLOY
-      //       ];
-
-      // const workflow =
-      //   this.project.task_type === TaskType.DETECTION
-      //     ? [ContainerName.AUTO_NN, ContainerName.CODE_GEN, ContainerName.IMAGE_DEPLOY]
-      //     : [
-      //         // ContainerName.VISUALIZATION,
-      //         ContainerName.AUTO_NN_RESNET,
-      //         ContainerName.CODE_GEN,
-      //         ContainerName.IMAGE_DEPLOY
-      //       ];
 
       const workflow = [ContainerName.AUTO_NN, ContainerName.CODE_GEN, ContainerName.IMAGE_DEPLOY];
 
@@ -189,7 +171,7 @@ export default {
       this.dialog = false;
       this.$emit("stepChange", 1);
       this.$emit("close");
-      this.INIT_PROJECT();
+      // this.INIT_PROJECT();
     }
   }
 };
