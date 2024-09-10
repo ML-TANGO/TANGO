@@ -8,7 +8,7 @@ from tango.main import status_update
 from tango.utils.general import colorstr
 
 
-DEBUG = False
+DEBUG = True
 PREFIX = colorstr('AutoBatch: ')
 
 logger = logging.getLogger(__name__)
@@ -36,7 +36,7 @@ class TestFuncGen:
             return False
 
 def binary_search(uid, pid, low, high, test_func, want_to_get):
-    logger.info(f'{PREFIX} Start Binary Search')
+    logger.info(f'{PREFIX}Start Binary Search')
     low_result = test_func(low)
     high_result = test_func(high)
 
@@ -44,18 +44,18 @@ def binary_search(uid, pid, low, high, test_func, want_to_get):
     while True:
         next_test = int((low + high) / 2.)
         if next_test==low or next_test==high:
-            logger.info(f'{PREFIX} The result of Binary Search: {next_test}')
+            logger.info(f'{PREFIX} Binary Search Complete: Max Batch Size = {next_test}')
             return low if low_result==want_to_get else high
 
         judge = test_func(next_test)
         if judge==low_result:
             low = next_test
             low_result = judge
-            if DEBUG: logger.debug(f'{PREFIX} low: {low} / high: {high}')
+            if DEBUG: logger.info(f'{PREFIX} low: {low} / high: {high}')
         elif judge == high_result:
             high = next_test
             high_result = judge
-            if DEBUG: logger.debug(f'{PREFIX} low: {low} / high: {high}')
+            if DEBUG: logger.info(f'{PREFIX} low: {low} / high: {high}')
 
         batchsize_content['low'] = low
         batchsize_content['high'] = high
@@ -74,10 +74,10 @@ def autobatch(uid, pid, model, ch, imgsz, bs_factor=0.8, batch_size=16, max_sear
     if device != 'cpu' and torch.cuda.is_available():
        num_dev = torch.cuda.device_count() 
     else:
-       logger.info(f'{PREFIX} CUDA not detected, using default CPU batch size {batch_size}')
+       logger.info(f'{PREFIX}CUDA not detected, using default CPU batch size {batch_size}')
        return batch_size
     if torch.backends.cudnn.benchmark:
-        logger.info(f'{PREFIX} requires cudnn.benchmark=False, using default batch size {batch_size}')
+        logger.info(f'{PREFIX}requires cudnn.benchmark=False, using default batch size {batch_size}')
         return batch_size
 
     # Inspect CUDA memory
@@ -88,7 +88,7 @@ def autobatch(uid, pid, model, ch, imgsz, bs_factor=0.8, batch_size=16, max_sear
     r = torch.cuda.memory_reserved(device) / gb # reserved
     a = torch.cuda.memory_allocated(device)/ gb # allocated
     f = t - (r + a)                             # free = total - (reserved + allocated)
-    logger.info(f'{PREFIX}{d} ({properties.name}) {t:.2f}G total, {r:.2f}G reserved, {a:.2f}G allocated, {f:.2f}G free')
+    logger.info(f'\n{PREFIX}{d} ({properties.name}) {t:.2f}G total, {r:.2f}G reserved, {a:.2f}G allocated, {f:.2f}G free')
 
 
     model.to(device)
@@ -101,10 +101,11 @@ def autobatch(uid, pid, model, ch, imgsz, bs_factor=0.8, batch_size=16, max_sear
         try:
             y = model(img)
             y = y[1] if isinstance(y, list) else y
-            y = y[-1] if isinstance(y, list) else y # one more time (just in case dual or triple heads: yolov9)
-            loss = y.mean()
+            # y = y[-1] if isinstance(y, list) else y # one more time (just in case dual or triple heads: yolov9)
+            # loss = y.mean()
+            loss = (sum(yi.sum() for yi in y) if isinstance(y, list) else y).sum() # from yolov9 code
             loss.backward() # need to free the variables of the graph
-            if DEBUG: logger.debug(f'{PREFIX} success: ', batch_size)
+            if DEBUG: logger.info(f'{PREFIX} Trying batch size = {batch_size} success')
             batchsize_content['low'] = batch_size
             status_update(uid, pid,
                           update_id="batchsize",
@@ -112,7 +113,7 @@ def autobatch(uid, pid, model, ch, imgsz, bs_factor=0.8, batch_size=16, max_sear
             batch_size = batch_size * 2
             del img
         except RuntimeError as e:
-            if DEBUG: logger.debug(f'{PREFIX} fail: ', batch_size)
+            if DEBUG: logger.info(f'{PREFIX} Trying batch size = {batch_size} fail')
             final_batch_size = int(batch_size / 2.)
             batchsize_content['low'] = final_batch_size
             batchsize_content['high'] = batch_size
@@ -126,11 +127,13 @@ def autobatch(uid, pid, model, ch, imgsz, bs_factor=0.8, batch_size=16, max_sear
     if max_search: # search maximum batch size (allow size other than multiple of 2)
         test_func = TestFuncGen(model, ch, imgsz)
         final_batch_size = binary_search(uid, pid, final_batch_size, batch_size, test_func, want_to_get=True)
-        final_batch_size *= bs_factor # need some spare 
+        logger.info(f'{PREFIX} Make margin to avoid CUDA Out-of-memory '
+                    f'(max {final_batch_size} x margin factor {bs_factor})')
+        final_batch_size *= bs_factor # need some spare
         torch.cuda.empty_cache()
-    gc.collect()
 
-    # print(f"FINAL BATCH SIZE = {final_batch_size * num_dev}")
+    gc.collect()
+    logger.info(f'{PREFIX}Final Batch Size = {int(final_batch_size * num_dev)}')
     return final_batch_size * num_dev
 
 

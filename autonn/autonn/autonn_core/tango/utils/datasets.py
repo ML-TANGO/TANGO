@@ -505,6 +505,7 @@ class LoadImagesAndLabels(Dataset):  # for training/testing
         # for i, (im_file, lb_file) in enumerate(pbar):
         dataset_info = {}
         dataset_info['total'] = len(self.img_files)
+        logger.info(f'\nDataset_{prefix}: Scanning {path.parent / path.stem} images and labels... ')
         for i, (im_file, lb_file) in enumerate(zip(self.img_files, self.label_files)):
             try:
                 # verify images
@@ -539,9 +540,9 @@ class LoadImagesAndLabels(Dataset):  # for training/testing
                 x[im_file] = [l, shape, segments]
             except Exception as e:
                 nc += 1
-                print(f'{prefix}WARNING: Ignoring corrupted image and/or label {im_file}: {e}')
+                print(f'Dataset_{prefix}: WARNING: Ignoring corrupted image and/or label {im_file}: {e}')
 
-            if i % 5000 == 0:
+            if (i+1) % 5000 == 0:
                 dataset_info['current'] = i+1
                 dataset_info['found'] = nf
                 dataset_info['missing'] = nm
@@ -551,6 +552,8 @@ class LoadImagesAndLabels(Dataset):  # for training/testing
                 status_update(self.userid, self.project_id,
                               update_id=f"{prefix}_dataset",
                               update_content=dataset_info)
+
+                logger.info(f'Dataset_{prefix}: {nf} found, {nm} missing, {ne} empty, {nc} corrupted')
 
         #     pbar.desc = f"{prefix}Scanning '{path.parent / path.stem}' images and labels... " \
         #                 f"{nf} found, {nm} missing, {ne} empty, {nc} corrupted"
@@ -573,6 +576,8 @@ class LoadImagesAndLabels(Dataset):  # for training/testing
         status_update(self.userid, self.project_id,
                       update_id=f"{prefix}_dataset",
                       update_content=dataset_info)
+        logger.info(f'Dataset_{prefix}: Summary {i+1} total : '
+                    f'{nf} found, {nm} missing, {ne} empty, {nc} corrupted')
         return x
 
     def __len__(self):
@@ -589,6 +594,7 @@ class LoadImagesAndLabels(Dataset):  # for training/testing
 
         hyp = self.hyp
         mosaic = self.mosaic and random.random() < hyp['mosaic']
+        mosaic = False
         if mosaic:
             # Load mosaic
             if random.random() < 0.8:

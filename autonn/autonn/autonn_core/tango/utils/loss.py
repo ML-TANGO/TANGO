@@ -1272,7 +1272,7 @@ class ComputeLossAuxOTA:
         for k in 'na', 'nc', 'nl', 'anchors', 'stride':
             setattr(self, k, getattr(det, k))
 
-    def __call__(self, p, targets, imgs):  # predictions, targets, model   
+    def __call__(self, p, targets, imgs):  # predictions, targets, model
         device = targets.device
         lcls, lbox, lobj = torch.zeros(1, device=device), torch.zeros(1, device=device), torch.zeros(1, device=device)
         bs_aux, as_aux_, gjs_aux, gis_aux, targets_aux, anchors_aux = self.build_targets2(p[:self.nl], targets, imgs)
@@ -1778,7 +1778,6 @@ class ComputeLossTAL:
 
         # Define criteria
         BCEcls = nn.BCEWithLogitsLoss(pos_weight=torch.tensor([h["cls_pw"]], device=device), reduction='none')
-
         # Class label smoothing https://arxiv.org/pdf/1902.04103.pdf eqn 3
         self.cp, self.cn = smooth_BCE(eps=h.get("label_smoothing", 0.0))  # positive, negative BCE targets
 
@@ -1859,7 +1858,7 @@ class ComputeLossTAL:
         targets = self.preprocess(targets, batch_size, scale_tensor=imgsz[[1, 0, 1, 0]])
         gt_labels, gt_bboxes = targets.split((1, 4), 2)  # cls, xyxy
         mask_gt = gt_bboxes.sum(2, keepdim=True).gt_(0)
-        
+
         # pboxes
         pred_bboxes = []
         target_labels, target_bboxes, target_scores, fg_mask = [], [], [], []
@@ -1882,7 +1881,7 @@ class ComputeLossTAL:
             target_scores.append(_target_scores)
             fg_mask.append(_fg_mask)
             target_scores_sum.append(_target_scores_sum)
-        
+
         # cls loss
         # loss[2] = self.varifocal_loss(pred_scores, target_scores, target_labels) / target_scores_sum  # VFL way
         factor = [0.25, 0.25, 1.0]

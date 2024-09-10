@@ -204,7 +204,12 @@ class ONNX_ORT(nn.Module):
         selected_categories = category_id[X, Y, :].float()
         selected_scores = max_score[X, Y, :]
         X = X.unsqueeze(1).float()
-        return torch.cat([X, selected_boxes, selected_categories, selected_scores], 1)
+        X.permute(1, 0)
+        selected_boxes.permute(1, 0, 2)
+        selected_categories.permute(1, 0)
+        selected_scores.permute(1, 0)
+        return X, selected_boxes, selected_scores, selected_categories
+        # return torch.cat([X, selected_boxes, selected_categories, selected_scores], 1)
 
 
 class ONNX_TRT(nn.Module):

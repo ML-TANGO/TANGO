@@ -46,6 +46,7 @@ from tango.utils.general import (   DEBUG,
 from tango.utils.google_utils import attempt_download
 from tango.utils.loss import    (   ComputeLoss,
                                     ComputeLossOTA,
+                                    ComputeLossAuxOTA,
                                     ComputeLossTAL,
                                     FocalLossCE
                                 )
@@ -74,9 +75,9 @@ def train(proj_info, hyp, opt, data_dict, tb_writer=None):
     save_dir, epochs, batch_size, weights, rank, local_rank, freeze = \
         Path(opt.save_dir), opt.epochs, opt.batch_size, opt.weights, opt.global_rank, opt.local_rank, opt.freeze
 
-    userid, project_id, task, nas, hpo, target, target_acc = \
+    userid, project_id, task, nas, target, target_acc = \
         proj_info['userid'], proj_info['project_id'], proj_info['task_type'], \
-        proj_info['nas'], proj_info['hpo'], proj_info['target_info'], proj_info['acc']
+        proj_info['nas'], proj_info['target_info'], proj_info['acc']
 
     info = Info.objects.get(userid=userid, project_id=project_id)
 
@@ -86,12 +87,6 @@ def train(proj_info, hyp, opt, data_dict, tb_writer=None):
     last = wdir / 'last.pt'
     best = wdir / 'best.pt'
     results_file = save_dir / 'results.txt'
-
-    # Save run settings --------------------------------------------------------
-    # with open(save_dir / 'hyp.yaml', 'w') as f:
-    #     yaml.dump(hyp, f, sort_keys=False)
-    # with open(save_dir / 'opt.yaml', 'w') as f:
-    #     yaml.dump(vars(opt), f, sort_keys=False)
 
     # CUDA device --------------------------------------------------------------
     device_str = ''
@@ -115,17 +110,6 @@ def train(proj_info, hyp, opt, data_dict, tb_writer=None):
     status_update(userid, project_id,
                   update_id="system",
                   update_content=system)
-
-    # Logging- Doing this before checking the dataset. Might update data_dict
-    # loggers = {'wandb': None}  # loggers dict
-    # if rank in [-1, 0]:
-    #     opt.hyp = hyp  # add hyperparameters
-    #     run_id = torch.load(weights, map_location=device).get('wandb_id') if weights.endswith('.pt') and os.path.isfile(weights) else None
-    #     wandb_logger = WandbLogger(opt, Path(opt.save_dir).stem, run_id, data_dict)
-    #     loggers['wandb'] = wandb_logger.wandb
-    #     data_dict = wandb_logger.data_dict
-    #     if wandb_logger.wandb:
-    #         weights, epochs, hyp = opt.weights, opt.epochs, opt.hyp  # WandbLogger might update weights, epochs if resuming
 
     # Configure ----------------------------------------------------------------
     plots = not opt.evolve # create plots
@@ -193,13 +177,11 @@ def train(proj_info, hyp, opt, data_dict, tb_writer=None):
         imgsz, imgsz_test = [check_img_size(x, gs) for x in opt.img_size]
 
     # Batch size ---------------------------------------------------------------
-    bs_factor = 0.8
-    # if DEBUG and data_dict['dataset_name'] == 'coco128':
-    #     # skip auto-batch since coco128 has only 128 imgs
-    #     # warning! large model like supernet should compute batch size from 2
-    #     batch_size = 128
-    # else:
-    # ch = 3 if task=='detection' else 1
+    if opt.resume:
+        bs_factor = opt.bs_factor # it would be 0.1 less than previous one
+    else:
+        bs_factor = 0.8
+
     autobatch_rst = get_batch_size_for_gpu( userid,
                                             project_id,
                                             model,
@@ -208,7 +190,6 @@ def train(proj_info, hyp, opt, data_dict, tb_writer=None):
                                             bs_factor,
                                             amp_enabled=True,
                                             max_search=True )
-    # batch_size = int(autobatch_rst * bs_factor)
     batch_size = int(autobatch_rst) # autobatch_rst = result * bs_factor * gpu_number
 
     if opt.local_rank != -1: # DDP mode
@@ -242,7 +223,10 @@ def train(proj_info, hyp, opt, data_dict, tb_writer=None):
     nbs = 64  # nominal batch size
     accumulate = max(round(nbs / opt.total_batch_size), 1)  # accumulate loss before optimizing
     hyp['weight_decay'] *= opt.total_batch_size * accumulate / nbs  # scale weight_decay
-    logger.info(f"Scaled weight_decay = {hyp['weight_decay']}")
+    weight_decay_, momentum_, lr0_ = hyp['weight_decay'], hyp['momentum'], hyp['lr0']
+    logger.info(f"\nOptimizer: Scaled weight_decay = {weight_decay_}")
+    logger.info(f"Optimizer: Momentum = {momentum_}")
+    logger.info(f"Optimizer: Learning Rate = {lr0_}")
 
     pg0, pg1, pg2 = [], [], []  # optimizer parameter grouping
     for k, v in model.named_modules():
@@ -310,12 +294,16 @@ def train(proj_info, hyp, opt, data_dict, tb_writer=None):
                 pg0.append(v.rbr_dense.vector)
 
     if opt.adam:
-        optimizer = optim.Adam(pg0, lr=hyp['lr0'], betas=(hyp['momentum'], 0.999))  # adjust beta1 to momentum
+        optimizer = optim.Adam(pg0, lr=lr0_, betas=(momentum_, 0.999))  # adjust beta1 to momentum
+        logger.info(f'Optimizer: Using Adam')
     else:
-        optimizer = optim.SGD( pg0, lr=hyp['lr0'], momentum=hyp['momentum'], nesterov=True)
-    optimizer.add_param_group({'params': pg1, 'weight_decay': hyp['weight_decay']})  # add pg1 with weight_decay
+        optimizer = optim.SGD( pg0, lr=lr0_, momentum=momentum_, nesterov=True)
+        logger.info(f'Optimizer: Using SGD')
+    optimizer.add_param_group({'params': pg1, 'weight_decay': weight_decay_})  # add pg1 with weight_decay
     optimizer.add_param_group({'params': pg2})  # add pg2 (biases)
-    logger.info('Optimizer groups: %g .bias, %g conv.weight, %g other' % (len(pg2), len(pg1), len(pg0)))
+    logger.info(f'Optimizer: grouping ({len(pg2)} .bias)'
+                f' ({len(pg1)} conv.weight: w/weight decay)'
+                f' ({len(pg0)} others: w/o weight decay)')
     del pg0, pg1, pg2
 
     # Scheduler ----------------------------------------------------------------
@@ -331,10 +319,10 @@ def train(proj_info, hyp, opt, data_dict, tb_writer=None):
 
     # EMA (required) -----------------------------------------------------------
     ema = ModelEMA(model) if rank in [-1, 0] else None
-    logger.info('Using ModelEMA()')
+    logger.info(f'\nEMA: Using ModelEMA()')
 
     # Resume (option) ----------------------------------------------------------
-    # see line 140 - 159, it is connected to the model loading procedure
+    # see line 133 - 151, it is connected to the model loading procedure
     # we should delete ckpt, state_dict to avoid cuda memory leak 
     start_epoch, best_fitness = 0, 0.0
     if pretrained:
@@ -463,10 +451,10 @@ def train(proj_info, hyp, opt, data_dict, tb_writer=None):
                     check_anchors(userid, project_id, dataset, model=model, thr=hyp['anchor_t'], imgsz=imgsz)
                 model.half().float()  # pre-reduce anchor precision
 
-                if plots:
-                    plot_labels(labels, names, save_dir, loggers=None)
-                    if tb_writer:
-                        tb_writer.add_histogram('classes', c, 0)
+                # if plots:
+                #     plot_labels(labels, names, save_dir, loggers=None)
+                #     if tb_writer:
+                #         tb_writer.add_histogram('classes', c, 0)
         elif task == 'classification':
             try:
                 val_dataset = datasets.ImageFolder(test_path, transform=transform)
@@ -544,7 +532,12 @@ def train(proj_info, hyp, opt, data_dict, tb_writer=None):
         if opt.loss_name == 'TAL':
             compute_loss = ComputeLossTAL(model)
         else:
-            compute_loss_ota = ComputeLossOTA(model)  # init loss class
+            if opt.loss_name == 'OTA':
+                compute_loss_ota = ComputeLossOTA(model)  # init loss class
+            elif opt.loss_name == 'AuxOTA':
+                compute_loss_ota = ComputeLossAuxOTA(model)  # init loss class
+            else:
+                compute_loss_ota = None
             compute_loss = ComputeLoss(model)  # init loss class
     
     # Ealry Stopper ------------------------------------------------------------
@@ -567,10 +560,10 @@ def train(proj_info, hyp, opt, data_dict, tb_writer=None):
     scheduler.last_epoch = start_epoch - 1  # do not move
     scaler = amp.GradScaler(enabled=cuda) # use amp(automatic mixed precision)
 
-    logger.info(f'Image sizes {imgsz} train, {imgsz_test} test\n'
-                f'Using {dataloader.num_workers} dataloader workers\n'
-                f'Logging results to {save_dir}\n'
-                f'Starting training for {epochs} epochs...')
+    logger.info(f'\nTrain: Image sizes {imgsz}, {imgsz_test}\n'
+                f'       Using {dataloader.num_workers} dataloader workers\n'
+                f'       Logging results to {save_dir}\n'
+                f'       Starting training for {epochs} epochs...')
     train_start = {}
     train_start['status'] = 'start'
     train_start['epochs'] = epochs
@@ -620,7 +613,7 @@ def train(proj_info, hyp, opt, data_dict, tb_writer=None):
         # progress bar
         pbar = enumerate(dataloader)
 
-        # logger.info(('\n' + '%10s' * 8) % ('Epoch', 'gpu_mem', 'box', 'obj', 'cls', 'total', 'labels', 'img_size'))
+        logger.info(('\n' + '%10s' * 8) % ('TrainEpoch', 'GPU_Mem', 'Box', 'Obj', 'Cls', 'Total', 'Labels', 'Img_Size'))
         # if rank in [-1, 0]:
         #     pbar = tqdm(pbar, total=nb)  # progress bar
 
@@ -629,10 +622,10 @@ def train(proj_info, hyp, opt, data_dict, tb_writer=None):
         # training batches start ===============================================
         if task == 'detection':
             for i, (imgs, targets, paths, _) in pbar:
+                print(f"{i} {len(imgs)} imgs")
                 t_batch = time.time() #time_synchronized()
                 ni = i + nb * epoch  # number integrated batches (since train start)
                 imgs = imgs.to(device, non_blocking=True).float() / 255.0  # uint8 to float32, 0-255 to 0.0-1.0
-
                 # Warmup
                 if ni <= nw:
                     xi = [0, nw]  # x interp
@@ -663,9 +656,9 @@ def train(proj_info, hyp, opt, data_dict, tb_writer=None):
                 optimizer.zero_grad()
                 with amp.autocast(enabled=cuda):
                     pred = model(imgs)  # forward
-
+                    print('-'*100)
                     # if 'loss_ota' not in hyp or hyp['loss_ota'] == 1:
-                    if opt.loss_name == 'OTA':
+                    if 'OTA' in opt.loss_name: #opt.loss_name == 'OTA':
                         loss, loss_items = compute_loss_ota(pred, targets.to(device), imgs)  # loss scaled by batch_size
                     else:
                         loss, loss_items = compute_loss(pred, targets.to(device))  # loss scaled by batch_size
@@ -673,7 +666,6 @@ def train(proj_info, hyp, opt, data_dict, tb_writer=None):
                         loss *= opt.world_size  # gradient averaged between devices in DDP mode
                     if opt.quad:
                         loss *= 4.
-                
                 # Backward
                 scaler.scale(loss).backward()
 
@@ -714,6 +706,7 @@ def train(proj_info, hyp, opt, data_dict, tb_writer=None):
                     status_update(userid, project_id,
                                   update_id="train_loss",
                                   update_content=train_loss)
+                    logger.info(f'{s}')
                     # Plot
                     # if plots and ni < 10:
                     #     f = save_dir / f'train_batch{ni}.jpg'  # filename
@@ -945,6 +938,8 @@ def train(proj_info, hyp, opt, data_dict, tb_writer=None):
                 # torch.save(ckpt, last)
                 if best_fitness == fi:
                     torch.save(ckpt, best)
+                    mb = os.path.getsize(best) / 1E6  # filesize
+                    logger.info(f'epoch {epoch} : {best} {mb:.1f} MB')
                 if not opt.nosave:
                     torch.save(ckpt, last)
                 # if (best_fitness == fi) and (epoch >= 200):
@@ -991,7 +986,7 @@ def train(proj_info, hyp, opt, data_dict, tb_writer=None):
             elif task == 'classification':
                 plot_cls_results(save_dir=save_dir)
 
-        logger.info('%g epochs completed in %.3f hours.\n' % (epoch - start_epoch + 1, (time.time() - t0) / 3600))
+        logger.info('\nTrain: %g epochs completed in %.3f hours.' % (epoch - start_epoch + 1, (time.time() - t0) / 3600))
 
         # Test best.pt after fusing layers -------------------------------------
         # [tenace's note] argument of type 'PosixPath' is not iterable
@@ -1026,30 +1021,8 @@ def train(proj_info, hyp, opt, data_dict, tb_writer=None):
         #                                plots=False,
         #                                half_precision=True)
 
-        # Strip optimizers -----------------------------------------------------
-        # [tenace's note] what strip_optimizer does is ...
-        # 1. load cpu model
-        # 2. get attribute 'ema' if it exists
-        # 3. replace attribute 'model' with 'ema'
-        # 4. reset attributes 'optimizer', 'training_results', 'ema', and 'updates' to None
-        # 5. reset attribute 'epoch' to -1
-        # 6. convert model to FP16 precision (not anymore by tenace)
-        # 7. set [model].[parameters].requires_grad = False
-        # 8. save model to original file path
         final_model = best if best.exists() else last  # final model
-        for f in last, best:
-            if f.exists():
-                strip_optimizer(f)  # strip optimizers
 
-        # [tenace's note] we don't use google cloud as a storage
-        #                 we don't use w-and-b as a web server based logger
-        # if opt.bucket:
-        #     os.system(f'gsutil cp {final_model} gs://{opt.bucket}/weights')  # upload
-        # if wandb_logger.wandb and not opt.evolve:  # Log the stripped model
-        #     wandb_logger.wandb.log_artifact(str(final), type='model',
-        #                                     name='run_' + wandb_logger.wandb_run.id + '_model',
-        #                                     aliases=['last', 'best', 'stripped'])
-        # wandb_logger.finish_run()
     else:
         dist.destroy_process_group()
 

@@ -58,7 +58,7 @@ def export_formats():
 
 def export_torchscript(model, im, file, optimize, task='detection', prefix=colorstr('TorchScript:')):
     # YOLO TorchScript model export
-    logger.info(f'{prefix} starting export with torch {torch.__version__}...')
+    logger.info(f'\nModel Exporter: {prefix} Starting export with torch {torch.__version__}...')
     try:
         f = file.with_suffix('.torchscript')
 
@@ -72,10 +72,10 @@ def export_torchscript(model, im, file, optimize, task='detection', prefix=color
             optimize_for_mobile(ts)._save_for_lite_interpreter(str(f), _extra_files=extra_files)
         else:
             ts.save(str(f), _extra_files=extra_files)
-        logger.info('TorchScript export success, saved as %s' % f)
+        logger.info('Model Exporter: TorchScript export success, saved as %s' % f)
         return f, ts
     except Exception as e:
-        logger.warn('TorchScript export failure: %s' % e)
+        logger.warn('Model Exporter: TorchScript export failure: %s' % e)
         return None, None
 
 
@@ -83,7 +83,7 @@ def export_onnx(model, im, file, opset, dynamic, simplify, task='detection', pre
     # YOLO ONNX export
     # check_requirements('onnx')
     import onnx
-    logger.info(f'{prefix} starting export with onnx {onnx.__version__}...')
+    logger.info(f'\nModel Exporter: {prefix} Starting export with onnx {onnx.__version__}...')
 
     try:
         f = file.with_suffix('.onnx')
@@ -131,19 +131,19 @@ def export_onnx(model, im, file, opset, dynamic, simplify, task='detection', pre
                 # check_requirements(('onnxruntime-gpu' if cuda else 'onnxruntime', 'onnx-simplifier>=0.4.1'))
                 import onnxsim
 
-                logger.info(f'{prefix} simplifying with onnx-simplifier {onnxsim.__version__}...')
+                logger.info(f'Model Exporter: {prefix} simplifying with onnx-simplifier {onnxsim.__version__}...')
                 model_onnx, check = onnxsim.simplify(model_onnx)
                 assert check, 'assert check failed'
                 # onnx.save(model_onnx, f)
-                logger.info(f'{prefix} simplifier success')
+                logger.info(f'Model Exporter: {prefix} simplifier success')
             except Exception as e:
-                logger.warn(f'{prefix} simplifier failure: {e}')
+                logger.warn(f'Model Exporter: {prefix} simplifier failure: {e}')
 
         onnx.save(model_onnx, f)
-        logger.info('ONNX export success, saved as %s' % f)
+        logger.info('Model Exporter: ONNX export success, saved as %s' % f)
         return f, model_onnx
     except Exception as e:
-        logger.warn('ONNX export failure: %s' % e)
+        logger.warn('Model Exporter: ONNX export failure: %s' % e)
         return None, None
 
 
@@ -161,7 +161,7 @@ def export_onnx_end2end(model,
     # YOLO ONNX export
     # check_requirements('onnx')
     import onnx
-    logger.info(f'{prefix} starting export with onnx {onnx.__version__}...')
+    logger.info(f'\nModel Exporter: {prefix} Starting export with onnx {onnx.__version__}...')
 
     try:
         f = os.path.splitext(file)[0] + "-end2end.onnx"
@@ -205,19 +205,19 @@ def export_onnx_end2end(model,
             try:
                 import onnxsim
 
-                logger.info(f'{prefix} simplifying with onnx-simplifier {onnxsim.__version__}...')
+                logger.info(f'Model Exporter: {prefix} simplifying with onnx-simplifier {onnxsim.__version__}...')
                 model_onnx, check = onnxsim.simplify(model_onnx)
                 assert check, 'assert check failed'
-                logger.info(f'{prefix} simplifier success')
+                logger.info(f'Model Exporter: {prefix} simplifier success')
             except Exception as e:
-                logger.warn(f'{prefix} simplifier failure: {e}')
+                logger.warn(f'Model Exporter: {prefix} simplifier failure: {e}')
 
         # print(onnx.helper.printable_graph(onnx_model.graph))  # print a human readable model
         onnx.save(model_onnx,f)
-        logger.info('ONNX END2END export success, saved as %s' % f)
+        logger.info('Model Exporter: ONNX END2END export success, saved as %s' % f)
         return f, model_onnx
     except Exception as e:
-        logger.warn('ONNX END2END export failure: %s' % e)
+        logger.warn('Model Exporter: ONNX END2END export failure: %s' % e)
         return None, None
 
 
@@ -508,7 +508,7 @@ def add_tflite_metadata(file, metadata, num_outputs):
 
 
 def export_config(src, dst, data, base, device, engine, task='detection'):
-
+    logger.info(f'\nModel Exporter: Creating meta data...')
     nn_dict = {}
 
     # NN Model
@@ -535,7 +535,8 @@ def export_config(src, dst, data, base, device, engine, task='detection'):
     # Input
     imgsz = base.get('imgsz', 640) # need to check (ChestXRay: imgsz=256)
     input_tensor_shape = [1, ch, imgsz, imgsz]
-    device = select_device(device)
+    # device = select_device(device)
+    device = torch.device('cuda:0' if device == 'cuda' else 'cpu')
     if device.type == 'cpu':
         input_data_type = 'fp32'
     else:
@@ -543,7 +544,7 @@ def export_config(src, dst, data, base, device, engine, task='detection'):
     anchors = base.get('anchors')
     if (not anchors or anchors == 'None') and task == 'detection':
         # logger.warn(f'Model Exporter: not found anchor imformation')
-        logger.info(f'Mode Exporter: anchor-free detection heads')
+        logger.info(f'Model Exporter: Anchor-free detection heads')
 
     nn_dict['input_tensor_shape'] = input_tensor_shape
     nn_dict['input_data_type'] = input_data_type
@@ -558,17 +559,17 @@ def export_config(src, dst, data, base, device, engine, task='detection'):
         iou_thres = 0.45
         total_pred_num = 0
         if anchors and (anchors != 'None'): # v7 (num of anchors = 3)
-            total_pred_num = sum([3*imgsz/stride[i]**2 for i in range(output_number)])
+            total_pred_num = sum([3*(imgsz/stride[i])**2 for i in range(output_number)])
             output_size = [
                 [1, ch, imgsz/stride[0], imgsz/stride[0], 5+nc],
                 [1, ch, imgsz/stride[1], imgsz/stride[1], 5+nc],
                 [1, ch, imgsz/stride[2], imgsz/stride[2], 5+nc]
             ]
         else: # v9 (no anchors)
-            total_pred_num = sum([imgsz/stride[i]**2 for i in range(output_number)])
+            total_pred_num = sum([(imgsz/stride[i])**2 for i in range(output_number)])
             output_size = [
-                [1, 4+nc, total_pred_num], # <= for training
-                [1, 4+nc, total_pred_num]  # <= for prediction
+                [1, 4+nc, int(total_pred_num)], # <= for training
+                [1, 4+nc, int(total_pred_num)]  # <= for prediction
             ]
     elif task == 'classification':
         output_number = 1
@@ -608,12 +609,13 @@ def export_config(src, dst, data, base, device, engine, task='detection'):
     with open(dst, 'w') as f:
         yaml.dump(nn_dict, f, default_flow_style=False)
 
-    import pprint
-    print('-'*100)
-    pprint.pprint(nn_dict)
-    print('-'*100)
+    # import pprint
+    # print('-'*100)
+    # pprint.pprint(nn_dict)
+    # print('-'*100)
 
-    logger.info(f"NN meta information export success, saved as {dst}")
+    logger.info(f"Model Exporter: NN meta information export success, saved as {dst}")
+    logger.info('-'*100)
 
 
 def export_weight(weights, device, include, task='detection', ch=3, imgsz=[640,640]):
@@ -647,12 +649,13 @@ def export_weight(weights, device, include, task='detection', ch=3, imgsz=[640,6
     #-------------------------------------------------------------------------------------------------------------------
 
     # Load PyTorch model
-    device = select_device(device)
+    # device = select_device(device)
+    device = torch.device('cuda:0' if device == 'cuda' else 'cpu')
     if half and device.type == 'cpu':
-        logger.warn(f'model exporter: --half only compatible with GPU export, ignore --half')
+        logger.warn(f'Model Exporter: --half only compatible with GPU export, ignore --half')
         half = False
     if half and dynamic:
-        logger.warn(f'model exporter: --half not compatible with --dynamic, ignore --dynamic')
+        logger.warn(f'Model Exporter: --half not compatible with --dynamic, ignore --dynamic')
         dynamic = False
     model = attempt_load(weights, map_location=device)  # load FP32 model
     logger.debug(model)
@@ -709,7 +712,7 @@ def export_weight(weights, device, include, task='detection', ch=3, imgsz=[640,6
     elif task == 'classification':
         metadata = {'names': model.names}  # model metadata
     # logger.info(f"\n{colorstr('PyTorch:')} starting from {file} with output shape {shape} ({file_size(file):.1f} MB)")
-    logger.info(f"{colorstr('PyTorch:')} starting from {file} with output shape {shape} ({os.path.getsize(file) / 1E6:.1f} MB)")
+    logger.info(f"{colorstr('Model Exporter:')} Starting from {file} with output shape {shape} ({os.path.getsize(file) / 1E6:.1f} MB)")
 
     # Exports
     f = [''] * len(fmts)  # exported filenames
@@ -717,10 +720,13 @@ def export_weight(weights, device, include, task='detection', ch=3, imgsz=[640,6
     warnings.filterwarnings("ignore", category=FutureWarning) # torch.onnx.__patch_torch.__graph_op will be deprecated
     if jit:  # TorchScript
         f[0], ts_model = export_torchscript(model, im, file, optimize, task=task)
+        logger.info('-'*100)
     if engine:  # TensorRT required ONNX
         f[1], rt_model = export_tensorrt(model, im, file, half, dynamic, simplify, workspace, verbose=verbose)
+        logger.info('-'*100)
     if onnx or xml:  # OpenVINO requires ONNX
         f[2], _ = export_onnx(model, im, file, opset, dynamic, simplify, task=task)
+        logger.info('-'*100)
     if onnx_end2end:
         # if isinstance(model, DetectionModel):
         #     labels = model.names
@@ -738,10 +744,13 @@ def export_weight(weights, device, include, task='detection', ch=3, imgsz=[640,6
                                                 device, 
                                                 len(labels),
                                                 v9)
+        logger.info('-'*100)
     if xml:  # OpenVINO
         f[3], _ = export_openvino(file, metadata, half)
+        logger.info('-'*100)
     if coreml:  # CoreML
         f[4], _ = export_coreml(model, im, file, int8, half)
+        logger.info('-'*100)
     if any((saved_model, pb, tflite, edgetpu, tfjs)):  # TensorFlow formats
         assert not tflite or not tfjs, 'TFLite and TF.js models must be exported separately, please pass only one type.'
         # assert not isinstance(model, ClassificationModel), 'ClassificationModel export to TF formats not yet supported.'
@@ -756,24 +765,29 @@ def export_weight(weights, device, include, task='detection', ch=3, imgsz=[640,6
                                                 iou_thres=iou_thres,
                                                 conf_thres=conf_thres,
                                                 keras=keras)
+        logger.info('-'*100)
         if pb or tfjs:  # pb prerequisite to tfjs
             f[6], tf_model = export_tf_pb(s_model, file)
+            logger.info('-'*100)
         if tflite or edgetpu:
             f[7], tflite_model = export_tflite(s_model, im, file, int8 or edgetpu, data=data, nms=nms, agnostic_nms=agnostic_nms)
             if edgetpu:
                 f[8], _ = export_edgetpu(file)
             add_tflite_metadata(f[8] or f[7], metadata, num_outputs=len(s_model.outputs))
+            logger.info('-'*100)
         if tfjs:
             f[9], _ = export_tf_js(file)
+            logger.info('-'*100)
     if paddle:  # PaddlePaddle
         f[10], _ = export_paddle(model, im, file, metadata)
+        logger.info('-'*100)
 
     # Finish
-    f = [str(x) for x in f if x]  # filter out '' and None
-    if any(f):
-        logger.info(f'Export complete ({time.time() - t:.1f}s)')
-        logger.info(f"Results saved to {colorstr('bold', file.parent.resolve())}")
-        logger.info(f"Visualize:       https://netron.app")
+    # f = [str(x) for x in f if x]  # filter out '' and None
+    # if any(f):
+    #     logger.info(f'Modle Exporter: Export complete') # ({time.time() - t:.1f}s)')
+    #     logger.info(f"Model Exporter: Results saved to {colorstr('bold', file.parent.resolve())}\n")
+    #     logger.info(f"Visualize:       https://netron.app")
 
     return f  # return list of exported files/dirs
 

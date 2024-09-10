@@ -118,7 +118,7 @@ def test(proj_info,
 
     # Metrics ------------------------------------------------------------------
     if metric == 'v5':
-        logger.info(f"{colorstr('test: ')}Testing with YOLOv5 AP metric..."
+        logger.info(f"\n{colorstr('Test: ')}Testing with YOLOv5 AP metric..."
                     f"You can change it metric = 'v7' in args.yaml")
         
     # V9 head numbers ----------------------------------------------------------
@@ -141,8 +141,8 @@ def test(proj_info,
     confusion_matrix = ConfusionMatrix(nc=nc)
     names = {k: v for k, v in enumerate(model.names if hasattr(model, 'names') else model.module.names)}
     coco91class = coco80_to_coco91_class() if is_coco else list(range(1000))
-    s = ('%20s' + '%12s' * 6) % ('Class', 'Images', 'Labels', 'P', 'R', 'mAP@.5', 'mAP@.5:.95')
-    logger.info(s)
+    # s = ('%20s' + '%12s' * 6) % ('Class', 'Images', 'Labels', 'P', 'R', 'mAP@.5', 'mAP@.5:.95')
+    # logger.info(s)
     tp, fp = 0., 0.
     p, r, f1, mp, mr, map50, map  = 0., 0., 0., 0., 0., 0., 0.
     t, t0, t1, t2 = 0., 0., 0., 0.
@@ -156,17 +156,17 @@ def test(proj_info,
         targets = targets.to(device)
         nb, _, height, width = img.shape  # batch size, channels, height, width
 
-        print(f"batch #{batch_i}: {len(paths)} imgs")
-        print('\t'+'_'*100)
-        for cnt, path in enumerate(paths):
-            s = ''
-            for target in targets:
-                idx = int(target[0].item())
-                if cnt == idx:
-                    cls_idx = int(target[1].item())
-                    s += f"{cls_idx} "
-            print(f"\t{cnt}: {path}, [ {s}]")
-        print('\t'+'_'*100)
+        logger.info(f"      Batch #{batch_i}: {len(paths)} imgs")
+        # print('\t'+'_'*100)
+        # for cnt, path in enumerate(paths):
+        #     s = ''
+        #     for target in targets:
+        #         idx = int(target[0].item())
+        #         if cnt == idx:
+        #             cls_idx = int(target[1].item())
+        #             s += f"{cls_idx} "
+        #     print(f"\t{cnt}: {path}, [ {s}]")
+        # print('\t'+'_'*100)
 
         with torch.no_grad():
             # Run model --------------------------------------------------------
@@ -186,7 +186,7 @@ def test(proj_info,
                 # train_out = train_out[nh-1]
             _t0 = time_synchronized() - t
             t0 += _t0
-            print(f"batch #{batch_i}: running model for {1E3*_t0:.2f} msec")
+            logger.info(f"      Batch #{batch_i}: Running model ({1E3*_t0:.2f} ms)")
 
             # Compute loss -----------------------------------------------------
             if compute_loss:
@@ -194,7 +194,7 @@ def test(proj_info,
                     loss = compute_loss(train_out, targets)[1][:3]
                 else:
                     loss += compute_loss([x.float() for x in train_out], targets)[1][:3]  # box, obj(dfl), cls
-                print(f"batch #{batch_i}: compute loss - {loss}")
+                logger.info(f"      Batch #{batch_i}: Computing loss - {loss}")
 
             # Run NMS ----------------------------------------------------------
             '''
@@ -220,7 +220,7 @@ def test(proj_info,
                 out = non_max_suppression(out, conf_thres=conf_thres, iou_thres=iou_thres, labels=lb, multi_label=True)
             _t1 = time_synchronized() - t
             t1 += _t1
-            print(f"batch #{batch_i}: running nms for {_t1} sec")
+            logger.info(f"      batch #{batch_i}: Running NMS   ({_t1*1E3:.2f} ms)")
 
         # Metrics per image ----------------------------------------------------
         for si, pred in enumerate(out):
@@ -326,7 +326,9 @@ def test(proj_info,
                       update_id="val_accuracy",
                       update_content=val_acc)
         t2 = t0 + t1
-
+        s = ('%20s' + '%12s' * 6) % ('Class', 'Images', 'Labels', 'P', 'R', 'mAP@.5', 'mAP@.5:.95')
+        logger.info(f"\n{s}")
+        logger.info(f"{'all':>20s}{seen:12d}{label_cnt:12d}{_mp:12.3f}{_mr:12.3f}{_map50:12.3f}{_map:12.3f}")
     # Test end =================================================================
 
     # Compute statistics -------------------------------------------------------

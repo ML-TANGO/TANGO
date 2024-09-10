@@ -107,4 +107,4 @@ def search(proj_info, hyp, opt, data_dict, model):
 
 
     final = result_list[0][3] # str: path/to/best/subnet/pt
-    return final
+    return final, yaml_file

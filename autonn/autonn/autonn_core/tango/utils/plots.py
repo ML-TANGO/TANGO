@@ -273,7 +273,7 @@ def plot_study_txt(path='', x=None):  # from utils.plots import *; plot_study_tx
 
 def plot_labels(labels, names=(), save_dir=Path(''), loggers=None):
     # plot dataset labels
-    logger.info(f'Plotting labels... {save_dir}/labels.jpg')
+    logger.info(f'Plot: Plotting labels... {save_dir}/labels.jpg')
     c, b = labels[:, 0], labels[:, 1:].transpose()  # classes, boxes
     nc = int(c.max() + 1)  # number of classes
     colors = color_list()

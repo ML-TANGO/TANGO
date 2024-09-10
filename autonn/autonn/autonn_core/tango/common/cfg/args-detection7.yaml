@@ -1,4 +1,4 @@
-# args.yaml for Yolov9 
+# args.yaml for Yolov9
 weights: ''
 cfg: ''
 data: ''
@@ -35,6 +35,6 @@ save_period: -1
 artifact_alias: 'latest'
 freeze: [0]
 metric: 'v5' # metirc
-loss_name: ''
+loss_name: 'OTA'
 seed: 1
 patience: 10

@@ -769,17 +769,21 @@ class Model(nn.Module):
         # Define model
         ch = self.yaml['ch'] = self.yaml.get('ch', ch)  # input channels
         if nc and nc != self.yaml['nc']:
-            logger.info(f"Overriding basemodel.yaml nc={self.yaml['nc']} with nc={nc}")
+            logger.info(f"Models: Overriding basemodel.yaml nc={self.yaml['nc']} with nc={nc}")
             self.yaml['nc'] = nc  # override yaml value
         if anchors:
-            logger.info(f'Overriding basemodel.yaml anchors with anchors={anchors}')
+            logger.info(f'Models: Overriding basemodel.yaml anchors with anchors={anchors}')
             self.yaml['anchors'] = round(anchors)  # override yaml value
+
+        logger.info(f'\nModels: Creating a model from basemodel.yaml')
         self.model, self.save, self.nodes_info = parse_model(deepcopy(self.yaml), ch=[ch])  # model, savelist
+
         self.names = [str(i) for i in range(self.yaml['nc'])]  # default names
         self.inplace = self.yaml.get('inplace', True)
         # print([x.shape for x in self.forward(torch.zeros(1, ch, 64, 64))])
 
         # Build strides, anchors
+        logger.info(f"Models: Building strides and anchors")
         m = self.model[-1]  # Detect()
         if isinstance(m, Detect):
             s = 256  # 2x min stride
@@ -842,6 +846,7 @@ class Model(nn.Module):
             m.bias_init()  # only run once
 
         # Init weights, biases
+        logger.info(f"Models: Initializing weights")
         initialize_weights(self)
         self.briefs = self.summary()
         # self.info()
@@ -1037,7 +1042,8 @@ class Model(nn.Module):
 
 
 def parse_model(d, ch):  # model_dict, input_channels(3)
-    # logger.info('\n%3s%18s%3s%10s  %-40s%-30s' % ('', 'from', 'n', 'params', 'module', 'arguments'))
+    logger.info('%3s%28s%3s%10s  %-20s%-30s' % ('', 'from', 'n', 'params', 'module', 'arguments'))
+    logger.info('='*100)
     nodes_info = {}
     anchors, nc, gd, gw = d['anchors'], d['nc'], d['depth_multiple'], d['width_multiple']
     na = (len(anchors[0]) // 2) if isinstance(anchors, list) else anchors  # number of anchors
@@ -1130,7 +1136,7 @@ def parse_model(d, ch):  # model_dict, input_channels(3)
         t = str(m)[8:-2].replace('__main__.', '').split('.')[-1]  # module type
         np = sum([x.numel() for x in m_.parameters()])  # number params
         m_.i, m_.f, m_.type, m_.np = i, f, t, np  # attach index, 'from' index, type, number params
-        # logger.info('%3s%18s%3s%10.0f  %-40s%-30s' % (i, f, n, np, t, args))  # print
+        logger.info('%3s%28s%3s%10.0f  %-20s%-30s' % (i, f, n, np, t, args))  # print
         node['from'] = f
         node['repeat'] = n
         node['params'] = np
@@ -1142,4 +1148,5 @@ def parse_model(d, ch):  # model_dict, input_channels(3)
         if i == 0:
             ch = []
         ch.append(c2)
+    logger.info('='*100)
     return nn.Sequential(*layers), sorted(save), nodes_info
