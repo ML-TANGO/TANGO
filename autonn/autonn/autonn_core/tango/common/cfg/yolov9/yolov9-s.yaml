@@ -1,4 +1,4 @@
-name: yolov9-m
+name: yolov9-s
 hyp: p5
 imgsz: 640
 

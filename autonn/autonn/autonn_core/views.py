@@ -1,5 +1,5 @@
 import os
-import json, yaml
+# import json, yaml
 import multiprocessing as mp
 import random
 import warnings
@@ -20,6 +20,7 @@ from .serializers import PthSerializer
 from .tango.main.select import run_autonn
 from .tango.main.visualize import export_pth, export_yml
 
+DEBUG = True
 
 PROCESSES = {}
 
@@ -171,28 +172,45 @@ def start(request):
 
     try:
         info = Info.objects.get(userid=userid, project_id=project_id)
-        if info.status in ['started', 'running']:
-            # duplicate project
-            print(f'Please restart, old one is not being completed for some reason..')
-            return Response("failed", status=status.HTTP_406_NOT_ACCEPTABLE, content_type="text/plain")
+        print(f'\n[AutoNN GET/start] This process already exists,\n'
+              f'                   and it has finished in [{info.status}] status')
+        info.print()
+        if info.best_net and os.path.isfile(info.best_net):
+            print(f'[AutoNN GET/start] The last run created its best model, saved as {info.best_net},\n'
+                  f'                   This might be overwritten with a new model')
+
+        # info.reset() # do not reset! incremental learning needs previous results
+        # info.print()
     except Info.DoesNotExist:
         # new project
         info = Info(userid=userid, project_id=project_id)
         info.save()
 
     try:
-        # data_yaml, proj_yaml = get_user_requirements(userid, project_id)
+        # [first thought] re-start the previous process
+        # https://stackoverflow.com/questions/54575294/how-to-restart-a-process-using-python-multiprocessing-module
+        # you cannot start a process twice.. it is a zombie process
+        # this zombie process should be joined explicitly
+        if str(info.process_id) in PROCESSES:
+            # existed_process = PROCESSES[str(info.process_id)]
+            # existed_process.start()
+            print(f'[AutoNN GET/start] Trying to terminate the last process # {str(info.process_id)}')
+            zombie_process = PROCESSES.pop(str(info.process_id))
+            if zombie_process.is_alive():
+                zombie_process.terminate()
+                zombie_process.join()
+
+        print(f'[AutoNN GET/start] Trying to start a new process...')
         pr = mp.Process(target = process_autonn, args=(userid, project_id))
         pr_id = get_process_id()
         PROCESSES[pr_id] = pr
         PROCESSES[pr_id].start()
 
-        # info.target_device=str(proj_yaml)
-        # info.data_yaml=str(data_yaml)
-        info.status="started"
-        info.progress="setting"
         info.process_id = pr_id
+        info.status="started"
+        info.progress="ready"
         info.save()
+
         return Response("started", status=status.HTTP_200_OK, content_type="text/plain")
     except Exception as e:
         print(f"[AutoNN GET/start] exception: {e}")
@@ -215,55 +233,68 @@ def resume(request):
 
     try:
         info = Info.objects.get(userid=userid, project_id=project_id)
-        # if info.status in ['started', 'running']:
-        #     return Response("failed", status=status.HTTP_406_NOT_ACCEPTABLE, content_type="text/plain")
+        # info.print()
     except Info.DoesNotExist:
-        print('not found autonn info')
-        return Response("failed", status=status.HTTP_404_BAD_REQUEST, content_type="text/plain")
-
-    if info.progress != 'oom':
-        last_epoch = info.epoch
-        last_bs_factor = info.batch_multiplier
-        last_bs = info.batch_size
-        last_process_number = info.process_id
+        print('[AutoNN GET/resume] Not found AutoNN Info to be resumed')
+        return Response("failed", status=status.HTTP_404_NOT_FOUND, content_type="text/plain")
 
     try:
-        # terminate prev. process
-        process_done = PROCESSES.pop(str(last_process_number))
-        if process_done.is_alive():
-            process_done.terminate()
-            process_done.join()
+        # check failure reason
+        if info.progress != 'oom':
+            print(f'[AutoNN GET/resume] It is not caused by CUDA Out-Of-Memory.\n'
+                  f'                    It will be neglected.')
+            # status_report(userid, project_id, "not completed")
+            return Response("failed", status=status.HTTP_200_OK, content_type="text/plain")
 
-        # re-start a new process
-        resume = True
-        pr = mp.Process(target = process_autonn, \
-                        args=(userid, project_id, resume))
+        if str(info.process_id) in PROCESSES:
+            print(f'[AutoNN GET/resume] Trying to terminate the last process # {str(info.process_id)}')
+            zombie_process = PROCESSES.pop(str(info.process_id))
+            if zombie_process.is_alive():
+                zombie_process.terminate()
+                zombie_process.join()
+
+        # create a new process
+        print(f'[AutoNN GET/resume] CUDA Out-Of-Memory happened.\n'
+              f'                    A new process will start with smaller batch size.')
+        pr = mp.Process(target = process_autonn, args=(userid, project_id))
         pr_id = get_process_id()
         PROCESSES[pr_id] = pr
         PROCESSES[pr_id].start()
-
-        info.status="started"
-        info.progress="setting"
         info.process_id = pr_id
+        info.status="resumed"
         info.save()
-
+        # info.print()
+        return Response("started", status=status.HTTP_200_OK, content_type="text/plain")
     except Exception as e:
-        print(f"[AutoNN process_autonn] exception: {e}")
-        import torch, gc
-        if torch.cuda.is_available():
-            torch.cuda.empty_cache()
-        gc.collect()
-        info = Info.objects.get(userid=userid, project_id=project_id)
-        if 'CUDA' in e:
-            print(f"[AutoNN process_autonn] CUDA OOM, try to reduce batch size next time...")
-            last_epoch = info.epoch
-            last_bs_factor = info.batch_multiplier
-            last_bs = info.batch_size
-            print(f'[AutoNN process_autonn] Epoch = {last_epoch}, BS_factor={last_bs_factor}, BatchSize={last_bs}')
-            info.progress = "oom"
+        print(f"[AutoNN GET/resume] exception: {e}")
         info.status = "failed"
         info.save()
-        status_report(userid, project_id, "failed")
+        return Response("failed", status=status.HTTP_400_BAD_REQUEST, content_type="text/plain")
+
+
+@api_view(['GET'])
+def stop(request):
+    """
+    API for project manager having autonn clean
+    """
+    # print("_________GET /stop_____________")
+    params = request.query_params
+    userid = params['user_id']
+    project_id = params['project_id']
+
+    synchronize_project_manager_db(userid)
+
+    try:
+        info = Info.objects.get(userid=userid, project_id=project_id)
+        # print('GET/stop')
+        # info.print()
+        print(f'[AutoNN Get/stop] TODO: Delete all temporary files')
+        # TODO: delete all temp. files at /shared/common/uid/pid/autonn/
+    except Info.DoesNotExist:
+        print(f'[AutoNN GET/stop] Requested process does not exist')
+
+    return Response("success", status=status.HTTP_200_OK, content_type="text/plain")
+
 
 
 @api_view(['GET'])
@@ -278,32 +309,26 @@ def status_request(request):
 
     try:
         info = Info.objects.get(userid=userid, project_id=project_id)
+        if DEBUG:
+            print('\n'+'='*15+' AutoNN Heart Beat '+ '='*16)
+            info.print()
     except Info.DoesNotExist:
         # empty project
         return Response("ready", status=status.HTTP_204_NO_CONTENT, content_type='text/plain')
 
-    # already done for any reason
-    if info.status == "completed":
-        return Response("completed", status=status.HTTP_208_ALREADY_REPORTED, content_type='text/plain')
-    elif info.status == "failed":
-        return Response("failed", status=status.HTTP_410_GONE, content_type='text/plain')
-
     try:
-        if PROCESSES[str(info.process_id)].is_alive():
-            # the project is running
-            info.status = "running"
-            info.save()
-            return Response("running", status=status.HTTP_200_OK, content_type='text/plain')
-        else:
-            # the project is done
-            if info.status == "completed":
-                return Response("completed", status=status.HTTP_208_ALREADY_REPORTED, content_type='text/plain')
-            elif info.status == "failed":
-                return Response("failed", status=status.HTTP_410_GONE, content_type='text/plain')
-    except KeyError as e:
-        print(f"[AutoNN GET/status_request] exception: {e}")
-        info.status = "failed"
+        if not PROCESSES[str(info.process_id)].is_alive():
+            print(f'[AutoNN GET/status_request] process #{info.process_id} is not alive')
+            return Response(info.status, status=status.HTTP_208_ALREADY_REPORTED, content_type='text/plain')
+        # the project is running
+        info.status = "running"
         info.save()
+        return Response("running", status=status.HTTP_200_OK, content_type='text/plain')
+
+    except Exception as e:
+        print(f"[AutoNN GET/status_request] exception: {e}")
+        # info.status = "failed"
+        # info.save()
         return Response("failed", status=status.HTTP_400_BAD_REQUEST, content_type='text/plain')
 
 
@@ -323,70 +348,73 @@ def status_report(userid, project_id, status="success"):
             'status' : status
         }
         response = requests.get(url, headers=headers, params=payload)
+        print(f"[AutoNN status_report] report = {status}, response = {response.status_code}")
 
         info = Info.objects.get(userid=userid, project_id=project_id)
         info.status = status
         # process_done = PROCESSES.pop(str(info.process_id))
         # process_done.close()
-        # info.process_id = ''
+        info.process_id = ''
         info.save()
     except Exception as e:
         print(f"[AutoNN status_report] exception: {e}")
 
 
-def process_autonn(userid, project_id, resume=False):
+def process_autonn(userid, project_id):
     '''
     1. Run autonn (setup w/bms - pre-train - nas - hpo - train - export)
     2. Export model weights and architecure (pt, yaml)
     3. Report status to PM (completed / failed)
     '''
+    info = Info.objects.get(userid=userid, project_id=project_id)
+    print('process_autonn()')
+    info.print()
+
+    resume = True if info.progress == 'oom' else False
+
     try:
         # ------- actual process --------
         run_autonn(userid, project_id, resume=resume, viz2code=False, nas=False, hpo=False)
 
         info = Info.objects.get(userid=userid, project_id=project_id)
+        info.progress = 'autonn ends'
         info.status = "completed"
         info.save()
+        # info.print()
         status_report(userid, project_id, "completed")
-        # print("=== wait for 10 sec to avoid thread exception =============")
-        # import time
-        # time.sleep(10)
-    except FileNotFoundError as e1:
-        print(f"[AutoNN process_autonn] exception: {e1}")
-        import torch, gc
-        if torch.cuda.is_available():
-            torch.cuda.empty_cache()
-        gc.collect()
-        info = Info.objects.get(userid=userid, project_id=project_id)
-        info.status = "failed"
-        info.save()
-        status_report(userid, project_id, "failed")
+
     except Exception as e:
         print(f"[AutoNN process_autonn] exception: {e}")
+
         import torch, gc
         if torch.cuda.is_available():
             torch.cuda.empty_cache()
         gc.collect()
+
         info = Info.objects.get(userid=userid, project_id=project_id)
+        # info.print()
+
         if 'CUDA' in str(e):
-            print(f"[AutoNN process_autonn] CUDA OOM, try to reduce batch size next time...")
+            print(f"[AutoNN process_autonn] CUDA Out-Of-Memory,\n"
+                  f"                        Retry to reduce batch size next time...")
             last_epoch = info.epoch
             last_bs_factor = info.batch_multiplier
             last_bs = info.batch_size
-            print(f'[AutoNN process_autonn] Epoch = {last_epoch}, BS_factor={last_bs_factor}, BatchSize={last_bs}')
+            print(f'[AutoNN process_autonn] Current Epoch = {last_epoch}, BS_factor={last_bs_factor}, BatchSize={last_bs}')
             info.progress = "oom"
         else:
-            print(f"[AutoNN process_autonn] ignore this exception")
+            print(f"[AutoNN process_autonn] This exception will be neglected")
 
         info.status = "failed"
+        info.model_viz = "not ready"
         info.save()
         status_report(userid, project_id, "failed")
+
     # finally:
     #     import torch, gc
     #     if torch.cuda.is_available():
     #         torch.cuda.empty_cache()
     #     gc.collect()
-
 
 def get_process_id():
     """
@@ -399,7 +427,6 @@ def get_process_id():
         except KeyError:
             break
     return pr_num
-
 
 def synchronize_project_manager_db(user):
     infos = Info.objects.all()
@@ -415,8 +442,9 @@ def synchronize_project_manager_db(user):
                 try:
                     if PROCESSES[str(i.process_id)].is_alive():
                         # print(f"process-{i.process_id} will close!")
-                        process_done = PROCESSES.pop(str(info.process_id))
-                        process_done.close()
+                        process_done = PROCESSES.pop(str(i.process_id))
+                        process_done.terminate()
+                        # process_done.close()
                 except:
                     pass
                 try:

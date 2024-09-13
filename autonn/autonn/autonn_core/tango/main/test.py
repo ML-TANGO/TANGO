@@ -90,6 +90,15 @@ def test(proj_info,
     # Configure ----------------------------------------------------------------
     userid = proj_info['userid']
     project_id = proj_info['project_id']
+
+    # save internally
+    info = Info.objects.get(userid=userid, project_id=project_id)
+    info.status = "running"
+    info.progress = "validation"
+    info.save()
+    # print('test() enters')
+    # info.print()
+
     model.eval()
     if isinstance(data, str):
         # is_coco = data.endswith('coco.yaml')

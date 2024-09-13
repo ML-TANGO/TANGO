@@ -775,7 +775,7 @@ class Model(nn.Module):
             logger.info(f'Models: Overriding basemodel.yaml anchors with anchors={anchors}')
             self.yaml['anchors'] = round(anchors)  # override yaml value
 
-        logger.info(f'\nModels: Creating a model from basemodel.yaml')
+        logger.info(f'Models: Creating a model from basemodel.yaml')
         self.model, self.save, self.nodes_info = parse_model(deepcopy(self.yaml), ch=[ch])  # model, savelist
 
         self.names = [str(i) for i in range(self.yaml['nc'])]  # default names
