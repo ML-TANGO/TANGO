@@ -4,6 +4,7 @@ import os
 import gc
 import random
 import time
+import shutil
 from copy import deepcopy
 from pathlib import Path
 from threading import Thread
@@ -79,9 +80,18 @@ def train(proj_info, hyp, opt, data_dict, tb_writer=None):
         proj_info['userid'], proj_info['project_id'], proj_info['task_type'], \
         proj_info['nas'], proj_info['target_info'], proj_info['acc']
 
+    # save internally
     info = Info.objects.get(userid=userid, project_id=project_id)
+    info.status = "running"
+    info.progress = "train"
+    info.save()
+    # print('train() is called')
+    # info.print()
 
     # Directories --------------------------------------------------------------
+    # if not opt.resume and opt.lt != 'incremental' and opt.lt != 'transfer':
+    #     logger.warn(f'FileSystem: {save_dir} already exists. It will deleted and remade')
+    #     shutil.rmtree(opt.save_dir)
     wdir = save_dir / 'weights'
     wdir.mkdir(parents=True, exist_ok=True)  # make dir
     last = wdir / 'last.pt'
@@ -93,7 +103,7 @@ def train(proj_info, hyp, opt, data_dict, tb_writer=None):
     for i in range(torch.cuda.device_count()):
         device_str = device_str + str(i) + ','
     opt.device = device_str[:-1]
-    opt.total_batch_size = opt.batch_size
+    # opt.total_batch_size = opt.batch_size
     device, device_info = select_device_and_info(opt.device)
 
     system = {}
@@ -125,6 +135,7 @@ def train(proj_info, hyp, opt, data_dict, tb_writer=None):
 
     # Model --------------------------------------------------------------------
     pretrained = weights.endswith('.pt')
+    logger.info(f'\nModels: Pretrained model exists? {pretrained}')
     if pretrained:
         ''' transfer learning / fine tuning / resume '''
         with torch_distributed_zero_first(local_rank): # rank):
@@ -140,10 +151,12 @@ def train(proj_info, hyp, opt, data_dict, tb_writer=None):
             else:
                 model = Model(opt.cfg or ckpt['model'].yaml, ch=ch, nc=nc, anchors=hyp.get('anchors')).to(device)  # create
             exclude = ['anchor'] if (opt.cfg or hyp.get('anchors')) and not opt.resume else []  # exclude keys
+
+        logger.info(f'Models: Loading and overwrite weights from the pretrained model...')
         state_dict = ckpt['model'].float().state_dict()  # to FP32
         state_dict = intersect_dicts(state_dict, model.state_dict(), exclude=exclude)  # intersect
         model.load_state_dict(state_dict, strict=False)  # load
-        logger.info('Transferred %g/%g items from %s' % (len(state_dict), len(model.state_dict()), weights))  # report
+        logger.info('Models: Transferred %g/%g items from %s' % (len(state_dict), len(model.state_dict()), weights))  # report
     else:
         ''' learning from scratch '''
         if task == 'classification':
@@ -178,11 +191,17 @@ def train(proj_info, hyp, opt, data_dict, tb_writer=None):
 
     # Batch size ---------------------------------------------------------------
     if opt.resume:
+        print('='*100)
         bs_factor = opt.bs_factor # it would be 0.1 less than previous one
+        print(f"bs_factor = {bs_factor}")
+        print('='*100)
     else:
         bs_factor = 0.8
 
-    autobatch_rst = get_batch_size_for_gpu( userid,
+    if opt.lt == 'incremental' and opt.weights:
+        batch_size = opt.batch_size
+    else:
+        autobatch_rst = get_batch_size_for_gpu( userid,
                                             project_id,
                                             model,
                                             ch,
@@ -190,7 +209,7 @@ def train(proj_info, hyp, opt, data_dict, tb_writer=None):
                                             bs_factor,
                                             amp_enabled=True,
                                             max_search=True )
-    batch_size = int(autobatch_rst) # autobatch_rst = result * bs_factor * gpu_number
+        batch_size = int(autobatch_rst) # autobatch_rst = result * bs_factor * gpu_number
 
     if opt.local_rank != -1: # DDP mode
         logger.info(f'LOCAL RANK is not -1; Multi-GPU training')
@@ -208,6 +227,8 @@ def train(proj_info, hyp, opt, data_dict, tb_writer=None):
     info.batch_size = batch_size
     info.batch_multiplier = bs_factor
     info.save()
+    # print('batch size determined')
+    # info.print()
     status_update(userid, project_id,
                   update_id="arguments",
                   update_content=vars(opt))

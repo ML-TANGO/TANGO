@@ -41,19 +41,10 @@ def status_update(userid, project_id, update_id=None, update_content=None):
             pprint.pprint(update_content, indent=2, depth=3, compact=False)
 
         info = Info.objects.get(userid=userid, project_id=project_id)
-        if update_id in ['project_info', 'hyperparameter', 'arguments', 'system',
-                         'basemodel', 'batchsize', 'model', 'model_summary',
-                         'train_dataset', 'val_dataset', 'anchors']:
-            info.progress = "setting"
-        elif update_id in ['train_start', 'train_loss', 'val_accuracy', 'epoch_summary', 'train_end']:
-            info.progress = "training"
-        elif update_id in ['nas_start', 'evolution_search', 'nas_end',
-                           'fintune_start', 'finetune_loss', 'finetune_acc', 'finetune_end']:
-            info.progress = "nas"
-        else:
-            print(f"[AutoNN status_update] unknown update ID {update_id}")
-            info.progress = "unknown"
+        info.progress = update_id
         info.save()
+        # print('\n'+'='*14+' AutoNN Status Update '+ '='*14)
+        # info.print()
 
     except Exception as e:
         print(f"[AutoNN status_update] exception: {e}")

@@ -17,6 +17,7 @@ urlpatterns = [
     # action -------------------------------------------------------------------
     path('start', views.start, name='StartAutoNN'),
     path('resume', views.resume, name='ResumeAutoNN'),
+    path('stop', views.stop, name='StopAutoNN'),
     path('status_request', views.status_request,  name='StatusRequest'),
     path('api/pth/', views.pth_list, name='PthList'),
 

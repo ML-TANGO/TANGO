@@ -1,4 +1,6 @@
 import os
+import glob
+import shutil
 import gc
 import shutil
 import argparse
@@ -148,8 +150,10 @@ def get_user_requirements(userid, projid, resume=False):
                   update_id="project_info",
                   update_content=proj_info_dict)
 
-    info = Info.objects.get(userid=userid, project_id=projid)
     target = proj_info_dict['target_info'].replace('-', '').replace('_', '').lower()
+    info = Info.objects.get(userid=userid, project_id=projid)
+    print('DB checking...')
+    info.print()
     info.target = target
     info.device = proj_info_dict['acc']
     info.dataset = proj_info_dict['dataset']
@@ -158,6 +162,25 @@ def get_user_requirements(userid, projid, resume=False):
     info.progress = "setting"
     info.model_viz = "not ready"
     info.save()
+    # print('read yaml file and store project infomation')
+    # info.print()
+
+    lt = proj_info_dict['learning_type']
+    skip_bms = False
+    if os.path.isfile(info.best_net):
+        if lt == 'incremental' or lt == 'transfer' or lt == 'finetune':
+            logger.info(f'Project Info: Pretrained model {info.best_net} exists.\n'
+                        f'              BMS will be skipped.')
+            skip_bms = True
+        elif lt == 'normal':
+            bak_dir = backup_previous_work(info.best_net)
+            logger.info(f'Project Info: Pretrained model {info.best_net}\n'
+                        f'              moved to {bak_dir}/...')
+        else:
+            logger.warn(f'Project Info: Pretrained model {info.best_net} exists.\n'
+                        f'              But learning type {lt} is unknown, '
+                        f'so it will be overwritten by the end of training.')
+
 
     # ----------------------------- dataset ------------------------------------
     dataset_on_proj = proj_info_dict["dataset"]
@@ -172,16 +195,34 @@ def get_user_requirements(userid, projid, resume=False):
         data_dict = yaml.load(f, Loader=yaml.SafeLoader)
     data_dict['dataset_name'] = dataset_on_proj
 
+
+
+
+
     # ---------------------------- basemodel -----------------------------------
-    basemodel_yaml_path, basemodel = base_model_select(userid,
-                                                       projid,
-                                                       proj_info_dict,
-                                                       data_dict)
+    if skip_bms:
+        basemodel_yaml_path = str(PROJ_PATH / 'basemodel.yaml')
+        basemodel = {
+            "model_name": info.model_type,
+            "model_size": info.model_size,
+        }
+        # save internally
+        info = Info.objects.get(userid=userid, project_id=projid)
+        info.model_viz = "ready"
+        info.save()
+    else:
+        basemodel_yaml_path, basemodel = base_model_select( userid,
+                                                            projid,
+                                                            proj_info_dict,
+                                                            data_dict)
     with open(basemodel_yaml_path, "r") as f:
         basemodel_dict = yaml.load(f, Loader=yaml.SafeLoader)
     basemodel_dict['hyp'] = 'p5' if basemodel_dict['hyp'] == 'tiny' \
                                  else basemodel_dict['hyp']
     proj_info_dict['nas'] = True if basemodel['model_size'] == '-supernet' else False
+
+
+
 
     # --------------------------- hyperparameter -------------------------------
     hyp_yaml_path = CFG_PATH / f"hyp.scratch.{basemodel_dict['hyp']}.yaml"
@@ -193,21 +234,34 @@ def get_user_requirements(userid, projid, resume=False):
                   update_id="hyperparameter",
                   update_content=hyp_dict)
 
+
+
     # ---------------------------- arguments -----------------------------------
     task = proj_info_dict['task_type']
     # trick for nas (temp.)
     _task =  'detection7' if basemodel['model_name'] == 'YOLOV7' or target == 'galaxys22' else task
     opt_yaml_path = CFG_PATH / f'args-{_task}.yaml'
+
+    if skip_bms:
+        opt_yaml_path = str(PROJ_PATH / 'autonn' / 'opt.yaml')
+        assert os.path.isfile(opt_yaml_path)
+
     with open(opt_yaml_path, encoding='utf-8') as f:
         opt = argparse.Namespace(**yaml.safe_load(f))
-    opt.project = str(PROJ_PATH)
-    opt.data = str(dataset_yaml_path)
-    opt.cfg = str(basemodel_yaml_path)
-    opt.hyp = str(hyp_yaml_path)
-    opt.img_size = [basemodel_dict['imgsz'], basemodel_dict['imgsz']]
+
+    # check resume
+    logger.info(f'Project Info: CUDA OOM: resume? {resume}')
     if resume:
-        opt.resume = str(PROJ_PATH / 'autonn' / 'weights' / 'last.pt')
+        opt.resume = True # str(PROJ_PATH / 'autonn' / 'weights' / 'last.pt')
         opt.bs_factor = info.batch_multiplier - 0.1
+
+    # check incremental
+    if lt == 'incremental':
+        best_acc = vars(opt).get('best_acc', None)
+        logger.info(f'Project Info: Incremental: best accuracy? {best_acc}')
+        if best_acc == None:
+            opt.best_acc = 0.0
+
     '''
     WORLD_SIZE: the total number of processes participating in the traininig 
                 (typically the number of GPUs across all nodes)
@@ -218,6 +272,12 @@ def get_user_requirements(userid, projid, resume=False):
     '''
     opt.world_size = int(os.environ['WORLD_SIZE']) if 'WORLD_SIZE' in os.environ else 1
     opt.global_rank = int(os.environ['RANK']) if 'RANK' in os.environ else -1
+
+    opt.project = str(PROJ_PATH)
+    opt.data = str(dataset_yaml_path)
+    opt.cfg = str(basemodel_yaml_path)
+    opt.hyp = str(hyp_yaml_path)
+    opt.img_size = [basemodel_dict['imgsz'], basemodel_dict['imgsz']]
     opt_content = vars(opt)
     status_update(userid, projid,
                   update_id="arguments",
@@ -299,6 +359,8 @@ def base_model_select(userid, project_id, proj_info, data, manual_select=False):
     info.progress = "bms"
     info.model_viz = "ready"
     info.save()
+    # print('basemodel selected')
+    # info.print()
 
     # for updating status (P.M)
     model_p = model.upper()
@@ -311,6 +373,24 @@ def base_model_select(userid, project_id, proj_info, data, manual_select=False):
     return target_path, basemodel
 
 
+def backup_previous_work(model):
+    m = Path(model)
+    cur_dir = m.parent
+    model_name = m.stem
+
+    all_files = [x for x in glob.glob(str(cur_dir/'*')) if os.path.isfile(x)]
+    bestmodel_files = [f for f in all_files if model_name in f] # i.e, bestmodel.pt, bestmodel.onnx, ...
+    meta_file = cur_dir / 'neural_net_info.yaml'
+    bestmodel_files.append(meta_file)
+
+    bak_dir = increment_path(cur_dir / 'bak', exist_ok=False) # i.e bak, bak2, bak3, ...
+    Path(bak_dir).mkdir(parents=True, exist_ok=True)
+    for f in bestmodel_files:
+        shutil.move(str(cur_dir/f), bak_dir)
+    return bak_dir
+
+
+
 def run_autonn(userid, project_id, resume=False, viz2code=False, nas=False, hpo=False):
     # Set Logging --------------------------------------------------------------
     set_logging(int(os.environ['RANK']) if 'RANK' in os.environ else -1)
@@ -321,10 +401,13 @@ def run_autonn(userid, project_id, resume=False, viz2code=False, nas=False, hpo=
     proj_info['userid'] = userid
     proj_info['project_id'] = project_id
     proj_info['viz'] = viz2code
-    lt = proj_info.get('learning_type', None)
-
-    if (lt and lt == 'hpo') or opt.evolve:
+    opt.lt = proj_info.get('learning_type', 'normal') # normal / incremental / transfer / hpo
+    logger.info(f"Project Info: Learning Type: {opt.lt}")
+    if opt.lt == 'hpo' or opt.evolve:
         hpo = True
+    elif opt.lt == 'transfer':
+        opt.weights = proj_info.get('weights')
+
     proj_info['hpo'] = hpo
 
     target = proj_info['target_info'] # PC, Galaxy_S22, etc.
@@ -343,21 +426,25 @@ def run_autonn(userid, project_id, resume=False, viz2code=False, nas=False, hpo=
     if basemodel['imgsz']==1280:
         opt.loss_name = 'AuxOTA'
 
+
+    # check options ------------------------------------------------------------
+    # opt.hyp = opt.hyp or ('hyp.finetune.yaml' if opt.weights else 'hyp.scratch.yaml')
+    opt.data, opt.cfg, opt.hyp = check_file(opt.data), check_file(opt.cfg), check_file(opt.hyp)  # check files
+    assert len(opt.cfg) or len(opt.weights), 'either --cfg or --weights must be specified'
+    opt.img_size.extend([opt.img_size[-1]] * (2 - len(opt.img_size)))  # extend to 2 sizes (train, test)
+    opt.name = 'evolve' if opt.evolve else opt.name
+    opt.save_dir = increment_path(Path(opt.project) / opt.name, exist_ok=opt.exist_ok | opt.evolve)  # increment run
+
     if opt.resume: # resume an interrupted run ---------------------------------
         ckpt = opt.resume if isinstance(opt.resume, str) else get_latest_run()  # specified or most recent path
-        assert os.path.isfile(ckpt), 'ERROR: --resume checkpoint does not exist'
-        apriori = opt.global_rank, opt.local_rank
-        with open(Path(ckpt).parent.parent / 'opt.yaml') as f:
-            opt = argparse.Namespace(**yaml.load(f, Loader=yaml.SafeLoader))  # replace
-        opt.cfg, opt.weights, opt.resume, opt.batch_size, opt.global_rank, opt.local_rank = '', ckpt, True, opt.total_batch_size, *apriori  # reinstate
-        logger.info('Resuming training from %s' % ckpt)
-    else: # learn from scratch -------------------------------------------------
-        # opt.hyp = opt.hyp or ('hyp.finetune.yaml' if opt.weights else 'hyp.scratch.yaml')
-        opt.data, opt.cfg, opt.hyp = check_file(opt.data), check_file(opt.cfg), check_file(opt.hyp)  # check files
-        assert len(opt.cfg) or len(opt.weights), 'either --cfg or --weights must be specified'
-        opt.img_size.extend([opt.img_size[-1]] * (2 - len(opt.img_size)))  # extend to 2 sizes (train, test)
-        opt.name = 'evolve' if opt.evolve else opt.name
-        opt.save_dir = increment_path(Path(opt.project) / opt.name, exist_ok=opt.exist_ok | opt.evolve)  # increment run
+        # assert os.path.isfile(ckpt), 'ERROR: --resume checkpoint does not exist'
+        if os.path.isfile(ckpt):
+            # apriori = opt.global_rank, opt.local_rank
+            # with open(Path(ckpt).parent.parent / 'opt.yaml') as f:
+            #     opt = argparse.Namespace(**yaml.load(f, Loader=yaml.SafeLoader))  # replace
+            # opt.cfg, opt.weights, opt.resume, opt.batch_size, opt.global_rank, opt.local_rank = '', ckpt, True, opt.total_batch_size, *apriori  # reinstate
+            opt.weights = ckpt
+            logger.info('Resuming training from %s' % ckpt)
 
 
     # Pre-train --------------------------------------------------------------------
@@ -410,24 +497,28 @@ def run_autonn(userid, project_id, resume=False, viz2code=False, nas=False, hpo=
     #     logger.info(f'\nTrain: Final training complete. Best results: {best_acc:.2f},'
     #                 f' Best model saved as: {train_final}\n')
 
+    # Incremental Learning -----------------------------------------------------
+    if opt.lt == 'incremental':
+        if opt.best_acc > best_acc:
+            logger.info(f"\nIncremental: Training complete but got nothing better")
+            return
+        else:
+            logger.info(f"\nIncremental: Training complete and got a better model")
+
 
     # Model Export -------------------------------------------------------------
     '''
     cloud           : pytorch (torchscript)
     k8s             : pytorch (torchscript)
-    k8sjetsonnano   : ? (tensorrt)
-    pcweb           : ? (tf.js w/o nms)
+    k8sjetsonnano   : tensorrt
+    pcweb           : pytorch (torchscript)
     pc              : pytorch (torchscript)
     jetsonagxorin   : tensorrt
     jetsonagxxavier : tensorrt
     jetsonnano      : tensorrt
-    galaxys22       : tflite
-    odroidn2        : ? (onnx) ; acl 
+    galaxys22       : tflite (-> opencl)
+    odroidn2        : onnx ; (tvm -> acl -> opencl)
     '''
-    if not train_final:
-        logger.warn("Model Exporter: Training complete but no trained weights")
-        return
-
     # Strip optimizers ---------------------------------------------------------
     # [tenace's note] what strip_optimizer does is ...
     # 1. load cpu model
@@ -438,47 +529,65 @@ def run_autonn(userid, project_id, resume=False, viz2code=False, nas=False, hpo=
     # 6. convert model to FP16 precision (not anymore by tenace)
     # 7. set [model].[parameters].requires_grad = False
     # 8. save model to original file path
-    if train_final.exists():
-        striped_train_final = COMMON_ROOT / userid / project_id / 'bestmodel.pt'
-        shutil.copyfile(str(train_final), str(striped_train_final))
-        strip_optimizer(striped_train_final)  # strip optimizers
+    if not train_final.exists():
+        logger.warn("\nModel Exporter: Training complete but no trained weights")
+        return
 
-    logger.info(f'\nModel Exporter: Converting models for target [{target}({target_acc}):{target_engine}]...')
+    stripped_train_final = COMMON_ROOT / userid / project_id / 'bestmodel.pt'
+    shutil.copyfile(str(train_final), str(stripped_train_final))
+    strip_optimizer(stripped_train_final)  # strip optimizers
+    train_final = stripped_train_final
+
+    # save externally ----------------------------------------------------------
+    opt.best_acc = float(best_acc)  # numpy.float64 to float
+    # print(type(opt.best_acc))
+    opt.weights = str(train_final)
+    with open(Path(opt.save_dir) / 'opt.yaml', 'w') as f:
+        yaml.dump(vars(opt), f, sort_keys=False)
+    # print('='*30)
+    # for k,v in vars(opt).items():
+    #     print(f"{k}: {v}")
+    # print('='*30)
+    # save internally ----------------------------------------------------------
+    info = Info.objects.get(userid=userid, project_id=project_id)
+    info.status = "running"
+    info.progress = "model export"
+    info.best_acc = opt.best_acc
+    info.best_net = str(train_final)
+    info.save()
+
+    logger.info(f'Model Exporter: Converting models for target [{target}({target_acc}):{target_engine}]...')
     logger.info('='*100)
 
-    # target_acc = proj_info['acc']
+    # export weights -----------------------------------------------------------
     target_engine = proj_info['engine']
-    # task = proj_info['task_type']
     channel = data.get('ch')
-    # print(f'channle = {channel}')
     convert = ['torchscript', 'onnx']
     if target_engine == 'tensorrt':
         convert.append('engine')
     if task == 'detection':
         convert.append('onnx_end2end')
-    export_weight(striped_train_final, target_acc, convert, task=task, ch=channel, imgsz=opt.img_size)
+    export_weight(train_final, target_acc, convert, task=task, ch=channel, imgsz=opt.img_size)
 
-    # optional
-    # if task == 'detection':
-    #     export_weight(striped_train_final, target_acc, ['onnx_end2end'])
-
+    # export meta file ---------------------------------------------------------
     src_nninfo_path = CFG_PATH / 'neural_net_info.yaml'
     dst_nninfo_path = COMMON_ROOT / userid / project_id / 'neural_net_info.yaml'
     export_config(src_nninfo_path, dst_nninfo_path, data, basemodel, target_acc, target_engine, task=task)
 
+    # print model export summary -----------------------------------------------
     logger.info(f'\nModel Exporer: Export complete')
-    mb = os.path.getsize(striped_train_final) / 1E6  # filesize
-    logger.info(f'Source Model = {striped_train_final}({mb:.1f} MB), {results[3]} mAP')
+    mb = os.path.getsize(train_final) / 1E6  # filesize
+    logger.info(f'Source Model = {train_final}({mb:.1f} MB), {results[3]} mAP')
     logger.info('='*100)
     for model_type in convert:
         if model_type == 'onnx_end2end':
-            dir = Path(striped_train_final).parent / Path(striped_train_final).stem
+            dir = Path(train_final).parent / Path(train_final).stem
             suffix = '-end2end.onnx'
             exported_bestmodel_path = f"{str(dir)}{suffix}"
         else:
-            model_type = 'tensor-rt' if model_type == 'engine' else model_type
             suffix = f'.{model_type}'
-            exported_bestmodel_path = Path(striped_train_final).with_suffix(suffix)
+            exported_bestmodel_path = Path(train_final).with_suffix(suffix)
+            model_type = 'tensor-rt' if model_type == 'engine' else model_type
 
         if not os.path.isfile(exported_bestmodel_path):
             exported_bestmodel_path = 'not exist'

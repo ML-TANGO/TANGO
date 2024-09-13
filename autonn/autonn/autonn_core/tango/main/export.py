@@ -513,10 +513,22 @@ def export_config(src, dst, data, base, device, engine, task='detection'):
 
     # NN Model
     if engine == 'pytorch':
-        weight = 'bestmodel.torchscript'
+        weight = ['bestmodel.torchscript', 'bestmodel.onnx']
+        config = ''
+    elif engine == 'tensorrt':
+        weight = ['bestmodel.torchscript', 'bestmodel.onnx', 'bestmodel.engine']
+        config = ''
+    elif engine == 'acl':
+        weight = ['bestmodel.onnx']
+        config = ''
+    elif engine == 'tvm':
+        weight = ['bestmodel.onnx']
+        config = ''
+    elif engine == 'tflite':
+        weight = ['bestmodel.onnx', 'bestmodel.tflite']
         config = ''
     else:
-        weight = 'bestmodel.onnx'
+        engine = ['bestmodel.torchscript', 'bestmodel.onnx']
         config = ''
     nn_dict['weight_file'] = weight
     nn_dict['config_file'] = config # not neccessary
@@ -595,7 +607,7 @@ def export_config(src, dst, data, base, device, engine, task='detection'):
                              'common/models/supernet_yolov7.py',
                              'common/models/my_modules.py',
                             ]
-    # nn_dict['class_name'] = None
+    nn_dict['class_name'] = "Model(cfg='basemodel.yaml')"
     # nn_dict['label_info_file'] = None
     # nn_dict['vision_lib'] = None
     # nn_dict['norm'] = None
