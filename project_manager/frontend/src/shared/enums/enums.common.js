@@ -1,6 +1,7 @@
 export const TaskType = Object.freeze({
   DETECTION: "detection",
-  CLASSIFICATION: "classification"
+  CLASSIFICATION: "classification",
+  CHAT: "chat"
 });
 
 // 사용안함
@@ -191,5 +192,6 @@ export const AutonnLogTitle = Object.freeze({
 export const LearningType = Object.freeze({
   NORMAL: "normal",
   INCREMENTAL: "incremental",
-  TRANSFER: "transfer"
+  TRANSFER: "transfer",
+  HPO: "HPO"
 });
