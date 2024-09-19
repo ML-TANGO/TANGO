@@ -7,8 +7,9 @@
       <div class="d-flex align-center" style="gap: 25px">
         <div style="width: 150px">Task Type</div>
         <v-radio-group v-model="taskType" row hide-details="" class="ma-0">
-          <v-radio label="Classification" value="classification"></v-radio>
-          <v-radio label="Detection" value="detection"></v-radio>
+          <v-radio label="Classification" :value="TaskType.CLASSIFICATION"></v-radio>
+          <v-radio label="Detection" :value="TaskType.DETECTION"></v-radio>
+          <v-radio label="Chat" :value="TaskType.CHAT"></v-radio>
         </v-radio-group>
       </div>
 
@@ -20,6 +21,7 @@
           <v-radio label="Normal" :value="LearningType.NORMAL"></v-radio>
           <v-radio label="Incremental" :value="LearningType.INCREMENTAL" v-if="isIncremental"></v-radio>
           <v-radio label="Transfer" :value="LearningType.TRANSFER"></v-radio>
+          <v-radio label="HPO" :value="LearningType.HPO"></v-radio>
         </v-radio-group>
       </div>
 
@@ -291,7 +293,8 @@ export default {
 
       structure: [],
 
-      LearningType
+      LearningType,
+      TaskType
     };
   },
 

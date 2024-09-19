@@ -1,8 +1,9 @@
 <template>
   <div style="width: 100%; height: 100%">
     <LogWithText v-if="viewerMode === ViewerMode.TEXT" />
-    <ModelViewer v-else-if="viewerMode === ViewerMode.MODEL_VIEW" />
-    <LogWithChart v-else :data="autonn_status" />
+    <AutonnLogViewer v-else :data="autonn_status"></AutonnLogViewer>
+    <!-- <ModelViewer v-else-if="viewerMode === ViewerMode.MODEL_VIEW" />
+    <LogWithChart v-else :data="autonn_status" /> -->
   </div>
 </template>
 <script>
@@ -10,12 +11,12 @@ import { mapState } from "vuex";
 import { ProjectNamespace } from "@/store/modules/project";
 
 import LogWithText from "./LogWithText.vue";
-import LogWithChart from "./LogWithChart.vue";
-import ModelViewer from "@/modules/project/model-viewer/ModelViewer.vue";
+import AutonnLogViewer from "./AutonnLogViewer.vue";
+
 import { ContainerName, ViewerMode } from "@/shared/enums";
 
 export default {
-  components: { LogWithText, LogWithChart, ModelViewer },
+  components: { LogWithText, AutonnLogViewer },
 
   data() {
     return {
