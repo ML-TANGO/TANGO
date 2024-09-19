@@ -17,6 +17,7 @@ class LearningType(str, Enum):
     NORMAL = "normal"
     INCREMENTAL = "incremental"
     TRANSFER = "transfer"
+    HPO="HPO"
 
 autonn_update_ids={
     "project_info":"project_info",

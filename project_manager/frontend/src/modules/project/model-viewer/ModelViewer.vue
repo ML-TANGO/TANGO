@@ -1,5 +1,5 @@
 <template>
-  <v-card style="height: 920px; overflow: none" class="mt-5">
+  <v-card style="height: 920px; overflow: none" class="">
     <iframe :src="modelSrc" title="내용" width="100%" height="100%"></iframe>
   </v-card>
 </template>
