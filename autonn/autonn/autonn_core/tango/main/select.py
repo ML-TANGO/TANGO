@@ -165,10 +165,10 @@ def get_user_requirements(userid, projid, resume=False):
     # print('read yaml file and store project infomation')
     # info.print()
 
-    lt = proj_info_dict['learning_type']
+    lt = proj_info_dict['learning_type'].lower()
     skip_bms = False
     if os.path.isfile(info.best_net):
-        if lt == 'incremental' or lt == 'transfer' or lt == 'finetune':
+        if lt == 'incremental' or lt == 'transfer' or lt == 'finetune' or lt == 'hpo':
             logger.info(f'Project Info: Pretrained model {info.best_net} exists.\n'
                         f'              BMS will be skipped.')
             skip_bms = True
@@ -176,6 +176,8 @@ def get_user_requirements(userid, projid, resume=False):
             bak_dir = backup_previous_work(info.best_net)
             logger.info(f'Project Info: Pretrained model {info.best_net}\n'
                         f'              moved to {bak_dir}/...')
+            info.best_net = ''
+            info.save()
         else:
             logger.warn(f'Project Info: Pretrained model {info.best_net} exists.\n'
                         f'              But learning type {lt} is unknown, '
@@ -244,10 +246,15 @@ def get_user_requirements(userid, projid, resume=False):
 
     if skip_bms:
         opt_yaml_path = str(PROJ_PATH / 'autonn' / 'opt.yaml')
+        logger.info(f'Porject Info: previous opt.yaml loading..')
         assert os.path.isfile(opt_yaml_path)
 
     with open(opt_yaml_path, encoding='utf-8') as f:
         opt = argparse.Namespace(**yaml.safe_load(f))
+
+    weights = vars(opt).get('weights', None)
+    if weights:
+        logger.info(f'Project Info: pretrained model = {weights}')
 
     # check resume
     logger.info(f'Project Info: CUDA OOM: resume? {resume}')
@@ -390,7 +397,6 @@ def backup_previous_work(model):
     return bak_dir
 
 
-
 def run_autonn(userid, project_id, resume=False, viz2code=False, nas=False, hpo=False):
     # Set Logging --------------------------------------------------------------
     set_logging(int(os.environ['RANK']) if 'RANK' in os.environ else -1)
@@ -401,7 +407,7 @@ def run_autonn(userid, project_id, resume=False, viz2code=False, nas=False, hpo=
     proj_info['userid'] = userid
     proj_info['project_id'] = project_id
     proj_info['viz'] = viz2code
-    opt.lt = proj_info.get('learning_type', 'normal') # normal / incremental / transfer / hpo
+    opt.lt = proj_info.get('learning_type', 'normal').lower() # normal / incremental / transfer / hpo
     logger.info(f"Project Info: Learning Type: {opt.lt}")
     if opt.lt == 'hpo' or opt.evolve:
         hpo = True
@@ -472,19 +478,21 @@ def run_autonn(userid, project_id, resume=False, viz2code=False, nas=False, hpo=
         #=======================================================================
 
         opt.resume = True
-        opt.weight = str(train_final)
+        opt.weights = str(train_final)
         # results, train_final = train(proj_info, hyp, opt, data, tb_writer=None)
 
 
     # HPO ----------------------------------------------------------------------
     if hpo:
+        # opt.resume = False
+        opt.weights = str(train_final)
         #=======================================================================
-        hyp, yaml_file = evolve(proj_info, hyp, opt, data, train_final)
+        hyp, yaml_file, txt_file = evolve(proj_info, hyp, opt, data)
         #=======================================================================
 
         # plot results
-        plot_evolution(yaml_file)
-        logger.info(f'\nHPO: Hyperparameter optimization complete. '
+        plot_evolution(yaml_file, txt_file)
+        logger.info(f'HPO: Hyperparameter optimization complete. '
                     f'Best results saved as: {yaml_file}\n')
 
     # Train --------------------------------------------------------------------

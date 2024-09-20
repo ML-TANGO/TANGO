@@ -91,7 +91,7 @@ def autobatch(uid, pid, model, ch, imgsz, bs_factor=0.8, batch_size=16, max_sear
     logger.info(f'\n{PREFIX}{d} ({properties.name}) {t:.2f}G total, {r:.2f}G reserved, {a:.2f}G allocated, {f:.2f}G free')
 
 
-    model.to(device)
+    # model.to(device)
     model.train()
     batchsize_content = {}
     batch_size = 2 # 2, 4, 8, 16, 32, 64, 128, 256, ...

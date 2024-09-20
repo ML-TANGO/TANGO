@@ -14,4 +14,4 @@ efficiency_constraint: 3000
 # hyp parmas for accuracy predictor
 accuracy_predictor: None
 weights: '' #yolov7_supernet.pt'
-fintune_epochs: 1
+finetune_epochs: 1

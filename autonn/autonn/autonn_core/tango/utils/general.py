@@ -991,23 +991,25 @@ def strip_optimizer(f='best.pt', s=''):  # from utils.general import *; strip_op
     logger.info(f"\nModel Exporter: Optimizer stripped from {f},{(' saved as %s,' % s) if s else ''} {mb:.1f}MB")
 
 
-def print_mutation(hyp, results, yaml_file='hyp_evolved.yaml', bucket=''):
+def print_mutation(hyp, results, yaml_file='hyp_evolved.yaml', txt_file='evolve.txt', bucket=''):
     # Print mutation results to evolve.txt (for use with train.py --evolve)
-    a = '%10s' * len(hyp) % tuple(hyp.keys())  # hyperparam keys
-    b = '%10.3g' * len(hyp) % tuple(hyp.values())  # hyperparam values
-    c = '%10.4g' * len(results) % results  # results (P, R, mAP@0.5, mAP@0.5:0.95, val_losses x 3)
-    logger.info('\n%s\n%s\nEvolved fitness: %s\n' % (a, b, c))
-
+    a = '%18s' * len(hyp) % tuple(hyp.keys())  # hyperparam keys
+    b = '%18.3g' * len(hyp) % tuple(hyp.values())  # hyperparam values
+    c_ = '%13s' * len(results) % ('P', 'R', 'mAP@0.5', 'mAP@0.5:0.95', 'loss_box', 'loss_obj', 'loss_cls')
+    c = '%13.4g' * len(results) % results  # results (P, R, mAP@0.5, mAP@0.5:0.95, val_losses x 3)
+    logger.info('Hyperparameters: %s\n                 %s' % (a, b))
+    logger.info('-'*150)
+    logger.info('Evolved fitness: %s\n                 %s' % (c_,c))
     if bucket:
         url = 'gs://%s/evolve.txt' % bucket
-        if gsutil_getsize(url) > (os.path.getsize('evolve.txt') if os.path.exists('evolve.txt') else 0):
+        if gsutil_getsize(url) > (os.path.getsize(txt_file) if os.path.exists(txt_file) else 0):
             os.system('gsutil cp %s .' % url)  # download evolve.txt if larger than local
 
-    with open('evolve.txt', 'a') as f:  # append result
+    with open(txt_file, 'a') as f:  # append result
         f.write(c + b + '\n')
-    x = np.unique(np.loadtxt('evolve.txt', ndmin=2), axis=0)  # load unique rows
+    x = np.unique(np.loadtxt(txt_file, ndmin=2), axis=0)  # load unique rows
     x = x[np.argsort(-fitness(x))]  # sort
-    np.savetxt('evolve.txt', x, '%10.3g')  # save sort by fitness
+    np.savetxt(txt_file, x, '%10.3g')  # save sort by fitness
 
     # Save yaml
     for i, k in enumerate(hyp.keys()):

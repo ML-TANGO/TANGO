@@ -320,15 +320,16 @@ def plot_labels(labels, names=(), save_dir=Path(''), loggers=None):
     #         v.log({"Labels": [v.Image(str(x), caption=x.name) for x in save_dir.glob('*labels*.jpg')]}, commit=False)
 
 
-def plot_evolution(yaml_file='data/hyp.finetune.yaml'):  # from utils.plots import *; plot_evolution()
+def plot_evolution(yaml_file='hyp_evolved.yaml', txt_file='evolve.txt'):  # from utils.plots import *; plot_evolution()
     # Plot hyperparameter evolution results in evolve.txt
     with open(yaml_file) as f:
         hyp = yaml.load(f, Loader=yaml.SafeLoader)
-    x = np.loadtxt('evolve.txt', ndmin=2)
+    x = np.loadtxt(txt_file, ndmin=2)
     f = fitness(x)
     # weights = (f - f.min()) ** 2  # for weighted results
     plt.figure(figsize=(10, 12), tight_layout=True)
     matplotlib.rc('font', **{'size': 8})
+    logger.info(f'\nHPO: Best hyperparameters are ...')
     for i, (k, v) in enumerate(hyp.items()):
         y = x[:, i + 7]
         # mu = (y * weights).sum() / weights.sum()  # best weighted result
@@ -340,8 +341,9 @@ def plot_evolution(yaml_file='data/hyp.finetune.yaml'):  # from utils.plots impo
         if i % 5 != 0:
             plt.yticks([])
         logger.info('%15s: %.3g' % (k, mu))
-    plt.savefig('evolve.png', dpi=200)
-    logger.info('\nPlot saved as evolve.png')
+    evolve_png = txt_file.with_suffix('.png')
+    plt.savefig(evolve_png, dpi=200)
+    logger.info(f'HPO: Plot saved as {evolve_png}')
 
 
 def profile_idetection(start=0, stop=0, labels=(), save_dir=''):
