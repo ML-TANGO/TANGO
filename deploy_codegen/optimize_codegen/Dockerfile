@@ -24,7 +24,7 @@ COPY db/yolo_v3_tiny_darknet_fp32.tflite /app/db
 COPY db/odroid-m1-manual.txt /app/db
 COPY db/odroid-n2-manual.txt /app/db
 COPY db/yolov3/. /app/db/yolov3
-ADD  https://s3.ap-northeast-2.amazonaws.com/backend.ai/offline-installers/yolov3.pt /app/db/yolov3
+#ADD  https://s3.ap-northeast-2.amazonaws.com/backend.ai/offline-installers/yolov3.pt /app/db/yolov3
 RUN apt-get install -y zlib1g-dev libedit-dev libxml2-dev
 RUN pip3 install pyyaml requests
 RUN pip3 install tvm

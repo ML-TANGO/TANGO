@@ -1,0 +1,8 @@
+
+population_size: 5
+num_generation: 3
+
+mutation_prob: 0.8
+sigma: 0.2
+
+finetune_epochs: 1

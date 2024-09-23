@@ -110,11 +110,13 @@ def train(proj_info, hyp, opt, data_dict, tb_writer=None):
     system['torch'] = torch.__version__
     system['cuda'] = torch.version.cuda
     system['cudnn'] = torch.backends.cudnn.version() / 1000.0
+    server_gpu_mem = 0
     for i, d in enumerate(device_info):
         system_info = {}
         system_info['devices'] = d[0]
-        system_info['gpu_model'] = d[1]
+        system_info['gpu_model'] =  d[1]
         system_info['memory'] = d[2]
+        server_gpu_mem = round(float(d[2]))
         system[f'{i}'] = system_info
     # system_content = json.dumps(system)
     status_update(userid, project_id,
@@ -197,6 +199,7 @@ def train(proj_info, hyp, opt, data_dict, tb_writer=None):
         print('='*100)
     else:
         bs_factor = 0.8
+        opt.bs_factor = bs_factor
 
     if opt.lt == 'incremental' and opt.weights:
         batch_size = opt.batch_size
@@ -210,6 +213,9 @@ def train(proj_info, hyp, opt, data_dict, tb_writer=None):
                                             amp_enabled=True,
                                             max_search=True )
         batch_size = int(autobatch_rst) # autobatch_rst = result * bs_factor * gpu_number
+    
+    batch_size = min(batch_size, server_gpu_mem*2)
+    logger.info(f'AutoBatch: Limit batch size {batch_size} (up to 2 x GPU memory {server_gpu_mem}G)')
 
     if opt.local_rank != -1: # DDP mode
         logger.info(f'LOCAL RANK is not -1; Multi-GPU training')
@@ -362,10 +368,11 @@ def train(proj_info, hyp, opt, data_dict, tb_writer=None):
         start_epoch = ckpt['epoch'] + 1
         if opt.resume:
             assert start_epoch > 0, '%s training to %g epochs is finished, nothing to resume.' % (weights, epochs)
-        if epochs < start_epoch:
+        if epochs <= start_epoch:
+            finetune_epoch = vars(opt).get('finetune_epoch', 1)
             logger.info('%s has been trained for %g epochs. Fine-tuning for %g additional epochs.' %
-                        (weights, ckpt['epoch'], epochs))
-            epochs += ckpt['epoch']  # finetune additional epochs
+                        (weights, ckpt['epoch']+1, finetune_epoch))
+            epochs += finetune_epoch # ckpt['epoch']  # finetune additional epochs
         del ckpt, state_dict
 
     # DP mode (option) ---------------------------------------------------------
@@ -591,8 +598,10 @@ def train(proj_info, hyp, opt, data_dict, tb_writer=None):
     status_update(userid, project_id,
               update_id="train_start",
               update_content=train_start)
+    info = Info.objects.get(userid=userid, project_id=project_id)
     info.progress = "train"
     info.save()
+    print(f'Train: start epoch = {start_epoch}, final epoch = {epochs}')
 
     # torch.save(model, wdir / 'init.pt')
     for epoch in range(start_epoch, epochs):
@@ -831,7 +840,7 @@ def train(proj_info, hyp, opt, data_dict, tb_writer=None):
         # Scheduler
         lr = [x['lr'] for x in optimizer.param_groups]  # for tensorboard
         for i, lr_element in enumerate(lr):
-            hyp[f'lr_group{j}'] = lr_element
+            hyp[f'lr_group{i}'] = lr_element
         # status_update(userid, project_id,
         #           update_id="hyperparameter",
         #           update_content=hyp)

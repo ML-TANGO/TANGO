@@ -111,7 +111,7 @@ def select_device_and_info(device=''):
         n = torch.cuda.device_count()
         for i, d in enumerate(device.split(',') if device else range(n)):
             p = torch.cuda.get_device_properties(i)
-            device_info.append([f"CUDA:{d}", f"{p.name}", f"{round(p.total_memory / 1024 ** 3, 2)})"])
+            device_info.append([f"CUDA:{d}", f"{p.name}", f"{round(p.total_memory / 1024 ** 3, 2)}"])
     else:
         device_info.append([f"CPU", '', ''])
 

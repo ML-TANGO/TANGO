@@ -1,19 +1,28 @@
 from pathlib import Path
+COMMON_ROOT = Path("/shared/common")
+DATASET_ROOT = Path("/shared/datasets")
+CORE_DIR = Path(__file__).resolve().parent.parent.parent # /source/autonn_core
+CFG_PATH = CORE_DIR / 'tango' / 'common' / 'cfg'
 
 import os
 import time
 import yaml
+import random
 import numpy as np
 import logging
 
 logger = logging.getLogger(__name__)
 
-from .train import train
+from . import status_update
+from .finetune import finetune_hyp
 from tango.utils.general import (   fitness,
                                     print_mutation
                                 )
 
-def evolve(proj_info, hyp, opt, data, pretrained):
+import argparse
+
+
+def evolve(proj_info, hyp, opt, data):
     # Hyperparameter evolution metadata (mutation scale 0-1, lower_limit, upper_limit)
     meta = {'lr0': (1, 1e-5, 1e-1),  # initial learning rate (SGD=1E-2, Adam=1E-3)
             'lrf': (1, 0.01, 1.0),  # final OneCycleLR learning rate (lr0 * lrf)
@@ -47,29 +56,63 @@ def evolve(proj_info, hyp, opt, data, pretrained):
             # 'paste_in': (1, 0.0, 1.0)    # segment copy-paste (probability)
             }
 
-    with open(opt.hyp, errors='ignore') as f:
-        hyp = yaml.safe_load(f)  # load hyps dict
-        if 'anchors' not in hyp:  # anchors commented in hyp.yaml
-            hyp['anchors'] = 3
-
+    logger.info(f'\nHPO: Start searching optimal hyperparameters')
+    # project information ------------------------------------------------------
+    userid = proj_info['userid']
+    project_id = proj_info['project_id']
+    target = proj_info['target_info'] # PC, Galaxy_S22, etc.
+    acc = proj_info['acc'] # cuda, opencl, cpu
+    lt = proj_info['learning_type'].lower()
+    
+    # options ------------------------------------------------------------------
+    hpo_yaml = str(CFG_PATH / 'args-hpo.yaml')
+    with open(hpo_yaml, 'r') as f:
+        hpo_opt = yaml.safe_load(f)
+    logger.info(f'HPO: With pretrained model {opt.weights}')
     assert opt.local_rank == -1, 'DDP mode not implemented for --evolve'
+    
     opt.notest, opt.nosave = True, True  # only test/save final epoch
+    opt = vars(opt)
+    opt = {**opt, **hpo_opt}
+    opt = argparse.Namespace(**opt)
+
+    total_gen = vars(opt).get('num_generation', 3)
+    opt.finetune_epochs = vars(opt).get('finetune_epochs', 1)
+    basemodel = vars(opt).get('weights', None)
+
+    # hyperparameters ----------------------------------------------------------
+    # with open(opt.hyp, errors='ignore') as f:
+    #     hyp = yaml.safe_load(f)  # load hyps dict
+    #     if 'anchors' not in hyp:  # anchors commented in hyp.yaml
+    #         hyp['anchors'] = 3
+    hyp_ev = {}
+    hyp_ev['lr0'] = hyp['lr0']
+    hyp_ev['lrf'] = hyp['lrf']
+    hyp_ev['momentum'] = hyp['momentum']
+    hyp_ev['weight_decay'] = hyp['weight_decay']
+    hyp_ev['warmup_epochs'] = hyp['warmup_epochs']
+    hyp_ev['warmup_momentum'] = hyp['warmup_momentum']
+    hyp_ev['warmup_bias_lr'] = hyp['warmup_bias_lr']
+
+    # set files to be saved  ---------------------------------------------------
     # ei = [isinstance(x, (int, float)) for x in hyp.values()]  # evolvable indices
-    yaml_file = Path(opt.save_dir) / 'hyp_evolved.yaml'  # save best result here
+    yml_file = Path(opt.save_dir) / 'hyp_evolved.yaml'  # save best result here
+    txt_file = Path(opt.save_dir) / 'evolve.txt'
     if opt.bucket:
         os.system('gsutil cp gs://%s/evolve.txt .' % opt.bucket)  # download evolve.txt if exists
 
-    for _ in range(300):  # generations to evolve
-        if Path('evolve.txt').exists():  # if evolve.txt exists: select best hyps and mutate
+    # optimal hyperparameters searching ----------------------------------------
+    for gen in range(total_gen):  # generations to evolve
+        if txt_file.exists():  # if evolve.txt exists: select best hyps and mutate
             # Select parent(s)
             parent = 'single'  # parent selection method: 'single' or 'weighted'
-            x = np.loadtxt('evolve.txt', ndmin=2)
+            x = np.loadtxt(str(txt_file), ndmin=2)
             n = min(5, len(x))  # number of previous results to consider
             x = x[np.argsort(-fitness(x))][:n]  # top n mutations
             w = fitness(x) - fitness(x).min()  # weights
             if parent == 'single' or len(x) == 1:
                 # x = x[random.randint(0, n - 1)]  # random selection
-                x = x[np.random.choices(range(n), weights=w)[0]]  # weighted selection
+                x = x[random.choices(range(n), weights=w)[0]]  # weighted selection
             elif parent == 'weighted':
                 x = (x * w.reshape(n, 1)).sum(0) / w.sum()  # weighted combination
 
@@ -82,19 +125,36 @@ def evolve(proj_info, hyp, opt, data, pretrained):
             v = np.ones(ng)
             while all(v == 1):  # mutate until a change occurs (prevent duplicates)
                 v = (g * (npr.random(ng) < mp) * npr.randn(ng) * npr.random() * s + 1).clip(0.3, 3.0)
-            for i, k in enumerate(hyp.keys()):  # plt.hist(v.ravel(), 300)
-                hyp[k] = float(x[i + 7] * v[i])  # mutate
-
+            for i, k in enumerate(hyp_ev.keys()):  # plt.hist(v.ravel(), 300)
+                hyp_ev[k] = float(x[i + 7] * v[i])  # mutate
+        
         # Constrain to limits
         for k, v in meta.items():
-            hyp[k] = max(hyp[k], v[1])  # lower limit
-            hyp[k] = min(hyp[k], v[2])  # upper limit
-            hyp[k] = round(hyp[k], 5)  # significant digits
+            hyp_ev[k] = max(hyp_ev[k], v[1])  # lower limit
+            hyp_ev[k] = min(hyp_ev[k], v[2])  # upper limit
+            hyp_ev[k] = round(hyp_ev[k], 5)  # significant digits
+
+        # Report
+        hyp['lr0'] = hyp_ev['lr0']
+        hyp['lrf'] = hyp_ev['lrf']
+        hyp['momentum'] = hyp_ev['momentum']
+        hyp['weight_decay'] = hyp_ev['weight_decay']
+        hyp['warmup_epochs'] = hyp_ev['warmup_epochs']
+        hyp['warmup_momentum'] = hyp_ev['warmup_momentum']
+        hyp['warmup_bias_lr'] = hyp_ev['warmup_bias_lr']
+
+        status_update(userid, project_id,
+                      update_id='hyperparameter',
+                      update_content=hyp.copy())
 
         # Train mutation
-        results, train_final = finetune(proj_info, pretrained, hyp.copy(), opt, tb_writer=None)
+        opt.gen = gen
+        results = finetune_hyp(proj_info, basemodel, hyp.copy(), opt, data, tb_writer=None)
 
         # Write mutation results
-        print_mutation(hyp.copy(), results, yaml_file) #, opt.bucket)
+        logger.info(f'\nHPO: Generation #{gen+1}/{total_gen}')
+        logger.info('_'*150)
+        print_mutation(hyp_ev.copy(), results, str(yml_file), str(txt_file)) #, opt.bucket)
+        logger.info('_'*150)
 
-    return hyp.copy(), yaml_file
+    return hyp_ev.copy(), yml_file, txt_file
