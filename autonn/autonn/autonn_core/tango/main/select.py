@@ -6,6 +6,7 @@ import shutil
 import argparse
 import yaml
 import logging
+import subprocess
 
 from pathlib import Path
 COMMON_ROOT = Path("/shared/common")
@@ -151,13 +152,16 @@ def get_user_requirements(userid, projid, resume=False):
                   update_content=proj_info_dict)
 
     target = proj_info_dict['target_info'].replace('-', '').replace('_', '').lower()
+    device = proj_info_dict['acc']
+    task = proj_info_dict['task_type'].lower()
+
     info = Info.objects.get(userid=userid, project_id=projid)
     print('DB checking...')
     info.print()
     info.target = target
-    info.device = proj_info_dict['acc']
+    info.device = device
     info.dataset = proj_info_dict['dataset']
-    info.task = proj_info_dict['task_type']
+    info.task = task
     info.status = "running"
     info.progress = "setting"
     info.model_viz = "not ready"
@@ -183,6 +187,28 @@ def get_user_requirements(userid, projid, resume=False):
                         f'              But learning type {lt} is unknown, '
                         f'so it will be overwritten by the end of training.')
 
+    # ----------------------------- TANGO+CHAT ---------------------------------
+    if task == 'chat':
+        logger.info(f"Project Info: Run LLM model loader")
+        logger.info(f"Project Info: http://localhost:8101 to see Tango+Chat browser")
+        run_chat_browser = str(CORE_DIR / 'tangochat' / 'browser.py')
+        cmd = ["streamlit", "run", run_chat_browser, "--server.port", "8101", "--browser.gatherUsageStats", "false"]
+        # subprocess.check_call(["streamlit", "run", run_chat_browser])
+        p = subprocess.Popen(cmd, 
+                             stdout=subprocess.PIPE, 
+                             stderr=subprocess.STDOUT, 
+                             cwd=CORE_DIR,
+                             universal_newlines=False)
+        while p.poll() == None:
+            out = p.stdout.readline()
+            out_str = str(out, encoding='utf-8')
+            out_str = out_str.split('\n')[0]
+            if len(out_str) > 0:
+                logger.info(f"Chat: {out_str}")
+            if out_str == 'Completed':
+                p.terminate()
+                break
+        return proj_info_dict, None, None, None, None
 
     # ----------------------------- dataset ------------------------------------
     dataset_on_proj = proj_info_dict["dataset"]
@@ -196,10 +222,6 @@ def get_user_requirements(userid, projid, resume=False):
     with open(dataset_yaml_path) as f:
         data_dict = yaml.load(f, Loader=yaml.SafeLoader)
     data_dict['dataset_name'] = dataset_on_proj
-
-
-
-
 
     # ---------------------------- basemodel -----------------------------------
     if skip_bms:
@@ -223,9 +245,6 @@ def get_user_requirements(userid, projid, resume=False):
                                  else basemodel_dict['hyp']
     proj_info_dict['nas'] = True if basemodel['model_size'] == '-supernet' else False
 
-
-
-
     # --------------------------- hyperparameter -------------------------------
     hyp_yaml_path = CFG_PATH / f"hyp.scratch.{basemodel_dict['hyp']}.yaml"
     with open(hyp_yaml_path) as f:
@@ -236,10 +255,8 @@ def get_user_requirements(userid, projid, resume=False):
                   update_id="hyperparameter",
                   update_content=hyp_dict)
 
-
-
     # ---------------------------- arguments -----------------------------------
-    task = proj_info_dict['task_type']
+    # task = proj_info_dict['task_type']
     # trick for nas (temp.)
     _task =  'detection7' if basemodel['model_name'] == 'YOLOV7' or target == 'galaxys22' else task
     opt_yaml_path = CFG_PATH / f'args-{_task}.yaml'
@@ -404,9 +421,13 @@ def run_autonn(userid, project_id, resume=False, viz2code=False, nas=False, hpo=
     # Load settings ------------------------------------------------------------
     proj_info, opt, hyp, basemodel, data = get_user_requirements(userid, project_id, resume)
 
-    proj_info['userid'] = userid
-    proj_info['project_id'] = project_id
-    proj_info['viz'] = viz2code
+    target = proj_info['target_info'] # PC, Galaxy_S22, etc.
+    target_acc = proj_info['acc'] # cuda, opencl, cpu
+    target_engine = proj_info['engine'].replace('-', '').replace('_', '').lower() # tensorrt, pytorch, tvm, etc.
+    task = proj_info['task_type'].lower() # detection, classification, chat
+    if task == "chat":
+        return
+
     opt.lt = proj_info.get('learning_type', 'normal').lower() # normal / incremental / transfer / hpo
     logger.info(f"Project Info: Learning Type: {opt.lt}")
     if opt.lt == 'hpo' or opt.evolve:
@@ -414,13 +435,10 @@ def run_autonn(userid, project_id, resume=False, viz2code=False, nas=False, hpo=
     elif opt.lt == 'transfer':
         opt.weights = proj_info.get('weights')
 
+    proj_info['userid'] = userid
+    proj_info['project_id'] = project_id
+    proj_info['viz'] = viz2code
     proj_info['hpo'] = hpo
-
-    target = proj_info['target_info'] # PC, Galaxy_S22, etc.
-    target_acc = proj_info['acc'] # cuda, opencl, cpu
-    target_engine = proj_info['engine'].replace('-', '').replace('_', '').lower() # tensorrt, pytorch, tvm, etc.
-    task = proj_info['task_type'] # detection, classification, llm
-
     if target == 'Galaxy_S22' and task == 'detection':
         nas = True
     proj_info['nas'] = nas

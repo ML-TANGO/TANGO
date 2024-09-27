@@ -115,7 +115,8 @@ services:
       - ${COCO128DIR:-./autonn/autonn/autonn_core/datasets/coco128}:/shared/datasets/coco128
     hostname: autonn
     ports:
-      - "8100:8100"
+      - "8100:8100" # visualizer (vision model)
+      - "8101:8101" # streamlit  (llm)
 
   #---------------------------------
   # Base Model Selector

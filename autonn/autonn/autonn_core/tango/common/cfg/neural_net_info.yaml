@@ -3,8 +3,8 @@
 
 # NN Model ---------------------------------------------------------------------
 # generate by exporter
-weight_file: bestmodel.torchscript
-config_file:
+weight_file: [bestmodel.torchscript, bestmodel.onnx]
+config_file: '' # no need to refer config file
 
 # Label ------------------------------------------------------------------------
 # from dataset.yaml
@@ -24,24 +24,30 @@ names: [
 # Input ------------------------------------------------------------------------
 # from basemodel.yaml
 input_tensor_shape: [1, 3, 640, 640] # ch=3
-input_data_type: fp16 # acc=cuda
-anchors:
-  - [10, 13,  16, 30,  33, 23]  # P3
-  - [30, 61,  62, 45,  59,119]  # P4
-  - [116,90, 156,198, 373,326]  # P5
+input_data_type: fp16 # acc=cuda -> fp16, acc=cpu -> fp32
+anchors: None # yolov9 -> None, yolov7 -> anchor gird as following
+  # - [10, 13,  16, 30,  33, 23]  # P3
+  # - [30, 61,  62, 45,  59,119]  # P4
+  # - [116,90, 156,198, 373,326]  # P5
 
 
 # Output -----------------------------------------------------------------------
 # generate by exporter
-# trn_output_size: [[1,3,20,20,85],[1,3,40,40,85],[1,3,80,80,85]]
-# cat_output_size: [1, 25200, 85] # [bs, tatal grids, pred_format]
-# nms_output_size: [1, n , 6]     # [bs, num_det, (box(xyxy), conf, cls)]
 output_number: 3 # P3, P4, P5
 output_size:
-  [[1, 3, 80, 80, 85], # P3   # nc=80, imgsz=640
-   [1, 3, 40, 40, 85], # P4   # nc=80, imgsz=640
-   [1, 3, 20, 20, 85], # P5   # nc=80, imgsz=640
+  [[1, 84, 8400], # <- this is for training
+   [1, 84, 8400]  # <- this is prediction
   ]
+  
+  # these are for yolov7
+  # trn_output_size: [[1,3,20,20,85],[1,3,40,40,85],[1,3,80,80,85]]
+  # cat_output_size: [1, 25200, 85] # [bs, tatal grids, pred_format]
+  # nms_output_size: [1, n , 6]     # [bs, num_det, (box(xyxy), conf, cls)]
+
+  # [[1, 3, 80, 80, 85], # P3   # nc=80, imgsz=640
+  #  [1, 3, 40, 40, 85], # P4   # nc=80, imgsz=640
+  #  [1, 3, 20, 20, 85], # P5   # nc=80, imgsz=640
+  # ]
 stride: [8, 16, 32] # [P3, P4, P5]
 
 
@@ -54,3 +60,19 @@ stride: [8, 16, 32] # [P3, P4, P5]
 need_nms: True
 conf_thres: 0.25  # for NMS
 iou_thres: 0.45   # for NMS
+
+
+# Backward compatibility -------------------------------------------------------
+# do not have to use this information, use torchscript instead
+output_pred_format: [x, y, w, h, probability_of_classes]
+base_dir_autonn: autonn_core/tango
+class_file:
+- common/models/yolo.py
+- common/models/common.py
+- common/models/experimental.py
+- common/models/dynamic_op.py
+- common/models/resnet_cifar10.py
+- common/models/search_block.py
+- common/models/supernet_yolov7.py
+- common/models/my_modules.py
+class_name: Model(cfg='basemodel.yaml') 

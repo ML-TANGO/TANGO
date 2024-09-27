@@ -20,7 +20,7 @@ from .serializers import PthSerializer
 from .tango.main.select import run_autonn
 from .tango.main.visualize import export_pth, export_yml
 
-DEBUG = True
+DEBUG = False
 
 PROCESSES = {}
 
