@@ -18,7 +18,7 @@ from queue import Queue
 import imageio as iio
 from werkzeug.utils import secure_filename
 import os
-import pytorch_yolov9 as pyyolo
+import tensorrt-yolov9 as pyyolo
 
 global g_fname, g_mod, g_state, g_image_path, g_isFirst, g_cmd, clickFile, clickCam
 g_fname = ""
@@ -43,7 +43,7 @@ class Streamer :
         self.run_flag = True
         self.thread_done = 0
         self.src = ""
-        self.y9 = pyyolo.PyTorchRun()
+        self.y9 = pyyolo.TRTRun()
 
     def thread_for_run(self):
         global g_fname, g_mod, g_state, g_image_path, g_isFirst, g_cmd, clickFile, clickCam

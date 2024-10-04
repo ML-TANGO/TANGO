@@ -13,6 +13,7 @@ RUN pip3 install onnx
 RUN pip3 install onnx-simplifier
 RUN pip3 install tvm
 RUN pip3 install decorator
+RUN pip3 install ninja
 RUN apt-get install -y libtinfo-dev libncurses5
 
 WORKDIR /app
@@ -24,7 +25,7 @@ COPY db/yolo_v3_tiny_darknet_fp32.tflite /app/db
 COPY db/odroid-m1-manual.txt /app/db
 COPY db/odroid-n2-manual.txt /app/db
 COPY db/yolov3/. /app/db/yolov3
-#ADD  https://s3.ap-northeast-2.amazonaws.com/backend.ai/offline-installers/yolov3.pt /app/db/yolov3
+# ADD  https://s3.ap-northeast-2.amazonaws.com/backend.ai/offline-installers/yolov3.pt /app/db/yolov3
 RUN apt-get install -y zlib1g-dev libedit-dev libxml2-dev
 RUN pip3 install pyyaml requests
 RUN pip3 install tvm
@@ -35,22 +36,42 @@ RUN pip3 install seaborn pandas torchvision
 RUN pip3 install --upgrade attrs psutil
 RUN apt-get install -y libgl1-mesa-glx 
 RUN apt-get install -y vim sed 
+RUN apt-get install -y clang 
+RUN apt-get install -y unzip 
 RUN pip3 install cmake==3.22.1
 WORKDIR /app
 RUN git init
+# ADD https://github.com/llvm/llvm-project/releases/download/llvmorg-10.0.0/clang+llvm-10.0.0-x86_64-linux-gnu-ubuntu-18.04.tar.xz  /app
+ADD https://github.com/llvm/llvm-project/archive/refs/tags/llvmorg-18.1.8.zip /app
+RUN unzip llvmorg-18.1.8.zip
+RUN mv llvm-project-llvmorg-18.1.8 llvm-project
+RUN rm llvmorg-18.1.8.zip
+WORKDIR /app/llvm-project
+RUN cmake -S llvm -B build -G Ninja -DCMAKE_BUILD_TYPE=Release
+RUN ninja -C build install
+
+WORKDIR /app
 RUN git clone --recursive https://github.com/apache/tvm tvm
-ADD https://github.com/llvm/llvm-project/releases/download/llvmorg-10.0.0/clang+llvm-10.0.0-x86_64-linux-gnu-ubuntu-18.04.tar.xz  /app
-RUN tar xvf clang+llvm-10.0.0-x86_64-linux-gnu-ubuntu-18.04.tar.xz
-RUN mv clang+llvm-10.0.0-x86_64-linux-gnu-ubuntu-18.04 llvm10
 WORKDIR /app/tvm
-RUN mkdir build
-RUN sed 's/set(USE_LLVM\ OFF)/set\(USE_LLVM\ \"\/app\/llvm10\/bin\/llvm-config\ --link-static\"\)\nset(HIDE_PRIVATE_SYMBOLS\ ON)'/g cmake/config.cmake > build/config.cmake
+RUN rm -rf build && mkdir build 
 WORKDIR /app/tvm/build
-ENV TVM_LIBRARY_PATH=/app/tvm/build \
-PYTHONPATH=/app/tvm/python:${PYTHONPATH} 
-ENV PATH=/usr/local/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
-RUN cmake ..
-RUN make -j4
+RUN cp ../cmake/config.cmake .
+RUN echo "set(CMAKE_BUILD_TYPE RelWithDebInfo)" >> config.cmake
+RUN echo "set(USE_LLVM \"llvm-config --ignore-libllvm --link-static\")" >> config.cmake
+RUN echo "set(HIDE_PRIVATE_SYMBOLS ON)" >> config.cmake
+RUN echo "set(USE_CUDA   OFF)" >> config.cmake
+RUN echo "set(USE_METAL  OFF)" >> config.cmake
+RUN echo "set(USE_VULKAN OFF)" >> config.cmake
+RUN echo "set(USE_OPENCL OFF)" >> config.cmake
+RUN echo "set(USE_CUBLAS OFF)" >> config.cmake
+RUN echo "set(USE_CUDNN  OFF)" >> config.cmake
+RUN echo "set(USE_CUTLASS OFF)" >> config.cmake
+RUN cmake .. && cmake --build . --parallel $(nproc)
+ENV TVM_HOME=/app/tvm 
+ENV PYTHONPATH=$TVM_HOME/python:$PYTHONPATH
+ENV TVM_LIBRARY_PATH=$TVM_HOME/build
+RUN pip3 install -e $TVM_HOME/python
+
 
 # for android
 WORKDIR /app
@@ -59,7 +80,7 @@ ENV DEBIAN_FRONTEND noninteractive
 RUN apt-get update && apt-get install -y  \
     wget \
     cpio \
-    unzip \
+    # unzip \
     sudo \
     lsb-release
 
@@ -124,8 +145,6 @@ RUN apt-get install software-properties-common -y
 # added by khlee to fix build error
 RUN apt-get install python3-launchpadlib -y
 RUN add-apt-repository ppa:openjdk-r/ppa
-# added by khlee to fix build error
-RUN apt-get install python3-launchpadlib -y
 RUN apt-get install -y openjdk-17-jdk
 WORKDIR /app
 RUN mkdir android_sdk
@@ -149,14 +168,6 @@ WORKDIR /app
 RUN git clone https://github.com/lhy0718/tflite_yolov7_test
 
 WORKDIR /app/db
-RUN wget https://github.com/parkjb12/yoloe/raw/main/yolov7.zip
-RUN mv yolov7.zip k8syolov7.zip
-RUN unzip -o k8syolov7.zip
-RUN mv yolov7/yoloe_core .
-RUN /bin/rm -r yolov7
-
-RUN git clone https://github.com/WongKinYiu/yolov7.git
-RUN mv yoloe_core yolov7
 
 WORKDIR /app
 CMD ["/bin/bash"]
