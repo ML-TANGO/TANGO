@@ -10,9 +10,9 @@
       {{ project.project_name }}
     </h3>
     <div style="grid-column: 2">
-      <v-btn dark icon>
+      <!-- <v-btn dark icon>
         <v-icon color="black">mdi-bell-outline</v-icon>
-      </v-btn>
+      </v-btn> -->
     </div>
     <div style="grid-column: 3">
       <v-menu bottom offset-y :rounded="'lg'" :nudge-bottom="15" :nudge-left="30">
@@ -29,7 +29,7 @@
         </template>
 
         <v-list dense style="width: 200px" class="px-3">
-          <v-list-item @click="logout">
+          <v-list-item @click="setConfig">
             <v-list-item-icon>
               <v-icon color="black">mdi-cog</v-icon>
             </v-list-item-icon>
@@ -49,23 +49,38 @@
         </v-list>
       </v-menu>
     </div>
+
+    <UserSettingDialog ref="userSettingDialog"></UserSettingDialog>
   </div>
 </template>
 <script>
 import { mapState } from "vuex";
 import { ProjectNamespace } from "@/store/modules/project";
 
+import UserSettingDialog from "@/modules/common/dialog/UserSettingDialog.vue";
+
 import Cookies from "universal-cookie";
 export default {
+  components: { UserSettingDialog },
+
   computed: {
     ...mapState(ProjectNamespace, ["project"])
   },
+
   methods: {
     logout() {
       const cookies = new Cookies();
       cookies.remove("userinfo", { path: "/" });
       cookies.remove("TANGO_TOKEN", { path: "/" });
       this.$router.go();
+    },
+
+    setConfig() {
+      const userSettingDialogRef = this.$refs.userSettingDialog;
+
+      if (userSettingDialogRef) {
+        userSettingDialogRef.isOpen = true;
+      }
     }
   }
 };

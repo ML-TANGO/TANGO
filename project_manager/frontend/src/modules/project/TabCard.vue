@@ -107,12 +107,12 @@ export default {
 
     projectInfo: {
       default: () => ({
-        project_name: "project_name",
-        project_description: "project_description",
-        dataset: "coco128",
-        target: "n_cloud",
-        task_type: "detection",
-        nas_type: "neck_nas"
+        project_name: "",
+        project_description: "",
+        dataset: "",
+        target: "",
+        task_type: "",
+        nas_type: ""
       })
     }
   },
@@ -143,7 +143,8 @@ export default {
     ...mapMutations(ProjectNamespace, {
       SET_PROJECT: ProjectMutations.SET_PROJECT,
       SET_SELECTED_TARGET: ProjectMutations.SET_SELECTED_TARGET,
-      SET_SELECTED_IMAGE: ProjectMutations.SET_SELECTED_IMAGE
+      SET_SELECTED_IMAGE: ProjectMutations.SET_SELECTED_IMAGE,
+      INIT_PROJECT: ProjectMutations.INIT_PROJECT
     }),
 
     async setupBtn() {
@@ -210,6 +211,7 @@ export default {
 
     close() {
       this.$EventBus.$emit("projectDialogclose");
+      this.INIT_PROJECT();
     },
 
     onStepChange(step) {

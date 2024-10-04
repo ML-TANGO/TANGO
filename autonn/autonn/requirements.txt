@@ -1,0 +1,42 @@
+asgiref==3.5.0
+certifi==2021.10.8
+charset-normalizer==2.0.12
+Django==3.2.25
+django-cors-headers==3.11.0
+djangorestframework==3.15.0
+djangorestframework-jwt==1.11.0
+easydict==1.10
+huggingface_hub
+git-lfs
+idna==3.3
+matplotlib>=3.5.1 # 3.7.5
+numpy==1.22.3
+#ofa
+opencv-python==4.7.0.72
+pandas==1.4.2
+Pillow>=8.4.0 # 10.0.0
+psycopg2-binary==2.9.3
+pytorch-lightning==0.8.3
+pytz==2022.1
+PyYAML==6.0
+requests==2.27.1
+seaborn==0.11.2
+setuptools==59.5.0
+sqlparse==0.4.2
+streamlit>=1.31.0
+#tensorboard # 2.8.0
+tensorboardX==2.6
+thop>=0.1.1
+torch==1.13.1
+torchvision==0.14.1
+tqdm==4.62.3
+typing_extensions==4.3.0 # 4.1.1
+urllib3==1.26.7
+#pyyaml==6.0
+
+nvidia-tensorrt==8.4.1.5 # tensorrt model export
+protobuf==3.20.1 # onxx model export
+onnx==1.12.0 # onnx model export
+onnxsim==0.4.33 # onnx model simplifier
+onnxruntime==1.14 # onnx model checker
+tensorflow==2.8.0 # tensorflow model export

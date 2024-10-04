@@ -26,13 +26,20 @@ export default {
     },
     count: {
       default: 0
+    },
+    defaultBanner: {
+      default: false
     }
   },
 
   data() {
     return {
-      isBanner: true
+      isBanner: false
     };
+  },
+
+  created() {
+    this.isBanner = this.defaultBanner;
   }
 };
 </script>

@@ -1,7 +1,8 @@
 const createInitialState = () => ({
   project: {},
   selectedTarget: {},
-  selectedImage: {}
+  selectedImage: {},
+  autonn_status: {}
 });
 
 export default createInitialState;

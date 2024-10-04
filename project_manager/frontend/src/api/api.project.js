@@ -141,3 +141,27 @@ export async function setWorkflow(project_id, workflow) {
 
   return response.data;
 }
+
+export async function get_autonn_status(project_id) {
+  let response = null;
+
+  try {
+    response = await axios.post("/api/get_autonn_status", { project_id: project_id });
+  } catch (error) {
+    throw new Error(error);
+  }
+
+  return response.data;
+}
+
+export async function get_common_folder_structure() {
+  let response = null;
+
+  try {
+    response = await axios.get("/api/get_common_folder_structure");
+  } catch (error) {
+    throw new Error(error);
+  }
+
+  return response.data;
+}

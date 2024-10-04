@@ -52,6 +52,8 @@ export default {
           return RunningIcon;
         } else if (this.status === "completed") {
           return CompleteIcon;
+        } else if (this.status === "failed") {
+          return RunningIcon;
         } else {
           return DefaultIcon;
         }
@@ -81,9 +83,9 @@ export default {
     position: absolute;
     width: 100%;
     height: 100%;
-    top: 0px;
+    top: -3px;
     left: 3px;
-    font-size: 0.9vw;
+    font-size: min(0.9vw, 20px);
   }
 
   &:hover {

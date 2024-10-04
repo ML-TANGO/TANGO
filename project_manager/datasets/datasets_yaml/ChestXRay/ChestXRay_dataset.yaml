@@ -1,0 +1,18 @@
+
+# https://www.kaggle.com/datasets/paultimothymooney/chest-xray-pneumonia
+
+# directories
+train: /shared/datasets/ChestXRay/train
+# val: /shared/datasets/ChestXRay/val
+val: /shared/datasets/ChestXRay/test # weird naming for test and validation
+
+
+# number of classes
+nc: 2
+
+# channel
+ch: 1
+
+# class names
+names: [ 'NORMAL', 'PNEUMONIA' ]
+

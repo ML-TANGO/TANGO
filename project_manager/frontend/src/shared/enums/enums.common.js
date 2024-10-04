@@ -1,8 +1,10 @@
 export const TaskType = Object.freeze({
   DETECTION: "detection",
-  CLASSIFICATION: "classification"
+  CLASSIFICATION: "classification",
+  CHAT: "chat"
 });
 
+// 사용안함
 export const ContainerPort = Object.freeze({
   bms: "8081",
   vis2code: "8091",
@@ -12,7 +14,8 @@ export const ContainerPort = Object.freeze({
   cloud_deployment: "8088",
   ondevice_deployment: "8891",
   yolo_e: "8090",
-  lablilng: "8095"
+  lablilng: "8095",
+  autonn: "8100"
 });
 
 export const DataType = {
@@ -26,11 +29,24 @@ export const ObjectType = {
   S: "Segmentation"
 };
 
+export const ProjectRequiredColumn = [
+  "dataset",
+  "target_id",
+  "target_id",
+  "task_type",
+  "nas_type",
+  "deploy_weight_level",
+  "deploy_precision_level",
+  "deploy_user_edit",
+  "deploy_output_method"
+];
+
 export const ContainerName = {
   BMS: "bms",
-  AUTO_NN: "yoloe",
+  AUTO_NN: "autonn",
+  AUTO_NN_YOLOE: "yoloe",
   AUTO_NN_RESNET: "autonn-resnet",
-  CODE_GEN: "codeGen",
+  CODE_GEN: "code_gen",
   IMAGE_DEPLOY: "imagedeploy",
   USER_EDITING: "user_edit",
   VISUALIZATION: "viz2code"
@@ -39,6 +55,7 @@ export const ContainerName = {
 export const DisplayName = {
   [ContainerName.BMS]: "BMS",
   [ContainerName.AUTO_NN]: "Auto NN",
+  [ContainerName.AUTO_NN_YOLOE]: "Auto NN",
   [ContainerName.AUTO_NN_RESNET]: "Auto NN",
   [ContainerName.CODE_GEN]: "Code Gen",
   [ContainerName.IMAGE_DEPLOY]: "Image Deploy",
@@ -124,3 +141,57 @@ export const TargetInfoList = [
     requiredFields: []
   }
 ];
+
+export const CommonDatasetName = Object.freeze({
+  IMAGE_NET: "imagenet",
+  CHESTXRAY: "ChestXRay",
+  VOC: "VOC",
+  COCO: "coco"
+});
+
+export const DatasetStatus = Object.freeze({
+  NONE: 1,
+  DOWNLOADING: 2,
+  COMPLETE: 3
+});
+
+export const ProjectStatus = Object.freeze({
+  PREPARING: "preparing",
+  READY: "ready",
+  STARTED: "started",
+  FAILED: "failed",
+  RUNNING: "running",
+  COMPLETED: "completed",
+  STOPPED: "stopped"
+});
+
+export const ViewerMode = Object.freeze({
+  TEXT: "text",
+  CHART: "chart",
+  MODEL_VIEW: "model_view"
+});
+
+export const AutonnStatus = Object.freeze({
+  PROJECT_INFO: 0,
+  SYSTEM: 1,
+  MODEL: 2,
+  DATASET: 3
+});
+
+export const AutonnLogTitle = Object.freeze({
+  [TaskType.CLASSIFICATION]: {
+    train: { left: "Image", center: "Correct", right: "Accuracy", result: "Loss" },
+    val: { left: "Images", center: "Correct", right: "Loss", result: "Accuracy" }
+  },
+  [TaskType.DETECTION]: {
+    train: { left: "Box", center: "OBJECTNESS", right: "CLASS", result: "TOTAL" },
+    val: { left: "Precision", center: "Recall", right: "mAP50", result: "mAP" }
+  }
+});
+
+export const LearningType = Object.freeze({
+  NORMAL: "normal",
+  INCREMENTAL: "incremental",
+  TRANSFER: "transfer",
+  HPO: "HPO"
+});

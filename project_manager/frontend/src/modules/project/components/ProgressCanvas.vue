@@ -75,7 +75,6 @@ export default {
 
   data() {
     return {
-      // runningOrder: ["bms", "yoloe", "codeGen", "imagedeploy"],
       isUserEditingDialog: false,
       DisplayName,
       ContainerName
@@ -115,12 +114,13 @@ export default {
       // 화면에 표시되는 컨테이너의 status
       const compareStatus = this.workflowNames.findIndex(q => q.includes(container));
 
+      if (compareStatus === projectStatus && this.status === "failed") {
+        return "failed";
+      }
+
       if (compareStatus < projectStatus) {
         return "completed";
-      } else if (
-        compareStatus === projectStatus &&
-        (this.status === "complete" || this.status === "completed" || this.status === "success")
-      ) {
+      } else if (compareStatus === projectStatus && this.status === "completed") {
         return "completed";
       } else if (compareStatus === projectStatus) {
         return "running";

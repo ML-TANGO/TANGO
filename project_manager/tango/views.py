@@ -18,7 +18,7 @@ from django.contrib.auth.models import User, Group
 from django.contrib.auth import authenticate
 from .serializers import UserSerializer, GroupSerializer
 
-from rest_framework import viewsets
+from rest_framework import viewsets, status
 from rest_framework.response import Response
 from rest_framework.decorators import api_view, permission_classes, authentication_classes
 from rest_framework.permissions import IsAuthenticated, AllowAny
@@ -28,7 +28,7 @@ from oauth2_provider.contrib.rest_framework import OAuth2Authentication
 from oauth2_provider.models import AbstractAccessToken, AbstractRefreshToken, AbstractApplication
 from oauth2_provider.views.application import ApplicationRegistration
 
-from .models import Oauth2ProviderApplication
+from .models import Oauth2ProviderApplication, UserSetting
 from oauthlib.common import generate_token
 from oauth2_provider.models import AbstractApplication
 
@@ -54,29 +54,6 @@ class GroupViewSet(viewsets.ModelViewSet):
 
     queryset = Group.objects.all()
     serializer_class = GroupSerializer
-
-
-# 서버 IP
-@api_view(['GET', 'POST'])
-@authentication_classes([OAuth2Authentication])   # 토큰 확인
-def get_server_ip(request):
-    """
-    _summary_
-
-    Args:
-        request (_type_): _description_
-
-    Returns:
-        _type_: _description_
-    """
-
-    try:
-        weda_port_num = 8090
-
-        return Response({'port': weda_port_num})
-
-    except Exception as e:
-        print(e)
 
 
 def create_token(request, r_user_id, r_user_pw):
@@ -164,8 +141,8 @@ def login(request):
 
     try:
         # TODO : 사용자 정보 확인 및 토큰 유무 확인
-        user_id = request.data['user_id']
-        user_pw = request.data['password']
+        user_id = str(request.data['user_id']).strip()
+        user_pw = str(request.data['password']).strip()
 
         user_info = authenticate(username=user_id,
                                  password=user_pw)
@@ -209,7 +186,6 @@ def login(request):
 
     except Exception as e:
         print(e)
-
         return Response(status=500)
 
 
@@ -278,6 +254,9 @@ def signup(request):
                                         password=request.data['password'])
         user.save()
 
+        user_setting = UserSetting(user = request.data['id'])
+        user_setting.save()
+
     except Exception as e:
         print(e)
 
@@ -311,3 +290,54 @@ def user_id_check(request):
         return Response({'result': True})
     else:
         return Response({'result': False})
+
+@api_view(['GET', 'POST'])
+@permission_classes([AllowAny])
+def user_interval_time(request):
+    '''
+        사용자 세팅 - project 갱신 주기, autonn 시각화 갱신 주기 반환
+    '''
+
+    if request.method == 'GET':
+        try:
+            print("@@@@@@@@@@@@ user_interval_time @@@@@@@@@@@@")
+            print(request.user)
+
+            user_setting = UserSetting.objects.get(user = request.user)
+
+            project_status = user_setting.project_update_cycle
+            autonn_status = user_setting.autton_update_cycle
+            return HttpResponse(json.dumps({'status': 200, "project_status" : project_status, "autonn_status" : autonn_status}))
+        except Exception as error:
+            print(error)
+            user_setting = UserSetting(user = request.user)
+            user_setting.save()
+            return HttpResponse(json.dumps({'status': 200, "project_status" : 10, "autonn_status" : 1}))
+        
+    
+    elif request.method == 'POST':
+        try:
+            print("@@@@@@@@@@@@ user_interval_time @@@@@@@@@@@@")
+            print(request.user)
+
+            print("project_status", request.data['project_status'])
+            print("autonn_status", request.data['autonn_status'])
+
+            user_setting = UserSetting.objects.get(user = request.user)
+            user_setting.project_update_cycle = request.data['project_status']
+            user_setting.autton_update_cycle = request.data['autonn_status']
+            user_setting.save()
+
+            return HttpResponse(json.dumps({'status': 200}))
+        except UserSetting.DoesNotExist:
+            setting = UserSetting(user = request.user,
+                                  project_update_cycle = request.data['project_status'],
+                                  autton_update_cycle = request.data['autonn_status'])
+            setting.save()
+            return HttpResponse(json.dumps({'status': 200}))
+        except Exception as error:
+            print(error)
+            return Response(status=status.HTTP_400_BAD_REQUEST)
+        
+    else:
+        return Response(status=status.HTTP_400_BAD_REQUEST)

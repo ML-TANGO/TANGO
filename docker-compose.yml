@@ -1,4 +1,4 @@
-version: "3"
+# version: "3"
 
 services:
   #---------------------------------
@@ -7,17 +7,25 @@ services:
   project_manager:
     build:
       context: ./project_manager
+    # command: >
+    #   sh -c "chmod 777 ./wait_for_postgres.sh &&
+    #          ./wait_for_postgres.sh &&
+    #          python manage.py makemigrations tango &&
+    #          python manage.py makemigrations datasets &&
+    #          python manage.py makemigrations targets &&
+    #          python manage.py migrate &&
+    #          python manage.py runserver 0.0.0.0:8085"
     command: >
       sh -c "chmod 777 ./wait_for_postgres.sh &&
              ./wait_for_postgres.sh &&
-             python manage.py makemigrations tango &&
              python manage.py migrate &&
-             python manage.py collectstatic --no-input &&
              python manage.py loaddata base_model_data.json &&
              python manage.py runserver 0.0.0.0:8085"
     volumes:
-      - ./project_manager:/code
+      # - ./project_manager:/code
       - shared:/shared
+      - ${COCODIR:-./autonn/autonn/autonn_core/datasets/coco}:/shared/datasets/coco
+      - ${COCO128DIR:-./autonn/autonn/autonn_core/datasets/coco128}:/shared/datasets/coco128
       - /var/run/docker.sock:/var/run/docker.sock
     hostname: projectmanager
     ports:
@@ -76,21 +84,23 @@ services:
       - "8095:10236" # for Rest API
 
   #---------------------------------
-  # Base Model Selector
+  # AutoNN: AutoNN
   #---------------------------------
-  bms:
+  autonn:
     build:
-      context: ./base_model_select
-    shm_size: '256M'
+      context: ./autonn/autonn
+    shm_size: "256M"
+    ipc: host
     command: >
       sh -c "python manage.py makemigrations &&
-             python manage.py migrate --run-syncdb &&
-             python manage.py runserver 0.0.0.0:8081"
+             python manage.py migrate &&
+             python manage.py runserver 0.0.0.0:8100"
     deploy:
       resources:
         reservations:
           devices:
             - driver: nvidia
+              count: all
               capabilities:
                 - gpu
                 - utility
@@ -98,12 +108,45 @@ services:
                 - video
     environment:
       - NVIDIA_VISIBLE_DEVICES=${GPU_NUM:-all}
-    hostname: bms
     volumes:
-      - ./base_model_select:/source
+      - ./autonn/autonn:/source
       - shared:/shared
+      - ${COCODIR:-./autonn/autonn/autonn_core/datasets/coco}:/shared/datasets/coco
+      - ${COCO128DIR:-./autonn/autonn/autonn_core/datasets/coco128}:/shared/datasets/coco128
+    hostname: autonn
     ports:
-      - "8081:8081"
+      - "8100:8100" # visualizer (vision model)
+      - "8101:8101" # streamlit  (llm)
+
+  #---------------------------------
+  # Base Model Selector
+  #---------------------------------
+  # bms:
+  #   build:
+  #     context: ./base_model_select
+  #   shm_size: "256M"
+  #   command: >
+  #     sh -c "python manage.py makemigrations &&
+  #            python manage.py migrate --run-syncdb &&
+  #            python manage.py runserver 0.0.0.0:8081"
+  #   deploy:
+  #     resources:
+  #       reservations:
+  #         devices:
+  #           - driver: nvidia
+  #             capabilities:
+  #               - gpu
+  #               - utility
+  #               - compute
+  #               - video
+  #   environment:
+  #     - NVIDIA_VISIBLE_DEVICES=${GPU_NUM:-all}
+  #   hostname: bms
+  #   volumes:
+  #     - ./base_model_select:/source
+  #     - shared:/shared
+  #   ports:
+  #     - "8081:8081"
 
   # #---------------------------------
   # # AutoNN: Bakcbone-NAS
@@ -171,69 +214,69 @@ services:
   #---------------------------------
   # AutoNN: YoloE
   #---------------------------------
-  autonn_yoloe:
-    build:
-      context: ./autonn/YoloE
-    shm_size: '256M'
-    ipc: host
-    command: >
-      sh -c "python manage.py pretrained_supernet && 
-             python manage.py makemigrations &&
-             python manage.py migrate &&
-             python manage.py runserver 0.0.0.0:8090"
-    # use the below lines commented out if you want to use gpu
-    deploy:
-      resources:
-        reservations:
-          devices:
-            - driver: nvidia
-              capabilities:
-                - gpu
-                - utility
-                - compute
-                - video
-    environment:
-      - NVIDIA_VISIBLE_DEVICES=${GPU_NUM:-all}
-    volumes:
-      - ./autonn/YoloE:/source
-      - shared:/shared
-      - ./autonn/YoloE/sample_yaml/dataset.yaml:/shared/datasets/coco/dataset.yaml # TEMP FILE UNTIL LABELLING MODULE WORKING
-      - ${COCODIR:-./autonn/YoloE/sample_data/coco128}:/shared/datasets/coco # TEMP FILE UNTIL LABELLING MODULE WORKING
-    hostname: yoloe
-    ports:
-      - "8090:8090"
+  # autonn_yoloe:
+  #   build:
+  #     context: ./autonn/YoloE
+  #   shm_size: "256M"
+  #   ipc: host
+  #   command: >
+  #     sh -c "python manage.py pretrained_supernet &&
+  #            python manage.py makemigrations &&
+  #            python manage.py migrate &&
+  #            python manage.py runserver 0.0.0.0:8090"
+  #   # use the below lines commented out if you want to use gpu
+  #   deploy:
+  #     resources:
+  #       reservations:
+  #         devices:
+  #           - driver: nvidia
+  #             capabilities:
+  #               - gpu
+  #               - utility
+  #               - compute
+  #               - video
+  #   environment:
+  #     - NVIDIA_VISIBLE_DEVICES=${GPU_NUM:-all}
+  #   volumes:
+  #     - ./autonn/YoloE:/source
+  #     - shared:/shared
+  #     - ./autonn/YoloE/sample_yaml/dataset.yaml:/shared/datasets/coco/dataset.yaml # TEMP FILE UNTIL LABELLING MODULE WORKING
+  #     - ${COCODIR:-./autonn/YoloE/sample_data/coco128}:/shared/datasets/coco # TEMP FILE UNTIL LABELLING MODULE WORKING
+  #   hostname: yoloe
+  #   ports:
+  #     - "8090:8090"
 
   #---------------------------------
   # AutoNN: ResNet
   #---------------------------------
-  autonn_resnet:
-    build:
-      context: ./autonn/ResNet
-    shm_size: '256M'
-    ipc: host
-    command: >
-      sh -c "python manage.py makemigrations &&
-             python manage.py migrate &&
-             python manage.py runserver 0.0.0.0:8092"
-    # use the below lines commented out if you want to use gpu
-    deploy:
-      resources:
-        reservations:
-          devices:
-            - driver: nvidia
-              capabilities:
-                - gpu
-                - utility
-                - compute
-                - video
-    environment:
-      - NVIDIA_VISIBLE_DEVICES=all
-    volumes:
-      - ./autonn/ResNet:/source
-      - shared:/shared
-    hostname: autonn-resnet
-    ports:
-      - "8092:8092"
+  # autonn_resnet:
+  #   build:
+  #     context: ./autonn/ResNet
+  #   shm_size: "256M"
+  #   ipc: host
+  #   command: >
+  #     sh -c "python manage.py makemigrations &&
+  #            python manage.py migrate &&
+  #            python manage.py runserver 0.0.0.0:8092"
+  #   # use the below lines commented out if you want to use gpu
+  #   deploy:
+  #     resources:
+  #       reservations:
+  #         devices:
+  #           - driver: nvidia
+  #             capabilities:
+  #               - gpu
+  #               - utility
+  #               - compute
+  #               - video
+  #   environment:
+  #     - NVIDIA_VISIBLE_DEVICES=all
+  #   volumes:
+  #     - ./autonn/ResNet:/source
+  #     - shared:/shared
+  #   hostname: autonn-resnet
+  #   ports:
+  #     - "8092:8092"
 
   #---------------------------------
   # code_gen Build
@@ -278,34 +321,33 @@ services:
   #---------------------------------
   # K8S deploy
   #---------------------------------
-  kube_deploy:
-    hostname: kube-deploy
-    build:
-      context: ./deploy_targets/k8s
-    container_name: "tango_k8s"
-    privileged: true
-    command: bash -c "cd /app && python3 k8s_deploy.py"
-    volumes:
-      - $HOME/.kube:/home/root/.kube
-      - shared:/app/tango
-      - ./deploy_targets/k8s:/app
-      - /var/run/docker.sock:/var/run/docker.sock
-    environment:
-      - "HOME=/home/root"
-    ports:
-      - "8901:8901"
+  # kube_deploy:
+  #   hostname: kube-deploy
+  #   build:
+  #     context: ./deploy_targets/k8s
+  #   container_name: "tango_k8s"
+  #   privileged: true
+  #   command: bash -c "cd /app && python3 k8s_deploy.py"
+  #   volumes:
+  #     - $HOME/.kube:/home/root/.kube
+  #     - shared:/app/tango
+  #     - ./deploy_targets/k8s:/app
+  #     - /var/run/docker.sock:/var/run/docker.sock
+  #   environment:
+  #     - "HOME=/home/root"
+  #   ports:
+  #     - "8901:8901"
 
   #---------------------------------
   # K8S docker registry(image manager)
   #---------------------------------
-
-  registry:
-    image: registry
-    container_name: registry
-    volumes:
-      - registry_data:/var/lib/registry/docker/registry/v2
-    ports:
-      - "8903:5000"
+  # registry:
+  #   image: registry
+  #   container_name: registry
+  #   volumes:
+  #     - registry_data:/var/lib/registry/docker/registry/v2
+  #   ports:
+  #     - "8903:5000"
 
   #---------------------------------
   # ondevice_deploy Build
@@ -324,24 +366,24 @@ services:
   #---------------------------------
   # Visualizer
   #---------------------------------
-  viz2code:
-    hostname: viz2code
-    build:
-      context: ./visualization
-    command: >
-      sh -c "cd ./visualization/frontend &&
-             npm run build &&
-             cd ..
-             python manage.py makemigrations &&
-             python manage.py migrate &&
-             python manage.py runserver react 0.0.0.0:8091"
-    volumes:
-      - ./visualization:/source
-      - shared:/shared
-    ports:
-      - "8091:8091"
-  #   depends_on:
-  #     - postgresql
+  # viz2code:
+  #   hostname: viz2code
+  #   build:
+  #     context: ./visualization
+  #   command: >
+  #     sh -c "cd ./visualization/frontend &&
+  #            npm run build &&
+  #            cd ..
+  #            python manage.py makemigrations &&
+  #            python manage.py migrate &&
+  #            python manage.py runserver react 0.0.0.0:8091"
+  #   volumes:
+  #     - ./visualization:/source
+  #     - shared:/shared
+  #   ports:
+  #     - "8091:8091"
+  # #   depends_on:
+  # #     - postgresql
 
   #---------------------------------
   # Volumes

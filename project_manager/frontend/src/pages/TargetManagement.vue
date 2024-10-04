@@ -1,6 +1,6 @@
 <template>
   <v-card style="height: 100%; padding-right: 22px" class="py-5 pl-10">
-    <div style="height: calc(100vh - 90px); overflow: auto" class="mt-8">
+    <div style="height: calc(95vh - 90px); overflow: auto" class="mt-8">
       <div
         v-for="(item, index) in items"
         :key="index"
@@ -19,9 +19,9 @@
           </div>
           <div class="d-flex align-center mt-3" style="gap: 10px">
             <small style="color: #aaa; font-size: 11px; min-width: 70px">{{ item.create_date.slice(0, 10) }}</small>
-            <small style="color: #aaa; font-size: 11px; min-width: 95px">
+            <small style="color: #aaa; font-size: 11px; min-width: 95px" v-if="item?.create_user !== ''">
               created by
-              <span style="color: #4a80ff">{{ item.create_user }}</span>
+              <span style="color: #4a80ff">{{ item?.create_user }}</span>
             </small>
           </div>
         </div>

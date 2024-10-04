@@ -86,11 +86,13 @@
   </div>
 </template>
 <script>
+// import Vue from "vue";
+
 import DatasetCard from "@/modules/common/card/DatasetCard.vue";
 import TargetCard from "@/modules/common/card/TargetCard.vue";
 import SkeletonLoaderCard from "@/modules/common/card/SkeletonLoaderCard.vue";
 
-import { getTargetInfo, getDatasetListTango } from "@/api";
+// import { getTargetInfo, getDatasetListTango, getDatasetFolderSize, getDatasetFileCount } from "@/api";
 export default {
   components: { DatasetCard, TargetCard, SkeletonLoaderCard },
 
@@ -156,24 +158,15 @@ export default {
         this.outputMethod = this.projectInfo.deploy_output_method;
         this.inputSource = this.projectInfo.deploy_input_source;
 
-        if (!this.selectedTarget) {
-          await getTargetInfo(this.projectInfo.target_id).then(res => {
-            this.selectedTarget = res;
-            this.isTargetLoading = true;
-          });
-        }
-        if (!this.selectedImage) {
-          await getDatasetListTango().then(res => {
-            const datasetInfo = res.find(q => q.name === this.projectInfo.dataset);
-            if (datasetInfo) {
-              this.selectedImage = datasetInfo;
-              this.isDatasetLoading = true;
-            }
-          });
-        }
+        this.selectedTarget = this.projectInfo?.target_info;
+        this.isTargetLoading = true;
+        this.selectedImage = this.projectInfo?.datasetObject;
+        this.isDatasetLoading = true;
       }
     }
-  }
+  },
+
+  methods: {}
 };
 </script>
 <style lang="scss" scoped></style>

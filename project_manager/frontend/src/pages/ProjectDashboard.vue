@@ -17,15 +17,15 @@
         <NoResultTab v-else />
       </v-tab-item>
       <!-- BMS -->
-      <v-tab-item>
+      <!-- <v-tab-item>
         <TabView v-if="isData(this.projectsByTab['BMS'])" :items="this.projectsByTab['BMS']" />
         <NoResultTab v-else />
-      </v-tab-item>
+      </v-tab-item> -->
       <!-- Visualization -->
-      <v-tab-item>
+      <!-- <v-tab-item>
         <TabView v-if="isData(this.projectsByTab['Visualization'])" :items="this.projectsByTab['Visualization']" />
         <NoResultTab v-else />
-      </v-tab-item>
+      </v-tab-item> -->
       <!-- AUTO NN -->
       <v-tab-item>
         <TabView v-if="isData(this.projectsByTab['Auto NN'])" :items="this.projectsByTab['Auto NN']" />
@@ -74,15 +74,17 @@ export default {
     return {
       tab: null,
       step: 1,
-      items: ["All Status", "Preparing", "BMS", "Visualization", "Auto NN", "Code Gen", "Image Deploy"],
-      defaultValue: { Preparing: [], BMS: [], Visualization: [], "Auto NN": [], "Code Gen": [], "Image Deploy": [] },
+      // items: ["All Status", "Preparing", "BMS", "Visualization", "Auto NN", "Code Gen", "Image Deploy"],
+      items: ["All Status", "Preparing", "Auto NN", "Code Gen", "Image Deploy"],
+      // defaultValue: { Preparing: [], BMS: [], Visualization: [], "Auto NN": [], "Code Gen": [], "Image Deploy": [] },
+      defaultValue: { Preparing: [], "Auto NN": [], "Code Gen": [], "Image Deploy": [] },
       projectsByTab: {},
       tabItems: [
         { key: "Preparing", allowed: ["", "init"] },
-        { key: "BMS", allowed: ["bms"] },
-        { key: "Visualization", allowed: ["visualization", "viz2code"] },
-        { key: "Auto NN", allowed: ["autonk", "yoloe", "autobb", "autonn-resnet"] },
-        { key: "Code Gen", allowed: ["codeGen"] },
+        // { key: "BMS", allowed: ["bms"] },
+        // { key: "Visualization", allowed: ["visualization", "viz2code"] },
+        { key: "Auto NN", allowed: ["autonk", "yoloe", "autobb", "autonn-resnet", "autonn"] },
+        { key: "Code Gen", allowed: ["code_gen"] },
         { key: "Image Deploy", allowed: ["imagedeploy"] }
         // { key: "Run Image", allowed: ["run_image"] }
       ]
@@ -130,6 +132,7 @@ export default {
     },
 
     async close() {
+      this.INIT_PROJECT();
       await this.initProjectList();
     },
 
