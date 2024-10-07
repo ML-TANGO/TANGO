@@ -11,10 +11,7 @@ from cloud_manager.targets.defs import DeployYaml, TARGET_CLASS_MAP
 
 
 async def get_service(
-    user_id: str,
-    project_id: str,
-    *,
-    statuses: List[ServiceStatus] = None
+    user_id: str, project_id: str, *, statuses: List[ServiceStatus] = None
 ) -> Optional[Service]:
     if statuses is None:
         statuses = RunningServiceStatuses

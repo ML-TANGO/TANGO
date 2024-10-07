@@ -17,6 +17,9 @@ services:
       - GOOGLE_APPLICATION_CREDENTIALS=/source/cloud_manager/service-account-file.json
       - GCP_REGION=asia-northeast3
       - GCP_PROJECT_ID=backendai-testbed
+    env_file:
+      # Should fill AWS configurations
+      - .env
     volumes:
       - .:/source
       # - shared:/shared
