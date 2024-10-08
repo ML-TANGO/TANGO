@@ -79,6 +79,7 @@ The supported target(cloud, K8S, ondevice) is as follows.
 |KT cloud|                        |     PyTorch/TorchScript,TensorRT | in progress |
 | Kubernetes | x86 + NVIDIA GPU | PyTorch/TorchScript, TensorRT | PyTorch/TorchScript, ONNX, OpenVINO, TensorRT, TVM| |
 | PC |  x86 + NVIDIA GPU | PyTorch/TorchScript, ONNX, OpenVINO, TensorRT, TVM | |
+| Comma 3X (Snapdragon 845) | ARM + Adreno 630 GPU | PyTorch/TorchScript, ONNX |in progress |
 | Jetson AGX Orin | ARM + NVIDIA GPU (Ampere)  | TensorRT, PyTorch/TorchScript | |
 | Jetson AGX Xavier | ARM + NVIDIA GPU (Volta) | TensorRT, PyTorch/TorchScript | |
 | Jetson Nano | ARM + NVIDIA GPU (Maxwell) | TensorRT, PyTorch/TorchScript | |
