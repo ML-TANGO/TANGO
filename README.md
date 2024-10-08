@@ -65,11 +65,29 @@ Finding the optimal neural network has long been the domain of AI experts. As th
 Even though neural network training is largely automated, there are still many variables that should be setup in advance or tunned during training. This kind of variables is called hyper-parameters. HPO stands for Hyperparameter Optimization, which is the process of tuning the hyper-parameters of a machine learning model to improve its performance on a validation dataset. Hyper-parameters are parameters that are set before training a model and control aspects of the training process such as the learning rate, the number of trees in a random forest, or the number of hidden units in a neural network. Therefore, HPO in TANGO can be seen as an iterative process of determining the optimal values of hyper-parameters to achieve the best performance for the optimal neural network derived from NAS.
 
 
-### Deployment of Inference Engine on Target Device
+### Target Deployment of Trained Model
 
-During TANGO project configuration, users can specify theirs target device, which is used for inference with pre-trained neural network model. Due to different acceleration engines and available resources for each device, it may be difficult to immediately deploy/load the neural network model output from AutoNN. Therefore, in order to realize full-cycle AutoML, a tool is necessary to  help deploy/install on the target device and launch inference task. Depending on the environment of the target device, TANGO provides a method that can be distributed over the network through direct containerized image build, and a method that makes the executable code including essential libraries and pre/post-processing code into a compressed file and installs it on the the target device and unpacks it.
+During TANGO project configuration, users can specify theirs target(cloud, K8S, ondevice), which is used for inference with trained neural network model. Due to different acceleration engines and available resources for each target environment, it is difficult to deploy immediately the neural network model generated from AutoNN. Depending on the target environment, TANGO makes the executable code including essential libraries and pre/post-processing code into a compressed file, builds containerized image, and installs it on the the target(device) and unpacks it.
 
 <img src="./docs/media/TANGO_AutoNN_Deployment.png" alt="Deployment in TANGO" width="500px"/>
+
+The supported target(cloud, K8S, ondevice) is as follows.  
+| Target | NN acceleration | Runtim Engine | remark |
+|-------|------------------|---------------|--------|
+|Amazon Web Services (AWS)  |     | PyTorch/TorchScript, TensorRT | Elastic Container Service (ECS) |
+| Google Cloud Platform (GCP) |   | PyTorch/TorchScript,TensorRT | Google Cloud Run |
+|KT cloud|                        |     PyTorch/TorchScript,TensorRT | in progress |
+| Kubernetes | x86 + NVIDIA GPU | PyTorch/TorchScript, TensorRT | PyTorch/TorchScript, ONNX, OpenVINO, TensorRT, TVM| |
+| PC |  x86 + NVIDIA GPU | PyTorch/TorchScript, ONNX, OpenVINO, TensorRT, TVM | |
+| Jetson AGX Orin | ARM + NVIDIA GPU (Ampere)  | TensorRT, PyTorch/TorchScript | |
+| Jetson AGX Xavier | ARM + NVIDIA GPU (Volta) | TensorRT, PyTorch/TorchScript | |
+| Jetson Nano | ARM + NVIDIA GPU (Maxwell) | TensorRT, PyTorch/TorchScript | |
+| Samsung Galaxy S23 | ARM + Adreno 740 GPU | Tensorflow Lite | |
+| Samsung Galaxy S22 | ARM + Adreno 730 GPU | Tensorflow Lite | |
+| Rasberry Pi5 | ARM + Google Coral M.2 PCIe TPU |Tensorflow Lite | |
+| Odroid N2  | ARM + Mali GPU | TVM, ACL | YoloV3 supporting | |
+| Odroid M1 | ARM + RKNN NPU |  RKNN | YoloV7 supporting |
+
 
 ### No Code
 
