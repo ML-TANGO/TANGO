@@ -77,7 +77,7 @@ The supported target(cloud, K8S, ondevice) is as follows.
 |Amazon Web Services (AWS)  |     | PyTorch/TorchScript, TensorRT | Elastic Container Service (ECS) |
 | Google Cloud Platform (GCP) |   | PyTorch/TorchScript,TensorRT | Google Cloud Run |
 |KT cloud|                        |     PyTorch/TorchScript,TensorRT | in progress |
-| Kubernetes | x86 + NVIDIA GPU | PyTorch/TorchScript, TensorRT | PyTorch/TorchScript, ONNX, OpenVINO, TensorRT, TVM| |
+| Kubernetes | x86 + NVIDIA GPU | PyTorch/TorchScript, TensorRT | |
 | PC |  x86 + NVIDIA GPU | PyTorch/TorchScript, ONNX, OpenVINO, TensorRT, TVM | |
 | Comma 3X (Snapdragon 845) | ARM + Adreno 630 GPU | PyTorch/TorchScript, ONNX |in progress |
 | Jetson AGX Orin | ARM + NVIDIA GPU (Ampere)  | TensorRT, PyTorch/TorchScript | |
