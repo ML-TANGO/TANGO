@@ -739,7 +739,7 @@ class CodeGen:
                 str += "def_output_location = %d\n"  % self.m_sysinfo_output_method 
             str += "def_conf_thres = %f\n" % self.m_nninfo_postproc_conf_thres
             str += "def_iou_thres = %f\n" % self.m_nninfo_postproc_iou_thres
-            str += "def_pt_file = %s\n" % self.m_nninfo_weight_pt_file  
+            str += "def_pt_file = '%s'\n" % self.m_nninfo_weight_pt_file  
             if self.m_sysinfo_acc_type == "cuda":
                 str += "def_dev = 'cuda:0'\n"
             elif self.m_sysinfo_acc_type == "opencl":
@@ -828,7 +828,7 @@ class CodeGen:
                 str += "def_output_location = %d\n"  % self.m_sysinfo_output_method 
             str += "def_conf_thres = %f\n" % self.m_nninfo_postproc_conf_thres
             str += "def_iou_thres = %f\n" % self.m_nninfo_postproc_iou_thres
-            str += "def_pt_file = %s\n" % self.m_nninfo_weight_pt_file  
+            str += "def_pt_file = '%s'\n" % self.m_nninfo_weight_pt_file  
             if self.m_sysinfo_acc_type == "cuda":
                 str += "def_dev = 'cuda:0'\n"
             elif self.m_sysinfo_acc_type == "opencl":
@@ -893,7 +893,7 @@ class CodeGen:
                 str += "def_output_location = %d\n"  % self.m_sysinfo_output_method 
             str += "def_conf_thres = %f\n" % self.m_nninfo_postproc_conf_thres
             str += "def_iou_thres = %f\n" % self.m_nninfo_postproc_iou_thres
-            str += "def_pt_file= %s\n" % self.m_nninfo_weight_pt_file  
+            str += "def_pt_file= '%s'\n" % self.m_nninfo_weight_pt_file  
             if self.m_sysinfo_acc_type == "cuda":
                 str += "def_dev = 'cuda:0'\n"
             elif self.m_sysinfo_acc_type == "opencl":
