@@ -695,7 +695,7 @@ class CodeGen:
         if self.m_deploy_type == 'cloud' or self.m_deploy_type == 'pc_server':
             self.m_sysinfo_libs = ['python==3.8', 'torch>=1.1.0']
             self.m_sysinfo_apt = ['vim']
-            self.m_sysinfo_papi = ['flask', 'werkzeug', 'imageio', 'torch', 'torchvision', 'opencv-python', 'pandas', 'numpy', 'python-math', 'pyyaml', 'json', 'albumentations', 'pathlib']
+            self.m_sysinfo_papi = ['flask', 'werkzeug', 'imageio', 'torch', 'torchvision', 'opencv-python', 'pandas', 'numpy', 'python-math', 'pyyaml', 'albumentations', 'pathlib']
             self.m_deploy_entrypoint = ['output.py']
             # web폴더 복사후 .db화일 삭제 
             os.system("cp -r ./db/web/* %s" % self.m_current_code_folder) 
@@ -782,7 +782,7 @@ class CodeGen:
         elif self.m_deploy_type == 'k8s':
             self.m_sysinfo_libs = ['python==3.8', 'torch>=1.1.0']
             self.m_sysinfo_apt = ['vim']
-            self.m_sysinfo_papi = ['flask', 'werkzeug', 'imageio', 'torch', 'torchvision', 'opencv-python', 'pandas', 'numpy', 'python-math', 'pyyaml', 'json', 'albumentations', 'pathlib']
+            self.m_sysinfo_papi = ['flask', 'werkzeug', 'imageio', 'torch', 'torchvision', 'opencv-python', 'pandas', 'numpy', 'python-math', 'pyyaml', 'albumentations', 'pathlib']
             self.m_deploy_entrypoint = ['output.py']
             os.system("mkdir %s/fileset" % self.m_current_code_folder) 
             os.system("mkdir %s/fileset/yolov7" % self.m_current_code_folder) 
@@ -1012,7 +1012,7 @@ class CodeGen:
         if self.m_deploy_type == 'cloud' or self.m_deploy_type == 'pc_server':
             self.m_sysinfo_libs = ['python==3.8']
             self.m_sysinfo_apt = ['vim', 'tensorrt']
-            self.m_sysinfo_papi = ['flask', 'werkzeug', 'imageio', 'torch', 'torchvision', 'opencv-python', 'pandas', 'numpy', 'python-math', 'pyyaml', 'json', 'albumentations']
+            self.m_sysinfo_papi = ['flask', 'werkzeug', 'imageio', 'torch', 'torchvision', 'opencv-python', 'pandas', 'numpy', 'python-math', 'pyyaml', 'albumentations']
             self.m_deploy_entrypoint = ['output.py']
             # web폴더 복사후 .db화일 삭제 
             os.system("cp -r ./db/trtweb/* %s" % self.m_current_code_folder) 
@@ -1111,7 +1111,7 @@ class CodeGen:
             os.system("cp  %s  %s" % (onnx_path, k8s_path))
             self.m_sysinfo_libs = ['python==3.8']
             self.m_sysinfo_apt = ['vim', 'tensorrt']
-            self.m_sysinfo_papi = ['flask', 'werkzeug', 'imageio', 'torch', 'torchvision', 'opencv-python', 'pandas', 'numpy', 'python-math', 'pyyaml', 'json', 'albumentations']
+            self.m_sysinfo_papi = ['flask', 'werkzeug', 'imageio', 'torch', 'torchvision', 'opencv-python', 'pandas', 'numpy', 'python-math', 'pyyaml', 'albumentations']
             self.m_deploy_entrypoint = ['output.py']
             # index.db 가속기 고려 코드 생성 후 index.py로 복사
             str = ''
@@ -1201,7 +1201,7 @@ class CodeGen:
         else: # ondevice no need web 
             self.m_sysinfo_libs = ['python==3.8']
             self.m_sysinfo_apt = ['vim', 'tensorrt']
-            self.m_sysinfo_papi = ['flask', 'werkzeug', 'imageio', 'torch', 'torchvision', 'opencv-python', 'pandas', 'numpy', 'python-math', 'pyyaml', 'json', 'albumentations']
+            self.m_sysinfo_papi = ['flask', 'werkzeug', 'imageio', 'torch', 'torchvision', 'opencv-python', 'pandas', 'numpy', 'python-math', 'pyyaml', 'albumentations']
             self.m_deploy_entrypoint = ['output.py']
             # onnx 화일 복사   
             onnx_path = "%s%s" % (self.m_current_file_path, self.m_nninfo_weight_onnx_file)
