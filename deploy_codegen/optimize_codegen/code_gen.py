@@ -708,7 +708,7 @@ class CodeGen:
             str += "def_port_num = %d\n" %  self.m_deploy_network_serviceport 
             # index.py 오픈 후 str 복사
             try: 
-                outpath = "%s/%s" % (self.m_current_code_folder, "index.py")
+                outpath = "%s/%s" % (self.m_current_code_folder, "output.py")
                 outf = open(outpath, "w")
             except IOError as err:
                 logging.debug("index.py file open error")
@@ -726,7 +726,7 @@ class CodeGen:
             inf.close()
             outf.close()
 
-            # pytorch-yolov9.db 가속기 고려 코드 생성 후 output.py로 복사
+            # pytorch-yolov9.db 가속기 고려 코드 생성 후 pytorch_yolov9.py로 복사
             str = ''
             str += "def_label_yaml = '%s'\n" % self.m_nninfo_annotation_file 
             if type(self.m_sysinfo_input_method) != int:
@@ -747,17 +747,17 @@ class CodeGen:
             else:
                 str += "def_dev = 'cpu'\n"
             try:
-                outpath = "%s/%s" % (self.m_current_code_folder, "output.py")
+                outpath = "%s/%s" % (self.m_current_code_folder, "pytorch_yolov9.py")
                 outf = open(outpath, "w")
             except IOError as err:
-                logging.debug("output.py file open error")
+                logging.debug("pytorch_yolov9.py file open error")
                 self.m_last_run_state = 0
                 return -1
             outf.write(str)
             try:
-                inf = open("./db/web/pytorch-yolov9.db", 'r')
+                inf = open("./db/web/pytorch_yolov9.db", 'r')
             except IOError as err:
-                logging.debug("web/pytorch-yolov9.db open error")
+                logging.debug("web/pytorch_yolov9.db open error")
                 self.m_last_run_state = 0
                 return -1
             for line1 in inf:
@@ -797,10 +797,10 @@ class CodeGen:
             str += "def_port_num = %d\n" %  self.m_deploy_network_serviceport 
             # index.py 오픈 후 str 복사
             try: 
-                outpath = "%s/%s" % (k8s_path, "index.py")
+                outpath = "%s/%s" % (k8s_path, "output.py")
                 outf = open(outpath, "w")
             except IOError as err:
-                logging.debug("index.py file open error")
+                logging.debug("output.py file open error")
                 self.m_last_run_state = 0
                 return -1
             outf.write(str)
@@ -836,17 +836,17 @@ class CodeGen:
             else:
                 str += "def_dev = 'cpu'\n"
             try:
-                outpath = "%s/%s" % (k8s_path, "output.py")
+                outpath = "%s/%s" % (k8s_path, "pytorch_yolov9.py")
                 outf = open(outpath, "w")
             except IOError as err:
-                logging.debug("output.py file open error")
+                logging.debug("pytorch_yolov9.py file open error")
                 self.m_last_run_state = 0
                 return -1
             outf.write(str)
             try:
-                inf = open("./db/web/pytorch-yolov9.db", 'r')
+                inf = open("./db/web/pytorch_yolov9.db", 'r')
             except IOError as err:
-                logging.debug("web/pytorch-yolov9.db open error")
+                logging.debug("web/pytorch_yolov9.db open error")
                 self.m_last_run_state = 0
                 return -1
             for line1 in inf:
@@ -909,9 +909,9 @@ class CodeGen:
                 return -1
             outf.write(str)
             try:
-                inf = open("./db/pytorch-yolov9.db", 'r')
+                inf = open("./db/pytorch_yolov9.db", 'r')
             except IOError as err:
-                logging.debug("pytorch-yolov9.db open error")
+                logging.debug("pytorch_yolov9.db open error")
                 self.m_last_run_state = 0
                 return -1
             for line1 in inf:
@@ -1025,10 +1025,10 @@ class CodeGen:
             str += "def_port_num = %d\n" %  self.m_deploy_network_serviceport 
             # index.py 오픈 후 str 복사
             try: 
-                outpath = "%s/%s" % (self.m_current_code_folder, "index.py")
+                outpath = "%s/%s" % (self.m_current_code_folder, "output.py")
                 outf = open(outpath, "w")
             except IOError as err:
-                logging.debug("index.py file open error")
+                logging.debug("output.py file open error")
                 self.m_last_run_state = 0
                 return -1
             outf.write(str)
@@ -1063,17 +1063,17 @@ class CodeGen:
             str += "def_onnx_model = '%s'\n" %  self.m_nninfo_weight_onnx_file
             str += "def_label_yaml = '%s'\n" % self.m_nninfo_annotation_file 
             try:
-                outpath = "%s/%s" % (self.m_current_code_folder, "output.py")
+                outpath = "%s/%s" % (self.m_current_code_folder, "tensorrt_yolov9.py")
                 outf = open(outpath, "w")
             except IOError as err:
-                logging.debug("output.py file open error")
+                logging.debug("tensorrt_yolov9.py file open error")
                 self.m_last_run_state = 0
                 return -1
             outf.write(str)
             try:
-                inf = open("./db/trtweb/tensorrt-yolov9.db", 'r')
+                inf = open("./db/trtweb/tensorrt_yolov9.db", 'r')
             except IOError as err:
-                logging.debug("web/tensorrt-yolov9.db open error")
+                logging.debug("web/tensorrt_yolov9.db open error")
                 self.m_last_run_state = 0
                 return -1
             for line1 in inf:
@@ -1118,10 +1118,10 @@ class CodeGen:
             str += "def_port_num = %d\n" %  self.m_deploy_network_serviceport 
             # index.py 오픈 후 str 복사
             try: 
-                outpath = "%s/%s" % (k8s_path, "index.py")
+                outpath = "%s/%s" % (k8s_path, "output.py")
                 outf = open(outpath, "w")
             except IOError as err:
-                logging.debug("index.py file open error")
+                logging.debug("output.py file open error")
                 self.m_last_run_state = 0
                 return -1
             outf.write(str)
@@ -1156,17 +1156,17 @@ class CodeGen:
             str += "def_onnx_model = '%s'\n" %  self.m_nninfo_weight_onnx_file
             str += "def_label_yaml = '%s'\n" % self.m_nninfo_annotation_file 
             try:
-                outpath = "%s/%s" % (k8s_path, "output.py")
+                outpath = "%s/%s" % (k8s_path, "tensorrt_yolov9.py")
                 outf = open(outpath, "w")
             except IOError as err:
-                logging.debug("output.py file open error")
+                logging.debug("tensorrt_yolov9.py file open error")
                 self.m_last_run_state = 0
                 return -1
             outf.write(str)
             try:
-                inf = open("./db/trtweb/tensorrt-yolov9.db", 'r')
+                inf = open("./db/trtweb/tensorrt_yolov9.db", 'r')
             except IOError as err:
-                logging.debug("trtweb/tensorrt-yolov9.db open error")
+                logging.debug("trtweb/tensorrt_yolov9.db open error")
                 self.m_last_run_state = 0
                 return -1
             for line1 in inf:
@@ -1236,9 +1236,9 @@ class CodeGen:
                 return -1
             outf.write(str)
             try:
-                inf = open("./db/tensorrt-yolov9.db", 'r')
+                inf = open("./db/tensorrt_yolov9.db", 'r')
             except IOError as err:
-                logging.debug("tensorrt-yolov9.db open error")
+                logging.debug("tensorrt_yolov9.db open error")
                 self.m_last_run_state = 0
                 return -1
             for line1 in inf:
@@ -1314,9 +1314,9 @@ class CodeGen:
             return -1
         outf.write(str)
         try:
-            inf = open("./db/tvm-yolov9.db", 'r')
+            inf = open("./db/tvm_yolov9.db", 'r')
         except IOError as err:
-            logging.debug("tvm-yolov9.db open error")
+            logging.debug("tvm_yolov9.db open error")
             self.m_last_run_state = 0
             return -1
         for line1 in inf:
