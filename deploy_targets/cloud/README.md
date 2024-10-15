@@ -79,6 +79,15 @@ GCP_REGION=asia-northeast3
 GCP_PROJECT_ID=tango-testbed
 ```
 
+#### Image upload to Google Cloud Platform
+
+```shell
+gcloud init
+gcloud auth configure-docker asia-northeast3-docker.pkg.dev
+docker push ...
+# asia-northeast3-docker.pkg.dev/backendai-testbed/tango/pytorch:21.08-py3
+```
+
 #### Google Cloud Run
 
 보통 클라우드 서비스는 컨테이너 기반 배포를 다양한 방식으로 지원한다. 현재, TANGO의 클라우드 배포 매니저는 Google Cloud
@@ -87,6 +96,25 @@ Platform의 서버리스 컨테이너 관리형 솔루션인 [Google Cloud Run](
 
 `deploy_targets/cloud/samples/deployment_gcp_cloudrun.yaml` 파일을 참고하여 YAML 스펙을
 정의해서 실행해야 한다. 특히, `deploy.type`의 값을 `gcp-cloudrun`으로 설정한다.
+
+
+### AWS Elastic Container Service (ECS)
+
+AWS 상의 ECS 서비스를 통해 배포하기 위해서는 최소한 다음과 같은 사전 준비가 필요하다.
+- AWS 계정 생성
+- 계정에 API/SDK 접속해서 사용하기 위한 Access / Secret 키페어 생성
+
+AWS 접속 정보 및 키페어는 `.env` 파일 등에 다음과 같이 설정하여 컨테이너 내
+서비스가 읽을 수 있도록 하여야 함.
+
+```shell
+AWS_REGION=ap-northeast-2
+AWS_ACCESS_KEY_ID=AKIA****
+AWS_SECRET_ACCESS_KEY=Bq1N****
+```
+
+`deploy_targets/cloud/samples/deployment_aws_ecs.yaml` 파일을 참고하여 YAML 스펙을
+정의해서 실행해야 한다. 특히, `deploy.type`의 값을 `aws-ecs`으로 설정한다.
 
 
 ## TODO

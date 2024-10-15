@@ -8,3 +8,6 @@ yarl
 
 # GCP integration
 google-cloud-run
+
+# AWS integration
+boto3
