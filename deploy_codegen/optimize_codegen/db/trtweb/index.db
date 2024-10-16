@@ -18,7 +18,7 @@ from queue import Queue
 import imageio as iio
 from werkzeug.utils import secure_filename
 import os
-import tensorrt-yolov9 as pyyolo
+import tensorrt_yolov9 as pyyolo
 
 global g_fname, g_mod, g_state, g_image_path, g_isFirst, g_cmd, clickFile, clickCam
 g_fname = ""
@@ -257,4 +257,4 @@ def file_upload():
 if __name__ == '__main__':
     print("Detection Service")
     streamer = Streamer()
-    app.run(host='localhost', port=def_port_num)
+    app.run(host='0.0.0.0', port=def_port_num)

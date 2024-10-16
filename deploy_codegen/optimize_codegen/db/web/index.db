@@ -257,4 +257,4 @@ def file_upload():
 if __name__ == '__main__':
     print("Detection Service")
     streamer = Streamer()
-    app.run(host='localhost', port=def_port_num)
+    app.run(host='0.0.0.0', port=def_port_num)
