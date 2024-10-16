@@ -701,7 +701,7 @@ class CodeGen:
                 "torch torchvision", "pandas", "tqdm", "seaborn", "requests", 
                 "werkzeug", "torch", "torchvision", "python-math", "pyyaml", 
                 "albumentations", "pathlib"]
-            self.m_deploy_entrypoint = ['output.py']
+            self.m_deploy_entrypoint = ['python', 'output.py']
             # web폴더 복사후 .db화일 삭제 
             os.system("cp -r ./db/web/* %s" % self.m_current_code_folder) 
             os.system("rm %s/*.db" % self.m_current_code_folder) 
@@ -793,7 +793,7 @@ class CodeGen:
                 "torch torchvision", "pandas", "tqdm", "seaborn", "requests", 
                 "werkzeug", "torch", "torchvision", "python-math", "pyyaml", 
                 "albumentations", "pathlib"]
-            self.m_deploy_entrypoint = ['output.py']
+            self.m_deploy_entrypoint = ['python', 'output.py']
             os.system("mkdir %s/fileset" % self.m_current_code_folder) 
             os.system("mkdir %s/fileset/yolov7" % self.m_current_code_folder) 
             k8s_path = "%s/fileset/yolov7" % self.m_current_code_folder
@@ -888,7 +888,7 @@ class CodeGen:
             self.m_sysinfo_libs = ['python==3.8', 'torch>=1.1.0']
             self.m_sysinfo_apt = []
             self.m_sysinfo_papi = ['torch', 'torchvision', 'numpy', 'pathlib', 'opencv-python']
-            self.m_deploy_entrypoint = ['output.py']
+            self.m_deploy_entrypoint = ['python', 'output.py']
             pt_path = "%s%s" % (self.m_current_file_path, self.m_nninfo_weight_pt_file)
             os.system("cp  %s  %s" % (pt_path, self.m_current_code_folder))
             str = ''
@@ -1028,7 +1028,7 @@ class CodeGen:
                 "torch torchvision", "pandas", "tqdm", "seaborn", "requests", 
                 "werkzeug", "torch", "torchvision", "python-math", "pyyaml", 
                 "albumentations", "pathlib"]
-            self.m_deploy_entrypoint = ['output.py']
+            self.m_deploy_entrypoint = ['python', 'output.py']
             # web폴더 복사후 .db화일 삭제 
             os.system("cp -r ./db/trtweb/* %s" % self.m_current_code_folder) 
             os.system("rm %s/*.db" % self.m_current_code_folder) 
@@ -1132,7 +1132,7 @@ class CodeGen:
                 "torch torchvision", "pandas", "tqdm", "seaborn", "requests", 
                 "werkzeug", "torch", "torchvision", "python-math", "pyyaml", 
                 "albumentations", "pathlib"]
-            self.m_deploy_entrypoint = ['output.py']
+            self.m_deploy_entrypoint = ['python', 'output.py']
             # index.db 가속기 고려 코드 생성 후 index.py로 복사
             str = ''
             str += "def_port_num = %d\n" %  self.m_deploy_network_serviceport 
@@ -1227,7 +1227,7 @@ class CodeGen:
                 "torch torchvision", "pandas", "tqdm", "seaborn", "requests", 
                 "werkzeug", "torch", "torchvision", "python-math", "pyyaml", 
                 "albumentations", "pathlib"]
-            self.m_deploy_entrypoint = ['output.py']
+            self.m_deploy_entrypoint = ['python', 'output.py']
             # onnx 화일 복사   
             onnx_path = "%s%s" % (self.m_current_file_path, self.m_nninfo_weight_onnx_file)
             os.system("cp  %s  %s" % (onnx_path, self.m_current_code_folder))
@@ -1310,7 +1310,7 @@ class CodeGen:
         self.m_sysinfo_libs = ['python==3.8']
         self.m_sysinfo_apt = []
         self.m_sysinfo_papi = []
-        self.m_deploy_entrypoint = ['output.py']
+        self.m_deploy_entrypoint = ['python', 'output.py']
         str = ''
         str += "def_mod_path = 'yolov9-tvm.model'\n" 
         str += "def_param_path = 'yolov9-tvm.param'\n" 
@@ -1416,7 +1416,6 @@ class CodeGen:
                    "os": self.m_sysinfo_os_type,
                    "image_uri": 'us-docker.pkg.dev/cloudrun/container/hello:latest',
                    "components": t_com }
-        my_entry = ['run.sh', '-p', 'opt1', 'arg']
         t_deploy = {"type": 'docker',
                     "service_name": "hello",
                     # "workdir": "/workspace",
@@ -1449,17 +1448,17 @@ class CodeGen:
                    "target_name": 'python:3.8',
                    "components": t_com
                    }
-        t_deploy = {"type": 'docker',
-                 "workdir": "/test/test",
-                 'entrypoint': [ '/bin/bash', '-c'], 
-                     "network": {
-                     'service_host_ip': self.m_deploy_network_hostip,
-                     "service_host_port": self.m_deploy_network_hostport,
-                     "service_container_port": self.m_deploy_network_serviceport
-                     },
-                 "k8s": {
-                     "nfs_ip": self.m_deploy_nfs_ip,
-                     "nfs_path": self.m_deploy_nfs_path
+        t_deploy = {"type": 'docker', 
+                "workdir": "/test/test", 
+                "entrypoint": self.m_deploy_entrypoint, 
+                "network": { 
+                    'service_host_ip': self.m_deploy_network_hostip, 
+                    "service_host_port": self.m_deploy_network_hostport, 
+                    "service_container_port": self.m_deploy_network_serviceport
+                    },
+                 "k8s": { 
+                     "nfs_ip": self.m_deploy_nfs_ip, 
+                     "nfs_path": self.m_deploy_nfs_path 
                      }
              }
         a_file = self.m_nninfo_annotation_file.split("/")
@@ -1500,7 +1499,8 @@ class CodeGen:
                    "accelerator": self.m_sysinfo_acc_type,
                    "os": self.m_sysinfo_os_type, "components": t_com}
         t_deploy = {"type": self.m_deploy_type, "work_dir": self.m_deploy_work_dir,
-                    "entrypoint": self.m_deploy_python_file}
+                    # "entrypoint": self.m_deploy_python_file} 
+                    "entrypoint": self.m_deploy_entrypoint} 
         a_file = self.m_nninfo_annotation_file.split("/")
         b_file = a_file[-1]
         t_opt = {"nn_file": self.m_deploy_python_file,
