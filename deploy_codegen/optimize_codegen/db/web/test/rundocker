@@ -1,3 +1,5 @@
 # sudo docker run -it --rm -itu root:root --privileged -v ~/Desktop/opencv-web:/source  --env="DISPLAY=0.0" --device=/dev:/dev  -v /tmp/.X11-unix:/tmp/.X11-unix:ro  --net=host  --workdir=/source cv_stream /bin/bash
 # sudo docker run -itu root:root  --rm  -v ~/Desktop/opencv-web:/source  --net=host  --workdir=/source cv_stream /bin/bash
-sudo docker run -itu root:root  --rm  -v ~/workspace/yolov9test/web:/source  --net=host  --workdir=/source cv_stream /bin/bash
+# sudo docker run -itu root:root  --rm  -v ~/workspace/yolov9test/web:/source  --net=host  --workdir=/source cv_stream /bin/bash
+# sudo docker run -itu root:root  --rm  -v ~/workspace/yolov9test/web:/source  -p 2222:2222 --workdir=/source cv_stream /bin/bash
+sudo docker run -it  --rm  -v ~/workspace/yolov9test/web:/source  -p 2222:2222 --workdir=/source cv_stream /bin/bash
