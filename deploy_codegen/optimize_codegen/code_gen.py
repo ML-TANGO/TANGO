@@ -705,10 +705,6 @@ class CodeGen:
             # web폴더 복사후 .db화일 삭제 
             os.system("cp -r ./db/web/* %s" % self.m_current_code_folder) 
             os.system("rm %s/*.db" % self.m_current_code_folder) 
-            # template/index.html 수정 MY_RECV_PORT =  self.m_deploy_network_serviceport 
-            my_cmd = "sed -i s/MY_RECV_PORT/%d/g %s/templates/index.html" % (self.m_deploy_network_serviceport, self.m_current_code_folder) 
-            print('my_cmd', my_cmd)
-            os.system(my_cmd) 
             # pt 화일 복사 done  
             pt_path = "%s%s" % (self.m_current_file_path, self.m_nninfo_weight_pt_file)
             os.system("cp  %s  %s" % (pt_path, self.m_current_code_folder))
@@ -802,10 +798,6 @@ class CodeGen:
             os.system("mkdir %s/fileset/yolov7" % self.m_current_code_folder) 
             k8s_path = "%s/fileset/yolov7" % self.m_current_code_folder
             os.system("cp -r ./db/web/* %s" % k8s_path) 
-            # template/index.html 수정 MY_RECV_PORT =  self.m_deploy_network_serviceport 
-            my_cmd = "sed -i s/MY_RECV_PORT/%d/g %s/templates/index.html" % (self.m_deploy_network_serviceport, k8s_path) 
-            print('my_cmd', my_cmd)
-            os.system(my_cmd) 
             # pt 화일 복사 done  
             pt_path = "%s%s" % (self.m_current_file_path, self.m_nninfo_weight_pt_file)
             os.system("cp  %s  %s" % (pt_path, k8s_path))
