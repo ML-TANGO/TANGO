@@ -697,9 +697,9 @@ class CodeGen:
             self.m_sysinfo_apt = ['vim', 'libgl1-mesa-glx']
             self.m_sysinfo_papi = ["cython", "numpy<17", "imutils", "flask",
                 "opencv-python", "opencv-contrib-python", 
-                "imageio imageio-ffmpeg", "pyyaml matplotlib", 
-                "torch torchvision", "pandas", "tqdm", "seaborn", "requests", 
-                "werkzeug", "torch", "torchvision", "python-math", "pyyaml", 
+                "imageio", "pyyaml", "matplotlib", "pandas", 
+                "tqdm", "seaborn", "requests", 
+                "werkzeug", "torch", "torchvision", "python-math", 
                 "albumentations", "pathlib"]
             self.m_deploy_entrypoint = ['python', 'output.py']
             # web폴더 복사후 .db화일 삭제 
@@ -789,9 +789,9 @@ class CodeGen:
             self.m_sysinfo_apt = ['vim', 'libgl1-mesa-glx']
             self.m_sysinfo_papi = ["cython", "numpy<17", "imutils", "flask",
                 "opencv-python", "opencv-contrib-python", 
-                "imageio imageio-ffmpeg", "pyyaml matplotlib", 
-                "torch torchvision", "pandas", "tqdm", "seaborn", "requests", 
-                "werkzeug", "torch", "torchvision", "python-math", "pyyaml", 
+                "imageio", "pyyaml", "matplotlib", "pandas", 
+                "tqdm", "seaborn", "requests", 
+                "werkzeug", "torch", "torchvision", "python-math",  
                 "albumentations", "pathlib"]
             self.m_deploy_entrypoint = ['python', 'output.py']
             os.system("mkdir %s/fileset" % self.m_current_code_folder) 
@@ -1024,9 +1024,9 @@ class CodeGen:
             self.m_sysinfo_apt = ['vim', 'tensorrt', 'libgl1-mesa-glx']
             self.m_sysinfo_papi = ["cython", "numpy<17", "imutils", "flask",
                 "opencv-python", "opencv-contrib-python", 
-                "imageio imageio-ffmpeg", "pyyaml matplotlib", 
-                "torch torchvision", "pandas", "tqdm", "seaborn", "requests", 
-                "werkzeug", "torch", "torchvision", "python-math", "pyyaml", 
+                "imageio", "pyyaml", "matplotlib", "pandas", "tqdm", 
+                "seaborn", "requests", 
+                "werkzeug", "torch", "torchvision", "python-math",  
                 "albumentations", "pathlib"]
             self.m_deploy_entrypoint = ['python', 'output.py']
             # web폴더 복사후 .db화일 삭제 
@@ -1128,9 +1128,9 @@ class CodeGen:
             self.m_sysinfo_apt = ['vim', 'tensorrt', 'libgl1-mesa-glx']
             self.m_sysinfo_papi = ["cython", "numpy<17", "imutils", "flask",
                 "opencv-python", "opencv-contrib-python", 
-                "imageio imageio-ffmpeg", "pyyaml matplotlib", 
-                "torch torchvision", "pandas", "tqdm", "seaborn", "requests", 
-                "werkzeug", "torch", "torchvision", "python-math", "pyyaml", 
+                "imageio", "pyyaml", "matplotlib", 
+                "pandas", "tqdm", "seaborn", "requests", 
+                "werkzeug", "torch", "torchvision", "python-math",  
                 "albumentations", "pathlib"]
             self.m_deploy_entrypoint = ['python', 'output.py']
             # index.db 가속기 고려 코드 생성 후 index.py로 복사
@@ -1223,9 +1223,9 @@ class CodeGen:
             self.m_sysinfo_apt = ['vim', 'tensorrt', 'libgl1-mesa-glx']
             self.m_sysinfo_papi = ["cython", "numpy<17", "imutils", "flask",
                 "opencv-python", "opencv-contrib-python", 
-                "imageio imageio-ffmpeg", "pyyaml matplotlib", 
-                "torch torchvision", "pandas", "tqdm", "seaborn", "requests", 
-                "werkzeug", "torch", "torchvision", "python-math", "pyyaml", 
+                "imageio", "pyyaml",  "matplotlib", 
+                "pandas", "tqdm", "seaborn", "requests", 
+                "werkzeug", "torch", "torchvision", "python-math",  
                 "albumentations", "pathlib"]
             self.m_deploy_entrypoint = ['python', 'output.py']
             # onnx 화일 복사   
