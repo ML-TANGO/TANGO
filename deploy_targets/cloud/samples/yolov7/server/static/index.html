@@ -4,7 +4,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>YOLO v7 Inference GUI</title>
+  <title>YOLO v7 Inference via TANGO</title>
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css">
   <script src="https://unpkg.com/htmx.org@1.6.1"></script>
   <script src="https://cdn.jsdelivr.net/gh/alpinejs/alpine@v2.x.x/dist/alpine.min.js"></script>
@@ -18,13 +18,13 @@
     </div>
 
     <div class="mb-4">
-      <h1 class="text-2xl font-bold mb-2">YOLO v7 Inference Client</h1>
+      <h1 class="text-2xl font-bold mb-2">YOLO v7 Inference Client for TANGO</h1>
       <p>Upload your image (jpg) or video (mp4) and our server will process them with the YOLO v7 model. The resultant image or video will be displayed below.</p>
     </div>
 
     <div class="flex flex-col md:flex-row gap-4">
       <!-- Image Upload Form -->
-      <form hx-post="/image" hx-encoding='multipart/form-data' hx-target="#result"
+      <form id="image-upload-form" hx-post="/image" hx-encoding='multipart/form-data' hx-target="#result"
           class="bg-white shadow-md rounded px-8 pt-6 pb-8 mb-4 flex-1"
           @htmx:configRequest="loading = true" @htmx:afterOnLoad="loading = false">
         <h3 class="block text-gray-700 text-sm font-bold mb-2">Upload Image (jpg)</h3>
