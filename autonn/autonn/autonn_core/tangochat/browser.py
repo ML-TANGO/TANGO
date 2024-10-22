@@ -76,6 +76,9 @@ def run_tangochat():
             "local_gen_obj": None,
             "local_gen_args": args
         }
+    
+    if "bye" not in st.session_state:
+        st.session_state.bye = False
 
     # huggingface --------------------------------------------------------------
     # hf_token_cache = f'{HF_HOME}/token'
@@ -120,7 +123,7 @@ def run_tangochat():
     
 
     # exit ---------------------------------------------------------------------
-    if st.button("Complete", type="primary"):
+    if st.session_state.bye:
         logger.info("Completed\n")
         return
 
@@ -151,21 +154,13 @@ def run_tangochat():
                 # "***Tiny-Llama-stories42M***",
                 # "***Tiny-Llama-stories110M***",
                 "***llama3.2***",
-                "***llama3.2:1b***",
-                "***llama3.1***"
                 "***phi3***",
-                "***phi3:medium***",
                 "***mistral***",
                 "***neural-chat***",
                 "***starling-lm***",
                 "***codellama***",
-                "***llama2***",
                 "***llava***",
-                "***gemma2:2b***",
                 "***gemma2***",
-                "***gemma2:27b***",
-                "***solar***",
-                "***moondream***"
             ]
     with tab1:
         llm = st.radio(
@@ -360,6 +355,10 @@ def run_tangochat():
             #             "text": prompt}]
             "content": prompt                   # ollama-style
         }
+        if str(prompt).lower() == 'bye':
+            logger.info("Completed\n")
+            st.session_state.bye == True
+            st.rerun()
         # st.info("User messages are received!!!")
         # if image_prompts:
         #     for image_prompt in image_prompts:
@@ -412,8 +411,11 @@ def run_tangochat():
             nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat.
             """
             _HANGUL_TEXT = """
-            태산같은 자부심을 갖고, **누운 풀**처럼 자기를 낮추어라. 
-            임금처럼 위엄을 갖추고, 구름처럼 한가로워라.
+            이 메세지는 아무런 의미가 없습니다. 
+            스크롤 업하신 후 상단 탭 중 ***RUN*** 에서 원하는 모델을 선택하시고,
+            "APPLY" 버튼을 눌러서 TangoChat을 깨우세요😀. 
+            ***RUN*** 탭에서 원하는 모델이 없으면 ***DOWNLOAD*** 탭에서 모델을 다운로드 하세요.
+            그리고 끝내고 싶으시면 *BYE* 라고 쓰세요. 
             """
             def temp_local_stream_data():
                 start = time.time()

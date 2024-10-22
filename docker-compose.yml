@@ -117,7 +117,6 @@ services:
     ports:
       - "8100:8100"     # visualizer (vision model)
       - "8101:8101"     # streamlit  (llm)
-      - "11434:11434"   # ollama
 
   #---------------------------------
   # Base Model Selector
