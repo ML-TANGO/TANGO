@@ -9,21 +9,24 @@
       <div style="width: 25%">
         <h4 class="ml-3 mt-3">Task Type</h4>
         <v-radio-group v-model="taskType" row hide-details class="ma-0 mt-2 ml-3" readonly>
-          <v-radio label="Classification" value="classification"></v-radio>
-          <v-radio label="Detection" value="detection"></v-radio>
+          <v-radio label="Classification" :value="TaskType.CLASSIFICATION"></v-radio>
+          <v-radio label="Detection" :value="TaskType.DETECTION"></v-radio>
+          <v-radio label="Chat" :value="TaskType.CHAT"></v-radio>
         </v-radio-group>
       </div>
     </div>
 
     <div class="d-flex">
-      <div style="width: 50%">
+      <div style="width: 50%" v-if="selectedImage">
+        <!-- <div style="width: 50%"> -->
         <h4 class="ml-3 mt-3">Dataset</h4>
-        <DatasetCard :item="selectedImage" v-if="isDatasetLoading" />
+        <DatasetCard v-if="isDatasetLoading" :item="selectedImage" />
         <SkeletonLoaderCard v-else />
       </div>
-      <div style="width: 50%">
+      <div :style="{ width: selectedImage ? '50%' : '100%' }">
+        <!-- <div style="width: 50%"> -->
         <h4 class="ml-3 mt-3">Target</h4>
-        <TargetCard :item="selectedTarget" v-if="isTargetLoading" />
+        <TargetCard v-if="isTargetLoading" ref="targetCaredRef" :item="selectedTarget" />
         <SkeletonLoaderCard v-else />
       </div>
     </div>
@@ -89,8 +92,10 @@
 // import Vue from "vue";
 
 import DatasetCard from "@/modules/common/card/DatasetCard.vue";
-import TargetCard from "@/modules/common/card/TargetCard.vue";
+import TargetCard from "@/modules/common/card/TargetCardV2.vue";
 import SkeletonLoaderCard from "@/modules/common/card/SkeletonLoaderCard.vue";
+
+import { TaskType } from "@/shared/enums";
 
 // import { getTargetInfo, getDatasetListTango, getDatasetFolderSize, getDatasetFileCount } from "@/api";
 export default {
@@ -99,11 +104,16 @@ export default {
   props: {
     projectInfo: {
       default: null
+    },
+
+    isOpen: {
+      default: false
     }
   },
 
   data() {
     return {
+      TaskType,
       taskType: "",
       nasType: "",
       description: "",
@@ -162,6 +172,20 @@ export default {
         this.isTargetLoading = true;
         this.selectedImage = this.projectInfo?.datasetObject;
         this.isDatasetLoading = true;
+      }
+    },
+
+    isOpen: {
+      immediate: true,
+      deep: true,
+      handler() {
+        this.$nextTick(() => {
+          if (this.isOpen) {
+            const targetCaredRef = this.$refs.targetCaredRef;
+            if (!targetCaredRef) return;
+            targetCaredRef.setAnimation();
+          }
+        });
       }
     }
   },

@@ -91,9 +91,10 @@ import Swal from "sweetalert2";
 import { mapMutations } from "vuex";
 import { ProjectNamespace, ProjectMutations } from "@/store/modules/project";
 
-import ProjectCreateDialog from "@/modules/project/ProjectCreateDialog.vue";
+import ProjectCreateDialog from "@/modules/project/ProjectCreateDialogV2.vue";
 
 import { deleteProject, getTargetInfo, getDatasetListTango } from "@/api";
+import { TaskType } from "@/shared/enums";
 export default {
   components: { ProjectCreateDialog },
 
@@ -174,7 +175,7 @@ export default {
     navigation() {
       let status = true;
       const info = this.projectInfo;
-      if (!info?.dataset || info?.dataset === "") status = false;
+      if (info.task_type !== TaskType.CHAT && (!info?.dataset || info?.dataset === "")) status = false;
       else if (!info?.target_id || !info?.target_info) status = false;
       else if (!info?.target_id || info?.target_id === "") status = false;
       else if (!info?.task_type || info?.task_type === "") status = false;

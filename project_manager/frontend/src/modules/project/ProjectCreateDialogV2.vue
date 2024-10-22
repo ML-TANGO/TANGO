@@ -20,37 +20,37 @@
           <v-stepper-step :complete="step > 1" step="1">Project Info <small>Enter Project Info</small> </v-stepper-step>
           <v-stepper-content step="1" class="my-3"> </v-stepper-content>
 
-          <v-stepper-step :complete="step > 2" step="2"> Dataset <small>Select Dataset</small> </v-stepper-step>
-          <v-stepper-content step="2" class="my-3"></v-stepper-content>
+          <v-stepper-step :complete="step > 2" step="2">
+            Configuration <small>Select Configuration</small>
+          </v-stepper-step>
+          <v-stepper-content step="2" class="mt-2"></v-stepper-content>
 
-          <v-stepper-step :complete="step > 3" step="3"> Target <small>Select Target</small> </v-stepper-step>
+          <v-stepper-step :complete="step > 3" step="3"> Dataset <small>Select Dataset</small> </v-stepper-step>
           <v-stepper-content step="3" class="my-3"></v-stepper-content>
 
-          <v-stepper-step step="4"> Configuration <small>Select Configuration</small> </v-stepper-step>
-          <v-stepper-content step="4" class="mt-2"></v-stepper-content>
+          <v-stepper-step step="4"> Target <small>Select Target</small> </v-stepper-step>
+          <v-stepper-content step="4" class="my-3"></v-stepper-content>
         </v-stepper>
         <div style="width: 75%; height: 500px" class="px-10">
           <ProjectInfoSetting v-if="step === 1" @next="next" />
-          <DatasetSelector v-else-if="step === 2" @next="next" @prev="prev" @skip="skip" />
-          <TargetSelector v-else-if="step === 3" @next="next" @prev="prev" />
-          <ProjectConfigurationSetting v-else @prev="prev" @create="create" />
+          <ProjectConfigurationSetting v-else-if="step === 2" @next="next" @prev="prev" />
+          <DatasetSelector v-else-if="step === 3" @next="next" @prev="prev" @skip="skip" />
+          <TargetSelector v-else @create="create" @prev="prev" />
         </div>
       </div>
     </v-card>
   </v-dialog>
 </template>
 <script>
-import Swal from "sweetalert2";
-
 import { mapMutations, mapState } from "vuex";
 import { ProjectNamespace, ProjectMutations } from "@/store/modules/project";
 
 import ProjectInfoSetting from "./stepper/ProjectInfoSetting.vue";
 import DatasetSelector from "./stepper/DatasetSelector.vue";
 import TargetSelector from "./stepper/TargetSelector.vue";
-import ProjectConfigurationSetting from "./stepper/ProjectConfigurationSetting.vue";
+import ProjectConfigurationSetting from "./stepper/ProjectConfigurationSettingV2.vue";
 
-import { /*TaskType,*/ ContainerName } from "@/shared/enums";
+import { ContainerName, TaskType } from "@/shared/enums";
 
 import { updateProjectInfo, setWorkflow } from "@/api";
 
@@ -65,6 +65,7 @@ export default {
 
   data() {
     return {
+      TaskType,
       dialog: false
     };
   },
@@ -91,32 +92,14 @@ export default {
       INIT_PROJECT: ProjectMutations.INIT_PROJECT
     }),
 
-    async skip() {
-      const result = await Swal.fire({
-        title: `SKIP`,
-        html: "<div>건너뛰기 시 Task Type이 CHAT으로 고정됩니다.<br/>그래도 SKIP하시겠습니까?</div>",
-        icon: "info",
-        showCancelButton: true,
-        allowOutsideClick: false,
-        allowEscapeKey: false,
-        confirmButtonColor: "#3085d6",
-        cancelButtonColor: "#d33",
-        confirmButtonText: "확인",
-        cancelButtonText: "취소"
-      });
-
-      console.log("result", result);
-
-      if (result.isConfirmed && this.step !== 4) {
-        this.$emit("stepChange", this.step + 1);
-      }
-    },
-
     async next(data) {
-      if (this.step !== 4) {
-        this.$emit("stepChange", this.step + 1);
-      }
       this.SET_PROJECT(data);
+
+      if (this.step !== 4) {
+        let nextStep = 1;
+        if (this.step === 2 && this.project.task_type === TaskType.CHAT) nextStep++;
+        this.$emit("stepChange", this.step + nextStep);
+      }
 
       if (this.project.id) {
         const param = {
@@ -146,7 +129,9 @@ export default {
 
     prev() {
       if (this.step !== 1) {
-        this.$emit("stepChange", this.step - 1);
+        let prevStep = 1;
+        if (this.step === 4 && this.project.task_type === TaskType.CHAT) prevStep++;
+        this.$emit("stepChange", this.step - prevStep);
       }
     },
 

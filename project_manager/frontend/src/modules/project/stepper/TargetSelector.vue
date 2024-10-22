@@ -23,7 +23,7 @@
     </div>
     <div class="d-flex justify-end">
       <v-btn class="ma-0 pa-0" text style="color: #4a80ff" @click="pre"> PREV </v-btn>
-      <v-btn class="ma-0 pa-0" text style="color: #4a80ff" @click="next"> NEXT </v-btn>
+      <v-btn class="ma-0 pa-0" text style="color: #4a80ff" @click="next"> CREATE </v-btn>
     </div>
   </div>
 </template>
@@ -31,7 +31,7 @@
 import { mapMutations, mapState } from "vuex";
 import { ProjectNamespace, ProjectMutations } from "@/store/modules/project";
 
-import TargetCard from "@/modules/common/card/TargetCard.vue";
+import TargetCard from "@/modules/common/card/TargetCardV2.vue";
 
 import { getTargetList } from "@/api";
 
@@ -74,7 +74,7 @@ export default {
 
     next() {
       if (!this.selelctedItem) return;
-      this.$emit("next", { target_id: this.selelctedItem.id });
+      this.$emit("create", { target_id: this.selelctedItem.id });
       this.SET_SELECTED_TARGET(this.selelctedItem);
     },
 
