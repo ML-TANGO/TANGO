@@ -1,4 +1,4 @@
-import { ProjectRequiredColumn } from "@/shared/enums";
+import { ProjectRequiredColumn, TaskType } from "@/shared/enums";
 import { ProjectType } from "@/shared/consts";
 
 import { getDatasetInfo, getDatasetFolderSize, getDatasetFileCount, updateProjectType } from "@/api";
@@ -50,6 +50,9 @@ export class Project {
           return false;
         }
       }
+
+      if (this.task_type !== TaskType.CHAT && (!this.dataset || this.dataset === "")) return false;
+
       return true;
     } catch (err) {
       return false;

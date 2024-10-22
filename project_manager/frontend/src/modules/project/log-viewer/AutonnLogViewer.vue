@@ -4,12 +4,7 @@
       <v-tabs-slider color="transparent"></v-tabs-slider>
       <v-tab :key="'train'" :style="{ backgroundColor: getColor(0) }" class="mr-0 tab-border"> Train </v-tab>
       <v-tab :key="'model'" :style="{ backgroundColor: getColor(1) }" class="ml-1 tab-border"> Model </v-tab>
-
-      <!-- <v-tab :key="'train'"> Train </v-tab>
-      <v-tab :key="'model'"> Model </v-tab> -->
     </v-tabs>
-
-    <!-- <div style="width: 100%; height: 2px; background-color: #ccc" class="mb-3"></div> -->
 
     <v-card class="pa-1 mt-2" color="#ddd">
       <v-tabs-items v-model="tab">

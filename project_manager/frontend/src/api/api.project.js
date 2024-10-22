@@ -24,7 +24,7 @@ export async function getProjectInfo(id) {
   return response.data;
 }
 
-export async function createProject(name, description) {
+export async function createProject(name, description = "") {
   let response = null;
 
   try {

@@ -6,7 +6,7 @@
       <!-- TASK TYPE -->
       <div class="d-flex align-center" style="gap: 25px">
         <div style="width: 150px">Task Type</div>
-        <v-radio-group v-model="taskType" row hide-details="" class="ma-0">
+        <v-radio-group v-model="taskType" row hide-details="" class="ma-0" :disabled="isEmpty(this.selectedImage)">
           <v-radio label="Classification" :value="TaskType.CLASSIFICATION"></v-radio>
           <v-radio label="Detection" :value="TaskType.DETECTION"></v-radio>
           <v-radio label="Chat" :value="TaskType.CHAT"></v-radio>
@@ -17,7 +17,7 @@
 
       <div class="d-flex align-center" style="gap: 25px">
         <div style="width: 150px">Learning Type</div>
-        <v-radio-group v-model="learningType" row hide-details="" class="ma-0">
+        <v-radio-group v-model="learningType" row hide-details="" class="ma-0" :disabled="isEmpty(this.selectedImage)">
           <v-radio label="Normal" :value="LearningType.NORMAL"></v-radio>
           <v-radio label="Incremental" :value="LearningType.INCREMENTAL" v-if="isIncremental"></v-radio>
           <v-radio label="Transfer" :value="LearningType.TRANSFER"></v-radio>
@@ -360,9 +360,19 @@ export default {
       // 선택 한 데이터 셋이 COCO가 아니고, INCREMENTAL이 선택되어있을 경우 Normal로 강제로 변경
       this.learningType = LearningType.NORMAL;
     }
+
+    if (this.isEmpty(this.selectedImage)) {
+      this.taskType = TaskType.CHAT;
+      this.learningType = LearningType.NORMAL;
+    }
   },
 
   methods: {
+    isEmpty(obj) {
+      if (!obj) return true;
+      return Object.keys(obj).length === 0 && obj.constructor === Object;
+    },
+
     pre() {
       this.$emit("prev");
     },

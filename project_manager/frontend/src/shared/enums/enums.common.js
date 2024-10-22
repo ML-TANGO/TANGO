@@ -30,7 +30,7 @@ export const ObjectType = {
 };
 
 export const ProjectRequiredColumn = [
-  "dataset",
+  // "dataset",
   "target_id",
   "target_id",
   "task_type",
@@ -95,7 +95,7 @@ export const TargetInfoList = [
   {
     key: "K8S_Jetson_Nano",
     value: "K8S_Jetson_Nano",
-    allowedEngine: [EngineValues.TENSORRT],
+    allowedEngine: [EngineValues.PYTORCH, EngineValues.TENSORRT],
     requiredFields: ["target_hostip", "target_hostport", "nfs_ip", "nfs_path"]
   },
   {
@@ -168,7 +168,8 @@ export const ProjectStatus = Object.freeze({
 export const ViewerMode = Object.freeze({
   TEXT: "text",
   CHART: "chart",
-  MODEL_VIEW: "model_view"
+  MODEL_VIEW: "model_view",
+  CHAT: "chat"
 });
 
 export const AutonnStatus = Object.freeze({
