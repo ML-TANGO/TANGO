@@ -1,8 +1,6 @@
-# Copyright (c) Meta Platforms, Inc. and affiliates.
-# All rights reserved.
+# This source code is from Meta Platforms, Inc. and affiliates.
+# ETRI modified it for TANGO project.
 
-# This source code is licensed under the license found in the
-# LICENSE file in the root directory of this source tree.
 import os
 import shutil
 import sys
@@ -23,55 +21,71 @@ import streamlit as st
 import logging
 logger = logging.getLogger(__name__)
 
+def _get_diretory_size(diretory, unit='GB'):
+    total_size = 0.0
+    with os.scandir(diretory) as it:
+        for entry in it:
+            if entry.is_file():
+                total_size += entry.stat().st_size
+    if   unit in ['GB', 'G', 'gb', 'g']:
+        power = 3
+    elif unit in ['MB', 'M', 'mb', 'm']:
+        power = 2
+    elif unit in ['kB', 'K', 'kb', 'k']:
+        power = 1
+    else:
+        power = 0
+    total_size /= (1024**power)
+    return total_size
 
 
 def _download_hf_snapshot(
-    model_config: ModelConfig, artifact_dir: Path, hf_token: Optional[str]
+    model_config: ModelConfig, artifact_dir: Path, cache_dir: Path, hf_token: Optional[str]
 ):
     from huggingface_hub import snapshot_download
     from requests.exceptions import HTTPError
 
     # Download and store the HF model artifacts.
-    logging.info(f"Downloading {model_config.name} from HuggingFace...") #, file=sys.stderr)
+    logger.info(f"Downloading {model_config.name} from HuggingFace...") #, file=sys.stderr)
 
     with st.status("Downloading... ", expanded=True) as sts:
         try:
-            # import time
-            # with st.status("Downloading... ", expanded=True) as sts:
-                start = time.time()
-                result = snapshot_download(
-                    model_config.distribution_path,
-                    local_dir=artifact_dir,
-                    # local_dir_use_symlinks=False,
-                    token=hf_token,
-                    ignore_patterns="*safetensors*",
-                )
-                elapsed_time = time.time()-start
-                total_size = 0
-                with os.scandir(artifact_dir) as it:
-                    for entry in it:
-                        if entry.is_file():
-                            total_size += entry.stat().st_size
-                    
-                st.write(f"Downloaded as {result}({total_size/(1024**3)} GB). Elapsed time {elapsed_time:.2f} sec")
-                # sts.update(label=f"Downloaded as {result}({total_size/(1024**3)} GB). Elapsed time {elapsed_time:.2f} sec")
+            start = time.time()
+            result = snapshot_download(
+                model_config.distribution_path,
+                cache_dir=artifact_dir, #cache_dir,
+                local_dir=artifact_dir,
+                # local_dir_use_symlinks=False,
+                token=hf_token,
+                local_files_only=False,
+                ignore_patterns="*safetensors*",
+
+            )
+            elapsed_time = time.time()-start
+            total_size = _get_diretory_size(artifact_dir, unit='GB')
+            st.write(f"Downloaded as {result}({total_size:.1f} GB). Elapsed time {elapsed_time:.2f} sec")
         except HTTPError as e:
-            if e.response.status_code == 401:  # Missing HuggingFace CLI login.
-                logging.warning(
-                    "Access denied. Create a HuggingFace account and run 'pip3 install huggingface_hub' and 'huggingface-cli login' to authenticate.",
-                    # file=sys.stderr,
-                )
-                exit(1)
-            elif e.response.status_code == 403:  # No access to the specific model.
-                # The error message includes a link to request access to the given model. This prints nicely and does not include
-                # a traceback.
-                logging.warning(e) #str(e), file=sys.stderr)
-                exit(1)
-            else:
-                raise e
+            logger.info(f"{e}, {type(e)}")
+            # if e.response.status == 401:  # Missing HuggingFace CLI login.
+            #     logger.warning(
+            #         "Access denied. Create a HuggingFace account and run 'pip3 install huggingface_hub' and 'huggingface-cli login' to authenticate.",
+            #         # file=sys.stderr,
+            #     )
+            #     st.warning("Access denied. Create a HuggingFace account and run 'pip3 install huggingface_hub' and 'huggingface-cli login' to authenticate.")
+            #     exit(1)
+            # elif e.response.status == 403:  # No access to the specific model.
+            #     # The error message includes a link to request access to the given model. This prints nicely and does not include
+            #     # a traceback.
+            #     logger.warning(e) #str(e), file=sys.stderr)
+            #     st.warning(e)
+            #     exit(1)
+            # else:
+            #     st.warning(e)
+            #     raise e
+
 
         # Convert the model to the torchchat format.
-        logging.info(f"Converting {model_config.name} to PyTorch format...") #, file=sys.stderr)
+        logger.info(f"Converting {model_config.name} to PyTorch format...") #, file=sys.stderr)
         start_convert = time.time()
         convert_hf_checkpoint(
             model_dir=artifact_dir, model_name=model_config.name, remove_bin_files=True
@@ -94,27 +108,49 @@ def _download_direct(
 
 def is_model_downloaded(model: str, models_dir: Path) -> bool:
     model_config = resolve_model_config(model)
-
+    is_downloaded = False
     # Check if the model directory exists and is not empty.
     model_dir = models_dir / model_config.name
-    return os.path.isdir(model_dir) and os.listdir(model_dir)
+    # if os.path.isdir(model_dir):
+    #     is_downloaded = os.listdir(model_dir)
+    # else:
+    #     is_downloaded = False
+    # is_downloaded = os.path.isdir(model_dir) and os.listdir(model_dir)
+
+    # Check if the model.pth exists
+    model_path = model_dir / 'model.pth'
+    if os.path.isfile(model_path):
+        is_downloaded = True
+
+    # Clean if downloading has been incompleted before
+    # if not is_downloaded:
+    #     if os.path.isdir(model_dir):
+    #         shutil.rmtree(model_dir)
+    #     tmp_dir = models_dir / 'downloads' / model_config.name
+    #     if os.path.isdir(tmp_dir):
+    #         shutil.rmtree(tmp_dir)
+
+    return is_downloaded, model_dir
 
 
-# Subcommand to list available models.
-def list_main(args) -> None:
+def list_model(model_directory) -> None:
     model_configs = load_model_configs()
 
     # Build the table in-memory so that we can align the text nicely.
     name_col = []
     aliases_col = []
     installed_col = []
-
+    return_model_dir, return_model_name = [], []
     for name, config in model_configs.items():
-        is_downloaded = is_model_downloaded(name, args.model_directory)
+        is_downloaded, model_dir = is_model_downloaded(name, model_directory)
 
         name_col.append(name)
         aliases_col.append(", ".join(config.aliases))
-        installed_col.append("Yes" if is_downloaded else "")
+        installed_col.append("Yes" if is_downloaded else " - ")
+
+        if is_downloaded:
+            return_model_dir.append(model_dir)
+            return_model_name.append(config.aliases[0] if isinstance(config.aliases, list) else config.aliases)
 
     cols = {"Model": name_col, "Aliases": aliases_col, "Downloaded": installed_col}
 
@@ -124,18 +160,27 @@ def list_main(args) -> None:
     }
 
     # Display header.
-    print()
-    print(*[val.ljust(width) for (val, width) in col_widths.items()])
-    print(*["-" * width for width in col_widths.values()])
+    header = ''
+    line = 0
+    for val, width in col_widths.items():
+        header += (' '*(width-len(val))+val)
+        line += width
+    logger.info(header)
+    logger.info('-'*line)
 
+    # Display content.
     for i in range(len(name_col)):
         row = [col[i] for col in cols.values()]
-        print(*[val.ljust(width) for (val, width) in zip(row, col_widths.values())])
-    print()
+        content = ''
+        for val, width in zip(row, col_widths.values()):
+            content += (' '*(width-len(val))+val)
+        logger.info(content)
+
+    # logger.info(return_model_dir)
+    return return_model_name, return_model_dir
 
 
-# Subcommand to remove downloaded model artifacts.
-def remove_main(args) -> None:
+def remove_model(args) -> None:
     # TODO It would be nice to have argparse validate this. However, we have
     # model as an optional named parameter for all subcommands, so we'd
     # probably need to move it to be registered per-command.
@@ -155,9 +200,7 @@ def remove_main(args) -> None:
     print("Done.")
 
 
-# Subcommand to print downloaded model artifacts directory.
-# Asking for location will/should trigger download of model if not available.
-def where_main(args) -> None:
+def where_model(args) -> None:
     # TODO It would be nice to have argparse validate this. However, we have
     # model as an optional named parameter for all subcommands, so we'd
     # probably need to move it to be registered per-command.
@@ -194,13 +237,13 @@ def download_model(model, models_dir, hf_token) -> None:
             model_config.distribution_channel
             == ModelDistributionChannel.HuggingFaceSnapshot
         ):
-            _download_hf_snapshot(model_config, temp_dir, hf_token)
+            _download_hf_snapshot(model_config, temp_dir, model_dir, hf_token)
         elif (
             model_config.distribution_channel == ModelDistributionChannel.DirectDownload
         ):
             _download_direct(model_config, temp_dir)
         else:
-            logging.warning(f"Unknown distribution channel {model_config.distribution_channel}.")
+            logger.warning(f"Unknown distribution channel {model_config.distribution_channel}.")
             st.warning(f"Unknown distribution channel {model_config.distribution_channel}.")
             raise RuntimeError(
                 f"Unknown distribution channel {model_config.distribution_channel}."
@@ -211,10 +254,11 @@ def download_model(model, models_dir, hf_token) -> None:
         if os.path.isdir(model_dir):
             shutil.rmtree(model_dir)
         shutil.move(temp_dir, model_dir)
-        logging.info(f"Moving model to {model_dir}")
+        logger.info(f"Moving model to {model_dir}")
         # st.success(f"Moving model to {model_dir}")
 
+    # [tenace] if we try to re-download, huggingface api wants to check cache file.
     finally:
-        logging.info(f"Delete temporary directory {temp_dir}")
-        if os.path.isdir(temp_dir):
-            shutil.rmtree(temp_dir)
+        logger.info(f"Do Nothing") #Delete temporary directory {temp_dir}")
+        # if os.path.isdir(temp_dir):
+        #     shutil.rmtree(temp_dir)
