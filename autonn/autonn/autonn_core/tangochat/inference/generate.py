@@ -1,8 +1,6 @@
-# Copyright (c) Meta Platforms, Inc. and affiliates.
-# All rights reserved.
+# This source code is from Meta Platforms, Inc. and affiliates.
+# ETRI modified it for TANGO project.
 
-# This source code is licensed under the license found in the
-# LICENSE file in the root directory of this source tree.
 import argparse
 import itertools
 import logging
@@ -17,8 +15,11 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional, Sequence, Tuple, Union
 
 import torch
-import torch._dynamo.config
-import torch._inductor.config
+# import torch._dynamo.config
+# import torch._inductor.config
+
+import logging
+logger = logging.getLogger(__name__)
 
 try:
     from _torchchat_test_script import flamingo_transform, padded_collate
@@ -27,22 +28,23 @@ except ImportError:
 
 from PIL import Image
 
-from torchchat.cli.builder import (
+from .builder import (
     _initialize_model,
     _initialize_tokenizer,
     BuilderArgs,
     TokenizerArgs,
 )
-from torchchat.model import Model, ModelType
-from torchchat.utils.build_utils import device_sync, set_precision
-from torchchat.utils.device_info import get_device_info
+from common.models.model import Model, ModelType
+from utils.build_utils import device_sync, set_precision
+from utils.device_info import get_device_info
 
 # torchtune model definition dependencies
-from torchtune.data import Message
-from torchtune.generation._generation import sample as tune_sample
-from torchtune.models.llama3 import llama3_tokenizer
-from torchtune.training import set_default_dtype
+# from torchtune.data import Message
+# from torchtune.generation._generation import sample as tune_sample
+# from torchtune.models.llama3 import llama3_tokenizer
+# from torchtune.training import set_default_dtype
 
+import streamlit as st
 
 class _ChatFormatter(ABC):
     def __init__(self, tokenizer):
@@ -140,7 +142,7 @@ class GeneratorArgs:
     speculate_k: int = 5
     sequential_prefill: bool = False
     max_autotune: bool = False
-    is_torchtune_model: bool = False
+    is_tune_model: bool = False
 
     def __post_init__(self):
         if self.compile_prefill and self.sequential_prefill:
@@ -192,7 +194,7 @@ class GeneratorArgs:
             speculate_k=args.speculate_k,
             sequential_prefill=sequential_prefill,
             max_autotune=args.max_autotune,
-            is_torchtune_model=args.model and args.model.endswith("tune"),
+            is_tune_model=args.model and args.model.endswith("tune"),
         )
 
 
@@ -219,11 +221,36 @@ class Generator:
         quantize: bool,
         draft_quantize: bool,
     ):
+        ''' [tenace] torch._inductor reuires PyTorch 2.0 or later
         torch._inductor.config.coordinate_descent_tuning = (
             False if builder_args.device == "cpu" else True
         )
         torch._inductor.config.triton.unique_kernel_names = True
         torch._inductor.config.fx_graph_cache = True  # Experimental feature to reduce compilation times, will be on by default in future
+        '''
+
+        ''' [tenace] print arguements for debugging'''
+        from dataclasses import asdict
+        builder_args_dict = asdict(builder_args)
+        logger.info(f"builder args:")
+        for k, v in builder_args_dict.items():
+            logger.info(f"\t{k}: {v}")
+
+        logger.info(f"speculative builder args:")
+        speculative_builder_args_dict = asdict(speculative_builder_args)
+        for k, v in speculative_builder_args_dict.items():
+            logger.info(f"\t{k}: {v}")
+
+        logger.info(f"tokenizer args:")
+        tokenizer_args_dict = asdict(tokenizer_args)
+        for k, v in tokenizer_args_dict.items():
+            logger.info(f"\t{k}: {v}")
+
+        logger.info(f"generator args:")
+        generator_args_dict = asdict(generator_args)
+        for k, v in generator_args_dict.items():
+            logger.info(f"\t{k}: {v}")
+        ''''''
 
         self.builder_args = builder_args
         self.speculative_builder_args = speculative_builder_args
@@ -231,7 +258,7 @@ class Generator:
         self.profile = profile
         self.quantize = quantize
         self.draft_quantize = draft_quantize
-        self.is_torchtune_model = generator_args.is_torchtune_model
+        self.is_tune_model = generator_args.is_tune_model
         self.dtype = builder_args.precision
 
         # global print
@@ -244,7 +271,7 @@ class Generator:
         #            # only print on rank 0
         #            print = lambda *args, **kwargs: None
 
-        print(
+        logger.info(
             f"Using device={self.builder_args.device} {get_device_info(self.builder_args.device)}"
         )
         set_precision(self.builder_args.precision)
@@ -255,7 +282,7 @@ class Generator:
 
         if generator_args.chat_mode and not self.builder_args.is_chat_model:
             # fmt: off
-            print(textwrap.dedent(
+            logger.warning(textwrap.dedent(
                 """
                 *******************************************************
                 This model is not known to support the chat function
@@ -354,7 +381,6 @@ class Generator:
         # logging.debug(f"x: {x}, input_pos: {input_pos}")
         width = x.size(1)
         assert input_pos.size(0) == width
-
         if batch is not None:
             # TODO: Verify sequential prefill works with multimodal models
             logits = model(**batch)[:, -1]
@@ -369,7 +395,7 @@ class Generator:
         else:
             # input_pos: [B, S]
             logits = model(x, input_pos)
-            # print(f"logits {logits.shape}")
+            # logger.info(f"logits {logits.shape}")
 
         # print(f"x: {x},\n  input_pos: {input_pos}\n")
         return self.sample(logits, need_probs=False, **sampling_kwargs)[0]
@@ -421,42 +447,42 @@ class Generator:
             num_new_tokens - 1
         ):  # -1 to save space to run an EoS if dont generate it naturally
             # Actually better for Inductor to codegen attention here
-            with torch.nn.attention.sdpa_kernel([torch.nn.attention.SDPBackend.MATH]):
+            # with torch.nn.attention.sdpa_kernel([torch.nn.attention.SDPBackend.MATH]): # [tenace] PyTorch 2.0 or later
 
-                out_token = cur_token.clone()
-                next_token, next_prob = self.decode_one_token(
+            out_token = cur_token.clone()
+            next_token, next_prob = self.decode_one_token(
+                model,
+                out_token,
+                input_pos,
+                batch=batch,
+                need_probs=need_probs,
+                **sampling_kwargs,
+            )
+            input_pos += 1
+            new_tokens.append(next_token.clone())
+            callback(new_tokens[-1], done_generating=_i == num_new_tokens - 2)
+            if need_probs or next_prob is None:
+                yield out_token, None
+            else:
+                new_probs.append(next_prob.clone())
+                yield out_token, next_prob.clone()
+            cur_token = next_token
+
+            # encountered eos
+            if next_token.item() == eos_token_id or (
+                eot_id is not None and next_token.item() == eot_id
+            ):
+                encountered_eos = True
+                final_token, next_prob = self.decode_one_token(
                     model,
-                    out_token,
+                    cur_token,
                     input_pos,
+                    need_probs,
                     batch=batch,
-                    need_probs=need_probs,
                     **sampling_kwargs,
                 )
                 input_pos += 1
-                new_tokens.append(next_token.clone())
-                callback(new_tokens[-1], done_generating=_i == num_new_tokens - 2)
-                if need_probs or next_prob is None:
-                    yield out_token, None
-                else:
-                    new_probs.append(next_prob.clone())
-                    yield out_token, next_prob.clone()
-                cur_token = next_token
-
-                # encountered eos
-                if next_token.item() == eos_token_id or (
-                    eot_id is not None and next_token.item() == eot_id
-                ):
-                    encountered_eos = True
-                    final_token, next_prob = self.decode_one_token(
-                        model,
-                        cur_token,
-                        input_pos,
-                        need_probs,
-                        batch=batch,
-                        **sampling_kwargs,
-                    )
-                    input_pos += 1
-                    break
+                break
 
         if not encountered_eos:
             eos_token = torch.tensor(
@@ -588,19 +614,31 @@ class Generator:
         # set up caches only if first inference
         if start_pos == 0:
             model = model.to(device=device)
-            with torch.device(device):
-                if (
-                    self.is_torchtune_model
-                    or self.model.config.model_type == ModelType.Flamingo
-                ):
-                    model.setup_caches(max_batch_size=1, dtype=self.dtype)
-                else:
-                    model.setup_caches(max_batch_size=1, max_seq_length=max_seq_length)
-                if is_speculative and draft_model is not model:
-                    draft_model.setup_caches(
-                        max_batch_size=1,
-                        max_seq_length=max_seq_length,
-                    )
+            # with torch.device(device): #[tenace] since pytorch>=2.0, torch.device can be used as context manager
+            #     if (
+            #         self.is_torchtune_model
+            #         or self.model.config.model_type == ModelType.Flamingo
+            #     ):
+            #         model.setup_caches(max_batch_size=1, dtype=self.dtype)
+            #     else:
+            #         model.setup_caches(max_batch_size=1, max_seq_length=max_seq_length)
+            #     if is_speculative and draft_model is not model:
+            #         draft_model.setup_caches(
+            #             max_batch_size=1,
+            #             max_seq_length=max_seq_length,
+            #         )
+            if (
+                self.is_torchtune_model
+                or self.model.config.model_type == ModelType.Flamingo
+            ):
+                model.setup_caches(max_batch_size=1, dtype=self.dtype)
+            else:
+                model.setup_caches(max_batch_size=1, max_seq_length=max_seq_length)
+            if is_speculative and draft_model is not model:
+                draft_model.setup_caches(
+                    max_batch_size=1,
+                    max_seq_length=max_seq_length,
+                )
             if model.config.model_type == ModelType.Flamingo:
                 model.reset_caches()
 
@@ -610,12 +648,12 @@ class Generator:
         empty[:T] = prompt
 
         input_pos = torch.arange(
-            start_pos, T + start_pos, device=device, dtype=torch.int
+            start_pos, T + start_pos, device=device, dtype=torch.int64 # [tenace] index tensor should be long(int64)
         )
 
         prefill_t0 = time.perf_counter()
         next_token = self.prefill(
-            model,
+            model.to(device=device),
             prompt.view(1, -1),
             input_pos,
             batch=batch,
@@ -695,7 +733,7 @@ class Generator:
         tokens = self.tokenizer.encode(string)
         if bos:
             tokens = [self.tokenizer.bos_id()] + tokens
-        logging.debug(f"Size after encode_tokens: {len(tokens)}")
+        logger.debug(f"Size after encode_tokens: {len(tokens)}")
         return torch.tensor(tokens, dtype=torch.int, device=device)
 
     def _callback(self, x, *, buffer, done_generating):
@@ -722,10 +760,10 @@ class Generator:
         generator_args: GeneratorArgs,
     ):
         if generator_args.chat_mode:
-            print("Starting Interactive Chat")
+            logger.info("Starting Interactive Chat")
 
         if generator_args.image_prompts is not None:
-            print("Image prompts", generator_args.image_prompts)
+            logger.info("Image prompts", generator_args.image_prompts)
 
             # Support for just the first image prompt for now
             images = [Image.open(generator_args.image_prompts[0])]
@@ -748,18 +786,18 @@ class Generator:
             encoded = batch["tokens"]
 
         else:
+            logger.info(f"user msg: {generator_args.prompt}")
             encoded = self.encode_tokens(
                 generator_args.prompt, bos=True, device=self.builder_args.device
             )
-            logging.debug(encoded)
+            # logger.info(f"encoded tensor = {encoded}")
             batch = None
-
-        model_size = sum(
-            [
-                p.numel() * p.dtype.itemsize
-                for p in itertools.chain(self.model.parameters(), self.model.buffers())
-            ]
-        )
+        # model_size = sum(
+        #     [
+        #         p.numel() * p.dtype.itemsize
+        #         for p in itertools.chain(self.model.parameters(), self.model.buffers())
+        #     ]
+        # )
         if generator_args.compile:
             if (
                 self.is_speculative and self.builder_args.use_distributed
@@ -781,6 +819,7 @@ class Generator:
                     self.model_forward, fullgraph=True, **kwargs
                 )
 
+            logger.info("do torch.compile()")
             self.decode_one_token = torch.compile(
                 self.decode_one_token, fullgraph=True, **kwargs
             )
@@ -799,9 +838,8 @@ class Generator:
         max_seq_length = (
             text_transformer_args.max_seq_length if text_transformer_args else 2048
         )
-
         if generator_args.chat_mode:
-            print(
+            logger.info(
                 f"Entering Chat Mode. Will continue chatting back and forth with the language model until the models max context length of {max_seq_length} tokens is hit or until the user says /bye"
             )
             get_system_prompt = input(
@@ -819,13 +857,11 @@ class Generator:
                     else 2048
                 ),
             )
-
         max_seq_length = (
             max_seq_length + self.speculative_builder_args.speculate_k + 1
             if self.draft_model is not None
             else max_seq_length
         )
-
         aggregate_metrics = {
             "tokens_per_sec": [],
             "first_token_per_sec": [],
@@ -833,7 +869,6 @@ class Generator:
             "accept_counts": [],
         }
         start_pos = 0
-
         # arbitrarily large number as chat mode goes until max_seq length
         # or user exits
         num_samples = (
@@ -916,7 +951,6 @@ class Generator:
                 self.builder_args.use_distributed and self.rank != 0
             ):
                 import contextlib
-
                 prof = contextlib.nullcontext()
             else:
                 torch.profiler._utils._init_for_cuda_graphs()
@@ -940,12 +974,19 @@ class Generator:
                     max_seq_length=max_seq_length,
                 )
                 for token_tensor, metrics in generator_func:
+                    logger.info('-------------------------')
+                    logger.info(f"token_tensor={token_tensor}")
+                    logger.info(f"metrics={metrics}")
                     if token_tensor is not None:
                         start_pos += token_tensor.size(0)
                         num_tokens_generated += token_tensor.size(0)
                     if metrics is not None:
                         aggregate_metrics.update(metrics)
+                    logger.info('________________________')
+                    logger.info(f"token_tensor.type={type(token_tensor)}")
+                    logger.info(f"metric.type = {type(metrics)}")
                     yield token_tensor, metrics
+            logger.info('===============')
             jit_compile = (i == 0) and (
                 generator_args.compile or generator_args.compile_prefill
             )
@@ -961,6 +1002,7 @@ class Generator:
                     prof.export_chrome_trace(f"{self.profile}_rank_{self.rank}.json")
                 else:
                     prof.export_chrome_trace(f"{self.profile}.json")
+            logger.info('***************')
 
             if start_pos >= max_seq_length:
                 print(
@@ -973,6 +1015,7 @@ class Generator:
             next_tokens_sec = num_tokens_generated / (
                 t - aggregate_metrics.get("time_to_first_token", 0)
             )
+            logger.info('^^^^^^^^^^^^^^^^')
 
             if jit_compile:
                 print(
@@ -986,7 +1029,7 @@ class Generator:
                 aggregate_metrics["first_token_per_sec"].append(first_token_sec)
                 aggregate_metrics["next_tokens_per_sec"].append(next_tokens_sec)
 
-            logging.info(
+            logger.info(
                 f"\n~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~\
                 \nGenerated {num_tokens_generated} tokens \
                 \nTime for inference {i + 1}: {t:.04f} sec total \
@@ -997,14 +1040,14 @@ with {'sequential' if generator_args.sequential_prefill else 'parallel'} prefill
                 \n Next token throughput: {next_tokens_sec:.04f} tokens/sec, {1 / next_tokens_sec:.04f} s/token \
                     "
             )
-            logging.info(
+            logger.info(
                 f"\nBandwidth achieved: {model_size * tokens_sec / 1e9:.02f} GB/s"
             )
             if i == 0:
-                logging.info(
+                logger.info(
                     f"*** This first iteration will include cold start effects for dynamic import, hardware caches{', JIT compilation' if jit_compile else ''}. ***"
                 )
-            print("\n========================================\n")
+            logger.info("\n========================================\n")
             if start_pos >= max_seq_length:
                 if generator_args.chat_mode:
                     break
@@ -1022,17 +1065,38 @@ with {'sequential' if generator_args.sequential_prefill else 'parallel'} prefill
                 f"Mean Accepted: {sum([idx * i for idx, i in enumerate(counts_aggregated)])/sum(counts_aggregated)}"
             )
 
-        print(
+        logger.info(
             f"\n      Average tokens/sec (total): {torch.mean(torch.tensor(aggregate_metrics['tokens_per_sec'])).item():.2f} \
                 \nAverage tokens/sec (first token): {torch.mean(torch.tensor(aggregate_metrics['first_token_per_sec'])).item():.2f} \
                 \nAverage tokens/sec (next tokens): {torch.mean(torch.tensor(aggregate_metrics['next_tokens_per_sec'])).item():.2f} \n\
                 "
         )
         if torch.cuda.is_available():
-            print(f"Memory used: {torch.cuda.max_memory_reserved() / 1e9:.02f} GB")
+            logger.info(f"Memory used: {torch.cuda.max_memory_reserved() / 1e9:.02f} GB")
 
+
+COMMON_ROOT = Path("/shared/common")
+DATASET_ROOT = Path("/shared/datasets")
+MODEL_ROOT = Path("/shared/models")
+CORE_DIR = Path(__file__).resolve().parent.parent # /source/autonn_core
+CFG_DIR = CORE_DIR / 'tangochat' / 'common' / 'cfg'
+HF_HOME = os.environ.get('HF_HOME', '/root/.cache/huggingface')
 
 def main(args):
+
+    '''[tenace] for direct llm inference'''
+    if not args:
+        import json
+        args = argparse.Namespace()
+        args_path = CFG_DIR / 'args_chat.json'
+        if os.path.isfile(args_path):
+            with open(args_path, 'r') as f:
+                args_dict = json.load(f)
+            args = argparse.Namespace(**args_dict)
+    
+    for k, v in vars(args).items():
+        logger.info(f"{k}:{v}")
+
     builder_args = BuilderArgs.from_args(args)
     speculative_builder_args = BuilderArgs.from_speculative_args(args)
     tokenizer_args = TokenizerArgs.from_args(args)

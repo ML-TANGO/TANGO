@@ -11,8 +11,10 @@ import subprocess
 from pathlib import Path
 COMMON_ROOT = Path("/shared/common")
 DATASET_ROOT = Path("/shared/datasets")
+MODEL_ROOT = Path("/shared/models")
 CORE_DIR = Path(__file__).resolve().parent.parent.parent # /source/autonn_core
 CFG_PATH = CORE_DIR / 'tango' / 'common' / 'cfg'
+os.environ['OLLAMA_MODELS'] = str(MODEL_ROOT)
 
 import numpy as np
 import torch
@@ -198,16 +200,33 @@ def get_user_requirements(userid, projid, resume=False):
                              stdout=subprocess.PIPE, 
                              stderr=subprocess.STDOUT, 
                              cwd=CORE_DIR,
-                             universal_newlines=False)
+                            #  universal_newlines=False,
+                             text=True,
+                             encoding='utf-8')
+        logger.info(f"Project Info: http://localhost:11434 for Ollama server")
+        cmd2 = ["ollama", "serve"]
+        p2 = subprocess.Popen(cmd2, 
+                              stdout=subprocess.PIPE, 
+                              stderr=subprocess.STDOUT, 
+                              cwd=CORE_DIR,
+                              text=True,
+                              encoding='utf-8')
         while p.poll() == None:
             out = p.stdout.readline()
-            out_str = str(out, encoding='utf-8')
-            out_str = out_str.split('\n')[0]
-            if len(out_str) > 0:
-                logger.info(f"Chat: {out_str}")
-            if out_str == 'Completed':
+            # out_str = str(out, encoding='utf-8')
+            out = out.split('\n')[0]
+            out2 = p2.stdout.readline()
+            out2 = out2.split('\n')[0]
+            if len(out) > 0:
+                if ("streamlit" not in out) and ("Network URL" not in out):
+                    logger.info(f"Chat: {out}")
+            if len(out2) > 0:
+                logger.info(f"Chat: Ollama: {out2}")
+            if out == 'Completed' or out2 == "Completed":
+                p2.terminate()
                 p.terminate()
                 break
+
         return proj_info_dict, None, None, None, None
 
     # ----------------------------- dataset ------------------------------------

@@ -1,6 +1,8 @@
 asgiref==3.5.0
+blobfile
 certifi==2021.10.8
 charset-normalizer==2.0.12
+distributed==2024.10.0
 Django==3.2.25
 django-cors-headers==3.11.0
 djangorestframework==3.15.0
@@ -12,6 +14,7 @@ idna==3.3
 matplotlib>=3.5.1 # 3.7.5
 numpy==1.22.3
 #ofa
+ollama
 opencv-python==4.7.0.72
 pandas==1.4.2
 Pillow>=8.4.0 # 10.0.0
@@ -21,16 +24,18 @@ pytz==2022.1
 PyYAML==6.0
 requests==2.27.1
 seaborn==0.11.2
+# sentencepiece
 setuptools==59.5.0
 sqlparse==0.4.2
 streamlit>=1.31.0
+# tiktoken
 #tensorboard # 2.8.0
 tensorboardX==2.6
 thop>=0.1.1
 torch==1.13.1
 torchvision==0.14.1
 tqdm==4.62.3
-typing_extensions==4.3.0 # 4.1.1
+typing_extensions==4.5.0 # 4.1.1 >=4.5 for module 'deprecated'
 urllib3==1.26.7
 #pyyaml==6.0
 
