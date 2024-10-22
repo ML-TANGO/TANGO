@@ -122,6 +122,27 @@ export async function containerStart(container, user, project) {
   return response.data;
 }
 
+/**
+ * user_id , project_id , container_id
+ * @param {*} data
+ * @returns
+ */
+export async function containerStop(container, user, project) {
+  let response = null;
+
+  try {
+    response = await request.post("/api/container_stop", {
+      user_id: user,
+      project_id: project,
+      container_id: container
+    });
+  } catch (error) {
+    throw new Error(error);
+  }
+
+  return response.data;
+}
+
 /* 컨테이너 상태 요청 */
 /**
  * user_id , project_id , container_id

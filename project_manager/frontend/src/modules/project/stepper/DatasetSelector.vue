@@ -22,7 +22,7 @@
         </div>
       </div>
     </div>
-    <div class="d-flex justify-end">
+    <div class="d-flex justify-end" style="width: 100%">
       <v-btn class="ma-0 pa-0" text style="color: #4a80ff" @click="pre"> PREV </v-btn>
       <v-btn class="ma-0 pa-0" text style="color: #4a80ff" @click="next"> NEXT </v-btn>
     </div>
@@ -119,6 +119,11 @@ export default {
 
       this.$emit("next", { dataset: this.selectedItem.name, learning_type });
       this.SET_SELECTED_IMAGE(this.selectedItem);
+    },
+
+    skip() {
+      this.SET_SELECTED_IMAGE(null);
+      this.$emit("skip");
     },
 
     onMouseover(index) {

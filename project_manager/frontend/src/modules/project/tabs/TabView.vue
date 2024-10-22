@@ -7,7 +7,7 @@
 </template>
 <script>
 import TabCard from "../TabCard.vue";
-
+import { ProjectStatus } from "@/shared/enums";
 export default {
   components: { TabCard },
   props: {
@@ -17,11 +17,11 @@ export default {
   },
   methods: {
     status(info) {
-      if (!info?.dataset || info?.dataset === "") return { title: "Dataset", color: "#FF3D54" };
-      else if (info.container !== "" && info.container !== "init") {
+      // if (!info?.dataset || info?.dataset === "") return { title: "Dataset", color: "#FF3D54" };
+      if (info.container !== "" && info.container !== "init") {
         return { title: info?.container_status.toUpperCase(), color: "#4a80ff" };
       } else if (info?.container_status === "fail") return { title: info?.container_status, color: "#FF3D54" };
-      else if (info?.container_status === "completed") return { title: info?.container, color: "#4a80ff" };
+      else if (info?.container_status === ProjectStatus.COMPLETED) return { title: info?.container, color: "#4a80ff" };
       else if (info?.container_status === "" && info?.container === "") return { title: "READY", color: "#4a80ff" };
       else if (!info?.target_id || info?.target_id === "") return { title: "Target", color: "#FF3D54" };
       else if (!info?.task_type || info?.task_type === "") return { title: "Task Type", color: "#FF3D54" };

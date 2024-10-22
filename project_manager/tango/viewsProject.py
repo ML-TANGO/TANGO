@@ -317,6 +317,48 @@ def get_autonn_status(request):
         return HttpResponse(json.dumps({'status': 200, "autonn" : autonn}))
     except Exception as error:
         return HttpResponse(error)
+    
+@api_view(['POST'])
+@permission_classes([AllowAny])   # 토큰 확인
+def container_stop(request):
+    """
+    Request to stop another container
+
+    Args:
+        user_id (string): user_id
+        project_id (string): project_id
+        container_id (string): Container to be requested to stop
+
+    Returns:
+        status, log
+    """
+
+    try:
+        print("----------container_stop----------")
+        user_id = request.data['user_id']
+        project_id = request.data['project_id']
+        container_id = request.data['container_id']
+
+        project_info = Project.objects.get(id=project_id, create_user=str(user_id))        
+
+        try:
+            call_api_handler(container_id, "stop", user_id, project_id, project_info.target.target_info)
+        except Exception:
+            print(str(container_id) + " Container stop 요청 실패")
+            print(error)
+            project_info.save()
+            return HttpResponse(error)
+
+        project_info.container = container_id
+        project_info.container_status = ContainerStatus.STOPPED
+        project_info.save()
+        return HttpResponse(json.dumps({'status': 200, 'message': str(container_id) + ' 중지 요청\n', 'response' : str(container_id) + ' 중지 요청\n'}))
+    except Project.DoesNotExist:
+        print(f"project_id : {project_id}를 찾을 수 없음.")
+        return HttpResponse(error)
+    except Exception as error:
+        print('container start error - ' + str(error))
+        return HttpResponse(error)
 
 # 컨테이너 상태 결과 응답
 @api_view(['POST'])
@@ -488,16 +530,16 @@ def status_report(request):
         workflow_order = WorkflowOrder.objects.filter(project_id=project_id).order_by('order')
         
         if container_id == ContainerId.autonn:
-            if result == ContainerStatus.COMPLETED: 
-                # autonn이 COMPLETED되면 stop API를 호출
-                # * stop API 호출되면, autonn은 해당하는 모든 임시 파일/폴더를 삭제할 예정입니다.
-                try:
-                    call_api_handler(container_id, "stop", user_id, project_id, project_info.target.target_info)
-                except Exception:
-                    print("AUTONN STOP Call Failed")
+            # if result == ContainerStatus.COMPLETED: 
+            #     # autonn이 COMPLETED되면 stop API를 호출
+            #     # * stop API 호출되면, autonn은 해당하는 모든 임시 파일/폴더를 삭제할 예정입니다.
+            #     try:
+            #         call_api_handler(container_id, "stop", user_id, project_id, project_info.target.target_info)
+            #     except Exception:
+            #         print("AUTONN STOP Call Failed")
                 
             
-            elif result == ContainerStatus.FAILED and project_info.autonn_retry_count + 1 <= 3:
+            if result == ContainerStatus.FAILED and project_info.autonn_retry_count + 1 <= 3:
                 # Autonn 다시 시도
                 # (Autonn에서 Cuda cache memory를 비우고, batch size를 줄인 후, 중단된 Epoch에서 다시 학습을 재개)
                 # 최대 다시시도 횟수 3번

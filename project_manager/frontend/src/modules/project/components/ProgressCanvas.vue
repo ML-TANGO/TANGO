@@ -33,6 +33,7 @@
               />
             </div>
           </div>
+          ProjectStatus
         </v-card-text>
       </v-card>
     </v-dialog>
@@ -46,7 +47,7 @@ import { ProjectNamespace } from "@/store/modules/project";
 import ProgressIcon from "./progress-icon/ProgressIcon.vue";
 import DragAndDrop from "@/modules/common/file-upload/DragAndDrop.vue";
 
-import { DisplayName, ContainerName } from "@/shared/enums";
+import { DisplayName, ContainerName, ProjectStatus } from "@/shared/enums";
 
 import { downloadNNModel, uploadNNModel } from "@/api";
 
@@ -85,7 +86,7 @@ export default {
     ...mapState(ProjectNamespace, ["project"]),
 
     getUserEditingStatus() {
-      return this.running === "imagedeploy" ? "completed" : "preparing";
+      return this.running === "imagedeploy" ? ProjectStatus.COMPLETED : ProjectStatus.PREPARING;
     },
 
     workflowNames() {
@@ -114,18 +115,22 @@ export default {
       // 화면에 표시되는 컨테이너의 status
       const compareStatus = this.workflowNames.findIndex(q => q.includes(container));
 
-      if (compareStatus === projectStatus && this.status === "failed") {
-        return "failed";
+      if (compareStatus === projectStatus && this.status === ProjectStatus.FAILED) {
+        return ProjectStatus.FAILED;
+      }
+
+      if (compareStatus === projectStatus && this.status === ProjectStatus.STOPPED) {
+        return ProjectStatus.STOPPED;
       }
 
       if (compareStatus < projectStatus) {
-        return "completed";
-      } else if (compareStatus === projectStatus && this.status === "completed") {
-        return "completed";
+        return ProjectStatus.COMPLETED;
+      } else if (compareStatus === projectStatus && this.status === ProjectStatus.COMPLETED) {
+        return ProjectStatus.COMPLETED;
       } else if (compareStatus === projectStatus) {
-        return "running";
+        return ProjectStatus.RUNNING;
       } else {
-        return "preparing";
+        return ProjectStatus.PREPARING;
       }
     },
 
