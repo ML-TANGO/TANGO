@@ -192,6 +192,14 @@ def get_user_requirements(userid, projid, resume=False):
     # ----------------------------- TANGO+CHAT ---------------------------------
     if task == 'chat':
         logger.info(f"Project Info: Run LLM model loader")
+        logger.info(f"Project Info: http://localhost:11434 for Ollama server")
+        cmd2 = ["ollama", "serve"]
+        p2 = subprocess.Popen(cmd2,
+                              stdout=subprocess.PIPE,
+                              stderr=subprocess.STDOUT,
+                              cwd=CORE_DIR,
+                              text=True,
+                              encoding='utf-8')
         logger.info(f"Project Info: http://localhost:8101 to see Tango+Chat browser")
         run_chat_browser = str(CORE_DIR / 'tangochat' / 'browser.py')
         cmd = ["streamlit", "run", run_chat_browser, "--server.port", "8101", "--browser.gatherUsageStats", "false"]
@@ -203,14 +211,7 @@ def get_user_requirements(userid, projid, resume=False):
                             #  universal_newlines=False,
                              text=True,
                              encoding='utf-8')
-        logger.info(f"Project Info: http://localhost:11434 for Ollama server")
-        cmd2 = ["ollama", "serve"]
-        p2 = subprocess.Popen(cmd2, 
-                              stdout=subprocess.PIPE, 
-                              stderr=subprocess.STDOUT, 
-                              cwd=CORE_DIR,
-                              text=True,
-                              encoding='utf-8')
+
         while p.poll() == None:
             out = p.stdout.readline()
             # out_str = str(out, encoding='utf-8')
