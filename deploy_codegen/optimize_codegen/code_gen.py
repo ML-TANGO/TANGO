@@ -1465,6 +1465,7 @@ class CodeGen:
         b_file = a_file[-1]
         t_opt = {"nn_file": 'output.py',
                  "weight_file": self.m_nninfo_weight_pt_file,
+                 "model_file": self.m_nninfo_weight_pt_file,
                  "annotation_file": b_file }
         t_total = {"build": t_build, "deploy": t_deploy, "optional": t_opt}
         try:
