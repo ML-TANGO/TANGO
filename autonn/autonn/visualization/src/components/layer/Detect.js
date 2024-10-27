@@ -53,7 +53,3 @@ const ReOrg = (props) => {
       ) : null}
     </div>
   );
-
-};
-
-export default ReOrg;

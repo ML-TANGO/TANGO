@@ -1,157 +1,42 @@
-import React from 'react';
-
-import {BrowserRouter as Router, Routes, Route} from 'react-router-dom'
-import Flow from './components/Fullpageflow';
+import React, { useState, useEffect } from 'react';
+import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
 import axios from 'axios';
-import Info from './components/page/Info'
-import Abstract from './components/page/Abstract'
-import Code from './components/page/Code'
+import LayerList from './components/page/Layer';
 
-class App extends React.Component {
-  render() {
-    console.log("Class App is here!!")
-    return (
-      <div>
-            <Router>
-                <Routes>
-                    <Route path="/" exact element={<Flow/>}/>
-                    <Route path="/info" exact element={<Flow />}/>
-                </Routes>
-            </Router>
-        </div>
-    );
-  }
+function App() {
+  const [isYolo, setIsYolo] = useState(false);
+  const [modelType, setModelType] = useState("");
+
+  // API를 통해 task 값에 따라 isYolo 값을 설정
+  useEffect(() => {
+    const fetchTaskType = async () => {
+      try {
+        // /api/info/에서 task 값을 가져옴
+        const response = await axios.get('/api/info/');
+        const task = response.data[response.data.length - 1].task;  // 첫 번째 데이터의 task 값 사용
+        const modelType = response.data[response.data.length - 1].model_type;
+
+        // task 값이 "detection"이면 isYolo를 true로 설정
+        //setIsYolo(task === 'detection');
+        setIsYolo(modelType === 'yolov9');
+      } catch (error) {
+        console.error('Failed to fetch task type:', error);
+      }
+    };
+
+    fetchTaskType();
+  }, []);
+
+  return (
+    <div>
+      <Router>
+        <Routes>
+          <Route path="/" exact element={<LayerList isYolo={isYolo} />} />
+        </Routes>
+      </Router>
+    </div>
+  );
 }
 
 export default App;
 
-
-
-// replace /api/running/, get ID and thier status
-// var userid = ''
-// var project_id = ''
-// var model = ''
-// var status = ''
-// var info_id = ''
-
-// axios.get('/api/info')
-//   .then(function (response) {
-//     var k = Object.keys(response.data).length
-//     console.log(k)
-//     var info = response.data[k-1]
-//     info_id = info.id
-//     userid = info.userid
-//     project_id = info.project_id
-//     model = info.model_type + info.model_size
-//     status = info.model_viz
-//   })
-//   .catch(function (error) {
-//     console.error('GET /api/info : Error = ', error.message)
-//     info_id = 'unknown'
-//     userid = 'unknown'
-//     project_id = 'not assigned'
-//     model = 'not selected'
-//     status = 'not ready'
-//   })
-//   .then(function () {
-//     console.log('id=', info_id, 'userid=', userid, ' project_id=', project_id)
-//     console.log('model=', model, 'ready to load model=', status)
-//   });
-
-
-// const jsonData= require('./VGG16.json');
-// console.log(jsonData.node[0].layer)
-
-
-//for (var i=0; i<Object.keys(jsonData.node).length; i++){
-//    axios.post("/api/node/",{
-//        order: jsonData.node[i].order,
-//        layer: jsonData.node[i].layer,
-//        parameters: jsonData.node[i].parameters
-//    }).then(function(response){
-//        console.log(response)
-//    }).catch(err=>console.log("error", jsonData.node[i].parameters, err));
-//};
-//
-//for (var j=0; j<Object.keys(jsonData.edge).length; j++){
-// axios.post("/api/edge/",{
-//        id: jsonData.edge[j].id,
-//        prior: jsonData.edge[j].prior,
-//        next: jsonData.edge[j].next
-//    }).then(function(response){
-//        console.log(response)
-//    }).catch(err=>console.log(err));
-//};
-
-//노드와 엣지 삭제하기
-//for (var j=0; j<Object.keys(jsonData.node).length; j++){
-//
-//axios.delete('/api/node/'.concat(j))
-//  .then(function (response) {
-//    // handle success
-//  })
-//  .catch(function (error) {
-//    // handle error
-//  })
-//  .then(function () {
-//    // always executed
-//  });
-//}
-
-// 노드와 엣지 삭제하기
-//var e = 0;
-//for (var j=1; e === 1; j++){
-//
-//axios.delete('/api/running/'.concat(j).concat('/'))
-// .then(function (response) {
-//   // handle success
-////  continue;
-//})
-// .catch(function (error) {
-//   // handle error
-//   console.log("ERORRR@@@@@@@");
-//   e = 1;
-// })
-// .then(function () {
-//   // always executed
-// });
-// }
-
-//}
-//
-////노드와 엣지 삭제하기
-// tenace note: unneccessary action, instead we need to get userid & project_id if they have
-// axios.get('/api/running/')
-//  .then(function (response) {
-//     var k = Object.keys(response.data).length
-//     console.log('kkkkkkkkkkkkkk', k)
-//    // handle success
-//     if (k > 0) {
-//       // for (var j=0;j<k+1;j++){
-//       for (var j=0;j<k;j++){
-//         axios.delete('/api/running/'.concat(j).concat('/'))
-//       }
-//     }
-//  })
-//  .catch(function (error) {
-//    // handle error
-//   console.log('Error', error.message)
-//  })
-//  .then(function () {
-//    // always executed
-//  });
-
-
-//for (var j=0; j<200; j++){
-//
-//axios.delete('/api/running/'.concat(j).concat('/'))
-// .then(function (response) {
-//   // handle success
-// })
-// .catch(function (error) {
-//   // handle error
-// })
-// .then(function () {
-//   // always executed
-// });
-//}
