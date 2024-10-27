@@ -1,5 +1,7 @@
 path.react-flow__edge-path {
   stroke-width: 3;
+  transition: stroke-width 0.3s ease; /* 부드러운 너비 변화 효과 */
+
 }
 
 path.react-flow__edge-path:hover {
