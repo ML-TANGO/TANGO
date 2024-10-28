@@ -53,8 +53,11 @@ class Streamer :
         print("1111")
         print("self.src = ", self.src)
         self.camera = iio.get_reader(self.src)
-        meta = self.camera.get_meta_data()
-        (self.width, self.height) = meta['source_size']
+        # meta = self.camera.get_meta_data()
+        # (self.width, self.height) = meta['source_size']
+        frame = self.camera.get_data(0)
+        height, width, _ = frame.shape
+        self.width, self.height = width, height
         self.thread_done = 0
         while self.run_flag:
             if self.update() < 0:
