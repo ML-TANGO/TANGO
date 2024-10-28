@@ -362,8 +362,12 @@ def base_model_select(userid, project_id, proj_info, data, manual_select=False):
 
     logger.info(f"\nBMS: Based on memory = {target_mem}G, acc = {target_acc}")
     # for supporting both v7 and v9, resent-c and resnet
-    task_ = 'classification-c' if data['nc'] <= 10 and task == 'classification' else task
-    task_ = 'detection7' if data['nc'] <= 50 and task == 'detection' else task
+    if task == 'classification':
+        task_ = 'classification-c' if data['nc'] <= 10 else task
+    elif task == 'detection':
+        task_ = 'detection7' if data['nc'] <= 50 else task
+    else:
+        logger.warning(f"\nBMS: Not supported task: {task}")
 
     # for supporting nas
     if target == 'galaxys22' and task == 'detection':
