@@ -29,8 +29,10 @@ RUN pip install --upgrade pip
 # RUN pip install -r requirements.txt
 RUN pip install asgiref==3.5.0
 RUN pip install blobfile
+RUN pip install beautifulsoup4
 RUN pip install certifi==2021.10.8
 RUN pip install charset-normalizer==2.0.12
+RUN pip install chromadb==0.3.29
 RUN pip install Django==3.2.25
 RUN pip install django-cors-headers==3.11.0
 RUN pip install djangorestframework==3.15.0
@@ -38,6 +40,8 @@ RUN pip install djangorestframework-jwt==1.11.0
 RUN pip install easydict==1.10
 RUN pip install huggingface_hub
 RUN pip install idna==3.3
+RUN pip install langchain
+RUN pip install langchain-community
 RUN pip install matplotlib>=3.5.1
 RUN pip install numpy==1.22.3
 RUN pip install nvidia-tensorrt==8.4.1.5
@@ -66,7 +70,7 @@ RUN pip install thop>=0.1.1
 RUN pip install torch==1.13.1
 RUN pip install torchvision==0.14.1
 RUN pip install tqdm==4.62.3
-RUN pip install typing_extensions==4.5.0
+RUN pip install typing_extensions
 RUN pip install urllib3==1.26.7
 
 

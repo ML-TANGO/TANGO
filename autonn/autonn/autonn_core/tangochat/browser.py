@@ -30,6 +30,10 @@ import streamlit as st
 #     TokenizerArgs,
 #     GeneratorArgs
 # )
+from tangochat.tuner.rag import (
+    load_and_retrieve_docs, 
+    get_rag_formatted_prompt,
+)
 import ollama
 
 # logging ----------------------------------------------------------------------
@@ -65,7 +69,7 @@ start_state = [
     },
     {
         "role": "assistant",
-        "content": "Welcome! Tanguera and Tanguero. How can I help you?"
+        "content": "Welcome! How can I help you?"
     },
 ]
 
@@ -93,6 +97,12 @@ if "bye" not in st.session_state:
 
 if "img_prompt" not in st.session_state:
     st.session_state.img_prompt = "invisible"
+
+if "rag" not in st.session_state:
+    st.session_state.rag = {"active": False,
+                            "url": "",
+                            "embed": "",
+                            "retreiver": None,}
 
 # huggingface ------------------------------------------------------------------
 # hf_token_cache = f'{HF_HOME}/token'
@@ -140,32 +150,49 @@ if st.session_state.bye:
     logger.info("Completed\n")
     st.stop()
 
+
+def switch_ollama_model():
+    model_name = st.session_state.brain['local_gen_name']
+    # logger.info(f"{st.session_state.brain}")
+    if model_name is None:
+        return
+    st.session_state.brain['local_gen_obj'] = model_name
+    st.balloons()
+    
+    st.session_state['messages'] = start_state
+    for msg in st.session_state.messages:
+        if msg['role'] == 'system':
+            m_name = lists_for_ollama[model_name].split("***")[1]
+            msg['content'] = f"Let's talk to **{m_name.upper()}** !!"
+            if m_name == 'LLaVA 1.6':
+                st.session_state.img_prompt = 'visible'
+
 # middle top menu --------------------------------------------------------------
 # tab1, tab2, tab3, tab4, tab5, tab6 = st.tabs(["**DOWNLOAD**", "**RUN**", "DELETE", "R-A-G", "FINETUNE", "DEPLOY"])
-tab1, tab2, tab3 = st.tabs(["**DOWNLOAD**", "**RUN**", "**DELETE**"])
-lists = [
-            "***Llama2-7B-base***", 
-            "***Llama2-7B-chat***", 
-            "***Llama2-13B-chat***", 
-            "***Llama2-70B-chat***", 
-            "***Llama3-8B-base***", 
-            "***Llama3-8B-instruct***", 
-            "***Llama3-70B-instruct***", 
-            "***Llama3.1-8B-base***", 
-            "***Llama3.1-8B-instruct***", 
-            "***Llama3.1-8B-instruct-tune***", 
-            "***Llama3.1-70B-instruct***",
-            "***Llama3.1-70B-instruct-tune***",
-            "***CodeLlama-7B***", 
-            "***CodeLlama-34B***",
-            "***Mistral-7B-v0.1-base***", 
-            "***Mistral-7B-v0.1-instruct***",
-            "***Mistral-7B-v0.2-instruct***", 
-            "***Open-Llama-7B***",
-            "***Tiny-Llama-stories15M***", 
-            "***Tiny-Llama-stories42M***",
-            "***Tiny-Llama-stories110M***",
-        ]
+# lists = [
+#             "***Llama2-7B-base***", 
+#             "***Llama2-7B-chat***", 
+#             "***Llama2-13B-chat***", 
+#             "***Llama2-70B-chat***", 
+#             "***Llama3-8B-base***", 
+#             "***Llama3-8B-instruct***", 
+#             "***Llama3-70B-instruct***", 
+#             "***Llama3.1-8B-base***", 
+#             "***Llama3.1-8B-instruct***", 
+#             "***Llama3.1-8B-instruct-tune***", 
+#             "***Llama3.1-70B-instruct***",
+#             "***Llama3.1-70B-instruct-tune***",
+#             "***CodeLlama-7B***", 
+#             "***CodeLlama-34B***",
+#             "***Mistral-7B-v0.1-base***", 
+#             "***Mistral-7B-v0.1-instruct***",
+#             "***Mistral-7B-v0.2-instruct***", 
+#             "***Open-Llama-7B***",
+#             "***Tiny-Llama-stories15M***", 
+#             "***Tiny-Llama-stories42M***",
+#             "***Tiny-Llama-stories110M***",
+#         ]
+tab1, tab2, tab3, tab4 = st.tabs(["**DOWNLOAD**", "**RUN**", "**DELETE**", "**RAG**"])
 lists_for_ollama = {
             "llama3.2"      : "***Llama 3.2***   (3B)",
             "llama3.1"      : "***Llama 3.1***   (8B)",
@@ -189,6 +216,15 @@ captions_for_ollama = [
             "Google",
             "Alibaba",
             "Yanolja: 한국어",
+]
+embed_lists = {"mxbai-embed-large"  : "**MXBai-embed-large** (334M)",
+                "nomic-embed-text"  : "**Nomic-embed-text** (137M)",
+                "all-minilm"        : "**All-miniLM** (23M)",
+            }
+captions_embed = [
+    "MixedBread AI",
+    "Nomic AI",
+    "SBERT.net",
 ]
 
 with tab1:
@@ -233,8 +269,9 @@ with tab2:
     for m in dn_lists:
         # local_lists.append(f"***{m['name'].split(':')[0]}***")
         key = f"{m['name'].split(':')[0]}"
-        value = lists_for_ollama[key]
-        local_lists.append(value)
+        value = lists_for_ollama.get(key, None)
+        if value is not None:
+            local_lists.append(value)
     selected_list = st.radio("Make TangoChat smart!", local_lists)
     # aliase_lists, local_lists = list_model(MODEL_ROOT)
     # downloaded_dirs = []
@@ -250,7 +287,7 @@ with tab2:
     # selected_list = st.radio("Available models in your local inventory", downloaded_dirs)
     # selected_model = selected_list.split("***")[1]
     if len(local_lists) > 0:
-        apply_btn = st.button("Apply", type="primary")
+        apply_btn = st.button("Apply ", type="primary")
         if apply_btn:
             logger.info(f"Apply this LLM {selected_list} as Tango+Chat brain")
             # selected_model = selected_list.split('***')[1]
@@ -259,6 +296,11 @@ with tab2:
                     selected_model = k
             st.session_state.brain['local_gen_name'] = selected_model
             st.session_state.brain['local_gen_obj'] = None
+            st.session_state.rag = {
+                "active": False,
+                "url": "",
+                "embed": "",
+                "retreiver": None,}
             st.rerun()
 
 with tab3:
@@ -274,13 +316,57 @@ with tab3:
             ollama.delete(remove_model)
             st.rerun()
 
-# with tab4:
-#     rag_list = st.radio("What would you do RAG?", local_lists)
-#     if len(local_lists) > 0:
-#         rag_model = rag_list.split("***")[1]
-#         rag_btn = st.button("RAG", type="primary")
-#         if rag_btn:
-#             logger.info(f"Try improve this LLM:{rag_list} through RAG")
+with tab4:
+    model_name = st.session_state.brain['local_gen_name']
+    _model = ""
+    if model_name is not None:
+        _model = lists_for_ollama[model_name]
+    left, middle, right = st.columns(3)
+    with left:
+        st.subheader("Large Language Model")
+        st.text(f"TangoChat is now running by")
+        st.markdown(f"{_model}")
+    with middle:
+        st.subheader("Embedding Model")
+        embed_model = st.radio(
+            label="**:blue[VECTOR] to LLM ⇇ :red[TEXT] from URL**", 
+            options=list(embed_lists.keys()),
+            format_func=lambda x: embed_lists[x],
+            # captions=captions_embed,
+        )
+        emb_btn = st.button("PULL & APPLY", type="primary")
+        if emb_btn:
+            with st.status("Downloading... ", expanded=True) as sts1:
+                start = time.time()
+                ollama.pull(embed_model)
+                elapsed_time = time.time()-start
+                st.write(f"Done({elapsed_time:.2f} sec).")
+            st.session_state.rag['active'] = True
+            st.session_state.rag['embed'] = embed_model
+            sts1.update(label=f"{embed_model} is successfully applied.", state="complete")
+        if st.session_state.rag['active'] == True:
+            st.text(f"TangoChat is now using {embed_model}.")
+    with right:
+        st.subheader("Retrieve Source")
+        _url = st.text_input(
+            label="**URL**",
+            placeholder = "e.g. https://github.com/ML-TANGO/TANGO",
+        )
+        st.session_state.rag['url'] = _url
+        rt_btn = st.button("Retrieve", type='primary')
+        if rt_btn:
+            with st.status("Retrieving... ", expanded=False) as sts2:
+                start = time.time()
+                _emb_model = st.session_state.rag['embed']
+                _retriever = load_and_retrieve_docs(_url, _emb_model)
+                elapsed_time = time.time()-start
+                st.write(f"Done({elapsed_time:.2f} sec).")
+                st.session_state.rag['retriever'] = _retriever
+                # st.session_state['messages'] = start_state
+                switch_ollama_model()
+            sts2.update(label=f"successfully retrieved.", state="complete")
+        st.text(f"TangoChat retrieves from")
+        st.markdown(f"***{_url}***")
 
 # with tab5:
 #     finetune_list = st.radio("What would you finetune?", local_lists)
@@ -335,21 +421,7 @@ with tab3:
 #             msg['content'] = f"Let's talk to **{model_name.upper()}** !!"
 #     return
 
-def switch_ollama_model():
-    model_name = st.session_state.brain['local_gen_name']
-    # logger.info(f"{st.session_state.brain}")
-    if model_name is None:
-        return
-    st.session_state.brain['local_gen_obj'] = model_name
-    st.balloons()
-    
-    st.session_state['messages'] = start_state
-    for msg in st.session_state.messages:
-        if msg['role'] == 'system':
-            m_name = lists_for_ollama[model_name].split("***")[1]
-            msg['content'] = f"Let's talk to **{m_name.upper()}** !!"
-            if m_name == 'LLaVA 1.6':
-                st.session_state.img_prompt = 'visible'
+
 
 
 
@@ -371,6 +443,14 @@ if st.session_state.brain['local_gen_obj'] == None:
 
 # if st.session_state.img_prompt == 'visible':
 #     show_img_loader()
+
+if st.session_state.rag == 'active':
+    with st.sidebar:
+        url_prompt = st.chat_input(
+            placeholder = "Let me know a specific URL to retreive",
+            key = "url_prompt",
+            )
+        st.session_state.rag['url'] = url_prompt
 
 st.divider()    
 
@@ -404,6 +484,10 @@ for msg in st.session_state.messages:
 
 # user message input -----------------------------------------------------------
 if prompt := st.chat_input():
+    if st.session_state.rag['active']:
+        _retriever = st.session_state.rag['retriever']
+        prompt = get_rag_formatted_prompt(_retriever, prompt)
+
     user_message = {
         "role": "user",
         # "content": [{"type": "text",      # torch-style
