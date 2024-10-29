@@ -12,6 +12,7 @@ import json
 from pathlib import Path
 COMMON_ROOT = Path("/shared/common")
 DATASET_ROOT = Path("/shared/datasets")
+MODEL_ROOT = Path("/shared/models")
 CORE_DIR = Path(__file__).resolve().parent.parent.parent # /source/autonn_core
 CFG_PATH = CORE_DIR / 'tango' / 'common' / 'cfg'
 
