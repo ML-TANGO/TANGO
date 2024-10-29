@@ -16,6 +16,8 @@ from rest_framework.decorators import api_view, permission_classes, permission_c
 
 from rest_framework.permissions import AllowAny, IsAuthenticated
 
+from .load_targets import convert_image_to_base64
+
 from .models import Target
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -35,6 +37,12 @@ def target_create(request):
         _type_: _description_
     """
 
+    image_base64 = request.data['image']
+
+    if image_base64 == "" or image_base64 == None:
+        image_path = os.path.join(BASE_DIR, "images", "default_target.png")
+        image_base64 = convert_image_to_base64(image_path)
+
     try:
         target = Target(target_name=request.data['name'],
                         create_user=str(request.user),
@@ -50,7 +58,7 @@ def target_create(request):
                         target_host_ip=request.data['host_ip'],
                         target_host_port=request.data['host_port'],
                         target_host_service_port=request.data['host_service_port'],
-                        target_image=str(request.data['image']))
+                        target_image=str(image_base64))
 
         target.save()
 
