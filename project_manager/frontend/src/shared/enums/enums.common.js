@@ -68,7 +68,10 @@ export const EngineValues = {
   PYTORCH: "pytorch",
   TVM: "tvm",
   TENSORRT: "tensorrt",
-  TFLITE: "tflite"
+  TFLITE: "tflite",
+  RKNN: "rknn",
+  ONNX: "onnx",
+  OPEN_VINO: "OpenVINO"
 };
 
 export const EngineLabel = {
@@ -76,7 +79,8 @@ export const EngineLabel = {
   [EngineValues.PYTORCH]: "Pytorch",
   [EngineValues.TVM]: "TVM",
   [EngineValues.TENSORRT]: "Tensorrt",
-  [EngineValues.TFLITE]: "TFLite"
+  [EngineValues.TFLITE]: "TFLite",
+  [EngineValues.RKNN]: "RKNN"
 };
 
 export const TargetInfoList = [
@@ -139,6 +143,48 @@ export const TargetInfoList = [
     value: "Odroid_N2",
     allowedEngine: [EngineValues.TVM, EngineValues.ACL],
     requiredFields: []
+  },
+  {
+    key: "Odroid_M1",
+    value: "Odroid_M1",
+    allowedEngine: [EngineValues.RKNN],
+    requiredFields: []
+  },
+  {
+    key: "Galaxy_S23",
+    value: "Galaxy_S23",
+    allowedEngine: [EngineValues.TFLITE],
+    requiredFields: []
+  },
+  {
+    key: "Rasberry_Pi5",
+    value: "Rasberry_Pi5",
+    allowedEngine: [EngineValues.TFLITE],
+    requiredFields: []
+  },
+  {
+    key: "Comma_3X",
+    value: "Comma_3X",
+    allowedEngine: [EngineValues.PYTORCH, EngineValues.ONNX],
+    requiredFields: []
+  },
+  {
+    key: "KT_cloud",
+    value: "KT_cloud",
+    allowedEngine: [EngineValues.PYTORCH, EngineValues.TENSORRT],
+    requiredFields: ["target_hostip", "target_hostport"]
+  },
+  {
+    key: "GCP",
+    value: "GCP",
+    allowedEngine: [EngineValues.PYTORCH, EngineValues.TENSORRT],
+    requiredFields: ["target_hostip", "target_hostport"]
+  },
+  {
+    key: "AWS",
+    value: "AWS",
+    allowedEngine: [EngineValues.PYTORCH, EngineValues.TENSORRT],
+    requiredFields: ["target_hostip", "target_hostport"]
   }
 ];
 
