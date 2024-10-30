@@ -57,6 +57,46 @@ class AWSECS(CloudTargetBase):
 
         super().__init__(user_id, project_id)
 
+    def __init__(self, user_id: str, project_id: str, cluster_name: str, service_name: str):
+        super().__init__(user_id, project_id, service_name)
+        self.cluster_name = cluster_name
+
+    async def start_service(self):
+        try:
+            response = self.ecs_client.update_service(
+                cluster=self.cluster_name,
+                service=self.service_name,
+                desiredCount=1,
+            )
+            return response
+        except ClientError as e:
+            print(f"ECS Service start failed: {e}")
+            return None
+
+    async def stop_service(self):
+        try:
+            response = self.ecs_client.update_service(
+                cluster=self.cluster_name,
+                service=self.service_name,
+                desiredCount=0,
+            )
+            return response
+        except ClientError as e:
+            print(f"ECS Service stop failed: {e}")
+            return None
+
+    async def get_service_status(self):
+        try:
+            response = self.ecs_client.describe_services(
+                cluster=self.cluster_name,
+                services=[self.service_name],
+            )
+            service = response["services"][0]
+            return service['status'], service['runningCount'], service['desiredCount']
+        except ClientError as e:
+            print(f"Error getting service status: {e}")
+            return None, 0, 0
+
     async def start_service(self, deploy_yaml) -> Dict[str, str]:
         logger.info(f"Starting service for {deploy_yaml.deploy.service_name}")
         try:

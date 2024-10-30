@@ -12,6 +12,11 @@ class CloudTargetBase(ABC):
         self.user_id = user_id
         self.project_id = project_id
 
+    def __init__(self, user_id: str, project_id: str, service_name: str):
+        self.user_id = user_id
+        self.project_id = project_id
+        self.service_name = service_name
+
     @abstractmethod
     async def start_service(self):
         pass
