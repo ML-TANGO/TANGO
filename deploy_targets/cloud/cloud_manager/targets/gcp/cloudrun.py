@@ -106,6 +106,65 @@ class CloudRun(CloudTargetBase):
 
         super().__init__(user_id, project_id)
 
+    def __init__(self, user_id: str, project_id: str, service_id: str, service_name: str):
+        self.gcp_region = GCP_REGION
+        self.gcp_project_id = GCP_PROJECT_ID
+
+        if not self.gcp_region or not self.gcp_project_id:
+            raise ValueError("GCP_REGION and GCP_PROJECT_ID must be set")
+
+        self.parent = f"projects/{self.gcp_project_id}/locations/{self.gcp_region}"
+        self.service_id  = service_id
+        super().__init__(user_id, project_id, service_name)
+
+    async def start_service(self):
+        # Create a client
+        client = run_v2.ServicesClient()
+        # Initialize request argument(s)
+        request = run_v2.CreateServiceRequest(
+            parent=self.parent,
+            service_id=self.service_id,
+        )
+        operation = client.create_service(request=request)
+        print("Waiting for operation to complete...")
+        response = operation.result()
+
+        # Handle the response
+        print(response)
+
+    async def stop_service(self):
+        # Create a client
+        client = run_v2.ServicesClient()
+
+        # Initialize request argument(s)
+        name = f"projects/{self.gcp_project_id}/locations/{self.gcp_region}/services/{self.service_name}"
+        request = run_v2.DeleteServiceRequest(
+            name=name,
+        )
+
+        # Make the request
+        operation = client.delete_service(request=request)
+        print("Waiting for operation to complete...")
+        response = operation.result()
+        # Handle the response
+        print(response)
+
+    async def get_service_status(self):
+        # Create a client
+        client = run_v2.ServicesClient()
+
+        # Initialize request argument(s)
+        name = f"projects/{self.gcp_project_id}/locations/{self.gcp_region}/services/{self.service_name}"
+        request = run_v2.GetServiceRequest(
+            name=name,
+        )
+
+        # Make the request
+        response = client.get_service(request=request)
+
+        # Handle the response
+        print(response)
+
     async def start_service(self, deploy_yaml) -> dict[str, str]:
         """
         Create a service to deploy a container to Google Cloud Run.
