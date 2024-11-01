@@ -15,7 +15,7 @@
     <div class="d-flex justify-center align-center pa-3">
       <v-img :src="item?.image" width="60" max-width="60" contain></v-img>
     </div>
-    <div class="ml-3 d-flex flex-column justify-center" style="min-width: 115px">
+    <div class="ml-3 d-flex flex-column justify-center" style="min-width: 115px; max-width: 115px">
       <div class="d-flex align-center" style="gap: 10px">
         <p style="color: #000000ff; letter-spacing: 1px; font-size: 14px" class="pa-0 ma-0">{{ item?.name }}</p>
       </div>

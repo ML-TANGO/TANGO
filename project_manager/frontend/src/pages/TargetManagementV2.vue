@@ -142,7 +142,7 @@ export default {
 <style lang="css" scoped>
 .target-card-wrapper {
   position: absolute;
-  z-index: 999;
+  z-index: 99;
   right: 0px;
   top: 0px;
   width: 125px;
