@@ -568,6 +568,7 @@ def run_autonn(userid, project_id, resume=False, viz2code=False, nas=False, hpo=
     jetsonnano      : tensorrt
     galaxys22       : tflite (-> opencl)
     odroidn2        : onnx ; (tvm -> acl -> opencl)
+    raspberrypi     : tpu tflite
     '''
     # Strip optimizers ---------------------------------------------------------
     # [tenace's note] what strip_optimizer does is ...
@@ -613,8 +614,10 @@ def run_autonn(userid, project_id, resume=False, viz2code=False, nas=False, hpo=
     target_engine = proj_info['engine']
     channel = data.get('ch')
     convert = ['torchscript', 'onnx']
-    if target_engine == 'tensorrt':
+    if target_engine == 'tensorrt': # nvidia
         convert.append('engine')
+    elif target_engine == 'tpu':  # google
+        convert.append('edgetpu')
     if task == 'detection':
         convert.append('onnx_end2end')
     export_weight(train_final, target_acc, convert, task=task, ch=channel, imgsz=opt.img_size)
@@ -633,6 +636,10 @@ def run_autonn(userid, project_id, resume=False, viz2code=False, nas=False, hpo=
         if model_type == 'onnx_end2end':
             dir = Path(train_final).parent / Path(train_final).stem
             suffix = '-end2end.onnx'
+            exported_bestmodel_path = f"{str(dir)}{suffix}"
+        elif model_type == 'edgetpu':
+            dir = Path(train_final).parent / Path(train_final).stem
+            suffix = f'_edgetpu.tflite'
             exported_bestmodel_path = f"{str(dir)}{suffix}"
         else:
             suffix = f'.{model_type}'

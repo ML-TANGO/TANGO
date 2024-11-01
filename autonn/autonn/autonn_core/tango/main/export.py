@@ -43,7 +43,7 @@ def export_formats():
         ['PyTorch', '-', '.pt', True, True],
         ['TorchScript', 'torchscript', '.torchscript', True, True],
         ['ONNX', 'onnx', '.onnx', True, True],
-        ['ONNX END2END', 'onnx_end2end', '_end2end.onnx', True, True],
+        ['ONNX END2END', 'onnx_end2end', '-end2end.onnx', True, True],
         ['OpenVINO', 'openvino', '_openvino_model', True, False],
         ['TensorRT', 'engine', '.engine', False, True],
         ['CoreML', 'coreml', '.mlmodel', True, False],
@@ -438,8 +438,8 @@ def export_edgetpu(file, prefix=colorstr('Edge TPU:')):
     ver = subprocess.run(cmd, shell=True, capture_output=True, check=True).stdout.decode().split()[-1]
 
     logger.info(f'\n{prefix} starting export with Edge TPU compiler {ver}...')
-    f = str(file).replace('.pt', '-int8_edgetpu.tflite')  # Edge TPU model
-    f_tfl = str(file).replace('.pt', '-int8.tflite')  # TFLite model
+    f = str(file).replace('.pt', '-_edgetpu.tflite')  # Edge TPU model
+    f_tfl = str(file).replace('.pt', '.tflite')  # TFLite model
 
     cmd = f"edgetpu_compiler -s -d -k 10 --out_dir {file.parent} {f_tfl}"
     subprocess.run(cmd.split(), check=True)
