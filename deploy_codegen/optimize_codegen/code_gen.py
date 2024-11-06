@@ -114,45 +114,41 @@ def_tvm_manual = './db/odroid-m1-manual.txt'
 # for android
 os.environ['TF_CPP_MIN_LOG_LEVEL']='2'
 
-def tf2tflite(input_size = 640, pb_file="model_float32.pb", output_file="mymodel.tflite"):
-    input_arrays = ['inputs']
-    output_arrays = ['Identity', 'Identity_1', 'Identity_2']
-    converter = tf.compat.v1.lite.TFLiteConverter.from_frozen_graph(pb_file, input_arrays, output_arrays)
-    converter.experimental_new_quantizer = False
-    # converter.inference_input_type = tf.uint8
-    converter.inference_output_type = tf.float32
-    converter.optimizations = [tf.lite.Optimize.DEFAULT]
-    converter.target_spec.supported_types = [tf.float16]
-    tflite_model = converter.convert()
-    with open(output_file, 'wb') as w:
-        w.write(tflite_model)
-    return
-
-def onnx2tflite(onnx_filename = "./yolov7-tiny.onnx"):
-    # onnx2openvino
-    mycmd = "python3 /opt/intel/openvino_2021/deployment_tools/model_optimizer/mo.py "
-    mycmd = mycmd + " --input_model %s" % onnx_filename
-    mycmd = mycmd + " --input_shape [1,3,640,640] "
-    mycmd = mycmd + " --output_dir .  "
-    mycmd = mycmd + " --data_type FP32 "
-    mycmd = mycmd + " --output Conv_134,Conv_149,Conv_164"
-    os.system(mycmd)
-
+def onnx2tflite(onnx_filename = "./yolov9-s_320.onnx"):
     # openvino2tflite
-    os.system("openvino2tensorflow --model_path ./yolov7-tiny.xml  --model_output_path .  --output_no_quant_float32_tflite")
-
+    os.system("onnx2tf -i %s -dgc -nuo -ebu  -o ./yolov9tf" % onnx_filename)
     #move the tflite file to the place
-    os.system("cp model_float32.tflite ./tflite_yolov7_test/app/src/main/assets/yolov7-tiny_fp32_640.tflite")
-    os.system("rm -f ./tflite_yolov7_test/app/build/intermediates/assets/debug/yolov7-tiny_fp32_640.tflite")
-
-    #apk build
-    os.system("./tflite_yolov7_test/gradlew init < /app/enter.txt  && cd ./tflite_yolov7_test && ./gradlew assembleDebug")
-    os.system("cp ./tflite_yolov7_test/app/build/outputs/apk/debug/app-debug.apk /app")
-
-    # remove temp file & dirs
-    os.system("sudo /bin/rm -rf yolov7-tiny.xml tflite *.onnx *.mapping *.bin *.ptl *.tflite")
-    ret = "app-debug.apk"
+    tmp = (len(onnx_filename.split(".")[-1])+1) * -1
+    t_file = onnx_filename[0:tmp] +"_float32.tflite"
+    mystr= t_file.split('/')[-1]
+    print("mystr=", mystr)
+    os.system("cp ./yolov9tf/%s ./tflite_yolov9_test/app/src/main/assets" % mystr)
+    os.system("/bin/rm -rf ./yolov9tf")
+    # change Constants.kt
+    os.system("cp db/android/Constants.kt .")
+    strn = "s/@@filename@@%s%s/g Constants.kt" % ('/', mystr)
+    os.system("sed -i %s" %  strn)
+    os.system("cp Constants.kt  ./tflite_yolov9_test/app/src/main/java/com/surendramaran/yolov9tflite/Constants.kt")
+    os.system("/bin/rm -rf  Constants.kt")
+    # change Detector.kt
+    os.system("cp db/android/Detector.kt  ./tflite_yolov9_test/app/src/main/java/com/surendramaran/yolov9tflite/Detector.kt")
+    # apk build
+    os.system("./tflite_yolov9_test/gradlew init < /app/enter.txt  && cd ./tflite_yolov9_test && ./gradlew assembleDebug")
+    os.system("mv ./tflite_yolov9_test/app/build/outputs/apk/debug/app-debug.apk /app")
+    ret = "/app/app-debug.apk"
     return ret
+
+
+def onnx2edgetpu(onnx_filename = "./yolov9-s_320.onnx"):
+    # openvino2tflite
+    os.system("onnx2tf -i %s -dgc -nuo -ebu  -o ./yolov9tf" % onnx_filename)
+    tmp = (len(onnx_filename.split(".")[-1])+1) * -1
+    t_file = onnx_filename[0:tmp] +"_float32.tflite"
+    os.system("edgetpu_compiler ./yolov9tf/%s" % t_file)
+    tmp = (len(t_file.split(".")[-1]) + 1) * (-1)
+    t_file = t_file[0:tmp] +"_edgetpu.tflite"
+    return t_file
+
 
 
 
@@ -625,16 +621,38 @@ class CodeGen:
             os.system("chmod -Rf 777 %s" % self.m_current_code_folder)
             return 0
 
-        # tflite for galaxy 
+        # tflite for galaxy or raspberrypi edgetpu 
         if self.m_sysinfo_engine_type == 'tflite':   
             if not os.path.exists(self.m_current_code_folder):
                 os.makedirs(self.m_current_code_folder)
             # read  onnx file
             my_onnx = "%s%s" % (self.m_current_file_path, self.m_nninfo_weight_onnx_file)
-            # onnx2tflitefile
-            ret = onnx2tflite(onnx_filename = my_onnx)
-            # copy apk to nn_model folder
-            shutil.copy(ret, self.m_current_code_folder)
+            print("my_onnx=", my_onnx)
+            if self.m_sysinfo_acc_type == "tpu": # raspberry pi edge tpu
+                # onnx -> edgetpu model
+                ret = onnx2edgetpu(onnx_filename = my_onnx)
+                os.system("mv %s %s" % (ret, self.m_current_code_folder))
+                # add edgetpu inference code
+                # khlee kkkhhhllleeeeeeeee
+                # code gen
+                # annotation file 
+                # requirements.txt
+                # deployment.yaml
+            else: # smart phone
+                # annotation file -> config.txt khlee
+                try:
+                    f = open("labels.txt", "w")
+                except IOError as err:
+                    logging.debug("annotation file open error!!")
+                    return -1
+                for i in range(self.m_nninfo_number_of_labels):
+                    f.write(self.m_nninfo_labelmap_info[i]) 
+                    f.write("\n")
+                f.close()
+                os.system("mv labels.txt ./tflite_yolov9_test/app/src/main/assets")
+                ret = onnx2tflite(onnx_filename = my_onnx)
+                # move apk to nn_model folder
+                os.system("mv %s %s" % (ret, self.m_current_code_folder))
             self.m_last_run_state = 0
             os.system("chmod -Rf 777 %s" % self.m_current_code_folder)
             return 0
