@@ -1,4 +1,5 @@
 from pathlib import Path
+import logging
 
 from fastapi import BackgroundTasks, FastAPI, Response, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
@@ -14,6 +15,10 @@ from cloud_manager.service import (
     save_service,
 )
 
+logging.basicConfig(
+    level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+)
+logger = logging.getLogger(__name__)
 
 app = FastAPI()
 
@@ -65,6 +70,7 @@ async def start_service(user_id: str, project_id: str, bg_tasks: BackgroundTasks
     deploy_yaml_path = Path(
         f"/shared/common/{service.user_id}/{service.project_id}/deployment.yaml"
     )
+    logging.info(f"/start  deploy_yaml_path: {deploy_yaml_path}")
     deploy_yaml = await read_and_validate_deploy_yaml(deploy_yaml_path)
 
     service.status = ServiceStatus.STARTED
@@ -80,10 +86,12 @@ async def stop_service(user_id: str, project_id: str):
     """
     Stop a service for the given user and project ID.
     """
+    logging.info(f"user_id={user_id}, project_id={project_id}")
     service = await get_service(user_id, project_id)
     if not service:
         raise HTTPException(status_code=404, detail="Service not found")
     target_class = TARGET_CLASS_MAP[service.deploy_yaml.deploy.type]
+    logging.info(f"service.user_id={service.user_id}, service.project_id={service.project_id}")
     target = target_class(service.user_id, service.project_id)
     await target.stop_service(service.deploy_yaml.deploy.service_name)
     service.status = ServiceStatus.STOPPED
@@ -106,6 +114,14 @@ async def status_request(user_id: str, project_id: str):
     # if service.target_info.get("service_url"):
     #     # TANGO manager does not receive JSON response, so just print it here.
     #     print(f"Service URL: {service.target_info['service_url']}")
-    return Response(
-        content=resp["status"].value, status_code=200, media_type="text/plain"
-    )
+
+    logging.info(f"response output: {resp}")
+
+    if resp.get("error") is not None:
+        return Response(
+            content=resp["error"], status_code=400, media_type="text/plain"
+        )
+    else:
+        return Response(
+            content=resp["status"].value, status_code=200, media_type="text/plain"
+        )
