@@ -1315,7 +1315,8 @@ class CodeGen:
         onnx_path = "%s%s" % (self.m_current_file_path, self.m_nninfo_weight_onnx_file)
         onnx_model = onnx.load(onnx_path)
         input_name = "images"
-        shape_dict = {input_name: [1, 3, def_TVM_width, def_TVM_height]}
+        input_shapes = [[d.dim_value for d in _input.type.tensor_type.shape.dim] for _input in onnx_model.graph.input]
+        shape_dict = {input_name: [1, 3, input_shapes[0][2], input_shapes[0][3]]}
         mod, params = tvm.relay.frontend.from_onnx(onnx_model, shape_dict)
         with open(def_TVM_mod, "w") as fo:
             fo.write(tvm.ir.save_json(mod))
