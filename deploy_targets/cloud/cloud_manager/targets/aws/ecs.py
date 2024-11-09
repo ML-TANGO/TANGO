@@ -123,6 +123,7 @@ class AWSECS(CloudTargetBase):
         logger.info("Creating task definition")
         return {
             "family": deploy_yaml.deploy.service_name,
+            "executionRoleArn": deploy_yaml.deploy.execution_role_arn,
             "containerDefinitions": [
                 {
                     "name": deploy_yaml.deploy.service_name,
