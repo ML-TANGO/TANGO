@@ -48,7 +48,9 @@ logging.basicConfig(level=logging.DEBUG, format="(%(threadName)s) %(message)s")
 # for docker and project manager
 def_top_folder = "/tango/common"    # for docker
 def_top_data_folder = "/tango/datasets"    # for docker
-def_code_folder_name = "nn_model"
+# 하늘소프트 변경: 임시로 codegen 동작 제외
+# def_code_folder_name = "nn_model" 
+def_code_folder_name = "nn_model_gen"
 
 # for TensorRT
 def_trt_converter_file_name = "tensorrt-converter.py"

@@ -1,0 +1,13 @@
+PyQt5
+PyQt5-stubs
+pyqt5-tools
+opencv-python
+opencv-python-headless
+tqdm
+matplotlib
+pyyaml
+cuda-python==12.1.0
+nvidia-cudnn-cu12
+--extra-index-url https://download.pytorch.org/whl/cu121
+torch
+torchvision

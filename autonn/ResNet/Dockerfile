@@ -16,7 +16,7 @@ RUN wget https://github.com/ML-TANGO/TANGO/releases/download/Model_Mirror/kaggle
 
 WORKDIR /source
 COPY requirements.txt ./
-RUN pip install --upgrade pip
+RUN pip install --force-reinstall pip==24.0.0
 RUN pip install -r requirements.txt
 COPY . .
 

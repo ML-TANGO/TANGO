@@ -1,5 +1,6 @@
 # BasicBlock, [2, 2, 2, 2]
-name: resnet18
+# 하늘소프트 수정: 이름 변경(임시)
+name: Pneumonia_Model
 hyp: tiny
 imgsz: 640
 nc: 1000

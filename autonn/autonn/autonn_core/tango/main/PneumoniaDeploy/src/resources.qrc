@@ -1,0 +1,10 @@
+<RCC>
+  <qresource prefix="images">
+    <file>res/document_empty.png</file>
+    <file>res/etri_ci.png</file>
+    <file>res/folder_document.png</file>
+    <file>res/magnifying_glass.png</file>
+    <file>res/set_fit_view.png</file>
+    <file>res/set_zoom_view.png</file>
+  </qresource>
+</RCC>

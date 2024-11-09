@@ -1,0 +1,1 @@
+from .process import train_pneumonia_model

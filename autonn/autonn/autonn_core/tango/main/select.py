@@ -41,6 +41,9 @@ from tango.utils.plots import plot_evolution
 from tango.utils.wandb_logging.wandb_utils import check_wandb_resume
 
 
+from .PneumoniaModel import train_pneumonia_model
+
+
 TASK_TO_MODEL_TABLE = {
     "detection7": "yolov7",
     "detection": "yolov9",
@@ -150,7 +153,7 @@ def get_user_requirements(userid, projid, resume=False):
     with open(proj_yaml_path, "r") as f:
         proj_info_dict = yaml.safe_load(f)
     status_update(userid, projid,
-                  update_id="project_info",
+                  update_id="arguments",
                   update_content=proj_info_dict)
 
     target = proj_info_dict['target_info'].replace('-', '').replace('_', '').lower()
@@ -440,6 +443,16 @@ def run_autonn(userid, project_id, resume=False, viz2code=False, nas=False, hpo=
 
     # Load settings ------------------------------------------------------------
     proj_info, opt, hyp, basemodel, data = get_user_requirements(userid, project_id, resume)
+    if proj_info['task_type'] == 'classification':
+        # 하늘소프트 수정: classification task를 폐렴 진단 모델로 변경
+        print('Haneulsoft: classification task를 폐렴 진단 모델로 변경합니다.')
+        info = Info.objects.get(userid=userid, project_id=project_id)
+        proj_info['userid'] = userid
+        proj_info['project_id'] = project_id
+        proj_info['acc'] = 'cuda'
+        proj_info['memory'] = 18 
+        train_pneumonia_model(userid, project_id, data)
+        return
 
     target = proj_info['target_info'] # PC, Galaxy_S22, etc.
     target_acc = proj_info['acc'] # cuda, opencl, cpu

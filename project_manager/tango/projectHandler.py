@@ -111,7 +111,10 @@ def get_docker_log_handler(container, last_logs_timestamp):
     client = docker.from_env()
     dockerContainerName = CONTAINER_INFO[container].docker_name
     containerList = client.containers.list()
-    container = next(item for item in containerList if dockerContainerName in str(item.name))
+    # 하늘소프트 수정: 예외처리 추가
+    container = next((item for item in containerList if dockerContainerName in str(item.name)), None)
+    if container == None:
+        return ''
     logs = ''
     if int(last_logs_timestamp) == 0:
         logs = container.logs(timestamps = True)
