@@ -121,7 +121,10 @@ class AWSECS(CloudTargetBase):
 
     def _create_task_definition(self, deploy_yaml) -> Dict[str, Any]:
         logger.info("Creating task definition")
-        return {
+
+        execution_role_arn = getattr(deploy_yaml.deploy, 'execution_role_arn', None)
+
+        task_definition = {
             "family": deploy_yaml.deploy.service_name,
             "executionRoleArn": deploy_yaml.deploy.execution_role_arn,
             "containerDefinitions": [
@@ -149,6 +152,11 @@ class AWSECS(CloudTargetBase):
             "cpu": str(deploy_yaml.deploy.resources.cpu * 1024),
             "memory": str(deploy_yaml.deploy.resources.memory)
         }
+
+        if execution_role_arn:
+            task_definition["executionRoleArn"] = execution_role_arn
+
+        return task_definition
 
     def _ensure_cluster_exists(self, cluster_name: str) -> None:
         logger.info(f"Ensuring cluster {cluster_name} exists")
