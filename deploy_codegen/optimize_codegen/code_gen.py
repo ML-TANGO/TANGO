@@ -710,7 +710,8 @@ class CodeGen:
         if not os.path.exists(self.m_current_code_folder):
             os.makedirs(self.m_current_code_folder)
 
-        if self.m_deploy_type == 'cloud' or self.m_deploy_type == 'pc_server':
+        if (self.m_deploy_type == 'cloud' or self.m_deploy_type == 'kt_cloud' 
+            or self.m_deploy_type == 'aws' or self.m_deploy_type == 'gcp' or self.m_deploy_type == 'pc_server'):
             self.m_sysinfo_libs = ['python==3.8', 'torch>=1.1.0']
             self.m_sysinfo_apt = ['vim', 'libgl1-mesa-glx']
             self.m_sysinfo_papi = ["cython", "numpy<17", "imutils", "flask",
@@ -719,7 +720,7 @@ class CodeGen:
                 "tqdm", "seaborn", "requests", 
                 "werkzeug", "torch", "torchvision", "python-math", 
                 "albumentations", "pathlib"]
-            self.m_deploy_entrypoint = ['python', 'output.py']
+            self.m_deploy_entrypoint = ['python', './output.py']
             # web폴더 복사후 .db화일 삭제 
             os.system("cp -r ./db/web/* %s" % self.m_current_code_folder) 
             os.system("rm %s/*.db" % self.m_current_code_folder) 
@@ -811,7 +812,7 @@ class CodeGen:
                 "tqdm", "seaborn", "requests", 
                 "werkzeug", "torch", "torchvision", "python-math",  
                 "albumentations", "pathlib"]
-            self.m_deploy_entrypoint = ['python', 'output.py']
+            self.m_deploy_entrypoint = ['python', './output.py']
             os.system("mkdir %s/fileset" % self.m_current_code_folder) 
             os.system("mkdir %s/fileset/yolov7" % self.m_current_code_folder) 
             k8s_path = "%s/fileset/yolov7" % self.m_current_code_folder
@@ -906,7 +907,7 @@ class CodeGen:
             self.m_sysinfo_libs = ['python==3.8', 'torch>=1.1.0']
             self.m_sysinfo_apt = []
             self.m_sysinfo_papi = ['torch', 'torchvision', 'numpy', 'pathlib', 'opencv-python']
-            self.m_deploy_entrypoint = ['python', 'output.py']
+            self.m_deploy_entrypoint = ['python', './output.py']
             pt_path = "%s%s" % (self.m_current_file_path, self.m_nninfo_weight_pt_file)
             os.system("cp  %s  %s" % (pt_path, self.m_current_code_folder))
             str = ''
@@ -1037,7 +1038,8 @@ class CodeGen:
         if not os.path.exists(self.m_current_code_folder):
             os.makedirs(self.m_current_code_folder)
 
-        if self.m_deploy_type == 'cloud' or self.m_deploy_type == 'pc_server':
+        if (self.m_deploy_type == 'cloud' or self.m_deploy_type == 'kt_cloud' 
+            or self.m_deploy_type == 'aws' or self.m_deploy_type == 'gcp' or self.m_deploy_type == 'pc_server'):
             self.m_sysinfo_libs = ['python==3.8']
             self.m_sysinfo_apt = ['vim', 'tensorrt', 'libgl1-mesa-glx']
             self.m_sysinfo_papi = ["cython", "numpy<17", "imutils", "flask",
@@ -1046,7 +1048,7 @@ class CodeGen:
                 "seaborn", "requests", 
                 "werkzeug", "torch", "torchvision", "python-math",  
                 "albumentations", "pathlib"]
-            self.m_deploy_entrypoint = ['python', 'output.py']
+            self.m_deploy_entrypoint = ['python', './output.py']
             # web폴더 복사후 .db화일 삭제 
             os.system("cp -r ./db/trtweb/* %s" % self.m_current_code_folder) 
             os.system("rm %s/*.db" % self.m_current_code_folder) 
@@ -1150,7 +1152,7 @@ class CodeGen:
                 "pandas", "tqdm", "seaborn", "requests", 
                 "werkzeug", "torch", "torchvision", "python-math",  
                 "albumentations", "pathlib"]
-            self.m_deploy_entrypoint = ['python', 'output.py']
+            self.m_deploy_entrypoint = ['python', './output.py']
             # index.db 가속기 고려 코드 생성 후 index.py로 복사
             str = ''
             str += "def_port_num = %d\n" %  self.m_deploy_network_serviceport 
@@ -1245,7 +1247,7 @@ class CodeGen:
                 "pandas", "tqdm", "seaborn", "requests", 
                 "werkzeug", "torch", "torchvision", "python-math",  
                 "albumentations", "pathlib"]
-            self.m_deploy_entrypoint = ['python', 'output.py']
+            self.m_deploy_entrypoint = ['python', './output.py']
             # onnx 화일 복사   
             onnx_path = "%s%s" % (self.m_current_file_path, self.m_nninfo_weight_onnx_file)
             os.system("cp  %s  %s" % (onnx_path, self.m_current_code_folder))
@@ -1329,7 +1331,7 @@ class CodeGen:
         self.m_sysinfo_libs = ['python==3.8']
         self.m_sysinfo_apt = []
         self.m_sysinfo_papi = []
-        self.m_deploy_entrypoint = ['python', 'output.py']
+        self.m_deploy_entrypoint = ['python', './output.py']
         str = ''
         str += "def_mod_path = 'yolov9-tvm.model'\n" 
         str += "def_param_path = 'yolov9-tvm.param'\n" 
@@ -1413,7 +1415,8 @@ class CodeGen:
 
     ####################################################################
     def make_deployment_yaml(self):  # entry point , work dir
-        if self.m_deploy_type == 'cloud':
+        if (self.m_deploy_type == 'cloud' or self.m_deploy_type == 'kt_cloud' 
+            or self.m_deploy_type == 'aws' or self.m_deploy_type == 'gcp'):
             self.make_deploayment_cloud_yaml() 
         elif self.m_deploy_type == 'k8s':
             self.make_deploayment_k8s_yaml() 
@@ -1435,8 +1438,31 @@ class CodeGen:
                    "os": self.m_sysinfo_os_type,
                    "image_uri": 'us-docker.pkg.dev/cloudrun/container/hello:latest',
                    "components": t_com }
-        t_deploy = {"type": 'docker',
-                    "service_name": "hello",
+        if self.m_deploy_type == 'kt_cloud':
+            my_type = self.m_deploy_type
+            t_deploy = {"type": my_type,
+                    "service_name": "nn_model",
+                    # "workdir": "/workspace",
+                    "entrypoint": self.m_deploy_entrypoint, 
+                    "network": {"service_host_ip": self.m_deploy_network_hostip,
+                                "service_host_port": self.m_deploy_network_hostport,
+                                "service_container_port": self.m_deploy_network_serviceport}}
+        elif self.m_deploy_type == 'aws' or self.m_deploy_type == 'cloud':
+            my_type = self.m_deploy_type 
+            t_deploy = {"type": my_type,
+                    "service_name": "nn_model",
+                    "entrypoint": self.m_deploy_entrypoint, 
+                    "network": {"service_host_ip": self.m_deploy_network_hostip,
+                                "service_host_port": self.m_deploy_network_hostport,
+                                "service_container_port": self.m_deploy_network_serviceport},
+                    'awsvpc': { 'assign_publicip': 'ENABLED',
+                                'subnets': 'subnet-aaaa',
+                                'security_groups': 'sg-xxxx'},
+                    'execution_role_arn': 'arn:aws:iam::sssd:role/ecsTaskExecutionRole'}
+        elif self.m_deploy_type == 'gcp':
+            my_type = self.m_deploy_type
+            t_deploy = {"type": my_type,
+                    "service_name": "nn_model",
                     # "workdir": "/workspace",
                     "entrypoint": self.m_deploy_entrypoint, 
                     "network": {"service_host_ip": self.m_deploy_network_hostip,
