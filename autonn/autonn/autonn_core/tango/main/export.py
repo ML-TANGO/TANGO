@@ -1,5 +1,6 @@
 import logging
-import argparse
+logger = logging.getLogger(__name__)
+
 import contextlib
 import json
 import yaml
@@ -7,11 +8,10 @@ import os
 import platform
 import re
 import subprocess
-import sys
 import time
+from datetime import datetime
 import warnings
 from pathlib import Path
-
 import pandas as pd
 import torch
 from torch.utils.mobile_optimizer import optimize_for_mobile
@@ -20,7 +20,6 @@ from tango.common.models.experimental import attempt_load, End2End
 from tango.common.models.yolo import    (   Detect,
                                             DDetect,
                                             DualDDetect,
-                                            TripleDDetect,
                                             IDetect,
                                             IKeypoint,
                                             IAuxDetect,
@@ -35,24 +34,23 @@ from tango.utils.general import (   check_dataset,
                                 )
 from tango.utils.torch_utils import select_device
 
-logger = logging.getLogger(__name__)
+
+
 
 def export_formats():
     # YOLO export formats
     x = [
-        ['PyTorch', '-', '.pt', True, True],
-        ['TorchScript', 'torchscript', '.torchscript', True, True],
-        ['ONNX', 'onnx', '.onnx', True, True],
-        ['ONNX END2END', 'onnx_end2end', '-end2end.onnx', True, True],
-        ['OpenVINO', 'openvino', '_openvino_model', True, False],
-        ['TensorRT', 'engine', '.engine', False, True],
-        ['CoreML', 'coreml', '.mlmodel', True, False],
-        ['TensorFlow SavedModel', 'saved_model', '_saved_model', True, True],
-        ['TensorFlow GraphDef', 'pb', '.pb', True, True],
-        ['TensorFlow Lite', 'tflite', '.tflite', True, False],
-        ['TensorFlow Edge TPU', 'edgetpu', '_edgetpu.tflite', False, False],
-        ['TensorFlow.js', 'tfjs', '_web_model', False, False],
-        ['PaddlePaddle', 'paddle', '_paddle_model', True, True],]
+            ['PyTorch', '-', '.pt', True, True],
+            ['TorchScript', 'torchscript', '.torchscript', True, True],
+            ['ONNX', 'onnx', '.onnx', True, True],
+            ['ONNX END2END', 'onnx_end2end', '-end2end.onnx', True, True],
+            ['OpenVINO', 'openvino', '_openvino_model', True, False],
+            ['TensorRT', 'engine', '.engine', False, True],
+            ['TensorFlow SavedModel', 'saved_model', '_saved_model', True, True],
+            ['TensorFlow GraphDef', 'pb', '.pb', True, True],
+            ['TensorFlow Lite', 'tflite', '.tflite', True, False],
+            ['TensorFlow Edge TPU', 'edgetpu', '_edgetpu.tflite', False, False],
+        ]
     return pd.DataFrame(x, columns=['Format', 'Argument', 'Suffix', 'CPU', 'GPU'])
 
 
@@ -72,16 +70,14 @@ def export_torchscript(model, im, file, optimize, task='detection', prefix=color
             optimize_for_mobile(ts)._save_for_lite_interpreter(str(f), _extra_files=extra_files)
         else:
             ts.save(str(f), _extra_files=extra_files)
-        logger.info('Model Exporter: TorchScript export success, saved as %s' % f)
+        logger.info(f'Model Exporter: {colorstr("TorchScript ")}export success, saved as {f}')
         return f, ts
     except Exception as e:
-        logger.warn('Model Exporter: TorchScript export failure: %s' % e)
+        logger.warning(f'Model Exporter: {colorstr("TorchScript ")}export failure: {e}')
         return None, None
 
 
 def export_onnx(model, im, file, opset, dynamic, simplify, task='detection', prefix=colorstr('ONNX:')):
-    # YOLO ONNX export
-    # check_requirements('onnx')
     import onnx
     logger.info(f'\nModel Exporter: {prefix} Starting export with onnx {onnx.__version__}...')
 
@@ -127,23 +123,22 @@ def export_onnx(model, im, file, opset, dynamic, simplify, task='detection', pre
         # Simplify
         if simplify:
             try:
-                cuda = torch.cuda.is_available()
-                # check_requirements(('onnxruntime-gpu' if cuda else 'onnxruntime', 'onnx-simplifier>=0.4.1'))
                 import onnxsim
-
                 logger.info(f'Model Exporter: {prefix} simplifying with onnx-simplifier {onnxsim.__version__}...')
                 model_onnx, check = onnxsim.simplify(model_onnx)
                 assert check, 'assert check failed'
-                # onnx.save(model_onnx, f)
                 logger.info(f'Model Exporter: {prefix} simplifier success')
+                # import onnxslim
+                # logger.info(f'Model Exporter: {prefix} slimming with onnxlim {onnxslim.__version__}...')
+                # model_onnx = onnxslim.slim(model_onnx)
             except Exception as e:
                 logger.warn(f'Model Exporter: {prefix} simplifier failure: {e}')
 
         onnx.save(model_onnx, f)
-        logger.info('Model Exporter: ONNX export success, saved as %s' % f)
+        logger.info(f'Model Exporter: {colorstr("ONNX ")}export success, saved as {f}')
         return f, model_onnx
     except Exception as e:
-        logger.warn('Model Exporter: ONNX export failure: %s' % e)
+        logger.warn(f'Model Exporter: {colorstr("ONNX ")}export failure: {e}')
         return None, None
 
 
@@ -214,10 +209,10 @@ def export_onnx_end2end(model,
 
         # print(onnx.helper.printable_graph(onnx_model.graph))  # print a human readable model
         onnx.save(model_onnx,f)
-        logger.info('Model Exporter: ONNX END2END export success, saved as %s' % f)
+        logger.info(f'Model Exporter: {colorstr("ONNX END2END ")}export success, saved as {f}')
         return f, model_onnx
     except Exception as e:
-        logger.warn('Model Exporter: ONNX END2END export failure: %s' % e)
+        logger.warning(f'Model Exporter: {colorstr("ONNX END2END ")}export failure: {e}')
         return None, None
 
 
@@ -323,56 +318,57 @@ def export_tensorrt(model,
         return None, None
 
 
-def export_tf_saved_model(model,
-                          im,
-                          file,
-                          dynamic,
-                          tf_nms=False,
-                          agnostic_nms=False,
-                          topk_per_class=100,
-                          topk_all=100,
-                          iou_thres=0.45,
-                          conf_thres=0.25,
-                          keras=False,
-                          prefix=colorstr('TensorFlow SavedModel:')):
-    # YOLO TensorFlow SavedModel export
+def export_tf(f_onnx, metadata, int8, prefix=colorstr("TF Saved Model:")):
+    # import tensorflow as tf
+    # import numpy as np
+    import onnx2tf
+    import shutil
+
     try:
-        import tensorflow as tf
-    except Exception:
-        # check_requirements(f"tensorflow{'' if torch.cuda.is_available() else '-macos' if MACOS else '-cpu'}")
-        # import tensorflow as tf
-        logger.warn(f'{prefix} tensorflow import failure')
-        return None, None
-    from tensorflow.python.framework.convert_to_constants import convert_variables_to_constants_v2
+        f = Path(str(f_onnx).replace('.onnx', '_saved_model'))
+        if f.is_dir():
+            shutil.rmtree(f)  # delete output folder
+        
+        # onnx2tf_file = Path("calibration_image_sample_data_20x128x128x3_float32.npy")
+        # if not onnx2tf_file.exists():
+        #     logger.warning(f"Model Exporter: {prefix} {onnx2tf_file} does not exist.")
+        
+        np_data = None
+        if int8:
+            tmp_file = f / "tmp_tflite_int8_calibration_images.npy"  # int8 calibration images file
+        
+        logger.info(f"\nModel Exporter: {prefix} Starting export with onnx2tf {onnx2tf.__version__}...")
+        keras_model = onnx2tf.convert(
+            input_onnx_file_path=f_onnx,
+            output_folder_path=str(f),
+            not_use_onnxsim=True,
+            verbosity="error",  # note INT8-FP16 activation bug https://github.com/ultralytics/ultralytics/issues/15873
+            output_integer_quantized_tflite=int8,
+            quant_type="per-tensor",  # "per-tensor" (faster) or "per-channel" (slower but more accurate)
+            custom_input_op_name_np_data_path=np_data,
+            disable_group_convolution=True,  # for end-to-end model compatibility
+            enable_batchmatmul_unfold=True,  # for end-to-end model compatibility
+        )
+        with open(f / "metadata.yaml", 'w') as yaml_file:
+            yaml.safe_dump({k: str(v) if isinstance(v, Path) else v for k, v in metadata.items()}, yaml_file, sort_keys=False)
 
-    from tango.common.models.tf import TFModel
+        # Remove/rename TFLite model
+        if int8:
+            tmp_file.unlink(missing_ok=True)
+            for file in f.rglob("*_dynamic_range_quant.tflite"):
+                file.rename(file.with_name(file.stem.replace("_dynamic_range_quant", "_drq_int8") + file.suffix))
+            for file in f.rglob("*_full_integer_quant.tflite"):
+                file.rename(file.with_name(file.stem.replace("_full_integer_quant", "_fiq_int8") + file.suffix))
+            for file in f.rglob("*_integer_quant_with_int16_act.tflite"):
+                file.unlink()  # delete extra fp16 activation TFLite files
 
-    logger.info(f'{prefix} starting export with tensorflow {tf.__version__}...')
-    f = str(file).replace('.pt', '_saved_model')
-    batch_size, ch, *imgsz = list(im.shape)  # BCHW
-
-    tf_model = TFModel(cfg=model.yaml, model=model, nc=model.nc, imgsz=imgsz)
-    im = tf.zeros((batch_size, *imgsz, ch))  # BHWC order for TensorFlow
-    _ = tf_model.predict(im, tf_nms, agnostic_nms, topk_per_class, topk_all, iou_thres, conf_thres)
-    inputs = tf.keras.Input(shape=(*imgsz, ch), batch_size=None if dynamic else batch_size)
-    outputs = tf_model.predict(inputs, tf_nms, agnostic_nms, topk_per_class, topk_all, iou_thres, conf_thres)
-    keras_model = tf.keras.Model(inputs=inputs, outputs=outputs)
-    keras_model.trainable = False
-    keras_model.summary()
-    if keras:
-        keras_model.save(f, save_format='tf')
-    else:
-        spec = tf.TensorSpec(keras_model.inputs[0].shape, keras_model.inputs[0].dtype)
-        m = tf.function(lambda x: keras_model(x))  # full model
-        m = m.get_concrete_function(spec)
-        frozen_func = convert_variables_to_constants_v2(m)
-        tfm = tf.Module()
-        tfm.__call__ = tf.function(lambda x: frozen_func(x)[:4] if tf_nms else frozen_func(x), [spec])
-        tfm.__call__(im)
-        tf.saved_model.save(tfm,
-                            f,
-                            options=tf.saved_model.SaveOptions(experimental_custom_gradients=False) if check_version(
-                                tf.__version__, '2.6') else tf.saved_model.SaveOptions())
+        # Add TFLite metadata
+        for file in f.rglob("*.tflite"):
+            f.unlink() if "quant_with_int16_act.tflite" in str(f) else add_tflite_metadata(file, metadata)
+        
+        logger.info(f'Model Exporter: {prefix} export success, saved as {f}')
+    except Exception as e:
+        logger.info(f'Model Exporter: {prefix} export failure: {e}')
     return f, keras_model
 
 
@@ -381,119 +377,120 @@ def export_tf_pb(keras_model, file, prefix=colorstr('TensorFlow GraphDef:')):
     import tensorflow as tf
     from tensorflow.python.framework.convert_to_constants import convert_variables_to_constants_v2
 
-    logger.info(f'{prefix} starting export with tensorflow {tf.__version__}...')
-    f = file.with_suffix('.pb')
+    try:
+        logger.info(f'\nModel Exporter: {prefix} Starting export with tensorflow {tf.__version__}...')
+        f = file.with_suffix('.pb')
 
-    m = tf.function(lambda x: keras_model(x))  # full model
-    m = m.get_concrete_function(tf.TensorSpec(keras_model.inputs[0].shape, keras_model.inputs[0].dtype))
-    frozen_func = convert_variables_to_constants_v2(m)
-    frozen_func.graph.as_graph_def()
-    tf.io.write_graph(graph_or_graph_def=frozen_func.graph, logdir=str(f.parent), name=f.name, as_text=False)
+        m = tf.function(lambda x: keras_model(x))  # full model
+        m = m.get_concrete_function(tf.TensorSpec(keras_model.inputs[0].shape, keras_model.inputs[0].dtype))
+        frozen_func = convert_variables_to_constants_v2(m)
+        frozen_func.graph.as_graph_def()
+        tf.io.write_graph(graph_or_graph_def=frozen_func.graph, logdir=str(f.parent), name=f.name, as_text=False)
+        logger.info(f'Model Exporter: {prefix} export success, saved as {f}')
+    except Exception as e:
+        logger.info(f'Model Exporter: {prefix} export failure: {e}')
     return f, None
 
 
-def export_tflite(keras_model, im, file, int8, data, nms, agnostic_nms, prefix=colorstr('TensorFlow Lite:')):
-    # YOLOv5 TensorFlow Lite export
+def export_tflite(file, half, prefix=colorstr("TensorFlow Lite:")):
     import tensorflow as tf
-
-    logger.info(f'\n{prefix} starting export with tensorflow {tf.__version__}...')
-    batch_size, ch, *imgsz = list(im.shape)  # BCHW
-    f = str(file).replace('.pt', '-fp16.tflite')
-
-    converter = tf.lite.TFLiteConverter.from_keras_model(keras_model)
-    converter.target_spec.supported_ops = [tf.lite.OpsSet.TFLITE_BUILTINS]
-    converter.target_spec.supported_types = [tf.float16]
-    converter.optimizations = [tf.lite.Optimize.DEFAULT]
-    if int8:
-        # from models.tf import representative_dataset_gen
-        # dataset = LoadImages(check_dataset(check_yaml(data))['train'], img_size=imgsz, auto=False)
-        # converter.representative_dataset = lambda: representative_dataset_gen(dataset, ncalib=100)
-        converter.target_spec.supported_ops = [tf.lite.OpsSet.TFLITE_BUILTINS_INT8]
-        converter.target_spec.supported_types = []
-        converter.inference_input_type = tf.uint8  # or tf.int8
-        converter.inference_output_type = tf.uint8  # or tf.int8
-        converter.experimental_new_quantizer = True
-        f = str(file).replace('.pt', '-int8.tflite')
-    if nms or agnostic_nms:
-        converter.target_spec.supported_ops.append(tf.lite.OpsSet.SELECT_TF_OPS)
-
-    tflite_model = converter.convert()
-    open(f, "wb").write(tflite_model)
-    return f, None
+    import shutil
+    logger.info(f'\nModel Exporter: {prefix} Starting export with tensorflow {tf.__version__}...')
+    try:
+        saved_model = Path(str(file).replace(file.suffix, "_saved_model"))
+        if half:
+            f = saved_model / f"{file.stem}_float16.tflite"     # fp16 weights, fp32 in/out
+        else:
+            f = saved_model / f"{file.stem}_float32.tflite"     # fp32 weights, fp32 in/out
+        # f = saved_model / f"{file.stem}_drq_int8.tflite"    # dynamic range quantization: int8 weigths, fp32 in/out
+        # f = saved_model / f"{file.stem}_fiq_int8.tflite"    # full integer quantization: int8 weights, int8 in/out
+        f_tflite = file.with_suffix('.tflite')
+        shutil.copyfile(str(f), f_tflite)
+        logger.info(f'Model Exporter: {prefix} export success, saved as {f_tflite}')
+    except Exception as e:
+        logger.warning(f'Model Exporter: {prefix} export failure: {e}')
+    return f_tflite, None
 
 
-def export_edgetpu(file, prefix=colorstr('Edge TPU:')):
+def export_edgetpu(tflite_model, prefix=colorstr('Edge TPU:')):
     # YOLO Edge TPU export https://coral.ai/docs/edgetpu/models-intro/
-    cmd = 'edgetpu_compiler --version'
-    help_url = 'https://coral.ai/docs/edgetpu/compiler/'
-    assert platform.system() == 'Linux', f'export only supported on Linux. See {help_url}'
-    if subprocess.run(f'{cmd} >/dev/null', shell=True).returncode != 0:
-        logger.info(f'\n{prefix} export requires Edge TPU compiler. Attempting install from {help_url}')
-        sudo = subprocess.run('sudo --version >/dev/null', shell=True).returncode == 0  # sudo installed on system
-        for c in (
-                'curl https://packages.cloud.google.com/apt/doc/apt-key.gpg | sudo apt-key add -',
-                'echo "deb https://packages.cloud.google.com/apt coral-edgetpu-stable main" | sudo tee /etc/apt/sources.list.d/coral-edgetpu.list',
-                'sudo apt-get update', 'sudo apt-get install edgetpu-compiler'):
-            subprocess.run(c if sudo else c.replace('sudo ', ''), shell=True, check=True)
-    ver = subprocess.run(cmd, shell=True, capture_output=True, check=True).stdout.decode().split()[-1]
+    try:
+        cmd = 'edgetpu_compiler --version'
+        help_url = 'https://coral.ai/docs/edgetpu/compiler/'
+        assert platform.system() == 'Linux', f'export only supported on Linux. See {help_url}'
+        if subprocess.run(f'{cmd} >/dev/null', shell=True).returncode != 0:
+            logger.info(f'\n{prefix} export requires Edge TPU compiler. Attempting install from {help_url}')
+            sudo = subprocess.run('sudo --version >/dev/null', shell=True).returncode == 0  # sudo installed on system
+            for c in (
+                "curl https://packages.cloud.google.com/apt/doc/apt-key.gpg | sudo apt-key add -",
+                'echo "deb https://packages.cloud.google.com/apt coral-edgetpu-stable main" | '
+                "sudo tee /etc/apt/sources.list.d/coral-edgetpu.list",
+                "sudo apt-get update",
+                "sudo apt-get install edgetpu-compiler",
+            ):
+                subprocess.run(c if sudo else c.replace('sudo ', ''), shell=True, check=True)
+        ver = subprocess.run(cmd, shell=True, capture_output=True, check=True).stdout.decode().split()[-1]
 
-    logger.info(f'\n{prefix} starting export with Edge TPU compiler {ver}...')
-    f = str(file).replace('.pt', '-_edgetpu.tflite')  # Edge TPU model
-    f_tfl = str(file).replace('.pt', '.tflite')  # TFLite model
+        logger.info(f'\nModel Exporter: {prefix} starting export with Edge TPU compiler {ver}...')
+        f = str(tflite_model).replace(".tflite", "_edgetpu.tflite")  # Edge TPU model
 
-    cmd = f"edgetpu_compiler -s -d -k 10 --out_dir {file.parent} {f_tfl}"
-    subprocess.run(cmd.split(), check=True)
-    return f, None
-
-
-def export_tf_js(file, prefix=colorstr('TensorFlow.js:')):
-    # YOLO TensorFlow.js export
-    check_requirements('tensorflowjs')
-    import tensorflowjs as tfjs
-
-    logger.info(f'\n{prefix} starting export with tensorflowjs {tfjs.__version__}...')
-    f = str(file).replace('.pt', '_web_model')  # js dir
-    f_pb = file.with_suffix('.pb')  # *.pb path
-    f_json = f'{f}/model.json'  # *.json path
-
-    cmd = f'tensorflowjs_converter --input_format=tf_frozen_model ' \
-          f'--output_node_names=Identity,Identity_1,Identity_2,Identity_3 {f_pb} {f}'
-    subprocess.run(cmd.split())
-
-    json = Path(f_json).read_text()
-    with open(f_json, 'w') as j:  # sort JSON Identity_* in ascending order
-        subst = re.sub(
-            r'{"outputs": {"Identity.?.?": {"name": "Identity.?.?"}, '
-            r'"Identity.?.?": {"name": "Identity.?.?"}, '
-            r'"Identity.?.?": {"name": "Identity.?.?"}, '
-            r'"Identity.?.?": {"name": "Identity.?.?"}}}', r'{"outputs": {"Identity": {"name": "Identity"}, '
-            r'"Identity_1": {"name": "Identity_1"}, '
-            r'"Identity_2": {"name": "Identity_2"}, '
-            r'"Identity_3": {"name": "Identity_3"}}}', json)
-        j.write(subst)
-    return f, None
+        cmd = (
+            "edgetpu_compiler "
+            f'--out_dir {str(Path(f).parent)} '
+            "--show_operations "
+            "--search_delegate "
+            "--delegate_search_step 30 "
+            "--timeout_sec 180 "
+            f'{str(tflite_model)}'
+        )
+        subprocess.run(cmd.split(), check=True)
+        logger.info(f'Model Exporter: {prefix} export success, saved as {f}')
+    except Exception as e:
+        logger.info(f'Model Exporter: {prefix} export failure: {e}')
+    return str(f), None
 
 
-def add_tflite_metadata(file, metadata, num_outputs):
+def add_tflite_metadata(file, metadata):
     # Add metadata to *.tflite models per https://www.tensorflow.org/lite/models/convert/metadata
     with contextlib.suppress(ImportError):
-        # check_requirements('tflite_support')
-        from tflite_support import flatbuffers
+        import flatbuffers
+        # from tflite_support import flatbuffers
         from tflite_support import metadata as _metadata
         from tflite_support import metadata_schema_py_generated as _metadata_fb
 
-        tmp_file = Path('/tmp/meta.txt')
-        with open(tmp_file, 'w') as meta_f:
-            meta_f.write(str(metadata))
+        # tmp_file = Path('/tmp/meta.txt')
+        tmp_file = Path(file).parent / "temp_meta.txt"
+        with open(tmp_file, 'w') as f_meta:
+            f_meta.write(str(metadata))
 
         model_meta = _metadata_fb.ModelMetadataT()
+        model_meta.name = metadata['description']
+        model_meta.version = metadata['version']
+        model_meta.author = metadata['author']
+        model_meta.license = metadata['license']
+
         label_file = _metadata_fb.AssociatedFileT()
         label_file.name = tmp_file.name
-        model_meta.associatedFiles = [label_file]
+        label_file.type = _metadata_fb.AssociatedFileType.TENSOR_AXIS_LABELS
+
+        # model_meta.associatedFiles = [label_file]
+
+        input_meta = _metadata_fb.TensorMetadataT()
+        input_meta.name = 'image'
+        input_meta.desciption = 'Input image'
+        input_meta.content = _metadata_fb.ContentT()
+        input_meta.content.contentProperties = _metadata_fb.ImagePropertiesT()
+        input_meta.content.contentProperties.colorSpace = _metadata_fb.ColorSpaceType.RGB
+        input_meta.content.contentPropertiesType = _metadata_fb.ContentProperties.ImageProperties
+
+        output_meta = _metadata_fb.TensorMetadataT()
+        output_meta.name = "output"
+        output_meta.description = "Box coordinates and class labels"
+        output_meta.associatedFiles = [label_file]
 
         subgraph = _metadata_fb.SubGraphMetadataT()
-        subgraph.inputTensorMetadata = [_metadata_fb.TensorMetadataT()]
-        subgraph.outputTensorMetadata = [_metadata_fb.TensorMetadataT()] * num_outputs
+        subgraph.inputTensorMetadata = [input_meta]
+        subgraph.outputTensorMetadata = [output_meta]
         model_meta.subgraphMetadata = [subgraph]
 
         b = flatbuffers.Builder(0)
@@ -508,28 +505,15 @@ def add_tflite_metadata(file, metadata, num_outputs):
 
 
 def export_config(src, dst, data, base, device, engine, task='detection'):
-    logger.info(f'\nModel Exporter: Creating meta data...')
+    logger.info(f'\n{colorstr("Model Exporter: ")}Creating meta data...')
     nn_dict = {}
 
     # NN Model
-    if engine == 'pytorch':
+    config = ''
+    if task == 'classification':
+        weight = 'bestmodel.pt'
+    else: # if task == 'detection'
         weight = ['bestmodel.torchscript', 'bestmodel.onnx']
-        config = ''
-    elif engine == 'tensorrt':
-        weight = ['bestmodel.torchscript', 'bestmodel.onnx', 'bestmodel.engine']
-        config = ''
-    elif engine == 'acl':
-        weight = ['bestmodel.onnx']
-        config = ''
-    elif engine == 'tvm':
-        weight = ['bestmodel.onnx']
-        config = ''
-    elif engine == 'tflite':
-        weight = ['bestmodel.onnx', 'bestmodel.tflite']
-        config = ''
-    else:
-        engine = ['bestmodel.torchscript', 'bestmodel.onnx']
-        config = ''
     nn_dict['weight_file'] = weight
     nn_dict['config_file'] = config # not neccessary
 
@@ -553,10 +537,10 @@ def export_config(src, dst, data, base, device, engine, task='detection'):
         input_data_type = 'fp32'
     else:
         input_data_type = 'fp16'
-    anchors = base.get('anchors')
+    anchors = base.get('anchors', None)
     if (not anchors or anchors == 'None') and task == 'detection':
         # logger.warn(f'Model Exporter: not found anchor imformation')
-        logger.info(f'Model Exporter: Anchor-free detection heads')
+        logger.info(f'{colorstr("Model Exporter: ")}Anchor-free detection heads')
 
     nn_dict['input_tensor_shape'] = input_tensor_shape
     nn_dict['input_data_type'] = input_data_type
@@ -626,7 +610,7 @@ def export_config(src, dst, data, base, device, engine, task='detection'):
     # pprint.pprint(nn_dict)
     # print('-'*100)
 
-    logger.info(f"Model Exporter: NN meta information export success, saved as {dst}")
+    logger.info(f'{colorstr("Model Exporter: ")}NN meta information export success, saved as {dst}')
     logger.info('-'*100)
 
 
@@ -635,16 +619,15 @@ def export_weight(weights, device, include, task='detection', ch=3, imgsz=[640,6
     fmts = tuple(export_formats()['Argument'][1:])
     flags = [x in include for x in fmts]
     assert sum(flags) == len(include), f'ERROR: Invalid --include {include}, valid --include arguments are {fmts}'
-    jit, onnx, onnx_end2end, xml, engine, coreml, saved_model, pb, tflite, edgetpu, tfjs, paddle = flags  # export booleans
-    # file = Path(url2file(weights) if str(weights).startswith(('http:/', 'https:/')) else weights)  # PyTorch weights
+    jit, onnx, onnx_end2end, xml, engine, saved_model, pb, tflite, edgetpu = flags  # export booleans
     file = Path(weights)
 
     # options ----------------------------------------------------------------------------------------------------------
     # imgsz = [640, 640]  # input image size
     batch_size = 1      # inference batch size
-    inplace = True      # YOLO Detect(): set to compute tensors w/o copy
+    inplace = True      # Detect(): set to compute tensors w/o copy
     half = True         # FP16 quantization / GPU only
-    int8 = False        # CoreML/TF: INT8 quantization
+    int8 = False        # TF: INT8 quantization
     dynamic = False     # ONNX/TF/TensorRT: dynamic input sizes
     simplify = True     # ONNX/ONNX-E2E/TensorRT: simplifies the graph for onnx (TensorRT requires ONNX first)
     opset = 12          # ONNX: operator-set version
@@ -653,21 +636,18 @@ def export_weight(weights, device, include, task='detection', ch=3, imgsz=[640,6
     nms = False         # TF: add nms
     agnostic_nms = True # TF: add nms to tensorflow
     optimize = False    # TorchScript: mobile optimization / CPU only
-    keras = False       # TF: save keras model as well
-    topk_per_class= 100 # TF.js: nms - top-k per class to keep
-    topk_all = 100      # ONNX-E2E/TF.js: nms -  top-k for all classes to keep
-    iou_thres = 0.45    # ONNX-E2E/TF.js: nms -  iou threshold
-    conf_thres = 0.25   # ONNX-E2E/TF.js: nms -  confidence threshold
+    topk_all = 100      # ONNX-E2E: nms -  top-k for all classes to keep
+    iou_thres = 0.45    # ONNX-E2E: nms -  iou threshold
+    conf_thres = 0.25   # ONNX-E2E: nms -  confidence threshold
     #-------------------------------------------------------------------------------------------------------------------
 
     # Load PyTorch model
-    # device = select_device(device)
     device = torch.device('cuda:0' if device == 'cuda' else 'cpu')
     if half and device.type == 'cpu':
-        logger.warn(f'Model Exporter: --half only compatible with GPU export, ignore --half')
+        logger.warning(f'{colorstr("Model Exporter: ")}--half only compatible with GPU export, ignore --half')
         half = False
     if half and dynamic:
-        logger.warn(f'Model Exporter: --half not compatible with --dynamic, ignore --dynamic')
+        logger.warning(f'{colorstr("Model Exporter: ")}--half not compatible with --dynamic, ignore --dynamic')
         dynamic = False
     model = attempt_load(weights, map_location=device)  # load FP32 model
     logger.debug(model)
@@ -676,7 +656,8 @@ def export_weight(weights, device, include, task='detection', ch=3, imgsz=[640,6
     imgsz = [imgsz] if isinstance(imgsz, int) else imgsz
     imgsz *= 2 if len(imgsz) == 1 else 1  # expand
     if optimize:
-        assert device.type == 'cpu', '--optimize not compatible with cuda devices, i.e. use --device cpu'
+        if device.type != 'cpu':
+            logger.warning(f'{colorstr("Model Exporter: ")}--optimize not compatible with cuda devices, i.e. use --device cpu')
     # Input
     if task == 'detection':
         gs = int(max(model.stride))  # grid size (max stride)
@@ -689,7 +670,7 @@ def export_weight(weights, device, include, task='detection', ch=3, imgsz=[640,6
     # Update model
     model.eval()
     v9 = False
-    for k, m in model.named_modules():
+    for _, m in model.named_modules():
         if isinstance(m, (Detect, DDetect, DualDDetect, DualDDetect)):
             m.inplace = inplace
             m.dynamic = dynamic
@@ -707,7 +688,7 @@ def export_weight(weights, device, include, task='detection', ch=3, imgsz=[640,6
 
     for _ in range(2):
         y = model(im)  # dry runs
-    if half and not coreml:
+    if half:
         im, model = im.half(), model.half()  # to FP16
 
     shape = []
@@ -719,11 +700,36 @@ def export_weight(weights, device, include, task='detection', ch=3, imgsz=[640,6
                 shape.append(yi.shape)
         else:
             shape.append(y.shape)
+    
     if task == 'detection':
-        metadata = {'stride': int(max(model.stride)), 'names': model.names}  # model metadata
+        ver = 'v9' if v9 else 'v7'
+        metadata = {
+            'description': f'TANGO YOLO{ver}-based model',
+            'author': 'ETRI',
+            'date': datetime.now().isoformat(),
+            'version': 'tango-24.11',
+            'license': 'GNU General Public License v3.0 or later(GPLv3)',
+            'docs': 'https://github.com/ML-TANGO/TANGO/wiki',
+            'stride': int(max(model.stride)),
+            'task': 'detect',
+            'batch': batch_size,
+            'imgsz': imgsz,
+            'names': model.names
+        }  # model metadata
     elif task == 'classification':
-        metadata = {'names': model.names}  # model metadata
-    # logger.info(f"\n{colorstr('PyTorch:')} starting from {file} with output shape {shape} ({file_size(file):.1f} MB)")
+        metadata = {
+            'description': 'TANGO ResNet-based model',
+            'author': 'ETRI',
+            'date': datetime.now().isoformat(),
+            'version': 'tango-24.11',
+            'license': 'GNU General Public License v3.0 or later(GPLv3)',
+            'docs': 'https://github.com/ML-TANGO/TANGO/wiki',
+            'stride': '',
+            'task': 'classify',
+            'batch': batch_size,
+            'imgsz': imgsz,
+            'names': model.names
+        }  # model metadata
     logger.info(f"{colorstr('Model Exporter:')} Starting from {file} with output shape {shape} ({os.path.getsize(file) / 1E6:.1f} MB)")
 
     # Exports
@@ -731,75 +737,259 @@ def export_weight(weights, device, include, task='detection', ch=3, imgsz=[640,6
     warnings.filterwarnings(action='ignore', category=torch.jit.TracerWarning)  # suppress TracerWarning
     warnings.filterwarnings("ignore", category=FutureWarning) # torch.onnx.__patch_torch.__graph_op will be deprecated
     if jit:  # TorchScript
-        f[0], ts_model = export_torchscript(model, im, file, optimize, task=task)
+        f[0], _ = export_torchscript(model, im, file, optimize, task=task)
         logger.info('-'*100)
     if engine:  # TensorRT required ONNX
-        f[1], rt_model = export_tensorrt(model, im, file, half, dynamic, simplify, workspace, verbose=verbose)
+        f[1], _ = export_tensorrt(model, im, file, half, dynamic, simplify, workspace, verbose=verbose)
         logger.info('-'*100)
     if onnx or xml:  # OpenVINO requires ONNX
         f[2], _ = export_onnx(model, im, file, opset, dynamic, simplify, task=task)
         logger.info('-'*100)
     if onnx_end2end:
-        # if isinstance(model, DetectionModel):
-        #     labels = model.names
-        #     f[2], onnx_model = export_onnx_end2end(model, im, file, simplify, topk_all, iou_thres, conf_thres, device, len(labels))
-        # else:
-        #     raise RuntimeError("The model is not a DetectionModel.")
         labels = model.names
-        f[2], onnx_model = export_onnx_end2end( model, 
-                                                im, 
-                                                file, 
-                                                simplify, 
-                                                topk_all, 
-                                                iou_thres, 
-                                                conf_thres, 
-                                                device, 
-                                                len(labels),
-                                                v9)
+        f[3], _ = export_onnx_end2end(model,im,file,simplify,topk_all,iou_thres,conf_thres,device,len(labels),v9)
         logger.info('-'*100)
     if xml:  # OpenVINO
-        f[3], _ = export_openvino(file, metadata, half)
+        f[4], _ = export_openvino(file, metadata, half)
         logger.info('-'*100)
-    if coreml:  # CoreML
-        f[4], _ = export_coreml(model, im, file, int8, half)
+    if any((saved_model, pb, tflite, edgetpu)):  # TensorFlow formats
+        int8 = int8 | edgetpu # edgetpu mapping reuires the int8 quantized tflite model
+        f[5], s_model = export_tf(f[2], metadata, int8)
         logger.info('-'*100)
-    if any((saved_model, pb, tflite, edgetpu, tfjs)):  # TensorFlow formats
-        assert not tflite or not tfjs, 'TFLite and TF.js models must be exported separately, please pass only one type.'
-        # assert not isinstance(model, ClassificationModel), 'ClassificationModel export to TF formats not yet supported.'
-        f[5], s_model = export_tf_saved_model(  model.cpu(),
-                                                im,
-                                                file,
-                                                dynamic,
-                                                tf_nms=nms or agnostic_nms or tfjs,
-                                                agnostic_nms=agnostic_nms or tfjs,
-                                                topk_per_class=topk_per_class,
-                                                topk_all=topk_all,
-                                                iou_thres=iou_thres,
-                                                conf_thres=conf_thres,
-                                                keras=keras)
-        logger.info('-'*100)
-        if pb or tfjs:  # pb prerequisite to tfjs
-            f[6], tf_model = export_tf_pb(s_model, file)
+        if pb:
+            f[6], _ = export_tf_pb(s_model, file)
             logger.info('-'*100)
-        if tflite or edgetpu:
-            f[7], tflite_model = export_tflite(s_model, im, file, int8 or edgetpu, data=data, nms=nms, agnostic_nms=agnostic_nms)
-            if edgetpu:
-                f[8], _ = export_edgetpu(file)
-            add_tflite_metadata(f[8] or f[7], metadata, num_outputs=len(s_model.outputs))
+        if tflite:
+            f[7], _ = export_tflite(file, half)
+            add_tflite_metadata(f[7], metadata)
             logger.info('-'*100)
-        if tfjs:
-            f[9], _ = export_tf_js(file)
+        if edgetpu:
+            tflite_model = Path(f[5]) / f"{file.stem}_fiq_int8.tflite"
+            if Path.exists(tflite_model):
+                f[8], _ = export_edgetpu(tflite_model)
+                add_tflite_metadata(f[8], metadata)
+                import shutil
+                shutil.copyfile(f[8], str(file.parent / f"{file.stem}_edgetpu.tflite"))
+            else:
+                logger.warning(f'Model Exporter: {colorstr("Edge TPU: ")}export failure: not found {str(tflite_model)}')
             logger.info('-'*100)
-    if paddle:  # PaddlePaddle
-        f[10], _ = export_paddle(model, im, file, metadata)
-        logger.info('-'*100)
 
     # Finish
-    # f = [str(x) for x in f if x]  # filter out '' and None
-    # if any(f):
-    #     logger.info(f'Modle Exporter: Export complete') # ({time.time() - t:.1f}s)')
-    #     logger.info(f"Model Exporter: Results saved to {colorstr('bold', file.parent.resolve())}\n")
-    #     logger.info(f"Visualize:       https://netron.app")
-
+    f = [str(x) for x in f if x]  # filter out '' and None
+    if any(f):
+        logger.info(f'{colorstr("Model Exporter: ")}Export complete({time.time() - t:.1f}s)')
     return f  # return list of exported files/dirs
 
+
+
+
+
+
+def convert_small_model(model, ckpt):
+    idx = 0
+    for k, v in model.state_dict().items():
+        if "model.{}.".format(idx) in k:
+            if idx < 22:
+                kr = k.replace("model.{}.".format(idx), "model.{}.".format(idx))
+                model.state_dict()[k] -= model.state_dict()[k]
+                model.state_dict()[k] += ckpt['model'].state_dict()[kr]
+                logger.debug(f"{k}: perfectly matched!!")
+            elif "model.{}.cv2.".format(idx) in k:
+                kr = k.replace("model.{}.cv2.".format(idx), "model.{}.cv4.".format(idx+7))
+                model.state_dict()[k] -= model.state_dict()[k]
+                model.state_dict()[k] += ckpt['model'].state_dict()[kr]
+                logger.debug(f"{k}: perfectly matched!!")
+            elif "model.{}.cv3.".format(idx) in k:
+                kr = k.replace("model.{}.cv3.".format(idx), "model.{}.cv5.".format(idx+7))
+                model.state_dict()[k] -= model.state_dict()[k]
+                model.state_dict()[k] += ckpt['model'].state_dict()[kr]
+                logger.debug(f"{k}: perfectly matched!!")
+            elif "model.{}.dfl.".format(idx) in k:
+                kr = k.replace("model.{}.dfl.".format(idx), "model.{}.dfl2.".format(idx+7))
+                model.state_dict()[k] -= model.state_dict()[k]
+                model.state_dict()[k] += ckpt['model'].state_dict()[kr]
+                logger.debug(f"{k}: perfectly matched!!")
+        else:
+            while True:
+                idx += 1
+                if "model.{}.".format(idx) in k:
+                    break
+            if idx < 22:
+                kr = k.replace("model.{}.".format(idx), "model.{}.".format(idx))
+                model.state_dict()[k] -= model.state_dict()[k]
+                model.state_dict()[k] += ckpt['model'].state_dict()[kr]
+                logger.debug(f"{k}: perfectly matched!!")
+            elif "model.{}.cv2.".format(idx) in k:
+                kr = k.replace("model.{}.cv2.".format(idx), "model.{}.cv4.".format(idx+7))
+                model.state_dict()[k] -= model.state_dict()[k]
+                model.state_dict()[k] += ckpt['model'].state_dict()[kr]
+                logger.debug(f"{k}: perfectly matched!!")
+            elif "model.{}.cv3.".format(idx) in k:
+                kr = k.replace("model.{}.cv3.".format(idx), "model.{}.cv5.".format(idx+7))
+                model.state_dict()[k] -= model.state_dict()[k]
+                model.state_dict()[k] += ckpt['model'].state_dict()[kr]
+                logger.debug(f"{k}: perfectly matched!!")
+            elif "model.{}.dfl.".format(idx) in k:
+                kr = k.replace("model.{}.dfl.".format(idx), "model.{}.dfl2.".format(idx+7))
+                model.state_dict()[k] -= model.state_dict()[k]
+                model.state_dict()[k] += ckpt['model'].state_dict()[kr]
+                logger.debug(f"{k}: perfectly matched!!")
+    _ = model.eval()
+    return model
+
+
+def convert_medium_model(model, ckpt):
+    idx = 0
+    for k, v in model.state_dict().items():
+        if "model.{}.".format(idx) in k:
+            if idx < 22:
+                kr = k.replace("model.{}.".format(idx), "model.{}.".format(idx+1))
+                model.state_dict()[k] -= model.state_dict()[k]
+                model.state_dict()[k] += ckpt['model'].state_dict()[kr]
+                logger.info(f"{k}: perfectly matched!!")
+            elif "model.{}.cv2.".format(idx) in k:
+                kr = k.replace("model.{}.cv2.".format(idx), "model.{}.cv4.".format(idx+16))
+                model.state_dict()[k] -= model.state_dict()[k]
+                model.state_dict()[k] += ckpt['model'].state_dict()[kr]
+                logger.info(f"{k}: perfectly matched!!")
+            elif "model.{}.cv3.".format(idx) in k:
+                kr = k.replace("model.{}.cv3.".format(idx), "model.{}.cv5.".format(idx+16))
+                model.state_dict()[k] -= model.state_dict()[k]
+                model.state_dict()[k] += ckpt['model'].state_dict()[kr]
+                logger.info(f"{k}: perfectly matched!!")
+            elif "model.{}.dfl.".format(idx) in k:
+                kr = k.replace("model.{}.dfl.".format(idx), "model.{}.dfl2.".format(idx+16))
+                model.state_dict()[k] -= model.state_dict()[k]
+                model.state_dict()[k] += ckpt['model'].state_dict()[kr]
+                logger.info(f"{k}: perfectly matched!!")
+        else:
+            while True:
+                idx += 1
+                if "model.{}.".format(idx) in k:
+                    break
+            if idx < 22:
+                kr = k.replace("model.{}.".format(idx), "model.{}.".format(idx+1))
+                model.state_dict()[k] -= model.state_dict()[k]
+                model.state_dict()[k] += ckpt['model'].state_dict()[kr]
+                logger.info(f"{k}: perfectly matched!!")
+            elif "model.{}.cv2.".format(idx) in k:
+                kr = k.replace("model.{}.cv2.".format(idx), "model.{}.cv4.".format(idx+16))
+                model.state_dict()[k] -= model.state_dict()[k]
+                model.state_dict()[k] += ckpt['model'].state_dict()[kr]
+                logger.info(f"{k}: perfectly matched!!")
+            elif "model.{}.cv3.".format(idx) in k:
+                kr = k.replace("model.{}.cv3.".format(idx), "model.{}.cv5.".format(idx+16))
+                model.state_dict()[k] -= model.state_dict()[k]
+                model.state_dict()[k] += ckpt['model'].state_dict()[kr]
+                logger.info(f"{k}: perfectly matched!!")
+            elif "model.{}.dfl.".format(idx) in k:
+                kr = k.replace("model.{}.dfl.".format(idx), "model.{}.dfl2.".format(idx+16))
+                model.state_dict()[k] -= model.state_dict()[k]
+                model.state_dict()[k] += ckpt['model'].state_dict()[kr]
+                logger.info(f"{k}: perfectly matched!!")
+    _ = model.eval()
+    return model
+
+
+def convert_large_model(model, ckpt):
+    idx = 0
+    for k, v in model.state_dict().items():
+        if "model.{}.".format(idx) in k:
+            if idx < 29:
+                kr = k.replace("model.{}.".format(idx), "model.{}.".format(idx))
+                model.state_dict()[k] -= model.state_dict()[k]
+                model.state_dict()[k] += ckpt['model'].state_dict()[kr]
+                logger.info(f"{k}: perfectly matched!!")
+            elif idx < 42:
+                kr = k.replace("model.{}.".format(idx), "model.{}.".format(idx+7))
+                model.state_dict()[k] -= model.state_dict()[k]
+                model.state_dict()[k] += ckpt['model'].state_dict()[kr]
+                logger.info(f"{k}: perfectly matched!!")
+            elif "model.{}.cv2.".format(idx) in k:
+                kr = k.replace("model.{}.cv2.".format(idx), "model.{}.cv4.".format(idx+7))
+                model.state_dict()[k] -= model.state_dict()[k]
+                model.state_dict()[k] += ckpt['model'].state_dict()[kr]
+                logger.info(f"{k}: perfectly matched!!")
+            elif "model.{}.cv3.".format(idx) in k:
+                kr = k.replace("model.{}.cv3.".format(idx), "model.{}.cv5.".format(idx+7))
+                model.state_dict()[k] -= model.state_dict()[k]
+                model.state_dict()[k] += ckpt['model'].state_dict()[kr]
+                logger.info(f"{k}: perfectly matched!!")
+            elif "model.{}.dfl.".format(idx) in k:
+                kr = k.replace("model.{}.dfl.".format(idx), "model.{}.dfl2.".format(idx+7))
+                model.state_dict()[k] -= model.state_dict()[k]
+                model.state_dict()[k] += ckpt['model'].state_dict()[kr]
+                logger.info(f"{k}: perfectly matched!!")
+        else:
+            while True:
+                idx += 1
+                if "model.{}.".format(idx) in k:
+                    break
+            if idx < 29:
+                kr = k.replace("model.{}.".format(idx), "model.{}.".format(idx))
+                model.state_dict()[k] -= model.state_dict()[k]
+                model.state_dict()[k] += ckpt['model'].state_dict()[kr]
+                logger.info(f"{k}: perfectly matched!!")
+            elif idx < 42:
+                kr = k.replace("model.{}.".format(idx), "model.{}.".format(idx+7))
+                model.state_dict()[k] -= model.state_dict()[k]
+                model.state_dict()[k] += ckpt['model'].state_dict()[kr]
+                logger.info(f"{k}: perfectly matched!!")
+            elif "model.{}.cv2.".format(idx) in k:
+                kr = k.replace("model.{}.cv2.".format(idx), "model.{}.cv4.".format(idx+7))
+                model.state_dict()[k] -= model.state_dict()[k]
+                model.state_dict()[k] += ckpt['model'].state_dict()[kr]
+                logger.info(f"{k}: perfectly matched!!")
+            elif "model.{}.cv3.".format(idx) in k:
+                kr = k.replace("model.{}.cv3.".format(idx), "model.{}.cv5.".format(idx+7))
+                model.state_dict()[k] -= model.state_dict()[k]
+                model.state_dict()[k] += ckpt['model'].state_dict()[kr]
+                logger.info(f"{k}: perfectly matched!!")
+            elif "model.{}.dfl.".format(idx) in k:
+                kr = k.replace("model.{}.dfl.".format(idx), "model.{}.dfl2.".format(idx+7))
+                model.state_dict()[k] -= model.state_dict()[k]
+                model.state_dict()[k] += ckpt['model'].state_dict()[kr]
+                logger.info(f"{k}: perfectly matched!!")
+    _ = model.eval()
+    return model
+
+
+def convert_yolov9(model_pt, cfg):
+    device = torch.device("cpu")
+
+    if not os.path.isfile(model_pt):
+        logger.warning(f'{colorstr("Model Exporter: ")}not found {model_pt}')
+        return None
+
+    if not os.path.isfile(cfg):
+        logger.warning(f'{colorstr("Model Exporter: ")}not found {cfg}')
+        return ckpt
+    
+    model = Model(cfg, ch=3, nc=80, anchors=3).to(device) # create empty model
+    _ = model.eval()
+
+    ckpt = torch.load(model_pt, map_location='cpu')
+    model.names = ckpt['model'].names
+    model.nc = ckpt['model'].nc
+
+    cfg_name = os.path.basename(cfg).lower()
+    if '-t' in cfg_name or '-s' in cfg_name:
+        model = convert_small_model(model, ckpt)    
+    elif '-m' in cfg_name or '-c' in cfg_name:
+        model = convert_medium_model(model, ckpt)
+    else: #if '-e' in cfg_name:
+        model = convert_large_model(model, ckpt)
+
+    reparamed_model = {
+        'model' : model,
+        'optimizer': ckpt['optimizer'],
+        'best_fitness': ckpt['best_fitness'],
+        'epoch': ckpt['epoch'],
+        'ema': ckpt['ema'],
+        'updates': ckpt['updates'],
+    }
+    # f_path = 'shared / common / uid / pid / autonn / weights / best_converted.pt'
+    f_path = str(model_pt).replace('.pt', '_converted.pt')
+    logger.info(f'{colorstr("Model Exporter: ")}Converted model is saved as {f_path}')
+    torch.save(reparamed_model, f_path)
+    return f_path

@@ -12,7 +12,7 @@ huggingface_hub
 git-lfs
 idna==3.3
 matplotlib>=3.5.1 # 3.7.5
-numpy==1.22.3
+numpy==1.23.5
 #ofa
 ollama
 opencv-python==4.7.0.72
@@ -40,8 +40,17 @@ urllib3==1.26.7
 #pyyaml==6.0
 
 nvidia-tensorrt==8.4.1.5 # tensorrt model export
-protobuf==3.20.1 # onxx model export
+protobuf==3.19.0 # onxx model export
 onnx==1.12.0 # onnx model export
 onnxsim==0.4.33 # onnx model simplifier
+onnxslim # onnx model slimmer
 onnxruntime==1.14 # onnx model checker
-tensorflow==2.8.0 # tensorflow model export
+
+tensorflow==2.16.1 # tensorflow model export
+onnx2tf==1.22.3 # tensorflow model export
+keras
+tf_keras==2.16.0
+sng4onnx
+onnx_graphsurgeon
+tflite_support
+flatbuffers

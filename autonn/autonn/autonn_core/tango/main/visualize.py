@@ -15,6 +15,7 @@ from autonn_core.serializers import EdgeSerializer
 
 from tango.viz.graph import CGraph, CEdge, CNode, CShow2
 from tango.viz.binder import CPyBinder
+from tango.utils.general import colorstr
 
 logger = logging.getLogger(__name__)
 
@@ -100,7 +101,7 @@ class BasemodelViewer:
             data_dict.get("ch", 3)
         ]  # TODO: it doesn't matter whether input is 1 channel or 3 channels for now
         layers, lines, c2, edgeid = [], [], ch[-1], 0
-        logger.info(f"\nVisualizer: Reading basemodel.yaml...")
+        logger.info(f'\n{colorstr("Visualizer: ")}Reading basemodel.yaml...')
         logger.info("-" * 100)
         for i, (f, n, m, args) in enumerate(
                 basemodel["backbone"] + basemodel["head"]
@@ -125,7 +126,7 @@ class BasemodelViewer:
                         # list of upsampling mode
                         args[j] = a
                     else:
-                        logger.warn(f"unsupported arguements: {a}...ignored.")
+                        logger.warning(f'{colorstr("Visualizer: ")}unsupported arguements: {a}...ignored.')
 
             if m == "nn.Conv2d":
                 c1 = ch[f]
@@ -148,8 +149,8 @@ class BasemodelViewer:
                 if len(args) > 0:
                     c2 = args[0]
                 if c1 != c2:
-                    logger.warn(
-                        f"Error! BatchNorm2d has to be the same features in {c1} & out {c2} of it"
+                    logger.warning(
+                        f'{colorstr("Visualizer: ")}Error! BatchNorm2d has to be the same features in {c1} & out {c2} of it'
                     )
                     c2 = c1
                 params = f"'num_features': {c2}"
@@ -740,7 +741,7 @@ class BasemodelViewer:
         self.layers = layers
         self.lines = lines
         logger.info("-" * 100)
-        logger.info("Visualizer: Parsing basemodel.yaml complete")
+        logger.info(f'{colorstr("Visualizer: ")}Parsing basemodel.yaml complete')
 
     def update(self):
 
@@ -758,9 +759,9 @@ class BasemodelViewer:
             info.progress = "viz_update"
             info.save()
         except Info.DoesNotExist:
-            logger.warn(f"not found {self.userid}/{self.project_id} information")
+            logger.warning(f'{colorstr("Visualizer: ")}not found {self.userid}/{self.project_id} information')
 
-        logger.info(f"Visualizer: Updating nodes and edges complete\n")
+        logger.info(f'{colorstr("Visualizer: ")}Updating nodes and edges complete\n')
 
     def update_classification(self):
         json_data = OrderedDict()
@@ -860,7 +861,7 @@ def export_pth(file_path):
             CEdge("{prior}".format(**edge.__dict__), "{next}".format(**edge.__dict__))
         )
     net = CPyBinder.exportmodel(self_binder, graph)
-    logger.info("PyTorch model export success, saved as %s" % file_path)
+    logger.info(f'{colorstr("Visualizer: ")}PyTorch model export success, saved as {file_path}')
     logger.info(net)
     torch.save(net, file_path)
     return net
@@ -915,7 +916,7 @@ def export_yml(name, yaml_path):
             }
         )
 
-    logger.info("json gen success")
+    logger.info(f'{colorstr("Visualizer: ")}json gen success')
     logger.debug(json.dumps(json_data, ensure_ascii=False, indent="\t"))
 
     # yolo-style yaml_data generation ------------------------------------------
@@ -1025,7 +1026,7 @@ def export_yml(name, yaml_path):
             b_ = params_["bias"]
             args_ = [o_, b_]
         elif module_ == "Dropout":
-            p_ = param_["p"]
+            p_ = params_["p"]
             args_ = [p_]
         elif module_ in ("BCELoss", "CrossEntropyLoss", "MESLoss"):
             r_ = params_["reduction"]

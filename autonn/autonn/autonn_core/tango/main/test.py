@@ -413,7 +413,7 @@ def test(proj_info,
             eval.summarize()
             map, map50 = eval.stats[:2]  # update results (mAP@0.5:0.95, mAP@0.5)
         except Exception as e:
-            logger.warn(f'pycocotools unable to run: {e}')
+            logger.warning(f'pycocotools unable to run: {e}')
 
     # Return results -----------------------------------------------------------
     model.float()  # for training
@@ -596,7 +596,7 @@ if __name__ == '__main__':
             f = f'study_{Path(opt.data).stem}_{Path(w).stem}.txt'  # filename to save to
             y = []  # y axis
             for i in x:  # img-size
-                print(f'\nRunning {f} point {i}...')
+                logger.info(f'\nRunning {f} point {i}...')
                 r, _, t = test(opt.data, w, opt.batch_size, i, opt.conf_thres, opt.iou_thres, opt.save_json,
                                plots=False, metric=opt.metric)
                 y.append(r + t)  # results and times

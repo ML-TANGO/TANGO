@@ -13,7 +13,7 @@ from tango.common.models.experimental import *
 from tango.common.models.search_block import *
 from tango.utils.autoanchor import check_anchor_order
 from tango.utils.anchor_generator import make_anchors, dist2bbox
-from tango.utils.general import make_divisible #, check_file, set_logging
+from tango.utils.general import make_divisible, colorstr #, check_file, set_logging
 from tango.utils.torch_utils import (   time_synchronized,
                                         fuse_conv_and_bn,
                                         model_info,
@@ -770,13 +770,13 @@ class Model(nn.Module):
         # Define model
         ch = self.yaml['ch'] = self.yaml.get('ch', ch)  # input channels
         if nc and nc != self.yaml['nc']:
-            logger.info(f"Models: Overriding basemodel.yaml nc={self.yaml['nc']} with nc={nc}")
+            logger.info(f'{colorstr("Models: ")}Overriding nc={self.yaml["nc"]} in {self.yaml_file} with nc={nc}')
             self.yaml['nc'] = nc  # override yaml value
         if anchors:
-            logger.info(f'Models: Overriding basemodel.yaml anchors with anchors={anchors}')
+            logger.info(f'{colorstr("Models: ")}Overriding anchors in {self.yaml_file} with anchors={anchors}')
             self.yaml['anchors'] = round(anchors)  # override yaml value
 
-        logger.info(f'Models: Creating a model from basemodel.yaml')
+        logger.info(f'{colorstr("Models: ")}Creating a model from {self.yaml_file}')
         self.model, self.save, self.nodes_info = parse_model(deepcopy(self.yaml), ch=[ch])  # model, savelist
 
         self.names = [str(i) for i in range(self.yaml['nc'])]  # default names
@@ -784,7 +784,7 @@ class Model(nn.Module):
         # print([x.shape for x in self.forward(torch.zeros(1, ch, 64, 64))])
 
         # Build strides, anchors
-        logger.info(f"Models: Building strides and anchors")
+        logger.info(f'{colorstr("Models: ")}Building strides and anchors')
         m = self.model[-1]  # Detect()
         if isinstance(m, Detect):
             s = 256  # 2x min stride
@@ -847,7 +847,7 @@ class Model(nn.Module):
             m.bias_init()  # only run once
 
         # Init weights, biases
-        logger.info(f"Models: Initializing weights")
+        logger.info(f'{colorstr("Models: ")}Initializing weights')
         initialize_weights(self)
         self.briefs = self.summary()
         # self.info()
