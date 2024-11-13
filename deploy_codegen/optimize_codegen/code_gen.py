@@ -510,14 +510,14 @@ class CodeGen:
                             self.m_nninfo_weight_onnx_file = val  # .onnx
                         elif ".pt" in val:
                             self.m_nninfo_weight_pt_file = val
-                        else:
+                        elif ".torchscript" in val:
                             self.m_nninfo_weight_ts_file = val
                 else:
                     if ".onnx" in value:
                         self.m_nninfo_weight_onnx_file = value  # .onnx
                     elif ".pt" in value:
                         self.m_nninfo_weight_pt_file = value  # .pt
-                    else:
+                    elif ".torchscript" in val:
                         self.m_nninfo_weight_ts_file = value
             elif key == 'nc':
                 self.m_nninfo_number_of_labels = int(value)
@@ -610,7 +610,7 @@ class CodeGen:
                 f.write("# -*- coding: utf-8 -*-\n")
                 f.write("DEF_IMG_PATH = %s\n" % self.m_sysinfo_input_method) 
                 f.write("DEF_ACC = %s\n" % "\"cpu\"") # only for testing self.m_sysinfo_acc_type) 
-                f.write("DEF_PT_FILE = \"%s\"\n\n\n" % self.m_nninfo_weight_ts_file)
+                f.write("DEF_PT_FILE = \"%s\"\n\n\n" % self.m_nninfo_weight_pt_file)
                 try:
                     f1 = open("./db/resnet152.db", 'r')
                 except IOError as err:
