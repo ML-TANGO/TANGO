@@ -29,7 +29,7 @@ COPY db/odroid-m1-manual.txt /app/db
 COPY db/odroid-n2-manual.txt /app/db
 COPY db/yolov3/. /app/db/yolov3
 # ADD  https://s3.ap-northeast-2.amazonaws.com/backend.ai/offline-installers/yolov3.pt /app/db/yolov3
-RUN apt-get install -y zlib1g-dev libedit-dev libxml2-dev
+RUN apt-get install -y zlib1g-dev libedit-dev libxml2-dev libusb-1.0-0
 RUN pip3 install pyyaml requests
 # RUN pip3 install torch==1.7.0
 RUN pip3 install torch
@@ -42,6 +42,11 @@ RUN apt-get install -y vim sed
 RUN apt-get install -y clang 
 RUN apt-get install -y unzip 
 RUN pip3 install cmake==3.22.1
+RUN pip3 install ultralytics==8.2.82
+RUN pip3 install ipython
+RUN pip3 install onnxslim
+RUN pip3 install onnxruntime
+RUN pip3 install tflite_support
 WORKDIR /app
 RUN git init
 ADD https://github.com/llvm/llvm-project/archive/refs/tags/llvmorg-18.1.8.zip /app
@@ -153,6 +158,9 @@ WORKDIR ${GRADLE_HOME}/bin
 # down load android project
 WORKDIR /app
 RUN git clone https://github.com/lhy0718/YOLOv9-Object-Detector-Android-Tflite /app/tflite_yolov9_test
+# added for edgetpu
+# RUN wget https://github.com/lhy0718/yolov9/raw/refs/heads/main/custom_yolo.py
+RUN git clone https://github.com/lhy0718/yolov9
 
 WORKDIR /app/db
 
