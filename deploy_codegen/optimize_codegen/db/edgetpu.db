@@ -1,0 +1,67 @@
+import io
+import os
+import signal
+import subprocess
+
+from flask import Flask, Response
+from PIL import Image
+from ultralytics import YOLO
+import cv2
+import math 
+import numpy as np
+# start webcam
+cap = cv2.VideoCapture("car_driving.mp4")
+cap.set(3, 640)
+cap.set(4, 480)
+import time
+# imgsz = 320
+imgsz = @@size@@
+#model_name = f"./yolov9t_{imgsz}_edgetpu.tflite"
+model_name = "./@@name@@"
+#f"./yolov9t_{imgsz}_edgetpu.tflite"
+# output_stream_port = 8000
+output_stream_port = @@port@@ 
+
+def yolo_stream():
+    print("Preparing YOLOv9 model ...")
+    model = YOLO(model_name, task="detect")
+    app = Flask(__name__)
+
+    @app.route("/")
+    def stream():
+        def generate():
+            while True:
+                success, img = cap.read()
+                results = model(img, stream=True, imgsz=imgsz)
+                start = time.time()
+                for r in results:
+                    print('fps:', 1./(time.time() - start))
+                    im_bgr = r.plot()  # BGR-order numpy array
+                    im_rgb = Image.fromarray(im_bgr[..., ::-1])  # RGB-order PIL image
+                    fp = io.BytesIO()
+                    im_rgb.save(fp, "jpeg")
+                    im_bytes = fp.getvalue()
+
+                    yield (
+                        b"--FRAME\r\n"
+                        b"Content-Type: image/jpeg\r\n"
+                        b"Content-Length: " + str(len(im_bytes)).encode() + b"\r\n"
+                        b"\r\n" + im_bytes + b"\r\n"
+                    )
+
+        return Response(
+            generate(), mimetype="multipart/x-mixed-replace; boundary=FRAME"
+        )
+
+    app.run(port=output_stream_port)
+
+
+if __name__ == "__main__":
+    os.setpgrp()
+    try:
+        # run yolo streaming server
+        yolo_stream()
+    except Exception as e:
+        print(e)
+    finally:
+        os.killpg(0, signal.SIGKILL)

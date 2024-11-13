@@ -38,6 +38,10 @@ import tensorflow as tf
 # from        torchvision import  models
 # from        onnxruntime.quantization import  quantize_dynamic
 # from        onnxruntime.quantization import  QuantType
+# added for edgetpu
+sys.path.append(os.path.dirname(os.path.abspath(__file__)) + '/yolov9')
+from custom_yolo import CustomYOLO
+DEF_EDGETPU_TFLITE_FILE = 'yolov9t_320_edgetpu.tflite'
 
 logging.basicConfig(level=logging.DEBUG, format="(%(threadName)s) %(message)s")
 
@@ -121,7 +125,6 @@ def onnx2tflite(onnx_filename = "./yolov9-s_320.onnx"):
     tmp = (len(onnx_filename.split(".")[-1])+1) * -1
     t_file = onnx_filename[0:tmp] +"_float32.tflite"
     mystr= t_file.split('/')[-1]
-    print("mystr=", mystr)
     os.system("cp ./yolov9tf/%s ./tflite_yolov9_test/app/src/main/assets" % mystr)
     os.system("/bin/rm -rf ./yolov9tf")
     # change Constants.kt
@@ -139,15 +142,12 @@ def onnx2tflite(onnx_filename = "./yolov9-s_320.onnx"):
     return ret
 
 
-def onnx2edgetpu(onnx_filename = "./yolov9-s_320.onnx"):
-    # openvino2tflite
-    os.system("onnx2tf -i %s -dgc -nuo -ebu  -o ./yolov9tf" % onnx_filename)
-    tmp = (len(onnx_filename.split(".")[-1])+1) * -1
-    t_file = onnx_filename[0:tmp] +"_float32.tflite"
-    os.system("edgetpu_compiler ./yolov9tf/%s" % t_file)
-    tmp = (len(t_file.split(".")[-1]) + 1) * (-1)
-    t_file = t_file[0:tmp] +"_edgetpu.tflite"
-    return t_file
+def pt2edgetpu(pt_filename = "./yolov9-s_320.pt", size=320):
+    print('ptfile= ', pt_filename)
+    print('size=', size)
+    model = CustomYOLO(pt_filename, task='detect')
+    path = model.export(format='edgetpu', imgsz=size)
+    return path
 
 
 
@@ -206,6 +206,7 @@ class CodeGen:
     m_nninfo_model_definition_file = def_model_definition_file
     m_nninfo_weight_pt_file = def_weight_pt_file
     m_nninfo_weight_onnx_file = def_weight_onnx_file
+    m_nninfo_weight_ts_file = ""
     m_nninfo_annotation_file = def_annotation_file
     m_nninfo_labelmap_info = []
     m_nninfo_number_of_labels = 0
@@ -417,6 +418,8 @@ class CodeGen:
             0 : success
             -1 : file error
         """
+        self.m_deploy_network_serviceport = '0'
+
         try:
             f = open(self.get_real_filepath(self.m_sysinfo_file), encoding='UTF-8')
         except IOError as err:
@@ -505,13 +508,17 @@ class CodeGen:
                         val = value[i]
                         if ".onnx" in val: 
                             self.m_nninfo_weight_onnx_file = val  # .onnx
-                        else:
+                        elif ".pt" in val:
                             self.m_nninfo_weight_pt_file = val
+                        else:
+                            self.m_nninfo_weight_ts_file = val
                 else:
                     if ".onnx" in value:
                         self.m_nninfo_weight_onnx_file = value  # .onnx
+                    elif ".pt" in value:
+                        self.m_nninfo_weight_pt_file = value  # .pt
                     else:
-                        self.m_nninfo_weight_pt_file = value
+                        self.m_nninfo_weight_ts_file = value
             elif key == 'nc':
                 self.m_nninfo_number_of_labels = int(value)
             elif key == 'names':
@@ -603,7 +610,7 @@ class CodeGen:
                 f.write("# -*- coding: utf-8 -*-\n")
                 f.write("DEF_IMG_PATH = %s\n" % self.m_sysinfo_input_method) 
                 f.write("DEF_ACC = %s\n" % "\"cpu\"") # only for testing self.m_sysinfo_acc_type) 
-                f.write("DEF_PT_FILE = \"%s\"\n\n\n" % self.m_nninfo_weight_pt_file)
+                f.write("DEF_PT_FILE = \"%s\"\n\n\n" % self.m_nninfo_weight_ts_file)
                 try:
                     f1 = open("./db/resnet152.db", 'r')
                 except IOError as err:
@@ -627,17 +634,48 @@ class CodeGen:
                 os.makedirs(self.m_current_code_folder)
             # read  onnx file
             my_onnx = "%s%s" % (self.m_current_file_path, self.m_nninfo_weight_onnx_file)
-            print("my_onnx=", my_onnx)
             if self.m_sysinfo_acc_type == "tpu": # raspberry pi edge tpu
                 # onnx -> edgetpu model
-                ret = onnx2edgetpu(onnx_filename = my_onnx)
-                os.system("mv %s %s" % (ret, self.m_current_code_folder))
-                # add edgetpu inference code
-                # khlee kkkhhhllleeeeeeeee
-                # code gen
-                # annotation file 
-                # requirements.txt
+                onnx_model = onnx.load(my_onnx)
+                input_name = "images"
+                input_shapes = [[d.dim_value for d in _input.type.tensor_type.shape.dim] for _input in onnx_model.graph.input]
+                sz = input_shapes[0][2]
+                my_pt = "%s%s" % (self.m_current_file_path, self.m_nninfo_weight_pt_file)
+                ret = pt2edgetpu(pt_filename = my_pt, size = sz)
+                os.system("cp %s %s" % (ret, self.m_current_code_folder))
+                os.system("/bin/rm -rf %s" % os.path.dirname(ret))
+                os.system("cp ./db/edgetpu.db  %s/output.py" % (self.m_current_code_folder))
+                strn = "s/@@size@@%s%s/g %s/output.py" % ('/', sz, self.m_current_code_folder)
+                os.system("sed -i %s" %  strn)
+                tf_name = ret.split('/')[-1]
+                strn = "s/@@name@@%s%s/g %s/output.py" % ('/', tf_name, self.m_current_code_folder)
+                os.system("sed -i %s" %  strn)
+                ## khlee khlee kkkhhhlll
+                if self.m_deploy_network_serviceport == '0':
+                    p_num = "8000"
+                else:
+                    p_num = self.m_deploy_network_serviceport
+                strn = "s/@@port@@%s%s/g %s/output.py" % ('/', p_num, self.m_current_code_folder)
+                os.system("sed -i %s" %  strn)
+                self.m_sysinfo_libs = []
+                self.m_sysinfo_apt = ['vim', 'python3.9']
+                self.m_sysinfo_papi = ['flask', 'pillow', 'ultralytics', 'opencv-python', 'numpy']
+                # annotation 화일 복사 하기 done
+                os.system("cp  %s  %s" % (self.m_nninfo_annotation_file,  self.m_current_code_folder)) 
+                # make requirement file in  code_folder 
+                try:
+                    outpath = "%s/%s" % (self.m_current_code_folder, self.m_requirement_file)
+                    outf = open(outpath, "w")
+                except IOError as err:
+                    logging.debug("requirements.txt file open error")
+                    self.m_last_run_state = 0
+                    return -1
+                for item in self.m_sysinfo_papi:
+                    outf.write(item)
+                    outf.write('\n')
+                outf.close()
                 # deployment.yaml
+                self.make_deployment_yaml()  
             else: # smart phone
                 # annotation file -> config.txt khlee
                 try:
@@ -725,7 +763,7 @@ class CodeGen:
             os.system("cp -r ./db/web/* %s" % self.m_current_code_folder) 
             os.system("rm %s/*.db" % self.m_current_code_folder) 
             # pt 화일 복사 done  
-            pt_path = "%s%s" % (self.m_current_file_path, self.m_nninfo_weight_pt_file)
+            pt_path = "%s%s" % (self.m_current_file_path, self.m_nninfo_weight_ts_file)
             os.system("cp  %s  %s" % (pt_path, self.m_current_code_folder))
             # index.db 가속기 고려 코드 생성 후 index.py로 복사
             str = ''
@@ -763,7 +801,7 @@ class CodeGen:
                 str += "def_output_location = %d\n"  % self.m_sysinfo_output_method 
             str += "def_conf_thres = %f\n" % self.m_nninfo_postproc_conf_thres
             str += "def_iou_thres = %f\n" % self.m_nninfo_postproc_iou_thres
-            str += "def_pt_file = '%s'\n" % self.m_nninfo_weight_pt_file  
+            str += "def_pt_file = '%s'\n" % self.m_nninfo_weight_ts_file  
             if self.m_sysinfo_acc_type == "cuda":
                 str += "def_dev = 'cuda:0'\n"
             elif self.m_sysinfo_acc_type == "opencl":
@@ -818,7 +856,7 @@ class CodeGen:
             k8s_path = "%s/fileset/yolov7" % self.m_current_code_folder
             os.system("cp -r ./db/web/* %s" % k8s_path) 
             # pt 화일 복사 done  
-            pt_path = "%s%s" % (self.m_current_file_path, self.m_nninfo_weight_pt_file)
+            pt_path = "%s%s" % (self.m_current_file_path, self.m_nninfo_weight_ts_file)
             os.system("cp  %s  %s" % (pt_path, k8s_path))
             # index.db 가속기 고려 코드 생성 후 index.py로 복사
             str = ''
@@ -857,7 +895,7 @@ class CodeGen:
                 str += "def_output_location = %d\n"  % self.m_sysinfo_output_method 
             str += "def_conf_thres = %f\n" % self.m_nninfo_postproc_conf_thres
             str += "def_iou_thres = %f\n" % self.m_nninfo_postproc_iou_thres
-            str += "def_pt_file = '%s'\n" % self.m_nninfo_weight_pt_file  
+            str += "def_pt_file = '%s'\n" % self.m_nninfo_weight_ts_file  
             if self.m_sysinfo_acc_type == "cuda":
                 str += "def_dev = 'cuda:0'\n"
             elif self.m_sysinfo_acc_type == "opencl":
@@ -908,7 +946,7 @@ class CodeGen:
             self.m_sysinfo_apt = []
             self.m_sysinfo_papi = ['torch', 'torchvision', 'numpy', 'pathlib', 'opencv-python']
             self.m_deploy_entrypoint = ['python', './output.py']
-            pt_path = "%s%s" % (self.m_current_file_path, self.m_nninfo_weight_pt_file)
+            pt_path = "%s%s" % (self.m_current_file_path, self.m_nninfo_weight_ts_file)
             os.system("cp  %s  %s" % (pt_path, self.m_current_code_folder))
             str = ''
             str += "def_label_yaml = '%s'\n" % self.m_nninfo_annotation_file 
@@ -922,7 +960,7 @@ class CodeGen:
                 str += "def_output_location = %d\n"  % self.m_sysinfo_output_method 
             str += "def_conf_thres = %f\n" % self.m_nninfo_postproc_conf_thres
             str += "def_iou_thres = %f\n" % self.m_nninfo_postproc_iou_thres
-            str += "def_pt_file= '%s'\n" % self.m_nninfo_weight_pt_file  
+            str += "def_pt_file= '%s'\n" % self.m_nninfo_weight_ts_file  
             if self.m_sysinfo_acc_type == "cuda":
                 str += "def_dev = 'cuda:0'\n"
             elif self.m_sysinfo_acc_type == "opencl":
@@ -1254,7 +1292,6 @@ class CodeGen:
 
             # tensorrt-yolov9.db 가속기 고려 코드 생성 후 output.py로 복사
             str = ''
-            print(self.m_sysinfo_input_method)
             if type(self.m_sysinfo_input_method) != int:
                 str += "def_input_location = '%s'\n" % self.m_sysinfo_input_method
             else:
@@ -1448,7 +1485,10 @@ class CodeGen:
                                 "service_host_port": self.m_deploy_network_hostport,
                                 "service_container_port": self.m_deploy_network_serviceport}}
         elif self.m_deploy_type == 'aws' or self.m_deploy_type == 'cloud':
-            my_type = self.m_deploy_type 
+            if self.m_deploy_type == 'aws':
+                my_type = self.m_deploy_type + '-ecs' 
+            else:
+                my_type = self.m_deploy_type 
             t_deploy = {"type": my_type,
                     "service_name": "nn_model",
                     "entrypoint": self.m_deploy_entrypoint, 
@@ -1509,8 +1549,8 @@ class CodeGen:
         a_file = self.m_nninfo_annotation_file.split("/")
         b_file = a_file[-1]
         t_opt = {"nn_file": 'output.py',
-                 "weight_file": self.m_nninfo_weight_pt_file,
-                 "model_file": self.m_nninfo_weight_pt_file,
+                 "weight_file": self.m_nninfo_weight_ts_file,
+                 "model_file": self.m_nninfo_weight_ts_file,
                  "annotation_file": b_file }
         t_total = {"build": t_build, "deploy": t_deploy, "optional": t_opt}
         try:
@@ -1537,7 +1577,7 @@ class CodeGen:
             t_com = {"engine": 'tvm', "libs": self.m_sysinfo_libs,
                  "custom_packages": t_pkg}
         else:  # .pt file
-            w_filw = self.m_nninfo_weight_pt_file
+            w_filw = self.m_nninfo_weight_ts_file
             t_com = {"engine": "pytorch", "libs": self.m_sysinfo_libs,
                  "custom_packages": t_pkg}
 
@@ -1581,7 +1621,7 @@ class CodeGen:
             t_com = {"engine": 'tvm', "libs": self.m_sysinfo_libs,
                  "custom_packages": t_pkg}
         else:  # .pt file
-            w_filw = self.m_nninfo_weight_pt_file
+            w_filw = self.m_nninfo_weight_ts_file
             t_com = {"engine": "pytorch", "libs": self.m_sysinfo_libs,
                  "custom_packages": t_pkg}
 
