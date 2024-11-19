@@ -126,7 +126,6 @@ class AWSECS(CloudTargetBase):
 
         task_definition = {
             "family": deploy_yaml.deploy.service_name,
-            "executionRoleArn": deploy_yaml.deploy.execution_role_arn,
             "containerDefinitions": [
                 {
                     "name": deploy_yaml.deploy.service_name,
@@ -147,7 +146,7 @@ class AWSECS(CloudTargetBase):
                     ]
                 }
             ],
-            "requiresCompatibilities": ["FARGATE"],
+            "requiresCompatibilities": [deploy_yaml.deploy.launch_type],
             "networkMode": "awsvpc",  # awsvpc, bridge
             "cpu": str(deploy_yaml.deploy.resources.cpu * 1024),
             "memory": str(deploy_yaml.deploy.resources.memory)
@@ -172,20 +171,25 @@ class AWSECS(CloudTargetBase):
         logger.info(f"Creating ECS service for {deploy_yaml.deploy.service_name}")
         cluster_name = deploy_yaml.deploy.service_name + "_" + self.user_id + "_" + self.project_id
         logging.info(f"deploy yaml: {deploy_yaml}")
+
+        networkConfiguration={
+            "awsvpcConfiguration": {
+                "assignPublicIp": deploy_yaml.deploy.awsvpc['assign_publicip'],
+                "subnets": deploy_yaml.deploy.awsvpc['subnets'],
+                "securityGroups": deploy_yaml.deploy.awsvpc['security_groups'],
+            }
+        }
+
+        if deploy_yaml.deploy.launch_type == "FARGATE":
+            networkConfiguration["awsvpcConfiguration"]["assignPublicIp"] = deploy_yaml.deploy.awsvpc["assign_publicip"]
+
         self.ecs_client.create_service(
             cluster=cluster_name,
             serviceName=deploy_yaml.deploy.service_name,
             taskDefinition=deploy_yaml.deploy.service_name,
             desiredCount=1,
-            # TODO: Harded-coded network configs for FARGATE type
-            networkConfiguration={
-                "awsvpcConfiguration": {
-                    "assignPublicIp": deploy_yaml.deploy.awsvpc['assign_publicip'],
-                    "subnets": deploy_yaml.deploy.awsvpc['subnets'],
-                    "securityGroups": deploy_yaml.deploy.awsvpc['security_groups'],
-                }
-            },
-            launchType="FARGATE",
+            networkConfiguration=networkConfiguration,
+            launchType=deploy_yaml.deploy.launch_type,
         )
         logger.info(
             f"ECS service {deploy_yaml.deploy.service_name} created successfully"
