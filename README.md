@@ -28,6 +28,8 @@ The TANGO framework aims to deploy and load ready-to-use deep learning models fo
 
 <img src="./docs/media/TANGO_AutoML.png" alt="TANGO Auto ML" width="600px"/>
 
+  * ***Unified UX(user experiences)***: One container with same pipleline, two different vision tasks - **classification** and **detection**
+  * ***TangoChat*** prototype: Next-generation TANGO beyond vision-based task, towards generative AI and more  
 ----
 
 ### Data Preparation
@@ -36,11 +38,41 @@ Data preparation consists of two main processes. First, you need to take or coll
 
 <img src="./docs/media/TANGO_labeling.png" alt="TANGO labeling" width="600px"/>
 
-### Basic Model Selection
+### Base Model Selection
 
 Before applying automation techniques such as NAS and HPO, reducing the search space or limiting it to a specific neural network variation is very important in terms of the efficiency of automatic neural network generation. In the TANGO framework, it was named Base Model Selection and was assigned a role of recommending an appropriate neural network among existing well-known neural networks, so called SOTA model.
 
-Model selection is typically done through an algorithm search process. The system may evaluate a set of candidate SOTA models using metrics such as accuracy, precision, recall, or F1 score, and select the model that performs best on a validation dataset. 
+Currently, TANGO selects a base model according to dedicated rules with the number of class and the size of GPU memeory as following.
+
+| Task | Class count | Base Model | Mem <= 2G | Mem <= 4G | Mem <= 6G | Mem <= 8G | Mem <=10 | Mem <=12 | Mem > 12G | NAS |
+|------|:-----------:|:----------:|:---------------:|:---------:|:---------:|:---------:|:--------:|:--------:|:---------:|:---:|
+| _Detection_ | <= 50 | **`YOLOv7`** |-tiny | -x | -x | -w6 | -e6 | -d6 | -e6e | v7-super|
+|  | > 50 | **`YOLOv9`** | -t | -s | -m | -m | -c | -e | -e | v7-super |
+| _Classification_ | <= 10 | **`ResNet-Cifar`** | 20 | 32 | 44 | 56 | 110 | 152 | 200 | - |
+| | > 10 | **`Original ResNet`** | 18 | 34 | 50 | 50 | 101 | 152 | 152 | - |
+
+
+### Visualization
+
+It is important that user recognizes the neural network model architecture, so TANGO provides visual description on the base model. 
+
+<img src="./docs/media/TANGO_Model_Viz.png" alt="TANGO Model Viz" width="500px"/>
+
+As you can see this example, model visualization provides
+
+* Node-Edge based model visualization
+* More intrinsic edge types (e.g. arrow lines, which indicts the forwarding direction clearly)
+* Pop-up shows the internal structure on complicate blocks
+* Backbone, neck, head layouts for detection model  
+
+In other hands, it makes sure users want to look at the progress of training, so TANGO provides another tab to show graphs and numbers over training periods.
+
+<img src="./docs/media/TANGO_Train_Viz.png" alt="TANGO Train Viz" width="500px"/>
+
+Training graph provides
+
+* REST APIs to indict step-by-step progress information
+* reports training status in period and visualized on the dash board
 
 ### Automatic Neural Network Generation
 
@@ -50,7 +82,20 @@ Neural network model generation is a key process in the TANGO framework. The TAN
 
 <img src="./docs/media/TANGO_BMS_AutoNN.png" alt="TANGO labeling" width="500px"/>
 
-
+AutoNN provides a number of automated ways to find proper models that match user requirements.
+* ***Automatci Bag-of-Freebie*** 
+   - Auto-batch: extract maximum  batch size considering model size and GPU memory, if out-of-memory happens, it resumes with smaller batch size
+   - Early-stop: stop if any improvement is not coming out, it helps for model not over-fitting datasets
+   - Augmentation: support mosaic training (4 or 9 pieces)
+   - Hyperparameter tuning: optimize hyperparameter(number) based on Baysien algorithm
+   - Auxiliary heads: it helps better precision during training, and then it is reparameterized into the single head model for interference at the end of training
+* ***Automatic Bag-of-Specials*** 
+   - Target-specific NAS: it results in proper accuracy and latency on Android phone
+* ***Automatic Model Export*** 
+   - Seamless transition to the target (with a cooperation of `CodeGen`)
+   - pt / onnx / torchscript / tensorflow / TFLite / TPU model conversion without any user interruption
+   - support layer fusing, re-parameterization, input size variation, half-precision, INT8 quantization
+ 
 #### NAS: Neural Architecture Search
 
 Neural Architecture Search (NAS) is a method for automatically searching for the best neural network architecture for a given task, rather than requiring the practitioner to manually design and fine-tune the network. The process of NAS involves searching the space of possible network architectures to find the one that performs best on a validation dataset. 
@@ -65,6 +110,7 @@ Finding the optimal neural network has long been the domain of AI experts. As th
 Even though neural network training is largely automated, there are still many variables that should be setup in advance or tunned during training. This kind of variables is called hyper-parameters. HPO stands for Hyperparameter Optimization, which is the process of tuning the hyper-parameters of a machine learning model to improve its performance on a validation dataset. Hyper-parameters are parameters that are set before training a model and control aspects of the training process such as the learning rate, the number of trees in a random forest, or the number of hidden units in a neural network. Therefore, HPO in TANGO can be seen as an iterative process of determining the optimal values of hyper-parameters to achieve the best performance for the optimal neural network derived from NAS.
 
 
+####
 ### Target Deployment of Trained Model
 
 During TANGO project configuration, users can specify theirs target(cloud, K8S, ondevice), which is used for inference with trained neural network model. Due to different acceleration engines and available resources for each target environment, it is difficult to deploy immediately the neural network model generated from AutoNN. Depending on the target environment, TANGO makes the executable code including essential libraries and pre/post-processing code into a compressed file, builds containerized image, and installs it on the the target(device) and unpacks it.
