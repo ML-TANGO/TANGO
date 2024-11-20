@@ -6,7 +6,7 @@
       max-height="95"
       contain
       style="filter: drop-shadow(5px 5px 5px #666)"
-      :class="status === 'running' ? 'run-container' : ''"
+      :class="status === ProjectStatus.RUNNING ? 'run-container' : ''"
     ></v-img>
     <div style="height: 100%" class="d-flex justify-center align-center text">{{ text }}</div>
   </div>
@@ -20,6 +20,8 @@ import RunningHoverIcon from "@/assets/progress/running_hover.png";
 
 import CompleteIcon from "@/assets/progress/complete.png";
 import CompleteHoverIcon from "@/assets/progress/complete_hover.png";
+
+import { ProjectStatus } from "@/shared/enums";
 export default {
   props: {
     text: {
@@ -33,26 +35,27 @@ export default {
 
   data() {
     return {
-      isHover: false
+      isHover: false,
+      ProjectStatus
     };
   },
 
   computed: {
     progressIcon() {
       if (this.isHover) {
-        if (this.status === "running") {
+        if (this.status === ProjectStatus.RUNNING) {
           return RunningHoverIcon;
-        } else if (this.status === "completed") {
+        } else if (this.status === ProjectStatus.COMPLETED) {
           return CompleteHoverIcon;
         } else {
           return DefaultHoverIcon;
         }
       } else {
-        if (this.status === "running") {
+        if (this.status === ProjectStatus.RUNNING) {
           return RunningIcon;
-        } else if (this.status === "completed") {
+        } else if (this.status === ProjectStatus.COMPLETED) {
           return CompleteIcon;
-        } else if (this.status === "failed") {
+        } else if (this.status === ProjectStatus.FAILED || this.status === ProjectStatus.STOPPED) {
           return RunningIcon;
         } else {
           return DefaultIcon;

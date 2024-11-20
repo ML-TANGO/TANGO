@@ -73,6 +73,9 @@ def run_command_sync(command: List[str]):
     process = subprocess.run(command, capture_output=True)
     return process.stdout.decode(), process.stderr.decode()
 
+def mb_to_gib(mb):
+    gib = mb // 1024
+    return f"{gib}Gi"
 
 # Authenticate with Google Cloud only once in a module level.
 run_command_sync(
@@ -106,10 +109,14 @@ class CloudRun(CloudTargetBase):
 
         super().__init__(user_id, project_id)
 
+
     async def start_service(self, deploy_yaml) -> dict[str, str]:
         """
         Create a service to deploy a container to Google Cloud Run.
         """
+
+        memory_mb = deploy_yaml.deploy.resources.memory
+        memory_value = mb_to_gib(memory_mb)
         # Deploy service.
         print(f"Deploying service {deploy_yaml.deploy.service_name}...")
         stdout, stderr = await run_command(
@@ -125,9 +132,11 @@ class CloudRun(CloudTargetBase):
                 "--image",
                 deploy_yaml.build.image_uri,
                 "--cpu",
-                "4",
+                str(deploy_yaml.deploy.resources.cpu),
                 "--memory",
-                "8Gi",
+                memory_value,
+                "--port",
+                str(deploy_yaml.deploy.network.service_container_port),
                 "--allow-unauthenticated",
                 "--quiet",
             ]

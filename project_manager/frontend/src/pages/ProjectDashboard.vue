@@ -59,7 +59,7 @@ import { ProjectNamespace, ProjectMutations } from "@/store/modules/project";
 import AllStatusTab from "@/modules/project/tabs/AllStatusTab.vue";
 import TabView from "@/modules/project/tabs/TabView.vue";
 import NoResultTab from "@/modules/project/tabs/NoResultTab.vue";
-import ProjectCreateDialog from "@/modules/project/ProjectCreateDialog.vue";
+import ProjectCreateDialog from "@/modules/project/ProjectCreateDialogV2.vue";
 
 import { getProjectList } from "@/api";
 

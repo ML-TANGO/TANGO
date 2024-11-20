@@ -36,10 +36,18 @@ export default {
     ...mapState(ProjectNamespace, ["project"])
   },
 
-  mounted() {
-    this.projectName = this.project?.project_name;
-    this.projectDescription = this.project.project_description;
+  watch: {
+    project: {
+      immediate: true,
+      deep: true,
+      handler() {
+        this.projectName = this.project?.project_name;
+        this.projectDescription = this.project.project_description;
+      }
+    }
   },
+
+  mounted() {},
 
   methods: {
     async next() {
@@ -47,21 +55,22 @@ export default {
         if (this.projectName === "") {
           Swal.fire("Project", "Project 이름을 입력해 주세요.", "error");
           return;
-        } else if (this.projectDescription === "") {
-          Swal.fire("Project", "Project 설명을 입력해 주세요.", "error");
-          return;
         }
+        // else if (this.projectDescription === "") {
+        //   Swal.fire("Project", "Project 설명을 입력해 주세요.", "error");
+        //   return;
+        // }
 
         if (this.project?.id) {
           await updateProjectName(this.project.id, this.projectName);
-          await updateProjectDescription(this.project.id, this.projectDescription);
+          await updateProjectDescription(this.project.id, this.projectDescription || "");
           this.$emit("next", {
             ...this.project,
             project_name: this.projectName,
             project_description: this.projectDescription
           });
         } else {
-          const res = await createProject(this.projectName, this.projectDescription);
+          const res = await createProject(this.projectName, this.projectDescription || "");
           if (res.result === false) {
             Swal.fire("Project 이름 중복", "이름 변경 후 다시 시도해 주세요.", "error");
             return;

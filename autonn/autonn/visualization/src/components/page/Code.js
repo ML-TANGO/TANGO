@@ -266,7 +266,7 @@ function CodeList() {
 
     const newNode = {
       id: getId(),
-      type: "default",
+      type: "custom",
       position,
       style: {
         background: `${color}`,

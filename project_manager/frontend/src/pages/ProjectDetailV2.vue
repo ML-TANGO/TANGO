@@ -3,18 +3,18 @@
     <v-card style="height: calc(100vh - 60px); overflow-y: overlay; width: 100%" class="px-4">
       <TabBase :count="-1" title="Configuration" ref="ConfigurationRef">
         <template #action>
-          <ProjectCreateDialog :step="step" @stepChange="onStepChange">
+          <ProjectCreateDialog :step="step" @stepChange="onStepChange" @close="onClose">
             <template v-slot:btn>
               <v-btn icon class="ml-3 mr-5" @click="onEdit"><v-icon>mdi-pencil-outline</v-icon></v-btn>
             </template>
           </ProjectCreateDialog>
         </template>
-        <template #content> <ConfigurationTab :projectInfo="project" /> </template>
+        <template #content="{ isOpen }"> <ConfigurationTab :projectInfo="project" :isOpen="isOpen" /> </template>
       </TabBase>
       <div>
         <TabBase :count="-1" title="Progress" :defaultBanner="true" ref="ProgressRef">
           <template #content>
-            <ProgressTab :projectInfo="project" @start="start" @nextPipeline="nextPipeline" />
+            <ProgressTab :projectInfo="project" @start="start" @nextPipeline="nextPipeline" @stop="stop" />
           </template>
         </TabBase>
       </div>
@@ -39,14 +39,14 @@ import Swal from "sweetalert2";
 import { mapState, mapMutations } from "vuex";
 import { ProjectNamespace, ProjectMutations } from "@/store/modules/project";
 
-import ProjectCreateDialog from "@/modules/project/ProjectCreateDialog.vue";
+import ProjectCreateDialog from "@/modules/project/ProjectCreateDialogV2.vue";
 import ConfigurationTab from "@/modules/project/tabs/ConfigurationTab.vue";
 import ProgressTab from "@/modules/project/tabs/ProgressTabV3.vue";
 import TabBase from "@/modules/project/TabBase.vue";
 // import KaggleUserInfoDialog from "@/modules/common/dialog/KaggleUserInfoDialog.vue";
 
 import { Project } from "@/shared/models";
-import { DatasetStatus, ContainerName } from "@/shared/enums";
+import { DatasetStatus, ContainerName, ProjectStatus, TaskType } from "@/shared/enums";
 
 import {
   getProjectInfo,
@@ -91,7 +91,10 @@ export default {
       this.projectStatusIntervalTime = intervalTimes["project_status"];
       this.autonnStatusIntervalTime = intervalTimes["autonn_status"];
 
-      if (this.project.container_status === "running" || this.project.container_status === "started") {
+      if (
+        this.project.container_status === ProjectStatus.RUNNING ||
+        this.project.container_status === ProjectStatus.STARTED
+      ) {
         this.startProjectStatusInterval();
         setTimeout(() => {
           this.getCurrentProjectInfo();
@@ -141,6 +144,10 @@ export default {
       SET_SELECTED_IMAGE: ProjectMutations.SET_SELECTED_IMAGE,
       SET_AUTO_NN_STATUS: ProjectMutations.SET_AUTO_NN_STATUS
     }),
+
+    onClose() {
+      window.location.reload();
+    },
 
     denyAccess(title = "잘못된접근입니다.") {
       Swal.fire(title);
@@ -214,6 +221,10 @@ export default {
       });
     },
 
+    stop() {
+      this.stopInterval();
+    },
+
     start() {
       this.startProjectStatusInterval();
 
@@ -244,8 +255,7 @@ export default {
 
     // =============================================================================
     startProjectStatusInterval() {
-      console.log("this.project.container", this.project.container);
-      if (this.project.container === ContainerName.AUTO_NN) {
+      if (this.project.container === ContainerName.AUTO_NN && this.project.task_type !== TaskType.CHAT) {
         if (!this.autonnStatusInterval) {
           this.autonnStatusInterval = setInterval(() => {
             this.getCurrentAutonnStatus();
@@ -269,17 +279,24 @@ export default {
       if (this.project) {
         await postStatusRequest({ user_id: this.project.create_user, project_id: this.project.id }).then(async res => {
           if (res === null) return;
+          // 오류가 발생하여 massage로 반환된 경우
           if (typeof res === "string") return;
 
           this.SET_PROJECT({ container: res.container, container_status: res.container_status });
           this.$EventBus.$emit("logUpdate", res);
-          if (res.container_status.toLowerCase() === "failed") {
+          if (res.container_status.toLowerCase() === ProjectStatus.FAILED) {
+            this.stopInterval();
+            return;
+          }
+
+          console.log("res.container_status.toLowerCase()", res.container_status.toLowerCase());
+          if (res.container_status.toLowerCase() === ProjectStatus.STOPPED) {
             this.stopInterval();
             return;
           }
 
           if (this.project.project_type !== "auto") {
-            if (res.container_status !== "running" && res.container_status !== "started") {
+            if (res.container_status !== ProjectStatus.RUNNING && res.container_status !== ProjectStatus.STARTED) {
               this.stopInterval();
               if (res.container === ContainerName.IMAGE_DEPLOY) {
                 this.$EventBus.$emit("nnModelDownload");
@@ -289,7 +306,7 @@ export default {
           } else {
             // todo auto일경우 구현
             if (res.container === ContainerName.IMAGE_DEPLOY) {
-              if (res.container_status !== "running" && res.container_status !== "started") {
+              if (res.container_status !== ProjectStatus.RUNNING && res.container_status !== ProjectStatus.STARTED) {
                 this.stopInterval();
                 this.$EventBus.$emit("nnModelDownload");
                 return;

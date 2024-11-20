@@ -200,6 +200,7 @@ autonn/YoloE/runs/
 autonn/autonn/autonn_core/migrations
 autonn/autonn/runs/
 autonn/autonn/autonn_core/datasets/coco128/labels/*.cache
+autonn/autonn/autonn/core/.chroma
 
 # BMS
 base_model_select/backend/migrations

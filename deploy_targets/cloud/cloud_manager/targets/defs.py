@@ -4,12 +4,14 @@ from pydantic import BaseModel
 # from cloud_manager.targets.local.docker import LocalDocker
 from cloud_manager.targets.gcp.cloudrun import CloudRun
 from cloud_manager.targets.aws.ecs import AWSECS
+from cloud_manager.targets.ktc.ktc import KTCloud
 
 # Mapping between deployment target strings and their respective classes.
 TARGET_CLASS_MAP = {
     # "docker": LocalDocker,
     "gcp-cloudrun": CloudRun,
     "aws-ecs": AWSECS,
+    "ktc": KTCloud,
 }
 
 

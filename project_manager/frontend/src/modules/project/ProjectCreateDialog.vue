@@ -17,42 +17,45 @@
       </v-card-title>
       <div class="d-flex align-center" style="height: 500px">
         <v-stepper :value="step" vertical class="elevation-0" style="width: 250px; letter-spacing: 1px" non-linear>
-          <v-stepper-step :complete="step > 1" step="1">
-            Project Info <small>Enter Project Info</small>
-          </v-stepper-step>
+          <v-stepper-step :complete="step > 1" step="1">Project Info <small>Enter Project Info</small> </v-stepper-step>
           <v-stepper-content step="1" class="my-3"> </v-stepper-content>
+
           <v-stepper-step :complete="step > 2" step="2"> Dataset <small>Select Dataset</small> </v-stepper-step>
           <v-stepper-content step="2" class="my-3"></v-stepper-content>
+
           <v-stepper-step :complete="step > 3" step="3"> Target <small>Select Target</small> </v-stepper-step>
           <v-stepper-content step="3" class="my-3"></v-stepper-content>
+
           <v-stepper-step step="4"> Configuration <small>Select Configuration</small> </v-stepper-step>
           <v-stepper-content step="4" class="mt-2"></v-stepper-content>
         </v-stepper>
         <div style="width: 75%; height: 500px" class="px-10">
-          <FirstStepper v-if="step === 1" @next="next" />
-          <SecondStepper v-else-if="step === 2" @next="next" @prev="prev" />
-          <ThirdStepper v-else-if="step === 3" @next="next" @prev="prev" />
-          <FourthStepper v-else @prev="prev" @create="create" />
+          <ProjectInfoSetting v-if="step === 1" @next="next" />
+          <DatasetSelector v-else-if="step === 2" @next="next" @prev="prev" @skip="skip" />
+          <TargetSelector v-else-if="step === 3" @next="next" @prev="prev" />
+          <ProjectConfigurationSetting v-else @prev="prev" @create="create" />
         </div>
       </div>
     </v-card>
   </v-dialog>
 </template>
 <script>
+import Swal from "sweetalert2";
+
 import { mapMutations, mapState } from "vuex";
 import { ProjectNamespace, ProjectMutations } from "@/store/modules/project";
 
-import FirstStepper from "./stepper/FirstStepper.vue";
-import SecondStepper from "./stepper/SecondStepper.vue";
-import ThirdStepper from "./stepper/ThirdStepper.vue";
-import FourthStepper from "./stepper/FourthStepper.vue";
+import ProjectInfoSetting from "./stepper/ProjectInfoSetting.vue";
+import DatasetSelector from "./stepper/DatasetSelector.vue";
+import TargetSelector from "./stepper/TargetSelector.vue";
+import ProjectConfigurationSetting from "./stepper/ProjectConfigurationSetting.vue";
 
 import { /*TaskType,*/ ContainerName } from "@/shared/enums";
 
 import { updateProjectInfo, setWorkflow } from "@/api";
 
 export default {
-  components: { FirstStepper, SecondStepper, ThirdStepper, FourthStepper },
+  components: { ProjectInfoSetting, DatasetSelector, TargetSelector, ProjectConfigurationSetting },
 
   props: {
     step: {
@@ -87,6 +90,27 @@ export default {
       SET_PROJECT: ProjectMutations.SET_PROJECT,
       INIT_PROJECT: ProjectMutations.INIT_PROJECT
     }),
+
+    async skip() {
+      const result = await Swal.fire({
+        title: `SKIP`,
+        html: "<div>건너뛰기 시 Task Type이 CHAT으로 고정됩니다.<br/>그래도 SKIP하시겠습니까?</div>",
+        icon: "info",
+        showCancelButton: true,
+        allowOutsideClick: false,
+        allowEscapeKey: false,
+        confirmButtonColor: "#3085d6",
+        cancelButtonColor: "#d33",
+        confirmButtonText: "확인",
+        cancelButtonText: "취소"
+      });
+
+      console.log("result", result);
+
+      if (result.isConfirmed && this.step !== 4) {
+        this.$emit("stepChange", this.step + 1);
+      }
+    },
 
     async next(data) {
       if (this.step !== 4) {
@@ -132,7 +156,7 @@ export default {
       const param = {
         project_id: this.project.id,
         project_target: this.project.target_id,
-        project_dataset: this.project.dataset,
+        project_dataset: this.project.dataset || "",
         task_type: this.project.task_type,
         learning_type: this.project.learning_type || "",
         weight_file: this.project.weight_file || "",

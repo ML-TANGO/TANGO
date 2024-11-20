@@ -40,7 +40,9 @@
           >
             <div class="d-flex flex-column text-center" style="width: 70px">
               <small class="mb-2" style="letter-spacing: 1px; color: #aaa; font-size: 10px">Info</small>
-              <p class="ma-0" style="font-size: 13px">{{ item?.info }}</p>
+              <p class="ma-0" style="font-size: 13px; overflow: hidden; white-space: nowrap; text-overflow: ellipsis">
+                {{ item?.info }}
+              </p>
             </div>
             <div class="d-flex flex-column text-center" style="width: 70px">
               <small class="mb-2" style="letter-spacing: 1px; color: #aaa; font-size: 10px">Memory</small>

@@ -158,7 +158,10 @@ export default {
       accItem: [
         { value: "cuda", label: "cuda" },
         { value: "opencl", label: "opencl" },
-        { value: "cpu", label: "cpu" }
+        { value: "cpu", label: "cpu" },
+        { value: "adreno", label: "adreno" },
+        { value: "tpu", label: "tpu" },
+        { value: "rknn", label: "rknn" }
       ],
       memory: 0,
       nfsIP: "",

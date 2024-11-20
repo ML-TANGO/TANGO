@@ -15,7 +15,16 @@ const NodeColorProp = {
     Dropout:"#E0D8E4",
     Loss:"#F2D1CB",
     Utilities:"#FAECAF",
-    Vision:"#F0D0AD"
+    Vision:"#F0D0AD",
+
+    Yolo_Conv:"#E0D8E4",
+    Yolo_RepNCSPELAN4:"#EBCDCF",
+    Yolo_ADown:"#FAF1CB",
+    Yolo_Concat:"#CFD6E9",
+    Yolo_Upsample:"#D0DEE5",
+    Yolo_SPPELAN:"#B8D597",
+    Yolo_Detect:"#D7D4CC"
 }
 
 export default NodeColorProp;
+
