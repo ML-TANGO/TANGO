@@ -174,7 +174,6 @@ class AWSECS(CloudTargetBase):
 
         networkConfiguration={
             "awsvpcConfiguration": {
-                "assignPublicIp": deploy_yaml.deploy.awsvpc['assign_publicip'],
                 "subnets": deploy_yaml.deploy.awsvpc['subnets'],
                 "securityGroups": deploy_yaml.deploy.awsvpc['security_groups'],
             }
