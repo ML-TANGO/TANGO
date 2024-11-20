@@ -988,7 +988,7 @@ def strip_optimizer(f='best.pt', s=''):  # from utils.general import *; strip_op
         p.requires_grad = False
     torch.save(x, s or f)
     mb = os.path.getsize(s or f) / 1E6  # filesize
-    logger.info(f"\nModel Exporter: Optimizer stripped from {f},{(' saved as %s,' % s) if s else ''} {mb:.1f}MB")
+    logger.info(f'\n{colorstr("Model Exporter: ")}Optimizer stripped as {f}({mb:.1f}MB)')
 
 
 def print_mutation(hyp, results, yaml_file='hyp_evolved.yaml', txt_file='evolve.txt', bucket=''):
@@ -1066,12 +1066,12 @@ def increment_path(path, exist_ok=True, sep=''):
         return str(path)
     else:
         dirs = glob.glob(f"{path}{sep}*")  # similar paths
-        print(dirs)
+        # print(dirs)
         matches = [re.search(rf"%s{sep}(\d+)" % path.stem, d) for d in dirs]
-        print(matches)
+        # print(matches)
         i = [int(m.groups()[0]) for m in matches if m]  # indices
-        print(i)
+        # print(i)
         n = max(i) + 1 if i else 2  # increment number
-        print(n)
-        print(f'{path}{sep}{n}')
+        # print(n)
+        # print(f'{path}{sep}{n}')
         return f"{path}{sep}{n}"  # update path

@@ -137,7 +137,7 @@ def train(proj_info, hyp, opt, data_dict, tb_writer=None):
 
     # Model --------------------------------------------------------------------
     pretrained = weights.endswith('.pt')
-    logger.info(f'\nModels: Pretrained model exists? {pretrained}')
+    logger.info(f'\n{colorstr("Models: ")}Pretrained model exists? {pretrained}')
     if pretrained:
         ''' transfer learning / fine tuning / resume '''
         with torch_distributed_zero_first(local_rank): # rank):
@@ -154,11 +154,11 @@ def train(proj_info, hyp, opt, data_dict, tb_writer=None):
                 model = Model(opt.cfg or ckpt['model'].yaml, ch=ch, nc=nc, anchors=hyp.get('anchors')).to(device)  # create
             exclude = ['anchor'] if (opt.cfg or hyp.get('anchors')) and not opt.resume else []  # exclude keys
 
-        logger.info(f'Models: Loading and overwrite weights from the pretrained model...')
+        logger.info(f'{colorstr("Models: ")}Loading and overwrite weights from the pretrained model...')
         state_dict = ckpt['model'].float().state_dict()  # to FP32
         state_dict = intersect_dicts(state_dict, model.state_dict(), exclude=exclude)  # intersect
         model.load_state_dict(state_dict, strict=False)  # load
-        logger.info('Models: Transferred %g/%g items from %s' % (len(state_dict), len(model.state_dict()), weights))  # report
+        logger.info(f'{colorstr("Models: ")}Transferred {len(state_dict)}/{len(model.state_dict())} items from {weights}')  # report
     else:
         ''' learning from scratch '''
         if task == 'classification':
@@ -193,10 +193,10 @@ def train(proj_info, hyp, opt, data_dict, tb_writer=None):
 
     # Batch size ---------------------------------------------------------------
     if opt.resume:
-        print('='*100)
+        logger.info('='*100)
         bs_factor = opt.bs_factor # it would be 0.1 less than previous one
-        print(f"bs_factor = {bs_factor}")
-        print('='*100)
+        logger.info(f"bs_factor = {bs_factor}")
+        logger.info('='*100)
     else:
         bs_factor = 0.8
         opt.bs_factor = bs_factor
@@ -215,7 +215,7 @@ def train(proj_info, hyp, opt, data_dict, tb_writer=None):
         batch_size = int(autobatch_rst) # autobatch_rst = result * bs_factor * gpu_number
     
     batch_size = min(batch_size, server_gpu_mem*2)
-    logger.info(f'AutoBatch: Limit batch size {batch_size} (up to 2 x GPU memory {server_gpu_mem}G)')
+    logger.info(f'{colorstr("AutoBatch: ")}Limit batch size {batch_size} (up to 2 x GPU memory {server_gpu_mem}G)')
 
     if opt.local_rank != -1: # DDP mode
         logger.info(f'LOCAL RANK is not -1; Multi-GPU training')
@@ -251,9 +251,9 @@ def train(proj_info, hyp, opt, data_dict, tb_writer=None):
     accumulate = max(round(nbs / opt.total_batch_size), 1)  # accumulate loss before optimizing
     hyp['weight_decay'] *= opt.total_batch_size * accumulate / nbs  # scale weight_decay
     weight_decay_, momentum_, lr0_ = hyp['weight_decay'], hyp['momentum'], hyp['lr0']
-    logger.info(f"\nOptimizer: Scaled weight_decay = {weight_decay_}")
-    logger.info(f"Optimizer: Momentum = {momentum_}")
-    logger.info(f"Optimizer: Learning Rate = {lr0_}")
+    logger.info(f'\n{colorstr("Optimizer: ")}Scaled weight_decay = {weight_decay_}')
+    logger.info(f'{colorstr("Optimizer: ")} Momentum = {momentum_}')
+    logger.info(f'{colorstr("Optimizer: ")} Learning Rate = {lr0_}')
 
     pg0, pg1, pg2 = [], [], []  # optimizer parameter grouping
     for k, v in model.named_modules():
@@ -322,13 +322,13 @@ def train(proj_info, hyp, opt, data_dict, tb_writer=None):
 
     if opt.adam:
         optimizer = optim.Adam(pg0, lr=lr0_, betas=(momentum_, 0.999))  # adjust beta1 to momentum
-        logger.info(f'Optimizer: Using Adam')
+        logger.info(f'{colorstr("Optimizer: ")}Using Adam')
     else:
         optimizer = optim.SGD( pg0, lr=lr0_, momentum=momentum_, nesterov=True)
-        logger.info(f'Optimizer: Using SGD')
+        logger.info(f'{colorstr("Optimizer: ")}Using SGD')
     optimizer.add_param_group({'params': pg1, 'weight_decay': weight_decay_})  # add pg1 with weight_decay
     optimizer.add_param_group({'params': pg2})  # add pg2 (biases)
-    logger.info(f'Optimizer: grouping ({len(pg2)} .bias)'
+    logger.info(f'{colorstr("Optimizer: ")}grouping ({len(pg2)} .bias)'
                 f' ({len(pg1)} conv.weight: w/weight decay)'
                 f' ({len(pg0)} others: w/o weight decay)')
     del pg0, pg1, pg2
@@ -346,7 +346,7 @@ def train(proj_info, hyp, opt, data_dict, tb_writer=None):
 
     # EMA (required) -----------------------------------------------------------
     ema = ModelEMA(model) if rank in [-1, 0] else None
-    logger.info(f'\nEMA: Using ModelEMA()')
+    logger.info(f'\n{colorstr("EMA: ")}Using ModelEMA()')
 
     # Resume (option) ----------------------------------------------------------
     # see line 133 - 151, it is connected to the model loading procedure
@@ -378,7 +378,7 @@ def train(proj_info, hyp, opt, data_dict, tb_writer=None):
     # DP mode (option) ---------------------------------------------------------
     if cuda and rank == -1 and torch.cuda.device_count() > 1:
         model = torch.nn.DataParallel(model)
-        logger.warn('Using DataParallel(): not recommened, use DDP instead.')
+        logger.warning('Using DataParallel(): not recommened, use DDP instead.')
 
     # SyncBatchNorm (option) ---------------------------------------------------
     if opt.sync_bn and cuda and rank != -1:
@@ -433,7 +433,7 @@ def train(proj_info, hyp, opt, data_dict, tb_writer=None):
                           update_content=dataset_info)
             mlc = len( list(set(dataset.classes)) ) - 1 # label indices start from 0, 1, ..
         except Exception as e:
-            logger.warn(f'Failed to load dataset {train_path}: {e}')
+            logger.warning(f'Failed to load dataset {train_path}: {e}')
 
         try:
             from torch.utils.data import DataLoader
@@ -443,7 +443,7 @@ def train(proj_info, hyp, opt, data_dict, tb_writer=None):
                                     num_workers=opt.workers,
                                     drop_last=True)
         except Exception as e:
-            logger.warn(f'Failed to get dataloder for training: {e}')
+            logger.warning(f'Failed to get dataloder for training: {e}')
 
     nb = len(dataloader)  # number of batches
     assert mlc < nc, 'Label class %g exceeds nc=%g in %s. Possible class labels are 0-%g' % (mlc, nc, opt.data, nc - 1)
@@ -499,7 +499,7 @@ def train(proj_info, hyp, opt, data_dict, tb_writer=None):
                               update_id=f"val_dataset",
                               update_content=dataset_info)
             except Exception as e:
-                logger.warn(f'Failed to load dataset {train_path}: {e}')
+                logger.warning(f'Failed to load dataset {train_path}: {e}')
             try:
                 from torch.utils.data import DataLoader
                 testloader = DataLoader(val_dataset,
@@ -508,7 +508,7 @@ def train(proj_info, hyp, opt, data_dict, tb_writer=None):
                                         num_workers=opt.workers,
                                         drop_last=False)
             except Exception as e:
-                logger.warn(f'Failed to get dataloder for training: {e}')
+                logger.warning(f'Failed to get dataloder for training: {e}')
             # a bit trick
             anchor_summary = {}
             aat, bpr = 0., 0.
@@ -588,7 +588,7 @@ def train(proj_info, hyp, opt, data_dict, tb_writer=None):
     scheduler.last_epoch = start_epoch - 1  # do not move
     scaler = amp.GradScaler(enabled=cuda) # use amp(automatic mixed precision)
 
-    logger.info(f'\nTrain: Image sizes {imgsz}, {imgsz_test}\n'
+    logger.info(f'\n{colorstr("Train: ")}Image sizes {imgsz}, {imgsz_test}\n'
                 f'       Using {dataloader.num_workers} dataloader workers\n'
                 f'       Logging results to {save_dir}\n'
                 f'       Starting training for {epochs} epochs...')
@@ -601,7 +601,7 @@ def train(proj_info, hyp, opt, data_dict, tb_writer=None):
     info = Info.objects.get(userid=userid, project_id=project_id)
     info.progress = "train"
     info.save()
-    print(f'Train: start epoch = {start_epoch}, final epoch = {epochs}')
+    logger.info(f'{colorstr("Train: ")}start epoch = {start_epoch}, final epoch = {epochs}')
 
     # torch.save(model, wdir / 'init.pt')
     for epoch in range(start_epoch, epochs):
@@ -623,7 +623,7 @@ def train(proj_info, hyp, opt, data_dict, tb_writer=None):
                     if rank != 0:
                         dataset.indices = indices.cpu().numpy()
             else:
-                logger.warn(f"taks = {task}: only detection task supports image weight")
+                logger.warning(f"taks = {task}: only detection task supports image weight")
 
         # Update mosaic border
         # b = int(random.uniform(0.25 * imgsz, 0.75 * imgsz + gs) // gs * gs)
@@ -652,7 +652,7 @@ def train(proj_info, hyp, opt, data_dict, tb_writer=None):
         # training batches start ===============================================
         if task == 'detection':
             for i, (imgs, targets, paths, _) in pbar:
-                print(f"{i} {len(imgs)} imgs")
+                logger.info(f"{i} {len(imgs)} imgs")
                 t_batch = time.time() #time_synchronized()
                 ni = i + nb * epoch  # number integrated batches (since train start)
                 imgs = imgs.to(device, non_blocking=True).float() / 255.0  # uint8 to float32, 0-255 to 0.0-1.0
@@ -686,7 +686,7 @@ def train(proj_info, hyp, opt, data_dict, tb_writer=None):
                 optimizer.zero_grad()
                 with amp.autocast(enabled=cuda):
                     pred = model(imgs)  # forward
-                    print('-'*100)
+                    logger.info('-'*100)
                     # if 'loss_ota' not in hyp or hyp['loss_ota'] == 1:
                     if 'OTA' in opt.loss_name: #opt.loss_name == 'OTA':
                         loss, loss_items = compute_loss_ota(pred, targets.to(device), imgs)  # loss scaled by batch_size
@@ -1016,7 +1016,7 @@ def train(proj_info, hyp, opt, data_dict, tb_writer=None):
             elif task == 'classification':
                 plot_cls_results(save_dir=save_dir)
 
-        logger.info('\nTrain: %g epochs completed in %.3f hours.' % (epoch - start_epoch + 1, (time.time() - t0) / 3600))
+        logger.info(f'\n{colorstr("Train: ")}{epoch-start_epoch+1} epochs completed({(time.time() - t0) / 60:.3f} min.')
 
         # Test best.pt after fusing layers -------------------------------------
         # [tenace's note] argument of type 'PosixPath' is not iterable

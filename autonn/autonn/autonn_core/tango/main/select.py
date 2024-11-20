@@ -30,7 +30,7 @@ from .train import train
 from .search import search
 from .evolve import evolve
 from .visualize import BasemodelViewer
-from .export import export_weight, export_config
+from .export import export_weight, export_config, convert_yolov9
 from tango.utils.general import (   increment_path,
                                     get_latest_run,
                                     check_file,
@@ -158,7 +158,7 @@ def get_user_requirements(userid, projid, resume=False):
     task = proj_info_dict['task_type'].lower()
 
     info = Info.objects.get(userid=userid, project_id=projid)
-    print('DB checking...')
+    logger.info('DB checking...')
     info.print()
     info.target = target
     info.device = device
@@ -175,24 +175,24 @@ def get_user_requirements(userid, projid, resume=False):
     skip_bms = False
     if os.path.isfile(info.best_net):
         if lt == 'incremental' or lt == 'transfer' or lt == 'finetune' or lt == 'hpo':
-            logger.info(f'Project Info: Pretrained model {info.best_net} exists.\n'
+            logger.info(f'{colorstr("Project Info: ")}Pretrained model {info.best_net} exists.\n'
                         f'              BMS will be skipped.')
             skip_bms = True
         elif lt == 'normal':
             bak_dir = backup_previous_work(info.best_net)
-            logger.info(f'Project Info: Pretrained model {info.best_net}\n'
+            logger.info(f'{colorstr("Project Info: ")}Pretrained model {info.best_net}\n'
                         f'              moved to {bak_dir}/...')
             info.best_net = ''
             info.save()
         else:
-            logger.warn(f'Project Info: Pretrained model {info.best_net} exists.\n'
+            logger.warn(f'{colorstr("Project Info: ")}Pretrained model {info.best_net} exists.\n'
                         f'              But learning type {lt} is unknown, '
                         f'so it will be overwritten by the end of training.')
 
     # ----------------------------- TANGO+CHAT ---------------------------------
     if task == 'chat':
-        logger.info(f"Project Info: Run LLM model loader")
-        logger.info(f"Project Info: http://localhost:11434 for Ollama server")
+        logger.info(f'{colorstr("Project Info: ")}Run LLM model loader')
+        logger.info(f'{colorstr("Project Info: ")}http://localhost:11434 for Ollama server')
         cmd2 = ["ollama", "serve"]
         p2 = subprocess.Popen(cmd2,
                               stdout=subprocess.PIPE,
@@ -200,7 +200,7 @@ def get_user_requirements(userid, projid, resume=False):
                               cwd=CORE_DIR,
                               text=True,
                               encoding='utf-8')
-        logger.info(f"Project Info: http://localhost:8101 to see Tango+Chat browser")
+        logger.info(f'{colorstr("Project Info: ")}http://localhost:8101 to see Tango+Chat browser')
         run_chat_browser = str(CORE_DIR / 'tangochat' / 'browser.py')
         cmd = ["streamlit", "run", run_chat_browser, "--server.port", "8101", "--browser.gatherUsageStats", "false"]
         # subprocess.check_call(["streamlit", "run", run_chat_browser])
@@ -235,7 +235,7 @@ def get_user_requirements(userid, projid, resume=False):
     if os.path.isdir(str(DATASET_ROOT / dataset_on_proj)):
         dataset_yaml_path = DATASET_ROOT / dataset_on_proj / "dataset.yaml"
     else:
-        logger.warn(f"There is no {DATASET_ROOT}/{dataset_on_proj}. "
+        logger.warning(f"There is no {DATASET_ROOT}/{dataset_on_proj}. "
                     f"Instead embedded COCO128 dataset will be used.")
         dataset_on_proj = 'coco128'
         dataset_yaml_path = CORE_DIR / 'datasets' / 'coco128' / 'dataset.yaml'
@@ -283,7 +283,7 @@ def get_user_requirements(userid, projid, resume=False):
 
     if skip_bms:
         opt_yaml_path = str(PROJ_PATH / 'autonn' / 'opt.yaml')
-        logger.info(f'Porject Info: previous opt.yaml loading..')
+        logger.info(f'{colorstr("Project Info: ")}previous opt.yaml loading..')
         assert os.path.isfile(opt_yaml_path)
 
     with open(opt_yaml_path, encoding='utf-8') as f:
@@ -291,10 +291,10 @@ def get_user_requirements(userid, projid, resume=False):
 
     weights = vars(opt).get('weights', None)
     if weights:
-        logger.info(f'Project Info: pretrained model = {weights}')
+        logger.info(f'{colorstr("Project Info: ")}pretrained model = {weights}')
 
     # check resume
-    logger.info(f'Project Info: CUDA OOM: resume? {resume}')
+    logger.info(f'{colorstr("Project Info: ")}CUDA OOM: resume? {resume}')
     if resume:
         opt.resume = True # str(PROJ_PATH / 'autonn' / 'weights' / 'last.pt')
         opt.bs_factor = info.batch_multiplier - 0.1
@@ -302,7 +302,7 @@ def get_user_requirements(userid, projid, resume=False):
     # check incremental
     if lt == 'incremental':
         best_acc = vars(opt).get('best_acc', None)
-        logger.info(f'Project Info: Incremental: best accuracy? {best_acc}')
+        logger.info(f'{colorstr("Project Info: ")}Incremental: best accuracy? {best_acc}')
         if best_acc == None:
             opt.best_acc = 0.0
 
@@ -360,10 +360,14 @@ def base_model_select(userid, project_id, proj_info, data, manual_select=False):
         else: # target_mem > 20G
             model_size = "XXL"
 
-    logger.info(f"\nBMS: Based on memory = {target_mem}G, acc = {target_acc}")
+    logger.info(f'\n{colorstr("BMS: ")}Based on memory = {target_mem}G, acc = {target_acc}')
     # for supporting both v7 and v9, resent-c and resnet
-    task_ = 'classification-c' if data['nc'] <= 10 and task == 'classification' else task
-    task_ = 'detection7' if data['nc'] <= 50 and task == 'detection' else task
+    if task == 'classification':
+        task_ = 'classification-c' if data['nc'] <= 10 else task
+    elif task == 'detection':
+        task_ = 'detection7' if data['nc'] <= 50 else task
+    else:
+        logger.warning(f"\nBMS: Not supported task: {task}")
 
     # for supporting nas
     if target == 'galaxys22' and task == 'detection':
@@ -388,7 +392,7 @@ def base_model_select(userid, project_id, proj_info, data, manual_select=False):
     source_path = f'{CFG_PATH}/{dirname}/{filename}'
     target_path = f'{PROJ_PATH}/basemodel.yaml'
     shutil.copy(source_path, target_path)
-    logger.info(f'BMS: Selected model is [{model.upper()}{size.upper()}]\n')
+    logger.info(f'{colorstr("BMS: ")}Selected model is [{model.upper()}{size.upper()}]\n')
 
     # construct nodes and edges
     viewer = BasemodelViewer(userid, project_id)
@@ -425,7 +429,11 @@ def backup_previous_work(model):
     all_files = [x for x in glob.glob(str(cur_dir/'*')) if os.path.isfile(x)]
     bestmodel_files = [f for f in all_files if model_name in f] # i.e, bestmodel.pt, bestmodel.onnx, ...
     meta_file = cur_dir / 'neural_net_info.yaml'
-    bestmodel_files.append(meta_file)
+    if os.path.isfile(meta_file):
+        bestmodel_files.append(meta_file)
+    saved_model_dir = cur_dir / 'bestmodel_saved_model'
+    if os.path.isdir(saved_model_dir):
+        bestmodel_files.append(saved_model_dir)
 
     bak_dir = increment_path(cur_dir / 'bak', exist_ok=False) # i.e bak, bak2, bak3, ...
     Path(bak_dir).mkdir(parents=True, exist_ok=True)
@@ -449,7 +457,7 @@ def run_autonn(userid, project_id, resume=False, viz2code=False, nas=False, hpo=
         return
 
     opt.lt = proj_info.get('learning_type', 'normal').lower() # normal / incremental / transfer / hpo
-    logger.info(f"Project Info: Learning Type: {opt.lt}")
+    logger.info(f'{colorstr("Project Info: ")}Learning Type: {opt.lt}')
     if opt.lt == 'hpo' or opt.evolve:
         hpo = True
     elif opt.lt == 'transfer':
@@ -488,7 +496,7 @@ def run_autonn(userid, project_id, resume=False, viz2code=False, nas=False, hpo=
             #     opt = argparse.Namespace(**yaml.load(f, Loader=yaml.SafeLoader))  # replace
             # opt.cfg, opt.weights, opt.resume, opt.batch_size, opt.global_rank, opt.local_rank = '', ckpt, True, opt.total_batch_size, *apriori  # reinstate
             opt.weights = ckpt
-            logger.info('Resuming training from %s' % ckpt)
+            logger.info(f'{colorstr("Project Info: ")}Resuming training from %s' % ckpt)
 
 
     # Pre-train --------------------------------------------------------------------
@@ -506,7 +514,7 @@ def run_autonn(userid, project_id, resume=False, viz2code=False, nas=False, hpo=
     #===========================================================================
     # tb_writer.flush()
     best_acc = results[3] if task == 'detection' else results[0]
-    logger.info(f'Train: Training complete. Best results: {best_acc:.2f},'
+    logger.info(f'{colorstr("Train: ")}Training complete. Best results: {best_acc:.2f},'
                 f' Best model saved as: {train_final}\n')
 
     # NAS ----------------------------------------------------------------------
@@ -530,7 +538,7 @@ def run_autonn(userid, project_id, resume=False, viz2code=False, nas=False, hpo=
 
         # plot results
         plot_evolution(yaml_file, txt_file)
-        logger.info(f'HPO: Hyperparameter optimization complete. '
+        logger.info(f'{colorstr("HPO: ")}Hyperparameter optimization complete. '
                     f'Best results saved as: {yaml_file}\n')
 
     # Train --------------------------------------------------------------------
@@ -546,11 +554,23 @@ def run_autonn(userid, project_id, resume=False, viz2code=False, nas=False, hpo=
     # Incremental Learning -----------------------------------------------------
     if opt.lt == 'incremental':
         if opt.best_acc > best_acc:
-            logger.info(f"\nIncremental: Training complete but got nothing better")
+            logger.info(f'\n{colorstr("Incremental: ")}Training complete but got nothing better')
             return
         else:
-            logger.info(f"\nIncremental: Training complete and got a better model")
+            logger.info(f'\n{colorstr("Incremental: ")}Training complete and got a better model')
 
+    # Convert Model for inference ----------------------------------------------
+    '''
+    Dual or Triple heads for training -> Single head for inference
+    Reparameterization process
+        (1) Load model configuration(e.g. yolov9-s-converted.yaml) with single head [model]
+        (2) Load model weights(e.g. yolov9-s.pt) with daul/triple heads from training result [ckpt]
+        (3) Cherry-pick weight params from [ckpt] to [model] using dedeicated indices
+        (4) Save [model] (e.g. yolov9-s_converted.pt)
+    '''
+    if 'yolov9' in basemodel['name']:
+        inf_cfg = str(CFG_PATH / 'yolov9' / f"{basemodel['name']}-converted.yaml")
+        train_final = convert_yolov9(train_final, inf_cfg)
 
     # Model Export -------------------------------------------------------------
     '''
@@ -562,21 +582,21 @@ def run_autonn(userid, project_id, resume=False, viz2code=False, nas=False, hpo=
     jetsonagxorin   : tensorrt
     jetsonagxxavier : tensorrt
     jetsonnano      : tensorrt
-    galaxys22       : tflite (-> opencl)
-    odroidn2        : onnx ; (tvm -> acl -> opencl)
+    galaxys22       : tflite
+    raspberrypi     : edge-tpu tflite
     '''
     # Strip optimizers ---------------------------------------------------------
     # [tenace's note] what strip_optimizer does is ...
     # 1. load cpu model
     # 2. get attribute 'ema' if it exists
-    # 3. replace attribute 'model' with 'ema'
+    # 3. replace attribute 'model' with attribute 'ema'
     # 4. reset attributes 'optimizer', 'training_results', 'ema', and 'updates' to None
     # 5. reset attribute 'epoch' to -1
     # 6. convert model to FP16 precision (not anymore by tenace)
     # 7. set [model].[parameters].requires_grad = False
     # 8. save model to original file path
-    if not train_final.exists():
-        logger.warn("\nModel Exporter: Training complete but no trained weights")
+    if not Path(train_final).exists():
+        logger.warning(f'\n{colorstr("Model Exporter: ")}Training complete but no trained weights')
         return
 
     stripped_train_final = COMMON_ROOT / userid / project_id / 'bestmodel.pt'
@@ -602,15 +622,13 @@ def run_autonn(userid, project_id, resume=False, viz2code=False, nas=False, hpo=
     info.best_net = str(train_final)
     info.save()
 
-    logger.info(f'Model Exporter: Converting models for target [{target}({target_acc}):{target_engine}]...')
+    logger.info(f'{colorstr("Model Exporter: ")}Converting models for target [{target}({target_acc}):{target_engine}]...')
     logger.info('='*100)
 
     # export weights -----------------------------------------------------------
     target_engine = proj_info['engine']
     channel = data.get('ch')
-    convert = ['torchscript', 'onnx']
-    if target_engine == 'tensorrt':
-        convert.append('engine')
+    convert = ['torchscript', 'onnx', 'pb', 'tflite', 'edgetpu']
     if task == 'detection':
         convert.append('onnx_end2end')
     export_weight(train_final, target_acc, convert, task=task, ch=channel, imgsz=opt.img_size)
@@ -621,7 +639,6 @@ def run_autonn(userid, project_id, resume=False, viz2code=False, nas=False, hpo=
     export_config(src_nninfo_path, dst_nninfo_path, data, basemodel, target_acc, target_engine, task=task)
 
     # print model export summary -----------------------------------------------
-    logger.info(f'\nModel Exporer: Export complete')
     mb = os.path.getsize(train_final) / 1E6  # filesize
     logger.info(f'Source Model = {train_final}({mb:.1f} MB), {results[3]} mAP')
     logger.info('='*100)
@@ -630,6 +647,11 @@ def run_autonn(userid, project_id, resume=False, viz2code=False, nas=False, hpo=
             dir = Path(train_final).parent / Path(train_final).stem
             suffix = '-end2end.onnx'
             exported_bestmodel_path = f"{str(dir)}{suffix}"
+        elif model_type == 'edgetpu':
+            dir = Path(train_final).parent / Path(train_final).stem
+            suffix = f'_edgetpu.tflite'
+            exported_bestmodel_path = f"{str(dir)}{suffix}"
+            model_type = 'edge-tpu'
         else:
             suffix = f'.{model_type}'
             exported_bestmodel_path = Path(train_final).with_suffix(suffix)

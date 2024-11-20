@@ -252,10 +252,10 @@ def model_info(model, verbose=False, img_size=640):
         img_size = img_size if isinstance(img_size, list) else [img_size, img_size]  # expand if int/float
         fs = ', %.1f GFLOPS' % (flops * img_size[0] / stride * img_size[1] / stride)  # 640x640 GFLOPS
     except (ImportError, Exception) as e:
-        logger.warn(e)
+        logger.warning(e)
         fs = ''
 
-    logger.info(f"Model Summary: {len(list(model.modules()))} layers, {n_p} parameters, {n_g} gradients{fs}")
+    logger.info(f'Models Summary: {len(list(model.modules()))} layers, {n_p} parameters, {n_g} gradients{fs}')
 
 
 def model_summary(model, img_size=640, verbose=False):
@@ -283,9 +283,9 @@ def model_summary(model, img_size=640, verbose=False):
     model_briefs['parameters'] = n_p
     model_briefs['gradients'] = n_g
     model_briefs['FLOPS'] = float(gflops)
-    logger.info(f"Models: Summary [Layers: {len(list(model.modules())):,}], "
-                f"[Params: {n_p:,} (Grads: {n_g:,})], "
-                f"[FLOPs: {float(gflops):.1f} GFLOPs]\n")
+    logger.info(f'\033[34m\33[1mModels: \033[0mSummary [Layers: {len(list(model.modules())):,}], '
+                f'[Params: {n_p:,} (Grads: {n_g:,})], '
+                f'[FLOPs: {float(gflops):.1f} GFLOPs]\n')
     return model_briefs
 
 
