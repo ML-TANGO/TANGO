@@ -1,6 +1,3 @@
-'''
-def_trt_engine = "v7-16.trt"
-def_label_yaml = "coco.yaml"
 # from user's selection
 # input_location can be  a number = camera device id(defualt 0) or
 #                        url = stream input or
@@ -10,15 +7,21 @@ def_label_yaml = "coco.yaml"
 #                        number 1 = text output or
 #                        url = stream output or
 #                        directory 
-def_input_location = "./images" # number=camera, url, or file_path
-def_output_location = 0 # "./result" # 0=screen, 1=text, url,or folder_path
-def_conf_thres = 0.5
-def_iou_thres = 0.4
-def_calib_cache = "calibration.cache"
-def_trt_engine = "v7-16.trt"
-def_trt_precision = "fp16"
-def_trt_max_detection = 100
-'''
+# def_input_location = "./images" # number=camera, url, or file_path
+# def_input_location = "./images/horses.jpg" # number=camera, url, or file_path
+# def_input_location = "./images/sample_image.jpeg" # number=camera, url, or file_path
+# def_input_location = "./images/480.mp4" # number=camera, url, or file_path
+# def_output_location = 0 # "./result" # 0=screen, 1=text, url,or folder_path
+# def_conf_thres = 0.5
+# def_iou_thres = 0.4
+# def_calib_cache = "calibration.cache"
+# def_trt_engine = "v9-16.trt"
+# def_trt_precision = "fp16"
+# def_trt_max_detection = 100
+# def_onnx_model = 'yolov9-s.onnx'
+# def_onnx_model = 'yolov9-s-end2end-ORT.onnx'
+
+# def_label_yaml = 'dataset.yaml'
 
 """ copyright notice
 This module is for testing code for neural network model.
@@ -38,6 +41,16 @@ import matplotlib.pyplot as plt
 import tensorrt as trt
 import pycuda.autoinit
 import pycuda.driver as cuda
+
+
+def xywh2xyxy(x):
+    y = np.copy(x)
+    y[:, 0] = x[:, 0] - x[:, 2] / 2  
+    y[:, 1] = x[:, 1] - x[:, 3] / 2 
+    y[:, 2] = x[:, 0] + x[:, 2] / 2  
+    y[:, 3] = x[:, 1] + x[:, 3] / 2  
+    return y
+
 
 
 ###############################################################
@@ -169,7 +182,8 @@ class TRTRun():
         self.save_img = False
         self.stream_out = False
         self.width = 640
-        self.height = 480
+        #self.height = 480
+        self.height = 640
         if self.output_location == 0:
             self.view_img = True
         elif self.output_location == 1:
@@ -276,20 +290,44 @@ class TRTRun():
             self.stream.synchronize()
             data = [out['host'] for out in self.outputs]
 
-            predictions = np.reshape(data, (1, -1, int(5+len(self.classes))))[0]
+            # modified for yolov9  khlee
+            data = data[-1]
+            # batch size = 1
+            # 705600
+            # total class 80
+            # predictions = np.reshape(data, (1, -1, int(5+len(self.classes))))[0]
+            #predictions = np.reshape(data, (1, -1, int(4+len(self.classes))))[0]
+            tsize = int(4+len(self.classes))
+            predictions = np.reshape(data, (1, tsize, -1))
+            predictions = np.squeeze(predictions).T
+            scores = np.max(predictions[:,4:], axis=1)
+            predictions = predictions[scores > def_conf_thres, :]
+            scores = scores[scores > def_conf_thres]
+            class_ids = np.argmax(predictions[:, 4:], axis=1)
             boxes = predictions[:, :4]
-            scores = predictions[:, 4:5] * predictions[:, 5:]
-            boxes_xyxy = np.ones_like(boxes)
-            boxes_xyxy[:, 0] = boxes[:, 0] - boxes[:, 2] / 2.
-            boxes_xyxy[:, 1] = boxes[:, 1] - boxes[:, 3] / 2.
-            boxes_xyxy[:, 2] = boxes[:, 0] + boxes[:, 2] / 2.
-            boxes_xyxy[:, 3] = boxes[:, 1] + boxes[:, 3] / 2.
-            boxes_xyxy /= ratio
-            dets = self.multiclass_nms(boxes_xyxy, scores, nms_thr=0.45, score_thr=0.1)
+
+            input_shape = np.array([self.imgsz[0], self.imgsz[1], self.imgsz[0], self.imgsz[1]])
+            boxes = np.divide(boxes, input_shape, dtype=np.float32)
+            boxes *= np.array([self.imgsz[0], self.imgsz[1], self.imgsz[0], self.imgsz[1]])
+            boxes = boxes.astype(np.int32)
+
+            #predictions = np.reshape(data, (1, tsize, -1))
+            # predictions = predictions.tolist()
+            # 1, 84, 8400
+            # scores = predictions[:, 4:tsize]
+            #
+            boxes_xyxy = xywh2xyxy(boxes)
+            for i in range(len(boxes_xyxy)):
+                boxes_xyxy[i, 0] = int(boxes_xyxy[i, 0] / ratio)
+                boxes_xyxy[i, 1] = int(boxes_xyxy[i, 1] / ratio)
+                boxes_xyxy[i, 2] = int(boxes_xyxy[i, 2] / ratio)
+                boxes_xyxy[i, 3] = int(boxes_xyxy[i, 3] / ratio)
+
+            dets = self.multiclass_nms(boxes_xyxy, scores, class_ids, nms_thr=def_iou_thres, score_thr=def_conf_thres)
             if (type(dets) == np.ndarray):
                 final_boxes, final_scores, final_cls_inds = dets[:, :4], dets[:, 4], dets[:, 5]
                 result = [final_boxes, final_scores, final_cls_inds]
-                self.postprocess(img, result, save_path)
+                self.postprocess(img, result, save_path, vid_on=True)
                 if cv2.waitKey(1) == ord('q'):
                     break
         self.video.release()
@@ -328,20 +366,44 @@ class TRTRun():
             self.stream.synchronize()
             data = [out['host'] for out in self.outputs]
 
-            predictions = np.reshape(data, (1, -1, int(5+len(self.classes))))[0]
+            # modified for yolov9  khlee
+            data = data[-1]
+            # batch size = 1
+            # 705600
+            # total class 80
+            # predictions = np.reshape(data, (1, -1, int(5+len(self.classes))))[0]
+            #predictions = np.reshape(data, (1, -1, int(4+len(self.classes))))[0]
+            tsize = int(4+len(self.classes))
+            predictions = np.reshape(data, (1, tsize, -1))
+            predictions = np.squeeze(predictions).T
+            scores = np.max(predictions[:,4:], axis=1)
+            predictions = predictions[scores > def_conf_thres, :]
+            scores = scores[scores > def_conf_thres]
+            class_ids = np.argmax(predictions[:, 4:], axis=1)
             boxes = predictions[:, :4]
-            scores = predictions[:, 4:5] * predictions[:, 5:]
-            boxes_xyxy = np.ones_like(boxes)
-            boxes_xyxy[:, 0] = boxes[:, 0] - boxes[:, 2] / 2.
-            boxes_xyxy[:, 1] = boxes[:, 1] - boxes[:, 3] / 2.
-            boxes_xyxy[:, 2] = boxes[:, 0] + boxes[:, 2] / 2.
-            boxes_xyxy[:, 3] = boxes[:, 1] + boxes[:, 3] / 2.
-            boxes_xyxy /= ratio
-            dets = self.multiclass_nms(boxes_xyxy, scores, nms_thr=0.45, score_thr=0.1)
+
+            input_shape = np.array([self.imgsz[0], self.imgsz[1], self.imgsz[0], self.imgsz[1]])
+            boxes = np.divide(boxes, input_shape, dtype=np.float32)
+            boxes *= np.array([self.imgsz[0], self.imgsz[1], self.imgsz[0], self.imgsz[1]])
+            boxes = boxes.astype(np.int32)
+
+            #predictions = np.reshape(data, (1, tsize, -1))
+            # predictions = predictions.tolist()
+            # 1, 84, 8400
+            # scores = predictions[:, 4:tsize]
+            #
+            boxes_xyxy = xywh2xyxy(boxes)
+            for i in range(len(boxes_xyxy)):
+                boxes_xyxy[i, 0] = int(boxes_xyxy[i, 0] / ratio)
+                boxes_xyxy[i, 1] = int(boxes_xyxy[i, 1] / ratio)
+                boxes_xyxy[i, 2] = int(boxes_xyxy[i, 2] / ratio)
+                boxes_xyxy[i, 3] = int(boxes_xyxy[i, 3] / ratio)
+
+            dets = self.multiclass_nms(boxes_xyxy, scores, class_ids, nms_thr=def_iou_thres, score_thr=def_conf_thres)
             if (type(dets) == np.ndarray):
                 final_boxes, final_scores, final_cls_inds = dets[:, :4], dets[:, 4], dets[:, 5]
                 result = [final_boxes, final_scores, final_cls_inds]
-                self.postprocess(img, result, save_path)
+                self.postprocess(img, result, save_path, vid_on=True)
                 if cv2.waitKey(1) == ord('q'):
                     break
         self.video.release()
@@ -383,21 +445,45 @@ class TRTRun():
                 cuda.memcpy_dtoh_async(out['host'], out['device'], self.stream)
             self.stream.synchronize()
             data = [out['host'] for out in self.outputs]
-
-            predictions = np.reshape(data, (1, -1, int(5+len(self.classes))))[0]
+            
+            # modified for yolov9  khlee
+            data = data[-1]
+            # batch size = 1
+            # 705600
+            # total class 80
+            # predictions = np.reshape(data, (1, -1, int(5+len(self.classes))))[0]
+            #predictions = np.reshape(data, (1, -1, int(4+len(self.classes))))[0]
+            tsize = int(4+len(self.classes))
+            predictions = np.reshape(data, (1, tsize, -1))
+            predictions = np.squeeze(predictions).T
+            scores = np.max(predictions[:,4:], axis=1)
+            predictions = predictions[scores > def_conf_thres, :]
+            scores = scores[scores > def_conf_thres]
+            class_ids = np.argmax(predictions[:, 4:], axis=1)
             boxes = predictions[:, :4]
-            scores = predictions[:, 4:5] * predictions[:, 5:]
-            boxes_xyxy = np.ones_like(boxes)
-            boxes_xyxy[:, 0] = boxes[:, 0] - boxes[:, 2] / 2.
-            boxes_xyxy[:, 1] = boxes[:, 1] - boxes[:, 3] / 2.
-            boxes_xyxy[:, 2] = boxes[:, 0] + boxes[:, 2] / 2.
-            boxes_xyxy[:, 3] = boxes[:, 1] + boxes[:, 3] / 2.
-            boxes_xyxy /= ratio
-            dets = self.multiclass_nms(boxes_xyxy, scores, nms_thr=0.45, score_thr=0.1)
+
+            input_shape = np.array([self.imgsz[0], self.imgsz[1], self.imgsz[0], self.imgsz[1]])
+            boxes = np.divide(boxes, input_shape, dtype=np.float32)
+            boxes *= np.array([self.imgsz[0], self.imgsz[1], self.imgsz[0], self.imgsz[1]])
+            boxes = boxes.astype(np.int32)
+
+            #predictions = np.reshape(data, (1, tsize, -1))
+            # predictions = predictions.tolist()
+            # 1, 84, 8400
+            # scores = predictions[:, 4:tsize]
+            #
+            boxes_xyxy = xywh2xyxy(boxes)
+            for i in range(len(boxes_xyxy)):
+                boxes_xyxy[i, 0] = int(boxes_xyxy[i, 0] / ratio)
+                boxes_xyxy[i, 1] = int(boxes_xyxy[i, 1] / ratio)
+                boxes_xyxy[i, 2] = int(boxes_xyxy[i, 2] / ratio)
+                boxes_xyxy[i, 3] = int(boxes_xyxy[i, 3] / ratio)
+
+            dets = self.multiclass_nms(boxes_xyxy, scores, class_ids, nms_thr=def_iou_thres, score_thr=def_conf_thres)
             if (type(dets) == np.ndarray):
                 final_boxes, final_scores, final_cls_inds = dets[:, :4], dets[:, 4], dets[:, 5]
                 result = [final_boxes, final_scores, final_cls_inds]
-                self.postprocess(img, result, save_path)
+                self.postprocess(img, result, save_path, vid_on=True)
                 if cv2.waitKey(1) == ord('q'):
                     break
         self.video.release()
@@ -439,17 +525,40 @@ class TRTRun():
             cuda.memcpy_dtoh_async(out['host'], out['device'], self.stream)
         self.stream.synchronize()
         data = [out['host'] for out in self.outputs]
-
-        predictions = np.reshape(data, (1, -1, int(5+len(self.classes))))[0]
+        # modified for yolov9  khlee
+        data = data[-1]
+        # batch size = 1
+        # 705600
+        # total class 80
+        # predictions = np.reshape(data, (1, -1, int(5+len(self.classes))))[0]
+        #predictions = np.reshape(data, (1, -1, int(4+len(self.classes))))[0]
+        tsize = int(4+len(self.classes))
+        predictions = np.reshape(data, (1, tsize, -1))
+        predictions = np.squeeze(predictions).T
+        scores = np.max(predictions[:,4:], axis=1)
+        predictions = predictions[scores > def_conf_thres, :]
+        scores = scores[scores > def_conf_thres]
+        class_ids = np.argmax(predictions[:, 4:], axis=1)
         boxes = predictions[:, :4]
-        scores = predictions[:, 4:5] * predictions[:, 5:]
-        boxes_xyxy = np.ones_like(boxes)
-        boxes_xyxy[:, 0] = boxes[:, 0] - boxes[:, 2] / 2.
-        boxes_xyxy[:, 1] = boxes[:, 1] - boxes[:, 3] / 2.
-        boxes_xyxy[:, 2] = boxes[:, 0] + boxes[:, 2] / 2.
-        boxes_xyxy[:, 3] = boxes[:, 1] + boxes[:, 3] / 2.
-        boxes_xyxy /= ratio
-        dets = self.multiclass_nms(boxes_xyxy, scores, nms_thr=0.45, score_thr=0.1)
+
+        input_shape = np.array([self.imgsz[0], self.imgsz[1], self.imgsz[0], self.imgsz[1]])
+        boxes = np.divide(boxes, input_shape, dtype=np.float32)
+        boxes *= np.array([self.imgsz[0], self.imgsz[1], self.imgsz[0], self.imgsz[1]])
+        boxes = boxes.astype(np.int32)
+
+        #predictions = np.reshape(data, (1, tsize, -1))
+        # predictions = predictions.tolist()
+        # 1, 84, 8400
+        # scores = predictions[:, 4:tsize]
+        #
+        boxes_xyxy = xywh2xyxy(boxes)
+        for i in range(len(boxes_xyxy)):
+            boxes_xyxy[i, 0] = int(boxes_xyxy[i, 0] / ratio)
+            boxes_xyxy[i, 1] = int(boxes_xyxy[i, 1] / ratio)
+            boxes_xyxy[i, 2] = int(boxes_xyxy[i, 2] / ratio)
+            boxes_xyxy[i, 3] = int(boxes_xyxy[i, 3] / ratio)
+
+        dets = self.multiclass_nms(boxes_xyxy, scores, class_ids, nms_thr=def_iou_thres, score_thr=def_conf_thres)
         if (type(dets) == np.ndarray):
             final_boxes, final_scores, final_cls_inds = dets[:, :4], dets[:, 4], dets[:, 5]
             result = [final_boxes, final_scores, final_cls_inds]
@@ -457,14 +566,21 @@ class TRTRun():
         return
 
     def nms(self, boxes, scores, nms_thr):
-        x1 = boxes[:, 0]
-        y1 = boxes[:, 1]
-        x2 = boxes[:, 2]
-        y2 = boxes[:, 3]
+        x1 = np.array([])
+        y1 = np.array([])
+        x2 = np.array([])
+        y2 = np.array([])
+        sz = scores.size
+        for i in range(sz):
+            x1 = np.append(x1, boxes[i][0])
+            y1 = np.append(y1, boxes[i][1])
+            x2 = np.append(x2, boxes[i][2])
+            y2 = np.append(y2, boxes[i][3])
+
         areas = (x2 - x1 + 1) * (y2 - y1 + 1)
         order = scores.argsort()[::-1]
         keep = []
-        while order.size > 0:
+        while (order.size) > 0:
             i = order[0]
             keep.append(i)
             xx1 = np.maximum(x1[i], x1[order[1:]])
@@ -480,28 +596,89 @@ class TRTRun():
         return keep
 
 
-    def multiclass_nms(self, boxes, scores, nms_thr=0.45, score_thr=0.1):
+    def multiclass_nms(self, boxes, scores, cls_ids, nms_thr=0.45, score_thr=0.1):
+        tch = []
+        for i in range(len(self.classes)):
+            x =  [i, [], []]
+            tch.append(x)
+        j = 0
+        for item in cls_ids:
+            tch[item][1].append(boxes[j])  # boxes
+            tch[item][2].append(scores[j])  # confidence
+            j = j + 1
+
         final_dets = []
-        num_classes = scores.shape[1]
+        num_classes = len(self.classes) 
         for cls_ind in range(num_classes):
-            cls_scores = scores[:, cls_ind]
-            valid_score_mask = cls_scores > score_thr
-            if valid_score_mask.sum() == 0:
+            if len(tch[cls_ind][2]) == 0:
                 continue
-            else:
-                valid_scores = cls_scores[valid_score_mask]
-                valid_boxes = boxes[valid_score_mask]
-                keep = self.nms(valid_boxes, valid_scores, nms_thr)
-                if len(keep) > 0:
-                    cls_inds = np.ones((len(keep), 1)) * cls_ind
-                    dets = np.concatenate(
-                        [valid_boxes[keep], valid_scores[keep, None], cls_inds], 1
-                    )
-                    final_dets.append(dets)
+            valid_scores = np.array(tch[cls_ind][2])  
+            valid_boxes = np.array(tch[cls_ind][1])  
+            keep = self.nms(valid_boxes, valid_scores, nms_thr)
+            if len(keep) > 0:
+                cls_inds = np.ones((len(keep), 1)) * cls_ind
+                dets = np.concatenate(
+                    [valid_boxes[keep], valid_scores[keep, None], cls_inds], 1
+                )
+                final_dets.append(dets)
         if len(final_dets) == 0:
             return None
 
         return np.concatenate(final_dets, 0)
+        
+    def do_oneimage(self, orgimg):
+        preproc_image, ratio  = self.preprocess(orgimg)
+        # inference
+        self.inputs[0]['host'] = np.ravel(preproc_image)
+        for inp in self.inputs:
+            cuda.memcpy_htod_async(inp['device'], inp['host'], self.stream)
+        # inference
+        self.context.execute_async_v2(
+            bindings = self.bindings,
+            stream_handle = self.stream.handle)
+        for out in self.outputs:
+            cuda.memcpy_dtoh_async(out['host'], out['device'], self.stream)
+        self.stream.synchronize()
+        data = [out['host'] for out in self.outputs]
+        # modified for yolov9  khlee
+        data = data[-1]
+        # batch size = 1
+        # 705600
+        # total class 80
+        # predictions = np.reshape(data, (1, -1, int(5+len(self.classes))))[0]
+        #predictions = np.reshape(data, (1, -1, int(4+len(self.classes))))[0]
+        tsize = int(4+len(self.classes))
+        predictions = np.reshape(data, (1, tsize, -1))
+        predictions = np.squeeze(predictions).T
+        scores = np.max(predictions[:,4:], axis=1)
+        predictions = predictions[scores > def_conf_thres, :]
+        scores = scores[scores > def_conf_thres]
+        class_ids = np.argmax(predictions[:, 4:], axis=1)
+        boxes = predictions[:, :4]
+
+        input_shape = np.array([self.imgsz[0], self.imgsz[1], self.imgsz[0], self.imgsz[1]])
+        boxes = np.divide(boxes, input_shape, dtype=np.float32)
+        boxes *= np.array([self.imgsz[0], self.imgsz[1], self.imgsz[0], self.imgsz[1]])
+        boxes = boxes.astype(np.int32)
+
+        #predictions = np.reshape(data, (1, tsize, -1))
+        # predictions = predictions.tolist()
+        # 1, 84, 8400
+        # scores = predictions[:, 4:tsize]
+        #
+        boxes_xyxy = xywh2xyxy(boxes)
+        for i in range(len(boxes_xyxy)):
+            boxes_xyxy[i, 0] = int(boxes_xyxy[i, 0] / ratio)
+            boxes_xyxy[i, 1] = int(boxes_xyxy[i, 1] / ratio)
+            boxes_xyxy[i, 2] = int(boxes_xyxy[i, 2] / ratio)
+            boxes_xyxy[i, 3] = int(boxes_xyxy[i, 3] / ratio)
+
+        dets = self.multiclass_nms(boxes_xyxy, scores, class_ids, nms_thr=def_iou_thres, score_thr=def_conf_thres)
+        if (type(dets) == np.ndarray):
+            final_boxes, final_scores, final_cls_inds = dets[:, :4], dets[:, 4], dets[:, 5]
+            result = [final_boxes, final_scores, final_cls_inds]
+            self.postprocess(orgimg, result, save_path, still_image=True)
+        return im0
 
 
     def run(self):
@@ -542,7 +719,7 @@ class TRTRun():
             color_list.append(color[:3])  # might need rounding? (round(x, 3) for x in color)[:3]
         return np.array(color_list)
 
-    def postprocess(self, image, label, save_path, still_image=False):
+    def postprocess(self, image, label, save_path, still_image=False, vid_on=False):
         """
         To postprocessing after inference  
 
@@ -587,8 +764,11 @@ class TRTRun():
 
         if self.view_img:
             cv2.imshow("result", image)
-            cv2.waitKey(1)
-            time.sleep(1)
+            if (vid_on == True):
+                cv2.waitKey(1)
+            else:
+                cv2.waitKey(5000)
+            # time.sleep(1)
         elif self.save_img:
             if still_image:
                 cv2.imwrite(str(save_path), image)
@@ -610,7 +790,7 @@ class TRTRun():
             # if you want to send detection results to internet
             # write proper codes here to do it
             pass
-        return
+        return image
 
 
 if __name__ == "__main__":

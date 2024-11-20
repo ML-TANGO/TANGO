@@ -8,9 +8,6 @@ This module generates template code for RKNN, PyTorch, and ArmNN based on AutoNN
 """
 # khlee To Do List
 '''
-web app template gen.
-nms code gen.
-deployment.yaml location change : under nn_model
 deployment.yaml user editing -> user can be add papy app libs 
 tflite code gen.
 input source mp4 + jpg in same folder
@@ -41,6 +38,10 @@ import tensorflow as tf
 # from        torchvision import  models
 # from        onnxruntime.quantization import  quantize_dynamic
 # from        onnxruntime.quantization import  QuantType
+# added for edgetpu
+sys.path.append(os.path.dirname(os.path.abspath(__file__)) + '/yolov9')
+from custom_yolo import CustomYOLO
+DEF_EDGETPU_TFLITE_FILE = 'yolov9t_320_edgetpu.tflite'
 
 logging.basicConfig(level=logging.DEBUG, format="(%(threadName)s) %(message)s")
 
@@ -66,15 +67,15 @@ def_TVM_dev_type = 0   # 0 llvm ,1 cuda,
 def_TVM_width = 640 
 def_TVM_height = 640 
 def_TVM_data_type = "float32"
-def_TVM_mod = "yolov7.mod"
-def_TVM_param = "yolov7.param"
+def_TVM_mod = "yolov9-tvm.model"
+def_TVM_param = "yolov9-tvm.param"
 def_TVM_myutil_file_name = "./db/myutil.py"
 
 
 # defualt values
 def_nninfo_file = "neural_net_info.yaml"
 def_sysinfo_file = "project_info.yaml"
-def_requirement_file = "deployment.yaml"
+def_deployment_file = "deployment.yaml"
 
 def_task_type = 'detection'  # classification
 def_memory_size = 1
@@ -101,7 +102,6 @@ def_weight_pt_file = ""  # 'input.pt'
 def_weight_onnx_file = ""  # ' input.onnx'
 def_dataset_path = "/tango/datasets"  
 def_annotation_file = "dataset.yaml"  # 'coco.dat'
-def_ondevice_python_requirements = "requirements.txt"  
 
 def_newline = '\n'
 def_4blank = "    "
@@ -113,52 +113,42 @@ def_m1_manual = './db/odroid-m1-manual.txt'
 def_tensorrt_manual = './db/odroid-m1-manual.txt'
 def_tvm_manual = './db/odroid-m1-manual.txt'
 
-def_yolo_base_file_path = "."
-def_yolo_requirements = "yoloe_requirements.txt"
 
 
 # for android
 os.environ['TF_CPP_MIN_LOG_LEVEL']='2'
 
-def tf2tflite(input_size = 640, pb_file="model_float32.pb", output_file="mymodel.tflite"):
-    input_arrays = ['inputs']
-    output_arrays = ['Identity', 'Identity_1', 'Identity_2']
-    converter = tf.compat.v1.lite.TFLiteConverter.from_frozen_graph(pb_file, input_arrays, output_arrays)
-    converter.experimental_new_quantizer = False
-    # converter.inference_input_type = tf.uint8
-    converter.inference_output_type = tf.float32
-    converter.optimizations = [tf.lite.Optimize.DEFAULT]
-    converter.target_spec.supported_types = [tf.float16]
-    tflite_model = converter.convert()
-    with open(output_file, 'wb') as w:
-        w.write(tflite_model)
-    return
-
-def onnx2tflite(onnx_filename = "./yolov7-tiny.onnx"):
-    # onnx2openvino
-    mycmd = "python3 /opt/intel/openvino_2021/deployment_tools/model_optimizer/mo.py "
-    mycmd = mycmd + " --input_model %s" % onnx_filename
-    mycmd = mycmd + " --input_shape [1,3,640,640] "
-    mycmd = mycmd + " --output_dir .  "
-    mycmd = mycmd + " --data_type FP32 "
-    mycmd = mycmd + " --output Conv_134,Conv_149,Conv_164"
-    os.system(mycmd)
-
+def onnx2tflite(onnx_filename = "./yolov9-s_320.onnx"):
     # openvino2tflite
-    os.system("openvino2tensorflow --model_path ./yolov7-tiny.xml  --model_output_path .  --output_no_quant_float32_tflite")
-
+    os.system("onnx2tf -i %s -dgc -nuo -ebu  -o ./yolov9tf" % onnx_filename)
     #move the tflite file to the place
-    os.system("cp model_float32.tflite ./tflite_yolov7_test/app/src/main/assets/yolov7-tiny_fp32_640.tflite")
-    os.system("rm -f ./tflite_yolov7_test/app/build/intermediates/assets/debug/yolov7-tiny_fp32_640.tflite")
-
-    #apk build
-    os.system("./tflite_yolov7_test/gradlew init < /app/enter.txt  && cd ./tflite_yolov7_test && ./gradlew assembleDebug")
-    os.system("cp ./tflite_yolov7_test/app/build/outputs/apk/debug/app-debug.apk /app")
-
-    # remove temp file & dirs
-    os.system("sudo /bin/rm -rf yolov7-tiny.xml tflite *.onnx *.mapping *.bin *.ptl *.tflite")
-    ret = "app-debug.apk"
+    tmp = (len(onnx_filename.split(".")[-1])+1) * -1
+    t_file = onnx_filename[0:tmp] +"_float32.tflite"
+    mystr= t_file.split('/')[-1]
+    os.system("cp ./yolov9tf/%s ./tflite_yolov9_test/app/src/main/assets" % mystr)
+    os.system("/bin/rm -rf ./yolov9tf")
+    # change Constants.kt
+    os.system("cp db/android/Constants.kt .")
+    strn = "s/@@filename@@%s%s/g Constants.kt" % ('/', mystr)
+    os.system("sed -i %s" %  strn)
+    os.system("cp Constants.kt  ./tflite_yolov9_test/app/src/main/java/com/surendramaran/yolov9tflite/Constants.kt")
+    os.system("/bin/rm -rf  Constants.kt")
+    # change Detector.kt
+    os.system("cp db/android/Detector.kt  ./tflite_yolov9_test/app/src/main/java/com/surendramaran/yolov9tflite/Detector.kt")
+    # apk build
+    os.system("./tflite_yolov9_test/gradlew init < /app/enter.txt  && cd ./tflite_yolov9_test && ./gradlew assembleDebug")
+    os.system("mv ./tflite_yolov9_test/app/build/outputs/apk/debug/app-debug.apk /app")
+    ret = "/app/app-debug.apk"
     return ret
+
+
+def pt2edgetpu(pt_filename = "./yolov9-s_320.pt", size=320):
+    print('ptfile= ', pt_filename)
+    print('size=', size)
+    model = CustomYOLO(pt_filename, task='detect')
+    path = model.export(format='edgetpu', imgsz=size)
+    return path
+
 
 
 
@@ -216,32 +206,25 @@ class CodeGen:
     m_nninfo_model_definition_file = def_model_definition_file
     m_nninfo_weight_pt_file = def_weight_pt_file
     m_nninfo_weight_onnx_file = def_weight_onnx_file
+    m_nninfo_weight_ts_file = ""
     m_nninfo_annotation_file = def_annotation_file
     m_nninfo_labelmap_info = []
     m_nninfo_number_of_labels = 0
     m_nninfo_anchors = []
     m_nninfo_mask = []
-    m_nninfo_preproc_norm = []
-    m_nninfo_preproc_mean = []
-    m_nninfo_output_format_allow_list = False
     m_nninfo_output_number = 0
     m_nninfo_output_size = []
-    m_nninfo_output_pred_format = []
     m_nninfo_postproc_conf_thres = 0
     m_nninfo_postproc_iou_thres = 0
     m_nninfo_postproc_need_nms = False
 
     m_nninfo_input_tensor_shape = []
     m_nninfo_input_data_type = ""
-    m_nninfo_yolo_base_file_path = def_yolo_base_file_path 
-    m_nninfo_yolo_require_packages = []
-    m_nninfo_user_libs = []
-    m_py = ""
-    m_pt_model = ""
 
     m_converted_file = ""
     m_deploy_python_file = def_deploy_python_file
-    m_requirement_file = def_requirement_file
+    m_deployment_file = def_deployment_file
+    m_requirement_file = 'requirements.txt'
 
     m_deploy_network_serviceport = 0
 
@@ -266,7 +249,6 @@ class CodeGen:
                     self.m_atwork = 1
                     self.run()
                     self.m_atwork = 0
-                    # khlee 
                     # send status_report
                     self.response()
                     logging.debug("code_gen: send_status_report to manager")
@@ -295,24 +277,6 @@ class CodeGen:
         logging.debug("code_gen Module End")
         return
 
-    ####################################################################
-    def add_user_libs(self, libs):
-        """
-        add lib that user added for the code that user edited
-        Args:
-            libs : list of libs 
-        Returns: int
-            0 : success
-            -1 : file error
-        """
-        if isinstance(libs, list):
-            for item in libs:
-                if not libs in self.m_nninfo_user_libs:
-                    self.m_nninfo_user_libs.append(libs)
-        else:
-            if not libs in self.m_nninfo_user_libs:
-                self.m_nninfo_user_libs.append(libs)
-                
     ####################################################################
     def move_subfolderfile(self, src, dst):
         """
@@ -454,6 +418,8 @@ class CodeGen:
             0 : success
             -1 : file error
         """
+        self.m_deploy_network_serviceport = '0'
+
         try:
             f = open(self.get_real_filepath(self.m_sysinfo_file), encoding='UTF-8')
         except IOError as err:
@@ -492,13 +458,13 @@ class CodeGen:
             elif key == 'precision_level':
                 self.m_sysinfo_precision_level = int(value)
             elif key == 'input_source':
-                if type(value) == str:
-                    self.m_sysinfo_input_method = "'" + value + "'" # url, path, camera ID 
+                if type(value) != int:
+                    self.m_sysinfo_input_method = value  # url, path, camera ID 
                 else:
                     self.m_sysinfo_input_method = value  # url, path, camera ID 
             elif key == 'output_method':
                 # 0:graphic, 1:text, path, url
-                if type(value) == str:
+                if type(value) != int:
                     self.m_sysinfo_output_method = "'" + value + "'"  
                 else:
                     self.m_sysinfo_output_method = value  
@@ -508,9 +474,9 @@ class CodeGen:
                 self.m_sysinfo_confidence_thresh = value  
             elif key == 'iou_thresh':
                 self.m_sysinfo_iou_thresh = value  
-            elif key == 'dataset':
-                myset = "%s/dataset.yaml" % (value)
-                self.m_nninfo_annotation_file = myset
+            # elif key == 'dataset':
+                # myset = "%s/dataset.yaml" % (value)
+                # self.m_nninfo_annotation_file = myset
         f.close()
         return 0
 
@@ -527,122 +493,74 @@ class CodeGen:
         try:
             f = open(self.get_real_filepath(self.m_nninfo_file), encoding='UTF-8')
         except IOError as err:
-            logging.debug("Sysinfo file open error!!")
+            logging.debug("nninfo file open error!!")
             return -1
         m_nninfo = yaml.load(f, Loader=yaml.FullLoader)
 
+        self.m_nninfo_number_of_labels = 0
+        self.m_nninfo_labelmap_info = None 
         # parse nninfo
         for key, value in sorted(m_nninfo.items()):
-            if key == 'base_dir_autonn':
-                self.m_nninfo_yolo_base_file_path = value
-                # add python code path
-                my_path = "%s%s" % (self.m_current_file_path, self.m_nninfo_yolo_base_file_path)
-                if not my_path in sys.path:
-                    sys.path.append(my_path)
-                    sys.path.append(self.m_current_file_path)
-            if key == 'class_file':
-                # subval = value.get('os')
-                self.m_nninfo_class_file = value
-                if len(value) == 1:
-                    self.m_nninfo_model_definition_file = value
-                else:
-                    self.m_nninfo_model_definition_file = value[0]
-            elif key == 'class_name':
-                self.m_nninfo_class_name = value
-            elif key == 'weight_file':
+            if key == 'weight_file':
                 if isinstance(value, list):
                     cnt = len(value)
                     for i in range(cnt):
-                        tmp_str = value[i]
-                        # .pt
-                        val = ".pt" in tmp_str
-                        if val:
-                            self.m_nninfo_weight_pt_file = tmp_str
-                        else:
-                            self.m_nninfo_weight_onnx_file = tmp_str  # .onnx
+                        val = value[i]
+                        if ".onnx" in val: 
+                            self.m_nninfo_weight_onnx_file = val  # .onnx
+                        elif ".pt" in val:
+                            self.m_nninfo_weight_pt_file = val
+                        elif ".torchscript" in val:
+                            self.m_nninfo_weight_ts_file = val
                 else:
-                    val = ".pt" in value 
-                    if val:
-                        self.m_nninfo_weight_pt_file = value
-                    else:
-                        self.m_nninfo_weight_onnx_file = value
-            elif key == 'label_info_file':
-                self.m_nninfo_annotation_file = value
-                # parsing  labelmap
-                try:
-                    annotation_file = "%s/%s" % (def_dataset_path, self.m_nninfo_annotation_file)
-                    f1 = open(annotation_file, encoding='UTF-8')
-                except IOError as err:
-                    logging.debug("LabelMap file open error!!")
-                    return -1
-                labelinfo = yaml.load(f1, Loader=yaml.FullLoader)
-                for key1, value1 in sorted(labelinfo.items()):
-                    if key1 == 'names':
-                        self.m_nninfo_labelmap_info = value1
-                    elif key1 == 'nc':
-                        self.m_nninfo_number_of_labels = int(value1)
-
-            elif key == 'input_tensor_shape':  # [1,2,3,4] -> integer conversion needed
+                    if ".onnx" in value:
+                        self.m_nninfo_weight_onnx_file = value  # .onnx
+                    elif ".pt" in value:
+                        self.m_nninfo_weight_pt_file = value  # .pt
+                    elif ".torchscript" in val:
+                        self.m_nninfo_weight_ts_file = value
+            elif key == 'nc':
+                self.m_nninfo_number_of_labels = int(value)
+            elif key == 'names':
+                self.m_nninfo_labelmap_info = value
+            elif key == 'input_tensor_shape':
                 if isinstance(value, list):
                     cnt = len(value)
                     tmp1 = list(range(0, cnt))
                     for i in range(cnt):
                         tmp1[i] = int(value[i])
                     self.m_nninfo_input_tensor_shape = tmp1
-            elif key == 'input_data_type':  # fp32
+            elif key == 'input_data_type': # fp16
                 self.m_nninfo_input_data_type = value
-            elif key == 'anchors':
-                t_cnt = len(value)
-                cord = 0
-                mask = []
-                my_anchor = []
-                for element in range(0, t_cnt):
-                    a1 = []
-                    ttmp = value[element]
-                    tmp_len = len(ttmp)
-                    ele_num = int(tmp_len / 2)
-                    m1 = []
-                    ttt = 0
-                    for n2 in range(0, ele_num):
-                        m1.append(cord)
-                        cord = cord + 1
-                        a1.append([ttmp[ttt], ttmp[ttt + 1]])
-                        ttt = ttt + 2
-                    mask.append(m1)
-                    my_anchor.extend(a1)
-                self.m_nninfo_anchors = my_anchor
-                self.m_nninfo_mask = mask
-            elif key == 'vision_lib':  # cv2
-                self.m_sysinfo_vision_lib = value
-            elif key == 'norm':
-                self.m_nninfo_preproc_norm = value
-            elif key == 'mean':
-                self.m_nninfo_preproc_mean = value
-            elif key == 'output_format_allow_list':
-                self.m_nninfo_output_format_allow_list = value
-            elif key == 'output_number':
+            elif key == 'anchors': # None
+                self.m_nninfo_anchors = value
+            elif key == 'output_number': # 3
                 self.m_nninfo_output_number = int(value)
-            elif key == 'output_size':
+            elif key == 'output_size': # [[1, 84, 8400], [1, 84, 8400]] # first one for traing, last one for inf.
                 self.m_nninfo_output_size = value
-            elif key == 'output_pred_format':
-                self.m_nninfo_output_pred_format = value
-            elif key == 'conf_thres':
-                self.m_nninfo_postproc_conf_thres = float(value)
-            elif key == 'iou_thres':
-                self.m_nninfo_postproc_iou_thres = float(value)
-            elif key == 'need_nms':
+            elif key == 'stride' : # [8, 16, 32]
+                self.m_nninfo_stride = value # new value
+            elif key == 'nms': # True
                 self.m_nninfo_postproc_need_nms = value
-        self.m_nninfo_yolo_require_packages = []
-        try:
-            f = open(self.get_real_filepath(def_yolo_requirements)) 
-            while True:
-                line = f.readline()
-                if not line:
-                    break
-                self.m_nninfo_yolo_require_packages.append(line.replace("\n", ""))
+            elif key == 'conf_thres': #0.25
+                self.m_nninfo_postproc_conf_thres = float(value)
+            elif key == 'iou_thres': #0.45
+                self.m_nninfo_postproc_iou_thres = float(value)
+        if self.m_nninfo_number_of_labels != 0 and self.m_nninfo_labelmap_info != None: 
+            annotation_file = "./%s" % (self.m_nninfo_annotation_file)
+            ordict = {}
+            for i in range(self.m_nninfo_number_of_labels):
+                ordict[i] = self.m_nninfo_labelmap_info[i] 
+            nc_head = {'nc':self.m_nninfo_number_of_labels}
+            try:
+                f = open(annotation_file, "w")
+            except IOError as err:
+                logging.debug("annotation file open error!!")
+                return -1
+            yaml.dump(nc_head, f)
+            d = {'names':ordict}
+            yaml.dump(d, f)
             f.close()
-        except IOError as err:
-            print("yolo requirement file not found")
         return 0
 
     ####################################################################
@@ -678,23 +596,6 @@ class CodeGen:
                 self.m_deploy_entrypoint = self.m_deploy_python_file
                 if not os.path.exists(self.m_current_code_folder):
                     os.makedirs(self.m_current_code_folder)
-                # copy requirements.txt file
-                req_file  = "%s%s%s" % (self.m_current_code_folder, "/", "requirements.txt")
-                p_len = len(self.m_sysinfo_papi)
-                if p_len >= 0:
-                    try:
-                        rf = open(req_file, "w") 
-                    except IOError as err:
-                        logging.debug("requirements file open error")
-                        self.m_last_run_state = 0
-                        return -1
-                    for i in range(p_len):
-                        rf.write(self.m_sysinfo_papi[i])
-                        rf.write("\n")
-                    rf.close()
-
-                # copy pt file
-                # code gen for classificaaion
                 # make nn_model folder
                 if not os.path.exists(self.m_current_code_folder):
                     os.makedirs(self.m_current_code_folder)
@@ -720,76 +621,87 @@ class CodeGen:
                     f.write(line1)
                 f1.close()
                 f.close()
-
-                if self.m_deploy_type == 'cloud':
-                    self.make_requirements_file_for_docker()
-                elif self.m_deploy_type == 'k8s':
-                    self.make_requirements_file_for_docker()
-                elif self.m_deploy_type == 'pc_server':
-                    self.make_requirements_file_for_PCServer()
-                elif self.m_deploy_type == 'pc_web':
-                    self.make_requirements_file_for_PCServer()
-                else:
-                    self.make_requirements_file_for_others()
-            elif self.m_sysinfo_engine_type == 'tensorrt':
-                # add code for tensorrt
-                if not os.path.exists(self.m_current_code_folder):
-                    os.makedirs(self.m_current_code_folder)
-                # read model file
-                # convert the model file to onnx file
-                # convert the onnx file to tensorrt file
-                # copy tensorrt file to the nn_model folder
-                # copy template code file to the nn_model folder
-
-                if self.m_deploy_type == 'cloud':
-                    self.make_requirements_file_for_docker()
-                elif self.m_deploy_type == 'k8s':
-                    self.make_requirements_file_for_docker()
-                elif self.m_deploy_type == 'pc_server':
-                    self.make_requirements_file_for_PCServer()
-                elif self.m_deploy_type == 'pc_web':
-                    self.make_requirements_file_for_PCServer()
-                else:
-                    self.make_requirements_file_for_others()
+                self.make_deployment_yaml()  
             else:
                 print("the inference engine is not support for classification")
             self.m_last_run_state = 0
             os.system("chmod -Rf 777 %s" % self.m_current_code_folder)
-            return
+            return 0
 
-        # tflite for galaxy 
+        # tflite for galaxy or raspberrypi edgetpu 
         if self.m_sysinfo_engine_type == 'tflite':   
             if not os.path.exists(self.m_current_code_folder):
                 os.makedirs(self.m_current_code_folder)
             # read  onnx file
             my_onnx = "%s%s" % (self.m_current_file_path, self.m_nninfo_weight_onnx_file)
-            # onnx2tflitefile
-            ret = onnx2tflite(onnx_filename = my_onnx)
-            # copy apk to nn_model folder
-            shutil.copy(ret, self.m_current_code_folder)
+            if self.m_sysinfo_acc_type == "tpu": # raspberry pi edge tpu
+                # onnx -> edgetpu model
+                onnx_model = onnx.load(my_onnx)
+                input_name = "images"
+                input_shapes = [[d.dim_value for d in _input.type.tensor_type.shape.dim] for _input in onnx_model.graph.input]
+                sz = input_shapes[0][2]
+                my_pt = "%s%s" % (self.m_current_file_path, self.m_nninfo_weight_pt_file)
+                ret = pt2edgetpu(pt_filename = my_pt, size = sz)
+                os.system("cp %s %s" % (ret, self.m_current_code_folder))
+                os.system("/bin/rm -rf %s" % os.path.dirname(ret))
+                os.system("cp ./db/edgetpu.db  %s/output.py" % (self.m_current_code_folder))
+                strn = "s/@@size@@%s%s/g %s/output.py" % ('/', sz, self.m_current_code_folder)
+                os.system("sed -i %s" %  strn)
+                tf_name = ret.split('/')[-1]
+                strn = "s/@@name@@%s%s/g %s/output.py" % ('/', tf_name, self.m_current_code_folder)
+                os.system("sed -i %s" %  strn)
+                ## khlee khlee kkkhhhlll
+                if self.m_deploy_network_serviceport == '0':
+                    p_num = "8000"
+                else:
+                    p_num = self.m_deploy_network_serviceport
+                strn = "s/@@port@@%s%s/g %s/output.py" % ('/', p_num, self.m_current_code_folder)
+                os.system("sed -i %s" %  strn)
+                self.m_sysinfo_libs = []
+                self.m_sysinfo_apt = ['vim', 'python3.9']
+                self.m_sysinfo_papi = ['flask', 'pillow', 'ultralytics', 'opencv-python', 'numpy']
+                # annotation 화일 복사 하기 done
+                os.system("cp  %s  %s" % (self.m_nninfo_annotation_file,  self.m_current_code_folder)) 
+                # make requirement file in  code_folder 
+                try:
+                    outpath = "%s/%s" % (self.m_current_code_folder, self.m_requirement_file)
+                    outf = open(outpath, "w")
+                except IOError as err:
+                    logging.debug("requirements.txt file open error")
+                    self.m_last_run_state = 0
+                    return -1
+                for item in self.m_sysinfo_papi:
+                    outf.write(item)
+                    outf.write('\n')
+                outf.close()
+                # deployment.yaml
+                self.make_deployment_yaml()  
+            else: # smart phone
+                # annotation file -> config.txt khlee
+                try:
+                    f = open("labels.txt", "w")
+                except IOError as err:
+                    logging.debug("annotation file open error!!")
+                    return -1
+                for i in range(self.m_nninfo_number_of_labels):
+                    f.write(self.m_nninfo_labelmap_info[i]) 
+                    f.write("\n")
+                f.close()
+                os.system("mv labels.txt ./tflite_yolov9_test/app/src/main/assets")
+                ret = onnx2tflite(onnx_filename = my_onnx)
+                # move apk to nn_model folder
+                os.system("mv %s %s" % (ret, self.m_current_code_folder))
             self.m_last_run_state = 0
             os.system("chmod -Rf 777 %s" % self.m_current_code_folder)
-            return
+            return 0
 
-        # python
+        # pytorch
         if self.m_sysinfo_engine_type == 'pytorch':
-            self.m_sysinfo_libs = []
-            self.m_sysinfo_apt = ['vim', 'python3.9']
-            self.m_sysinfo_papi = []
-            self.m_deploy_entrypoint = self.m_deploy_python_file
-            self.gen_python_code()
-            if self.m_deploy_type == 'cloud':
-                self.make_requirements_file_for_docker()
-            elif self.m_deploy_type == 'k8s':
-                self.make_requirements_file_for_docker()
-            elif self.m_deploy_type == 'pc_server':
-                self.make_requirements_file_for_PCServer()
-            elif self.m_deploy_type == 'pc_web':
-                self.make_requirements_file_for_PCServer()
-            else:
-                self.make_requirements_file_for_others()
+            self.gen_pytorch_code() # web or not
+            self.make_deployment_yaml()  
+            self.m_last_run_state = 0
             os.system("chmod -Rf 777 %s" % self.m_current_code_folder)
-
+            return 0
         # acl
         elif self.m_sysinfo_engine_type == 'acl':
             self.m_deploy_entrypoint = [self.m_deploy_python_file]
@@ -798,208 +710,27 @@ class CodeGen:
                                   'ocl-icd-opencl-dev', 'python3-opencv', 'python3-pip']
             self.m_sysinfo_papi = []
             self.gen_acl_code()
-            self.make_requirements_file_for_others()
+            self.make_deployment_yaml()  
             os.system("chmod -Rf 777 %s" % self.m_current_code_folder)
             self.m_last_run_state = 0
 
         elif self.m_sysinfo_engine_type == "tensorrt":
-            self.m_deploy_entrypoint = [self.m_deploy_python_file]
-            
-            # if no onnx file
-            if self.m_nninfo_weight_onnx_file == "":
-                # move autonn's pytorch to target folder(like prefix folder)
-                if self.m_nninfo_yolo_base_file_path != ".":  
-                    if isinstance(self.m_nninfo_class_file, list):
-                        m_filelist = self.m_nninfo_class_file
-                    else:
-                        m_filelist = [self.m_nninfo_class_file]
-                    for mfile in m_filelist:
-                        self.copy_subfolderfile(mfile, self.m_nninfo_yolo_base_file_path)
-
-                # convert .py to onnx and copy
-                if isinstance(self.m_nninfo_class_file, list):
-                    t_file = self.m_nninfo_class_file[0]
-                else:
-                    t_file = self.m_nninfo_class_file
-                t_file = "%s%s" % (t_file, "\n")
-                tmp = t_file.split("/")
-                cnt = len(tmp)
-                t_file = tmp[0]
-                for  i in range(cnt-1):
-                    t_file = "%s.%s" % (t_file, tmp[i+1])
-                t_file = t_file.split(".py\n")[0]
-                t_file = t_file.split("\n")[0]
-                t_split = self.m_nninfo_class_name.split("(")
-                t_class_name = t_split[0]
-                tmp_param = t_split[1].split(")")[0]
-                tmp_param = tmp_param.split("=")[1]
-    
-                t_list = t_file.split(".")
-                t_list_len = len(t_list)
-                t_fromlist = ""
-                for i in range(t_list_len-1):
-                    t_fromlist = "%s%s" % (t_fromlist, t_list[i])
-                    if i < (t_list_len-2): 
-                        t_fromlist = "%s%s" % (t_fromlist, ".")
-                t_impmod = __import__(t_file, fromlist=[t_fromlist])
-                t_cls = getattr(t_impmod, t_class_name)
-    
-                f_param = self.get_real_filepath(tmp_param[1:-1])
-                pt_model = t_cls(cfg=f_param)
-                pt_path = "%s%s" % (self.m_current_file_path, self.m_nninfo_weight_pt_file)
-                pt_model.load_state_dict(torch.load(pt_path, map_location=torch.device('cpu')), strict=False)
-                pt_model.eval()
-                # convert and save onnx file 
-                dummy = torch.randn(
-                        self.m_nninfo_input_tensor_shape[0], 
-                        self.m_nninfo_input_tensor_shape[1], 
-                        self.m_nninfo_input_tensor_shape[2], 
-                        self.m_nninfo_input_tensor_shape[3], 
-                        requires_grad=True)
-                t_folder = "%s/%s" % (self.m_current_code_folder, self.m_nninfo_weight_onnx_file)
-                torch.onnx.export(pt_model, dummy,
-                        t_folder,
-                        opset_version = 11,
-                        export_params=True, 
-                        input_names=['input'],
-                        output_names=['output'])
-            else: # get onnx file so copy it
-                onnx_path = "%s%s" % (self.m_current_file_path, self.m_nninfo_weight_onnx_file)
-                t_folder = "%s/%s" % (self.m_current_code_folder, self.m_nninfo_weight_onnx_file)
-                shutil.copy(onnx_path, t_folder)
-            self.m_sysinfo_papi = ['opencv-python', 'time', 'pyyaml', 'scipy', 
-                    'psutil', 'attrs', 'pillow', 'numpy', 'matplotlib', 
-                    'tensorrt', 'pycuda' ]
-            self.gen_tensorrt_code(self.m_nninfo_input_tensor_shape[1], 
-                    self.m_nninfo_input_tensor_shape[2], 
-                    self.m_nninfo_input_data_type) 
-            self.make_requirements_file_for_others()
-            fo_path = "%s/%s" % (self.m_current_code_folder, "requirements.txt")
-            with open(fo_path, "w") as fo:
-                for item in self.m_sysinfo_papi:  
-                    fo.write(item)
-                    fo.write("\n")
-            os.system("chmod -Rf 777 %s" % self.m_current_code_folder)
+            self.gen_trt_code()
+            self.make_deployment_yaml()  
             self.m_last_run_state = 0
-        elif self.m_sysinfo_engine_type == "tvm":
-            self.m_deploy_entrypoint = [self.m_deploy_python_file]
-            tvm_dev_type = def_TVM_dev_type    # 0 llvm ,1 cuda,  
-            tvm_width = def_TVM_width  
-            tvm_height = def_TVM_height  
-            tvm_data_type = def_TVM_data_type 
-            # if no onnx file
-            if self.m_nninfo_weight_onnx_file == "":
-                print("No ONNX file for TVM")
-                return
-            onnx_model = onnx.load(self.get_real_filepath(self.m_nninfo_weight_onnx_file))
-            input_name = "images"
-            shape_dict = {input_name: [1, 3, def_TVM_width, def_TVM_height]}
-            mod, params = tvm.relay.frontend.from_onnx(onnx_model, shape_dict)
-            fo_path = "%s/%s" % (self.m_current_code_folder, def_TVM_mod)
-            with open(fo_path, "w") as fo:
-                fo.write(tvm.ir.save_json(mod))
-            fo_path = "%s/%s" % (self.m_current_code_folder, def_TVM_param)
-            with open(fo_path, "wb") as fo:
-                fo.write(tvm.runtime.save_param_dict(params))
-
-            # copy annotaion file 
-            annotation_file = "%s/%s" % (def_dataset_path, self.m_nninfo_annotation_file)
-            shutil.copy(annotation_file, self.m_current_code_folder)
-
-            self.m_sysinfo_papi = ['scipy', 'psutil', 'attrs', 'pillow', 
-                    'opencv-python', 'pyyaml', 'numpy', 'matplotlib' ]
-            self.gen_tvm_code(tvm_dev_type, tvm_width, tvm_height, tvm_data_type)
-            self.make_requirements_file_for_others()
-            fo_path = "%s/%s" % (self.m_current_code_folder, "requirements.txt")
-            with open(fo_path, "w") as fo:
-                for item in self.m_sysinfo_papi:  
-                    fo.write(item)
-                    fo.write("\n")
             os.system("chmod -Rf 777 %s" % self.m_current_code_folder)
-        self.m_last_run_state = 0
-        # modified
-        if self.m_nninfo_yolo_base_file_path != "." and self.m_nninfo_yolo_base_file_path != "" :  
-            tmp_folder = self.m_nninfo_yolo_base_file_path.split("/")
-            if os.path.exists(self.get_real_filepath(tmp_folder[0])):
-                shutil.rmtree(self.get_real_filepath(tmp_folder[0]))
+            return 0
+
+        elif self.m_sysinfo_engine_type == "tvm":
+            self.gen_tvm_code()
+            self.make_deployment_yaml()  
+            self.m_last_run_state = 0
+            os.system("chmod -Rf 777 %s" % self.m_current_code_folder)
+            return 0
         return 0
 
     ####################################################################
-    @staticmethod
-    def load_pt_model():
-        """
-        Read PyTorch Weight File
-
-        Args: None
-        Returns: None
-        """
-
-        """
-        #remove ".py" substring
-        tmp_len = len(self.m_nninfo_class_file)   
-        tmp_str = self.m_nninfo_class_file[:(tmp_len-3)]
-        #self.m_nninfo_class_name =  'yolo'
-
-        ret = importlib.import_module(tmp_str)
-        tmpclass = getattr(ret, self.m_nninfo_class_name)
-        self.m_py = tmpclass()
-
-        if self.m_sysinfo_acc_type == 'cpu':
-            self.m_pt_model = torch.load(self.m_nnin_weight_file, map_location='cpu')
-        else:
-            self.m_pt_model = torch.load(self.m_nnin_weight_file, map_location='gpu')
-        
-        self.m_py.load_state_dict(self.m_pt_model)
-        """
-        return 0
-
-    ####################################################################
-    # onnx 변환
-    # 우선은 statix axes먼저, 나중에 dynamic_axes
-    @staticmethod
-    def conver_to_onnx():
-        """
-        convert pytorch python-weight file to onnx
-
-        Args: None
-        Returns: None
-        """
-        """
-        tmp_val = self.m_nninfo_input_data_type 
-        tmp_type = torch.float32
-        if tmp_val == 'float64':
-            tmp_type = torch.float64
-        elif tmp_val == 'float32':
-            tmp_type = torch.float32
-        elif tmp_val == 'float16':
-            tmp_type = torch.float16
-        elif tmp_val == 'int64':
-            tmp_type = torch.int64
-        elif tmp_val == 'int32':
-            tmp_type = torch.int32
-        elif tmp_val == 'int16':
-            tmp_type = torch.int16
-
-        #dummy_data = torch.empty(self.m_nninfo_input_tensor_shape,  dtype = torch.float32)
-        dummy_data = torch.empty(self.m_nninfo_input_tensor_shape, dtype=tmp_type)
-        torch.onnx.export(self.m_py, dummy_data, self.m_onnx_output_file)
-        """
-        return 0
-
-    ####################################################################
-    # onnx 양자화
-    @staticmethod
-    def onnx_quantization():
-        """
-        Quantization for ONNX model
-
-        Args: None
-        Returns: None
-        """
-        return 0
-
-    ####################################################################
-    def gen_python_code(self):
+    def gen_pytorch_code(self):
         """
         convert pytorch template code
 
@@ -1008,204 +739,267 @@ class CodeGen:
             0 : success
             -1 : error
         """
+        # self.m_sysinfo_libs = [python==3.8, torch>=1.1.0]
+        #        self.m_sysinfo_apt = ['vim']
+        #        self.m_sysinfo_papi = ['torch', 'torchvision', 'opencv-python', 'pandas', 'numpy', 'python-math', 'albumentations']
+        # yaml용 entry point, work dir, network, k8s 관련 항목 채우기
+        # 가속기 고려 코드 생성
+        # annotation 화일 복사하기
         if not os.path.exists(self.m_current_code_folder):
             os.makedirs(self.m_current_code_folder)
-        if self.m_nninfo_weight_pt_file == "":
-            self.m_converted_file = "%s%s%s" % (self.m_current_file_path, "/", "yolo.pt")
-        else:
-            self.m_converted_file = "%s%s%s" % (self.m_current_file_path, "/", self.m_nninfo_weight_pt_file)
 
-        if self.m_deploy_type == 'cloud':
-            # code copy
-            os.system("cp -r ./db/yolov7 %s" % self.m_current_code_folder)
-            # copy db/yolov3/yolov3.pt into nn_model folder
-            pt_path = "%s%s" % (self.m_current_file_path, self.m_nninfo_weight_pt_file)
-            os.system("cp  %s  %s/yolov7/yolov7-e6e.pt" % (pt_path, self.m_current_code_folder)) 
-        elif self.m_deploy_type == 'k8s':
-            # khlee copy k8s app codes
-            os.system("mkdir %s/fileset" % self.m_current_code_folder) 
-            os.system("unzip ./db/k8syolov7.zip -d %s/fileset" % self.m_current_code_folder) 
-            # copy pt file nn_model/fileset/yolov7
-            pt_path = "%s%s" % (self.m_current_file_path, self.m_nninfo_weight_pt_file)
-            os.system("cp  %s  %s/fileset/yolov7" % (pt_path, self.m_current_code_folder)) 
-            # copy requirement file to code_folder just for testing
-            if os.path.isfile(self.get_real_filepath(self.m_requirement_file)):
-                shutil.copy(self.get_real_filepath(self.m_requirement_file), self.m_current_code_folder)
-            # change output.py code
-            k8s_str = "def_port = 8902\n"
-            k8s_str += "def_weight_file = '%s'\n" % self.m_nninfo_weight_pt_file
-            k8s_str += "def_input_source = %s\n\n\n" % self.m_sysinfo_input_method 
-            # open output.py and add k8s_str on top of it
-            os.system("mv %s/fileset/yolov7/output.py %s/fileset/yolov7/tmp.py" % (self.m_current_code_folder, self.m_current_code_folder)) 
-            try:
-                outf = open("%s/fileset/yolov7/output.py" % self.m_current_code_folder, "w") 
+        if (self.m_deploy_type == 'cloud' or self.m_deploy_type == 'kt_cloud' 
+            or self.m_deploy_type == 'aws' or self.m_deploy_type == 'gcp' or self.m_deploy_type == 'pc_server'):
+            self.m_sysinfo_libs = ['python==3.8', 'torch>=1.1.0']
+            self.m_sysinfo_apt = ['vim', 'libgl1-mesa-glx']
+            self.m_sysinfo_papi = ["cython", "numpy<17", "imutils", "flask",
+                "opencv-python", "opencv-contrib-python", 
+                "imageio", "pyyaml", "matplotlib", "pandas", 
+                "tqdm", "seaborn", "requests", 
+                "werkzeug", "torch", "torchvision", "python-math", 
+                "albumentations", "pathlib"]
+            self.m_deploy_entrypoint = ['python', './output.py']
+            # web폴더 복사후 .db화일 삭제 
+            os.system("cp -r ./db/web/* %s" % self.m_current_code_folder) 
+            os.system("rm %s/*.db" % self.m_current_code_folder) 
+            # pt 화일 복사 done  
+            pt_path = "%s%s" % (self.m_current_file_path, self.m_nninfo_weight_ts_file)
+            os.system("cp  %s  %s" % (pt_path, self.m_current_code_folder))
+            # index.db 가속기 고려 코드 생성 후 index.py로 복사
+            str = ''
+            str += "def_port_num = %d\n" %  self.m_deploy_network_serviceport 
+            # index.py 오픈 후 str 복사
+            try: 
+                outpath = "%s/%s" % (self.m_current_code_folder, "output.py")
+                outf = open(outpath, "w")
             except IOError as err:
-                logging.debug("output.py Write Error #1")
+                logging.debug("index.py file open error")
+                self.m_last_run_state = 0
                 return -1
-            outf.write(k8s_str)
+            outf.write(str)
             try:
-                inf = open("%s/fileset/yolov7/tmp.py" % self.m_current_code_folder, "r") 
+                inf = open("./db/web/index.db", 'r')
             except IOError as err:
-                logging.debug("tmp.py Open Error #1")
+                logging.debug("web/index.db open error")
+                self.m_last_run_state = 0
                 return -1
-            os.system("/bin/rm -f %s/fileset/yolov7/tmp.py" % (self.m_current_code_folder)) 
-            outf.write(inf.read()) 
-            outf.close()
+            for line1 in inf:
+                outf.write(line1)
             inf.close()
-            # copy annotation file
-            annotation_file = "%s/%s" % (def_dataset_path, self.m_nninfo_annotation_file)
-            t_path = "%s/fileset/yolov7" % self.m_current_code_folder 
-            shutil.copy(annotation_file, t_path) 
-        else:
-            '''
-            # convert  and copy .pt file to nn_model folder
-            if os.path.isfile(self.m_converted_file):
-                shutil.copy(self.m_converted_file, self.m_current_code_folder)
+            outf.close()
 
-            tmp_str = "%s%s%s%s%s%s" % ('\"\"\"', def_newline, self.m_deploy_python_file,
-                                        def_newline, '\"\"\"', def_newline)
-            tmp_str = "%s%s%s" % (tmp_str, "import torch", def_newline)
-            tmp_str = "%s%s%s" % (tmp_str, "import cv2", def_newline)
-            tmp_str = "%s%s%s" % (tmp_str, "import numpy as np", def_newline)
-            tmp_str = "%s%s%s" % (tmp_str, "import time", def_newline)
-            tmp_str = "%s%s%s" % (tmp_str, def_newline, def_newline)
-
-            # pytorch file
-            # 가속기 gpu, npu 고려 사항 입력
-            tmp_str = "%s%s%s" % (tmp_str,
-                                  "model = torch.hub.load('ultralytics/yolov5', 'yolov5s')", def_newline)
-
-            # input method
-            tmp_str = "%s%s%s" % (tmp_str, "cap = cv2.VideoCapture('480.mp4')", def_newline)
-            tmp_str = "%s%s%s" % (tmp_str, def_newline, def_newline)
-
-            tmp_str = "%s%s%s" % (tmp_str, "while True:", def_newline)
-            tmp_str = "%s%s%s%s" % (tmp_str, def_4blank, "ret, img = cap.read()", def_newline)
-            tmp_str = "%s%s" % (tmp_str, def_newline)
-            tmp_str = "%s%s%s%s" % (tmp_str, def_4blank, "# Inference", def_newline)
-            tmp_str = "%s%s%s%s" % (tmp_str, def_4blank, "start_time = time.time()", def_newline)
-            tmp_str = "%s%s%s%s" % (tmp_str, def_4blank, "results = model(img)", def_newline)
-            tmp_str = "%s%s%s%s" % (tmp_str, def_4blank, "end_time = time.time()", def_newline)
-            tmp_str = "%s%s" % (tmp_str, def_newline)
-            tmp_str = "%s%s%s%s" % (tmp_str, def_4blank, "fps = 1 / (end_time - start_time)",
-                                    def_newline)
-            tmp_str = "%s%s%s" % (tmp_str,
-                                  def_4blank, 'cv2.putText(img, f"{fps:.3f} FPS", (20,35),')
-            tmp_str = "%s%s%s" % (tmp_str,
-                                  " cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 255, 0), 2)", def_newline)
-            tmp_str = "%s%s%s%s" % (tmp_str, def_4blank,
-                                    "cv2.imshow('YoloV5 Test...', np.squeeze(results.render()))", def_newline)
-            tmp_str = "%s%s%s%s" % (tmp_str,
-                                    def_4blank, "if cv2.waitKey(1) & 0xFF == ord('q'):", def_newline)
-            tmp_str = "%s%s%s%s%s" % (tmp_str, def_4blank, def_4blank, "break", def_newline)
-            tmp_str = "%s%s" % (tmp_str, def_newline)
-            tmp_str = "%s%s%s" % (tmp_str, "cap.release()", def_newline)
-            tmp_str = "%s%s%s" % (tmp_str, "cv2.destroyAllWindows()", def_newline)
-
-            try:
-                f = open(self.get_code_filepath(self.m_deploy_python_file), 'w')
-            except IOError as err:
-                print("Python File Write Error", err)
-                return -1
-            f.write(tmp_str)
-            f.close()
-            '''
-            # khlee
-            # copy pytorch related file recursively (make subdirectory and copy files)
-            if isinstance(self.m_nninfo_class_file, list):
-                num_files = len(self.m_nninfo_class_file)
-                if num_files >= 1:
-                    for i in range(num_files):
-                        self.copy_subfolderfile(self.m_nninfo_class_file[i], self.m_current_code_folder, base_dir=self.m_nninfo_yolo_base_file_path) 
+            # pytorch-yolov9.db 가속기 고려 코드 생성 후 pytorch_yolov9.py로 복사
+            str = ''
+            str += "def_label_yaml = '%s'\n" % self.m_nninfo_annotation_file 
+            if type(self.m_sysinfo_input_method) != int:
+                str += "def_input_location = '%s'\n" % self.m_sysinfo_input_method
             else:
-                shutil.copy(self.get_real_filepath(self.m_nninfo_class_file), self.m_current_code_folder, base_dir=self.m_nninfo_yolo_base_file_path) 
-            # copy .pt file
-            pt_path = "%s%s" % (self.m_current_file_path, self.m_nninfo_weight_pt_file)
-            shutil.copy(pt_path, self.m_current_code_folder)
-            # copy basemodel.yaml file
-            t_split = self.m_nninfo_class_name.split("(")
-            t_class_name = t_split[0]
-            tmp_param = t_split[1].split(")")[0]
-            tmp_param = tmp_param.split("=")[1]
-            f_param = self.get_real_filepath(tmp_param[1:-1])
-            shutil.copy(f_param, self.m_current_code_folder)
-            # copy myutil file
-            shutil.copy(def_trt_myutil_file_name, self.m_current_code_folder)
-            try:
-                f = open(self.get_code_filepath(self.m_deploy_python_file), 'w')
-            except IOError as err:
-                logging.debug("Python File Write Error")
-                return -1
-            
-            # copy initial values
-            if isinstance(self.m_nninfo_class_file, list):
-                t_file = self.m_nninfo_class_file[0]
+                str += "def_input_location = %d\n" % self.m_sysinfo_input_method
+            if type(self.m_sysinfo_output_method) != int:
+                str += "def_output_location = '%s'\n"  % self.m_sysinfo_output_method 
             else:
-                t_file = self.m_nninfo_class_file
-            t_file = "%s%s" % (t_file, "\n")
-            tmp = t_file.split("/")
-            cnt = len(tmp)
-            t_file = tmp[0]
-            for  i in range(cnt-1):
-                t_file = "%s.%s" % (t_file, tmp[i+1])
-            t_file = t_file.split(".py\n")[0]
-            t_file = t_file.split("\n")[0]
-            if self.m_nninfo_yolo_base_file_path != ".":  
-                tmp_path = self.m_nninfo_yolo_base_file_path.replace("/", ".")
-                t_file = "%s.%s" % (tmp_path, t_file)
-            f.write('import %s as ye\n' % t_file)
-            f.write('def_pt_file = "%s"\n' % self.m_nninfo_weight_pt_file)
-            # remove prefix coco/coco.yaml -> coco.yaml
-            a_file = self.m_nninfo_annotation_file.split("/")
-            f.write('def_label_yaml = "%s"\n' % a_file[-1])
-            f.write('def_input_location = %s\n' % self.m_sysinfo_input_method)
-            f.write('def_conf_thres = %s\n' % self.m_nninfo_postproc_conf_thres)
-            f.write('def_iou_thres = %s\n'% self.m_nninfo_postproc_iou_thres)
-            f.write('def_output_location = %s\n' % self.m_sysinfo_output_method)
+                str += "def_output_location = %d\n"  % self.m_sysinfo_output_method 
+            str += "def_conf_thres = %f\n" % self.m_nninfo_postproc_conf_thres
+            str += "def_iou_thres = %f\n" % self.m_nninfo_postproc_iou_thres
+            str += "def_pt_file = '%s'\n" % self.m_nninfo_weight_ts_file  
             if self.m_sysinfo_acc_type == "cuda":
-                f.write('use_cuda = True\n')
+                str += "def_dev = 'cuda:0'\n"
+            elif self.m_sysinfo_acc_type == "opencl":
+                str += "def_dev = 'opencl'\n"
             else:
-                f.write('use_cuda = False\n')
-            f.write('def_data_type = "%s"\n' % self.m_nninfo_input_data_type)
-            f.write('def_width = %s\n' % self.m_nninfo_input_tensor_shape[2])
-            f.write('def_height = %s\n\n\n' % self.m_nninfo_input_tensor_shape[3])
-
-            # copy head
+                str += "def_dev = 'cpu'\n"
             try:
-                f1 = open("./db/pytorch_template.head", 'r')
+                outpath = "%s/%s" % (self.m_current_code_folder, "pytorch_yolov9.py")
+                outf = open(outpath, "w")
             except IOError as err:
-                logging.debug("pytorch temp. head open error")
+                logging.debug("pytorch_yolov9.py file open error")
+                self.m_last_run_state = 0
                 return -1
-            for line1 in f1:
-                f.write(line1)
-            f1.close()
-
-            # copy model initializing code
-            f.write('\n        self.model = ye.Model(cfg="basemodel.yaml")\n')
-
-            # copy body
+            outf.write(str)
             try:
-                f2 = open("./db/pytorch_template.body", 'r')
+                inf = open("./db/web/pytorch_yolov9.db", 'r')
             except IOError as err:
-                logging.debug("pytorch temp. body open error")
+                logging.debug("web/pytorch_yolov9.db open error")
+                self.m_last_run_state = 0
                 return -1
-            for line2 in f2:
-                f.write(line2)
-            f2.close()
-            # close output.py
-            f.close()
+            for line1 in inf:
+                outf.write(line1)
+            inf.close()
+            outf.close()
 
-        # self.m_nninfo_annotation_file
-        annotation_file = "%s/%s" % (def_dataset_path, self.m_nninfo_annotation_file)
-        if os.path.isfile(annotation_file):
-            if self.m_deploy_type == 'k8s':
-                tmp_path = "%s/fileset/yolov7" % self.m_current_code_folder
-                print("annotation=")
-                print(tmp_path)
-                shutil.copy(annotation_file, tmp_path)
+            # annotation 화일 복사 하기 done
+            os.system("cp  %s  %s" % (self.m_nninfo_annotation_file,  self.m_current_code_folder)) 
+            # make requirement file in  code_folder 
+            try:
+                outpath = "%s/%s" % (self.m_current_code_folder, self.m_requirement_file)
+                outf = open(outpath, "w")
+            except IOError as err:
+                logging.debug("requirements.txt file open error")
+                self.m_last_run_state = 0
+                return -1
+            for item in self.m_sysinfo_papi:
+                outf.write(item)
+                outf.write('\n')
+            outf.close()
+        elif self.m_deploy_type == 'k8s':
+            self.m_sysinfo_libs = ['python==3.8', 'torch>=1.1.0']
+            self.m_sysinfo_apt = ['vim', 'libgl1-mesa-glx']
+            self.m_sysinfo_papi = ["cython", "numpy<17", "imutils", "flask",
+                "opencv-python", "opencv-contrib-python", 
+                "imageio", "pyyaml", "matplotlib", "pandas", 
+                "tqdm", "seaborn", "requests", 
+                "werkzeug", "torch", "torchvision", "python-math",  
+                "albumentations", "pathlib"]
+            self.m_deploy_entrypoint = ['python', './output.py']
+            os.system("mkdir %s/fileset" % self.m_current_code_folder) 
+            os.system("mkdir %s/fileset/yolov7" % self.m_current_code_folder) 
+            k8s_path = "%s/fileset/yolov7" % self.m_current_code_folder
+            os.system("cp -r ./db/web/* %s" % k8s_path) 
+            # pt 화일 복사 done  
+            pt_path = "%s%s" % (self.m_current_file_path, self.m_nninfo_weight_ts_file)
+            os.system("cp  %s  %s" % (pt_path, k8s_path))
+            # index.db 가속기 고려 코드 생성 후 index.py로 복사
+            str = ''
+            # defalt k8s app service port 8902
+            str += "def_port_num = %d\n" %  self.m_deploy_network_serviceport 
+            # index.py 오픈 후 str 복사
+            try: 
+                outpath = "%s/%s" % (k8s_path, "output.py")
+                outf = open(outpath, "w")
+            except IOError as err:
+                logging.debug("output.py file open error")
+                self.m_last_run_state = 0
+                return -1
+            outf.write(str)
+            try:
+                inf = open("./db/web/index.db", 'r')
+            except IOError as err:
+                logging.debug("web/index.db open error")
+                self.m_last_run_state = 0
+                return -1
+            for line1 in inf:
+                outf.write(line1)
+            inf.close()
+            outf.close()
+
+            # pytorch-yolov9.db 가속기 고려 코드 생성 후 output.py로 복사
+            str = ''
+            str += "def_label_yaml = '%s'\n" % self.m_nninfo_annotation_file 
+            if type(self.m_sysinfo_input_method) != int:
+                str += "def_input_location = '%s'\n" % self.m_sysinfo_input_method
             else:
-                shutil.copy(annotation_file, self.m_current_code_folder)
+                str += "def_input_location = %d\n" % self.m_sysinfo_input_method
+            if type(self.m_sysinfo_output_method) != int:
+                str += "def_output_location = '%s'\n"  % self.m_sysinfo_output_method 
+            else:
+                str += "def_output_location = %d\n"  % self.m_sysinfo_output_method 
+            str += "def_conf_thres = %f\n" % self.m_nninfo_postproc_conf_thres
+            str += "def_iou_thres = %f\n" % self.m_nninfo_postproc_iou_thres
+            str += "def_pt_file = '%s'\n" % self.m_nninfo_weight_ts_file  
+            if self.m_sysinfo_acc_type == "cuda":
+                str += "def_dev = 'cuda:0'\n"
+            elif self.m_sysinfo_acc_type == "opencl":
+                str += "def_dev = 'opencl'\n"
+            else:
+                str += "def_dev = 'cpu'\n"
+            try:
+                outpath = "%s/%s" % (k8s_path, "pytorch_yolov9.py")
+                outf = open(outpath, "w")
+            except IOError as err:
+                logging.debug("pytorch_yolov9.py file open error")
+                self.m_last_run_state = 0
+                return -1
+            outf.write(str)
+            try:
+                inf = open("./db/web/pytorch_yolov9.db", 'r')
+            except IOError as err:
+                logging.debug("web/pytorch_yolov9.db open error")
+                self.m_last_run_state = 0
+                return -1
+            for line1 in inf:
+                outf.write(line1)
+            inf.close()
+            outf.close()
 
+            # annotation 화일 복사 하기 done
+            os.system("cp  %s  %s" % (self.m_nninfo_annotation_file, k8s_path)) 
+            os.system("cp  %s  %s" % (self.m_nninfo_annotation_file, self.m_current_code_folder)) 
+            os.system("cp  %s  %s/fileset" % (self.m_nninfo_annotation_file, self.m_current_code_folder)) 
+            # copy requirement file to code_folder just for testing
+            try:
+                outpath = "%s/%s" % (self.m_current_code_folder, self.m_requirement_file)
+                outf = open(outpath, "w")
+            except IOError as err:
+                logging.debug("requirements.txt file open error")
+                self.m_last_run_state = 0
+                return -1
+            for item in self.m_sysinfo_papi:
+                outf.write(item)
+                outf.write('\n')
+            outf.close()
+            # .db 지우기
+            os.system("rm %s/*.db" % k8s_path) 
+            # requirements.txt fileset/yolov7에 복사하기
+            os.system("cp %s %s" % (outpath, k8s_path)) 
+        else: # ondevice no need web 
+            self.m_sysinfo_libs = ['python==3.8', 'torch>=1.1.0']
+            self.m_sysinfo_apt = []
+            self.m_sysinfo_papi = ['torch', 'torchvision', 'numpy', 'pathlib', 'opencv-python']
+            self.m_deploy_entrypoint = ['python', './output.py']
+            pt_path = "%s%s" % (self.m_current_file_path, self.m_nninfo_weight_ts_file)
+            os.system("cp  %s  %s" % (pt_path, self.m_current_code_folder))
+            str = ''
+            str += "def_label_yaml = '%s'\n" % self.m_nninfo_annotation_file 
+            if type(self.m_sysinfo_input_method) != int:
+                str += "def_input_location = '%s'\n" % self.m_sysinfo_input_method
+            else:
+                str += "def_input_location = %d\n" % self.m_sysinfo_input_method
+            if type(self.m_sysinfo_output_method) != int:
+                str += "def_output_location = '%s'\n"  % self.m_sysinfo_output_method 
+            else:
+                str += "def_output_location = %d\n"  % self.m_sysinfo_output_method 
+            str += "def_conf_thres = %f\n" % self.m_nninfo_postproc_conf_thres
+            str += "def_iou_thres = %f\n" % self.m_nninfo_postproc_iou_thres
+            str += "def_pt_file= '%s'\n" % self.m_nninfo_weight_ts_file  
+            if self.m_sysinfo_acc_type == "cuda":
+                str += "def_dev = 'cuda:0'\n"
+            elif self.m_sysinfo_acc_type == "opencl":
+                str += "def_dev = 'opencl'\n"
+            else:
+                str += "def_dev = 'cpu'\n"
+            try:
+                outpath = "%s/%s" % (self.m_current_code_folder, "output.py")
+                outf = open(outpath, "w")
+            except IOError as err:
+                logging.debug("output.py file open error")
+                self.m_last_run_state = 0
+                return -1
+            outf.write(str)
+            try:
+                inf = open("./db/pytorch_yolov9.db", 'r')
+            except IOError as err:
+                logging.debug("pytorch_yolov9.db open error")
+                self.m_last_run_state = 0
+                return -1
+            for line1 in inf:
+                outf.write(line1)
+            inf.close()
+            outf.close()
+
+            # annotation 화일 복사 하기 done
+            os.system("cp  %s  %s" % (self.m_nninfo_annotation_file,  self.m_current_code_folder)) 
+            # copy requirement file to code_folder just for testing
+            try:
+                outpath = "%s/%s" % (self.m_current_code_folder, self.m_requirement_file)
+                outf = open(outpath, "w")
+            except IOError as err:
+                logging.debug("requirements.txt file open error")
+                self.m_last_run_state = 0
+                return -1
+            for item in self.m_sysinfo_papi:
+                outf.write(item)
+                outf.write('\n')
+            outf.close()
         return 0
 
     ####################################################################
@@ -1217,11 +1011,7 @@ class CodeGen:
         Returns: None
         """
 
-        # convert onnx model to tflite model yolo_v3_tiny_fp32.tflite from jaebok park
-        # self.m_converted_file = "%s%s%s" % (self.m_current_file_path, "/", "yolo_v3_tiny_darknet_fp32.tflite")
         self.m_converted_file = "./db/yolo_v3_tiny_darknet_fp32.tflite"
-        # convert nn model and copy it to nn_model folder 
-        # khlee
         if not os.path.exists(self.m_current_code_folder):
             os.makedirs(self.m_current_code_folder)
         if os.path.isfile(self.m_converted_file):
@@ -1282,116 +1072,357 @@ class CodeGen:
         return
 
 
-    def gen_tensorrt_code(self, width, height, data_type):
+    def gen_trt_code(self):
         if not os.path.exists(self.m_current_code_folder):
             os.makedirs(self.m_current_code_folder)
-        # write tensorrt_infer code from DB
-        tmpstr = ""
-        a_file = self.m_nninfo_annotation_file.split("/")
-        b_file = a_file[-1]
-        tmpstr = "%s%s%s%s%s%s" % (tmpstr, "def_label_yaml = ", '"',  
-                b_file, '"', def_newline)
-        tmpstr = "%s%s%s%s" % (tmpstr, "def_input_location = ",  
-                self.m_sysinfo_input_method, def_newline)
-        tmpstr = "%s%s%s%s" % (tmpstr, "def_output_location = ",  
-                self.m_sysinfo_output_method, def_newline)  
-        tmpstr = "%s%s%s%s" % (tmpstr, "def_conf_thres = ",  
-                self.m_nninfo_postproc_conf_thres, def_newline)
-        tmpstr = "%s%s%s%s" % (tmpstr, "def_iou_thres = ",  
-                self.m_nninfo_postproc_iou_thres, def_newline)
-        tmpstr = "%s%s%s%s%s%s" % (tmpstr, "def_onnx_model = ", '"', 
-                self.m_nninfo_weight_onnx_file, '"', def_newline)
-        a_file = def_trt_calib_cache.split("/")
-        tmpstr = "%s%s%s%s%s%s" % (tmpstr, "def_calib_cache = ",'"',  
-                a_file[-1], '"', def_newline)
-        tmpstr = "%s%s%s%s%s%s" % (tmpstr, "def_trt_engine = ", '"', 
-                def_trt_engine, '"', def_newline)
-        tmpstr = "%s%s%s%s%s%s" % (tmpstr, "def_trt_precision = ", '"',  
-                def_trt_precision, '"', def_newline)
-        tmpstr = "%s%s%s" % (tmpstr, "def_trt_max_detection = 100", def_newline)
-        tmpstr = "%s%s%s" % (tmpstr, def_newline, def_newline)
-        try:
-            infer_outf = open(self.get_code_filepath(def_deploy_python_file), "w")
-        except IOError as err:
-            logging.debug("TensorRT inference File Write Error #1")
-            return -1
-        infer_outf.write(tmpstr)
-        try:
-            fi = open("./db/tensorrt-infer-template.py", 'r')
-        except IOError as err:
-            logging.debug("TensorRT infer  body open error")
-            return -1
-        # body copy
-        for line2 in fi:
-            infer_outf.write(line2)
-        fi.close()
-        infer_outf.close()
-        #copy util file
-        shutil.copy(def_trt_myutil_file_name, self.m_current_code_folder)
-        #copy calib file
-        shutil.copy(def_trt_calib_cache, self.m_current_code_folder)
-        # copy annotation file
-        annotation_file = "%s/%s" % (def_dataset_path, self.m_nninfo_annotation_file)
-        if os.path.isfile(annotation_file):
-            shutil.copy(annotation_file, self.m_current_code_folder)
+
+        if (self.m_deploy_type == 'cloud' or self.m_deploy_type == 'kt_cloud' 
+            or self.m_deploy_type == 'aws' or self.m_deploy_type == 'gcp' or self.m_deploy_type == 'pc_server'):
+            self.m_sysinfo_libs = ['python==3.8']
+            self.m_sysinfo_apt = ['vim', 'tensorrt', 'libgl1-mesa-glx']
+            self.m_sysinfo_papi = ["cython", "numpy<17", "imutils", "flask",
+                "opencv-python", "opencv-contrib-python", 
+                "imageio", "pyyaml", "matplotlib", "pandas", "tqdm", 
+                "seaborn", "requests", 
+                "werkzeug", "torch", "torchvision", "python-math",  
+                "albumentations", "pathlib"]
+            self.m_deploy_entrypoint = ['python', './output.py']
+            # web폴더 복사후 .db화일 삭제 
+            os.system("cp -r ./db/trtweb/* %s" % self.m_current_code_folder) 
+            os.system("rm %s/*.db" % self.m_current_code_folder) 
+            # onnx 화일 복사   
+            onnx_path = "%s%s" % (self.m_current_file_path, self.m_nninfo_weight_onnx_file)
+            os.system("cp  %s  %s" % (onnx_path, self.m_current_code_folder))
+            # index.db 가속기 고려 코드 생성 후 index.py로 복사
+            str = ''
+            str += "def_port_num = %d\n" %  self.m_deploy_network_serviceport 
+            # index.py 오픈 후 str 복사
+            try: 
+                outpath = "%s/%s" % (self.m_current_code_folder, "output.py")
+                outf = open(outpath, "w")
+            except IOError as err:
+                logging.debug("output.py file open error")
+                self.m_last_run_state = 0
+                return -1
+            outf.write(str)
+            try:
+                inf = open("./db/trtweb/index.db", 'r')
+            except IOError as err:
+                logging.debug("trtweb/index.db open error")
+                self.m_last_run_state = 0
+                return -1
+            for line1 in inf:
+                outf.write(line1)
+            inf.close()
+            outf.close()
+
+            # tensorrt-yolov9.db 가속기 고려 코드 생성 후 output.py로 복사
+            str = ''
+            if type(self.m_sysinfo_input_method) != int:
+                str += "def_input_location = '%s'\n" % self.m_sysinfo_input_method
+            else:
+                str += "def_input_location = %d\n" % self.m_sysinfo_input_method
+            if type(self.m_sysinfo_output_method) != int:
+                str += "def_output_location = '%s'\n"  % self.m_sysinfo_output_method 
+            else:
+                str += "def_output_location = %d\n"  % self.m_sysinfo_output_method 
+            str += "def_conf_thres = %f\n" % self.m_nninfo_postproc_conf_thres
+            str += "def_iou_thres = %f\n" % self.m_nninfo_postproc_iou_thres
+            a_file = def_trt_calib_cache.split("/")
+            str += "def_calib_cache = '%s'\n" % a_file[-1] 
+            str += "def_trt_engine = 'v9-16.trt'\n" 
+            str += "def_trt_precision = 'fp16'\n" 
+            str += "def_trt_max_detection = 100\n" 
+            str += "def_onnx_model = '%s'\n" %  self.m_nninfo_weight_onnx_file
+            str += "def_label_yaml = '%s'\n" % self.m_nninfo_annotation_file 
+            try:
+                outpath = "%s/%s" % (self.m_current_code_folder, "tensorrt_yolov9.py")
+                outf = open(outpath, "w")
+            except IOError as err:
+                logging.debug("tensorrt_yolov9.py file open error")
+                self.m_last_run_state = 0
+                return -1
+            outf.write(str)
+            try:
+                inf = open("./db/trtweb/tensorrt_yolov9.db", 'r')
+            except IOError as err:
+                logging.debug("web/tensorrt_yolov9.db open error")
+                self.m_last_run_state = 0
+                return -1
+            for line1 in inf:
+                outf.write(line1)
+            inf.close()
+            outf.close()
+
+            # annotation 화일 복사 하기 done
+            os.system("cp  %s  %s" % (self.m_nninfo_annotation_file, self.m_current_code_folder)) 
+            #copy util file
+            shutil.copy(def_trt_myutil_file_name, self.m_current_code_folder)
+            #copy calib file
+            shutil.copy(def_trt_calib_cache, self.m_current_code_folder)
+            # copy requirement.txt
+            # copy requirement file to code_folder just for testing
+            try:
+                outpath = "%s/%s" % (self.m_current_code_folder, self.m_requirement_file)
+                outf = open(outpath, "w")
+            except IOError as err:
+                logging.debug("requirements.txt file open error")
+                self.m_last_run_state = 0
+                return -1
+            for item in self.m_sysinfo_papi:
+                outf.write(item)
+                outf.write('\n')
+            outf.close()
+        elif self.m_deploy_type == 'k8s':
+            os.system("mkdir %s/fileset" % self.m_current_code_folder) 
+            os.system("mkdir %s/fileset/yolov7" % self.m_current_code_folder) 
+            k8s_path = "%s/fileset/yolov7" % self.m_current_code_folder
+            os.system("cp -r ./db/trtweb/* %s" % k8s_path) 
+            os.system("rm %s/*.db" % k8s_path) 
+            # onnx 화일 복사   
+            onnx_path = "%s%s" % (self.m_current_file_path, self.m_nninfo_weight_onnx_file)
+            os.system("cp  %s  %s" % (onnx_path, k8s_path))
+            self.m_sysinfo_libs = ['python==3.8']
+            self.m_sysinfo_apt = ['vim', 'tensorrt', 'libgl1-mesa-glx']
+            self.m_sysinfo_papi = ["cython", "numpy<17", "imutils", "flask",
+                "opencv-python", "opencv-contrib-python", 
+                "imageio", "pyyaml", "matplotlib", 
+                "pandas", "tqdm", "seaborn", "requests", 
+                "werkzeug", "torch", "torchvision", "python-math",  
+                "albumentations", "pathlib"]
+            self.m_deploy_entrypoint = ['python', './output.py']
+            # index.db 가속기 고려 코드 생성 후 index.py로 복사
+            str = ''
+            str += "def_port_num = %d\n" %  self.m_deploy_network_serviceport 
+            # index.py 오픈 후 str 복사
+            try: 
+                outpath = "%s/%s" % (k8s_path, "output.py")
+                outf = open(outpath, "w")
+            except IOError as err:
+                logging.debug("output.py file open error")
+                self.m_last_run_state = 0
+                return -1
+            outf.write(str)
+            try:
+                inf = open("./db/trtweb/index.db", 'r')
+            except IOError as err:
+                logging.debug("trtweb/index.db open error")
+                self.m_last_run_state = 0
+                return -1
+            for line1 in inf:
+                outf.write(line1)
+            inf.close()
+            outf.close()
+
+            # tensorrt-yolov9.db 가속기 고려 코드 생성 후 output.py로 복사
+            str = ''
+            if type(self.m_sysinfo_input_method) != int:
+                str += "def_input_location = '%s'\n" % self.m_sysinfo_input_method
+            else:
+                str += "def_input_location = %d\n" % self.m_sysinfo_input_method
+            if type(self.m_sysinfo_output_method) != int:
+                str += "def_output_location = '%s'\n"  % self.m_sysinfo_output_method 
+            else:
+                str += "def_output_location = %d\n"  % self.m_sysinfo_output_method 
+            str += "def_conf_thres = %f\n" % self.m_nninfo_postproc_conf_thres
+            str += "def_iou_thres = %f\n" % self.m_nninfo_postproc_iou_thres
+            a_file = def_trt_calib_cache.split("/")
+            str += "def_calib_cache = '%s'\n" % a_file[-1] 
+            str += "def_trt_engine = 'v9-16.trt'\n" 
+            str += "def_trt_precision = 'fp16'\n" 
+            str += "def_trt_max_detection = 100\n" 
+            str += "def_onnx_model = '%s'\n" %  self.m_nninfo_weight_onnx_file
+            str += "def_label_yaml = '%s'\n" % self.m_nninfo_annotation_file 
+            try:
+                outpath = "%s/%s" % (k8s_path, "tensorrt_yolov9.py")
+                outf = open(outpath, "w")
+            except IOError as err:
+                logging.debug("tensorrt_yolov9.py file open error")
+                self.m_last_run_state = 0
+                return -1
+            outf.write(str)
+            try:
+                inf = open("./db/trtweb/tensorrt_yolov9.db", 'r')
+            except IOError as err:
+                logging.debug("trtweb/tensorrt_yolov9.db open error")
+                self.m_last_run_state = 0
+                return -1
+            for line1 in inf:
+                outf.write(line1)
+            inf.close()
+            outf.close()
+
+            #copy util file
+            shutil.copy(def_trt_myutil_file_name, k8s_path)
+            #copy calib file
+            shutil.copy(def_trt_calib_cache, k8s_path)
+            # annotation 화일 복사 하기 done
+            os.system("cp  %s  %s" % (self.m_nninfo_annotation_file, k8s_path)) 
+            os.system("cp  %s  %s" % (self.m_nninfo_annotation_file, self.m_current_code_folder)) 
+            os.system("cp  %s  %s/fileset" % (self.m_nninfo_annotation_file, self.m_current_code_folder)) 
+            # copy requirement file to code_folder just for testing
+            try:
+                outpath = "%s/%s" % (self.m_current_code_folder, self.m_requirement_file)
+                outf = open(outpath, "w")
+            except IOError as err:
+                logging.debug("requirements.txt file open error")
+                self.m_last_run_state = 0
+                return -1
+            for item in self.m_sysinfo_papi:
+                outf.write(item)
+                outf.write('\n')
+            outf.close()
+            # .db 지우기
+            os.system("rm %s/*.db" % k8s_path) 
+            # requirements.txt fileset/yolov7에 복사하기
+            os.system("cp %s %s" % (outpath, k8s_path)) 
+        else: # ondevice no need web 
+            self.m_sysinfo_libs = ['python==3.8']
+            self.m_sysinfo_apt = ['vim', 'tensorrt', 'libgl1-mesa-glx']
+            self.m_sysinfo_papi = ["cython", "numpy<17", "imutils", "flask",
+                "opencv-python", "opencv-contrib-python", 
+                "imageio", "pyyaml",  "matplotlib", 
+                "pandas", "tqdm", "seaborn", "requests", 
+                "werkzeug", "torch", "torchvision", "python-math",  
+                "albumentations", "pathlib"]
+            self.m_deploy_entrypoint = ['python', './output.py']
+            # onnx 화일 복사   
+            onnx_path = "%s%s" % (self.m_current_file_path, self.m_nninfo_weight_onnx_file)
+            os.system("cp  %s  %s" % (onnx_path, self.m_current_code_folder))
+
+            # tensorrt-yolov9.db 가속기 고려 코드 생성 후 output.py로 복사
+            str = ''
+            if type(self.m_sysinfo_input_method) != int:
+                str += "def_input_location = '%s'\n" % self.m_sysinfo_input_method
+            else:
+                str += "def_input_location = %d\n" % self.m_sysinfo_input_method
+            if type(self.m_sysinfo_output_method) != int:
+                str += "def_output_location = '%s'\n"  % self.m_sysinfo_output_method 
+            else:
+                str += "def_output_location = %d\n"  % self.m_sysinfo_output_method 
+            str += "def_conf_thres = %f\n" % self.m_nninfo_postproc_conf_thres
+            str += "def_iou_thres = %f\n" % self.m_nninfo_postproc_iou_thres
+            a_file = def_trt_calib_cache.split("/")
+            str += "def_calib_cache = '%s'\n" % a_file[-1] 
+            str += "def_trt_engine = 'v9-16.trt'\n" 
+            str += "def_trt_precision = 'fp16'\n" 
+            str += "def_trt_max_detection = 100\n" 
+            str += "def_onnx_model = '%s'\n" %  self.m_nninfo_weight_onnx_file
+            str += "def_label_yaml = '%s'\n" % self.m_nninfo_annotation_file 
+            try:
+                outpath = "%s/%s" % (self.m_current_code_folder, "output.py")
+                outf = open(outpath, "w")
+            except IOError as err:
+                logging.debug("output.py file open error")
+                self.m_last_run_state = 0
+                return -1
+            outf.write(str)
+            try:
+                inf = open("./db/tensorrt_yolov9.db", 'r')
+            except IOError as err:
+                logging.debug("tensorrt_yolov9.db open error")
+                self.m_last_run_state = 0
+                return -1
+            for line1 in inf:
+                outf.write(line1)
+            inf.close()
+            outf.close()
+            # annotation 화일 복사 하기 done
+            os.system("cp  %s  %s" % (self.m_nninfo_annotation_file, self.m_current_code_folder)) 
+            # copy requirement file to code_folder just for testing
+            try:
+                outpath = "%s/%s" % (self.m_current_code_folder, self.m_requirement_file)
+                outf = open(outpath, "w")
+            except IOError as err:
+                logging.debug("requirements.txt file open error")
+                self.m_last_run_state = 0
+                return -1
+            for item in self.m_sysinfo_papi:
+                outf.write(item)
+                outf.write('\n')
+            outf.close()
+            #copy util file
+            shutil.copy(def_trt_myutil_file_name, self.m_current_code_folder)
+            #copy calib file
+            shutil.copy(def_trt_calib_cache, self.m_current_code_folder)
         return
 
 
-    def gen_tvm_code(self, dev_type, width, height, data_type):
+    def gen_tvm_code(self):
         if not os.path.exists(self.m_current_code_folder):
             os.makedirs(self.m_current_code_folder)
-        tmpstr = ""
-        tmpstr = "%s%s%s%s%s%s" % (tmpstr, "def_mod_path = ", '"', 
-            def_TVM_mod, '"', def_newline)
-        tmpstr = "%s%s%s%s%s%s" % (tmpstr, "def_param_path = ", '"', 
-            def_TVM_param, '"', def_newline)
-        a_file = self.m_nninfo_annotation_file.split("/")
-        b_file = a_file[-1]
-        tmpstr = "%s%s%s%s%s%s" % (tmpstr, "def_label_yaml = ",'"',  
-            b_file, '"', def_newline)
-        tmpstr = "%s%s%s%s" % (tmpstr, "def_conf_thres = ",  
-                self.m_nninfo_postproc_conf_thres, def_newline)
-        tmpstr = "%s%s%s%s" % (tmpstr, "def_iou_thres = ",  
-                self.m_nninfo_postproc_iou_thres, def_newline)
-        if self.m_sysinfo_acc_type == "cuda": 
-            tmpstr = "%s%s%s%s" % (tmpstr, "def_dev_type = ",  "1", def_newline)
+        onnx_path = "%s%s" % (self.m_current_file_path, self.m_nninfo_weight_onnx_file)
+        onnx_model = onnx.load(onnx_path)
+        input_name = "images"
+        input_shapes = [[d.dim_value for d in _input.type.tensor_type.shape.dim] for _input in onnx_model.graph.input]
+        shape_dict = {input_name: [1, 3, input_shapes[0][2], input_shapes[0][3]]}
+        mod, params = tvm.relay.frontend.from_onnx(onnx_model, shape_dict)
+        with open(def_TVM_mod, "w") as fo:
+            fo.write(tvm.ir.save_json(mod))
+        with open(def_TVM_param, "wb") as fo:
+            fo.write(tvm.runtime.save_param_dict(params))
+        self.m_nninfo_weight_onnx_file = [def_TVM_mod, def_TVM_param]
+        os.system("cp %s  %s" % (def_TVM_mod, self.m_current_code_folder))
+        os.system("cp %s  %s" % (def_TVM_param, self.m_current_code_folder))
+
+        self.m_sysinfo_libs = ['python==3.8']
+        self.m_sysinfo_apt = []
+        self.m_sysinfo_papi = []
+        self.m_deploy_entrypoint = ['python', './output.py']
+        str = ''
+        str += "def_mod_path = 'yolov9-tvm.model'\n" 
+        str += "def_param_path = 'yolov9-tvm.param'\n" 
+        str += "def_label_yaml = '%s'\n" % self.m_nninfo_annotation_file 
+        str += "def_conf_thres = %f\n" % self.m_nninfo_postproc_conf_thres
+        str += "def_iou_thres = %f\n" % self.m_nninfo_postproc_iou_thres
+        str += "def_dev_type = 'llvm'\n" 
+        str += "def_data_type = 'float32'\n" 
+        str += "def_width = 640\n" 
+        str += "def_height = 640\n" 
+        if type(self.m_sysinfo_input_method) != int:
+            str += "def_input_location = '%s'\n" % self.m_sysinfo_input_method
         else:
-            tmpstr = "%s%s%s%s" % (tmpstr, "def_dev_type = ",  "llvm", def_newline)
-        tmpstr = "%s%s%s%s%s%s" % (tmpstr, "def_data_type = ", '"',  
-                self.m_nninfo_input_data_type, '"', def_newline)
-        tmpstr = "%s%s%s%s" % (tmpstr, "def_width = ",  
-                # self.m_nninfo_input_tensor_shape[1], def_newline)
-                def_TVM_width, def_newline)
-        tmpstr = "%s%s%s%s" % (tmpstr, "def_height = ",  
-                #self.m_nninfo_input_tensor_shape[2], def_newline) 
-                def_TVM_height, def_newline)
-        tmpstr = "%s%s%s%s" % (tmpstr, "def_input_location = ",   
-                self.m_sysinfo_input_method, def_newline)
-        tmpstr = "%s%s%s%s" % (tmpstr, "def_output_location = ",  
-                self.m_sysinfo_output_method, def_newline)  
-        tmpstr = "%s%s%s" % (tmpstr, def_newline, def_newline) 
+            str += "def_input_location = %d\n" % self.m_sysinfo_input_method
+        if type(self.m_sysinfo_output_method) != int:
+            str += "def_output_location = '%s'\n"  % self.m_sysinfo_output_method 
+        else:
+            str += "def_output_location = %d\n"  % self.m_sysinfo_output_method 
+
         try:
-            infer_outf = open(self.get_code_filepath(def_deploy_python_file), "w")
+            outpath = "%s/%s" % (self.m_current_code_folder, "output.py")
+            outf = open(outpath, "w")
         except IOError as err:
-            logging.debug("TVM inference File Write Error #1")
+            logging.debug("output.py file open error")
+            self.m_last_run_state = 0
             return -1
-        infer_outf.write(tmpstr)
+        outf.write(str)
         try:
-            fi = open("./db/tvm-infer-template.py", 'r')
+            inf = open("./db/tvm_yolov9.db", 'r')
         except IOError as err:
-            logging.debug("TVM infer  body open error")
+            logging.debug("tvm_yolov9.db open error")
+            self.m_last_run_state = 0
             return -1
-        # body copy
-        for line2 in fi:
-            infer_outf.write(line2)
-        fi.close()
-        infer_outf.close()
+        for line1 in inf:
+            outf.write(line1)
+        inf.close()
+        outf.close()
+
+        # annotation 화일 복사 하기 done
+        os.system("cp  %s  %s" % (self.m_nninfo_annotation_file, self.m_current_code_folder)) 
+        # copy requirement file to code_folder just for testing
+        try:
+            outpath = "%s/%s" % (self.m_current_code_folder, self.m_requirement_file)
+            outf = open(outpath, "w")
+        except IOError as err:
+            logging.debug("requirements.txt file open error")
+            self.m_last_run_state = 0
+            return -1
+        for item in self.m_sysinfo_papi:
+            outf.write(item)
+            outf.write('\n')
+        outf.close()
         #copy util file
         shutil.copy(def_TVM_myutil_file_name, self.m_current_code_folder)
-        # copy annotation file
-        annotation_file = "%s/%s" % (def_dataset_path, self.m_nninfo_annotation_file)
-        if os.path.isfile(annotation_file):
-            shutil.copy(annotation_file, self.m_current_code_folder)
         return
 
     ####################################################################
@@ -1419,170 +1450,123 @@ class CodeGen:
             os.remove(self.get_real_filepath(self.m_requirement_file))
         return
 
-    # Must be modified for tensorrt and tvm 
-    # as well as web server application
     ####################################################################
-    def make_requirements_file_for_docker(self):  # entry point , work dir
-        """
-        make yaml file for deployment - docker based environment
-
-        Args: None
-        Returns: int
-            0 : success
-            -1 : error
-        """
-
-        if self.m_deploy_type == 'cloud' or self.m_deploy_type == 'k8s': 
-            # self.m_deploy_type == 'PCServer': just for webserver not docker
-            dep_type = 'docker'
+    def make_deployment_yaml(self):  # entry point , work dir
+        if (self.m_deploy_type == 'cloud' or self.m_deploy_type == 'kt_cloud' 
+            or self.m_deploy_type == 'aws' or self.m_deploy_type == 'gcp'):
+            self.make_deploayment_cloud_yaml() 
+        elif self.m_deploy_type == 'k8s':
+            self.make_deploayment_k8s_yaml() 
+        elif self.m_deploy_type == 'pc_web': 
+            self.make_deploayment_web_yaml() 
         else:
-            dep_type = 'native'
+            self.make_deploayment_ondevice_yaml() 
+        return 0
 
-        my_entry = ['python3', 'deploy_server.py']
-        # my_entry = self.m_deploy_entrypoint
-
-        if self.m_deploy_type == 'cloud':
-            # if self.m_sysinfo_engine_type == 'pytorch':
-            #     req_pkg = self.m_nninfo_yolo_require_packages
-            # else:
-            #     req_pkg = []
-            # for item in self.m_nninfo_user_libs:
-            #     if not item in req_pkg:
-            #         req_pkg.append(item)
-            req_pkg = ['vim', 'hello']
-            t_pkg = {"atp": req_pkg, "pypi": ['flask==1.2.3']}
-            t_com = {"custom_packages": t_pkg,
-                     "libs": ['python==3.9', 'torch>=1.1.0'], 
-                     "engine": self.m_sysinfo_engine_type # added
-                    }
-            t_build = {'architecture': 'linux/amd64',
-                       "accelerator": 'cpu',
-                       "os": 'ubuntu',
-                       "image_uri": 'us-docker.pkg.dev/cloudrun/container/hello:latest',
-                       "components": t_com }
-            my_entry = ['run.sh', '-p', 'opt1', 'arg']
-            t_deploy = {"type": dep_type,
-                        "service_name": "hello",
-                        # "workdir": "/workspace",
-                        "entrypoint": my_entry,
-                        "network": {"service_host_ip": self.m_deploy_network_hostip,
-                                    "service_host_port": self.m_deploy_network_hostport,
-                                    "service_container_port": self.m_deploy_network_serviceport}}
-            # if self.m_sysinfo_engine_type == 'tensorrt':
-            #    t_deploy['pre_exec'] = ['tensorrt-converter.py']
-            t_total = {"build": t_build, 
-                    "deploy": t_deploy}
-        elif self.m_deploy_type == "k8s":
-            if self.m_sysinfo_engine_type == 'pytorch':
-                req_pkg = self.m_nninfo_yolo_require_packages
+    def make_deploayment_cloud_yaml(self): 
+        #yaml
+        t_pkg = {"atp": self.m_sysinfo_apt, "pypi": self.m_sysinfo_papi}
+        t_com = {"custom_packages": t_pkg,
+                 "libs": self.m_sysinfo_libs,
+                 "engine": self.m_sysinfo_engine_type # added
+                }
+        t_build = {'architecture': self.m_sysinfo_cpu_type,
+                   "accelerator": self.m_sysinfo_acc_type,
+                   "os": self.m_sysinfo_os_type,
+                   "image_uri": 'us-docker.pkg.dev/cloudrun/container/hello:latest',
+                   "components": t_com }
+        if self.m_deploy_type == 'kt_cloud':
+            my_type = self.m_deploy_type
+            t_deploy = {"type": my_type,
+                    "service_name": "nn_model",
+                    # "workdir": "/workspace",
+                    "entrypoint": self.m_deploy_entrypoint, 
+                    "network": {"service_host_ip": self.m_deploy_network_hostip,
+                                "service_host_port": self.m_deploy_network_hostport,
+                                "service_container_port": self.m_deploy_network_serviceport}}
+        elif self.m_deploy_type == 'aws' or self.m_deploy_type == 'cloud':
+            if self.m_deploy_type == 'aws':
+                my_type = self.m_deploy_type + '-ecs' 
             else:
-                req_pkg = []
-            for item in self.m_nninfo_user_libs:
-                if not item in req_pkg:
-                    req_pkg.append(item)
-            req_pkg.append('vim')
-            req_pkg.append('python3.8')
-            y7_pkgs = [ 'matplotlib>=3.2.2', 'numpy>=1.18.5,<1.24.0', 
-                    'opencv-python>=4.1.1', 'Pillow>=7.1.2', 
-                    'PyYAML>=5.3.1', 'requests>=2.23.0', 
-                    'scipy>=1.4.1', 'torch>=1.7.0,!=1.12.0', 
-                    'torchvision>=0.8.1,!=0.13.0', 'tqdm>=4.41.0', 
-                    'protobuf<4.21.3', 'tensorboard>=2.4.1', 
-                    'pandas>=1.1.4', 'seaborn>=0.11.0', 
-                    'ipython', 'psutil', 'thop']
-
-            t_pkg = {"atp": req_pkg, "pypi": y7_pkgs}
-            t_com = {"custom_packages": t_pkg,
-                     "engine": 'pytorch' }
-            t_build = {'architecture': 'linux/amd64',
-                       "accelerator": 'gpu',
-                       "os": 'ubuntu',
-                       "target_name": 'python:3.8',
-                       "components": t_com
-                       }
-            t_deploy = {"type": dep_type,
-                     "workdir": "/test/test",
-                     'entrypoint': [ '/bin/bash', '-c'], # my_entry,
-                     "network": {
-                         'service_host_ip': self.m_deploy_network_hostip,
-                         "service_host_port": self.m_deploy_network_hostport,
-                         "service_container_port": self.m_deploy_network_serviceport 
-                         },
-                     "k8s": { 
-                         "nfs_ip": self.m_deploy_nfs_ip,
-                         "nfs_path": self.m_deploy_nfs_path 
-                         }
-                     }
-            # if self.m_sysinfo_engine_type == 'tensorrt':
-            #    t_deploy['pre_exec'] = ['tensorrt-converter.py']
-            a_file = self.m_nninfo_annotation_file.split("/")
-            b_file = a_file[-1]
-            t_opt = {"nn_file": 'output.py',
-                     "weight_file": self.m_nninfo_weight_pt_file,
-                     "annotation_file": b_file } 
-            t_total = {"build": t_build, "deploy": t_deploy, "optional": t_opt}
-        else:
-            t_pkg = {"atp": self.m_sysinfo_apt, "pypi": self.m_sysinfo_papi}
-            t_com = {"engine": "pytorch",
-                     "libs": ['python==3.9', 'torch>=1.1.0'],
-                     "custom_packages": t_pkg}
-            t_build = {'architecture': self.m_sysinfo_cpu_type,
-                       "accelerator": self.m_sysinfo_acc_type,
-                       "os": self.m_sysinfo_os_type, 
-                       "components": t_com,
-                       #"engine": self.m_sysinfo_engine_type, 
-                       "target_name": "yolov3:latest"}
-            t_deploy = {"type": dep_type, "work_dir": self.m_deploy_work_dir,
-                        "workdir": self.m_deploy_work_dir,
-                        "entrypoint": my_entry,
-                        "network": {"service_host_ip": self.m_deploy_network_hostip,
-                                    "service_host_port": self.m_deploy_network_hostport,
-                                    "service_container_port": self.m_deploy_network_serviceport}}
-            # if self.m_sysinfo_engine_type == 'tensorrt':
-            #    t_deploy['pre_exec'] = ['tensorrt-converter.py']
-            a_file = self.m_nninfo_annotation_file.split("/")
-            b_file = a_file[-1]
-            t_opt = {"nn_file": 'output.py',
-                     "weight_file": self.m_nninfo_weight_pt_file,
-                     "annotation_file": b_file }
-
-            t_total = {"build": t_build, "deploy": t_deploy, "optional": t_opt}
-
+                my_type = self.m_deploy_type 
+            t_deploy = {"type": my_type,
+                    "service_name": "nn_model",
+                    "entrypoint": self.m_deploy_entrypoint, 
+                    "network": {"service_host_ip": self.m_deploy_network_hostip,
+                                "service_host_port": self.m_deploy_network_hostport,
+                                "service_container_port": self.m_deploy_network_serviceport},
+                    'awsvpc': { 'assign_publicip': 'ENABLED',
+                                'subnets': 'subnet-aaaa',
+                                'security_groups': 'sg-xxxx'},
+                    'execution_role_arn': 'arn:aws:iam::sssd:role/ecsTaskExecutionRole'}
+        elif self.m_deploy_type == 'gcp':
+            my_type = self.m_deploy_type
+            t_deploy = {"type": my_type,
+                    "service_name": "nn_model",
+                    # "workdir": "/workspace",
+                    "entrypoint": self.m_deploy_entrypoint, 
+                    "network": {"service_host_ip": self.m_deploy_network_hostip,
+                                "service_host_port": self.m_deploy_network_hostport,
+                                "service_container_port": self.m_deploy_network_serviceport}}
+        t_total = {"build": t_build,
+                "deploy": t_deploy}
         try:
-            r_file = "%s/%s" % (self.m_current_code_folder, self.m_requirement_file)
+            r_file = "%s/%s" % (self.m_current_code_folder, self.m_deployment_file)
             f = open(r_file, 'w')
         except IOError as err:
             logging.debug("Yaml File for deployment write error")
             return -1
         yaml.dump(t_total, f)
         f.close()
-        # khlee 
-        # copy deployment.yaml to m_current_filepath
         shutil.copy(r_file, self.m_current_file_path)
-        return 0
-        
-        
-    ####################################################################
-    def make_requirements_file_for_PCServer(self):
-        """
-        make yaml file for deployment  - for PC webserver
+        return
 
-        Args: None
-        Returns: int
-            0 : success
-            -1 : error
-        """ 
-        if self.m_sysinfo_engine_type == 'pytorch':
-            dev_req = "%s/%s" % (self.m_current_code_folder, def_ondevice_python_requirements)
-            if len(self.m_nninfo_yolo_require_packages) > 0 or len(self.m_nninfo_user_libs) > 0:
-                with open(dev_req, "w")  as f:
-                    for item in self.m_nninfo_yolo_require_packages:
-                        f.write(item)
-                        f.write("\n")
-                    for item in self.m_nninfo_user_libs:
-                        f.write(item)
-                        f.write("\n")
+    def make_deploayment_k8s_yaml(self): 
+        t_pkg = {"atp": self.m_sysinfo_apt, "pypi": self.m_sysinfo_papi}
+        t_com = {"custom_packages": t_pkg,
+                 "libs": self.m_sysinfo_libs,
+                 "engine": self.m_sysinfo_engine_type 
+                }
+        t_build = {'architecture': self.m_sysinfo_cpu_type,
+                   "accelerator": self.m_sysinfo_acc_type,
+                   "os": self.m_sysinfo_os_type,
+                   "target_name": 'python:3.8',
+                   "components": t_com
+                   }
+        t_deploy = {"type": 'docker', 
+                "workdir": "/test/test", 
+                "entrypoint": self.m_deploy_entrypoint, 
+                "network": { 
+                    'service_host_ip': self.m_deploy_network_hostip, 
+                    "service_host_port": self.m_deploy_network_hostport, 
+                    "service_container_port": self.m_deploy_network_serviceport
+                    },
+                 "k8s": { 
+                     "nfs_ip": self.m_deploy_nfs_ip, 
+                     "nfs_path": self.m_deploy_nfs_path 
+                     }
+             }
+        a_file = self.m_nninfo_annotation_file.split("/")
+        b_file = a_file[-1]
+        t_opt = {"nn_file": 'output.py',
+                 "weight_file": self.m_nninfo_weight_ts_file,
+                 "model_file": self.m_nninfo_weight_ts_file,
+                 "annotation_file": b_file }
+        t_total = {"build": t_build, "deploy": t_deploy, "optional": t_opt}
+        try:
+            r_file = "%s/%s" % (self.m_current_code_folder, self.m_deployment_file)
+            f = open(r_file, 'w')
+        except IOError as err:
+            logging.debug("Yaml File for deployment write error")
+            return -1
+        yaml.dump(t_total, f)
+        f.close()
+        shutil.copy(r_file, self.m_current_file_path)
+        shutil.copy(r_file, "%s/fileset" % self.m_current_code_folder)
+        shutil.copy(r_file, "%s/fileset/yolov7" % self.m_current_code_folder)
+        return
 
+    def make_deploayment_web_yaml(self): 
         t_pkg = {"atp": self.m_sysinfo_apt, "pypi": self.m_sysinfo_papi}
         if self.m_sysinfo_engine_type == 'tensorrt':
             w_filw = self.m_nninfo_weight_onnx_file
@@ -1593,7 +1577,7 @@ class CodeGen:
             t_com = {"engine": 'tvm', "libs": self.m_sysinfo_libs,
                  "custom_packages": t_pkg}
         else:  # .pt file
-            w_filw = self.m_nninfo_weight_pt_file
+            w_filw = self.m_nninfo_weight_ts_file
             t_com = {"engine": "pytorch", "libs": self.m_sysinfo_libs,
                  "custom_packages": t_pkg}
 
@@ -1601,9 +1585,8 @@ class CodeGen:
                    "accelerator": self.m_sysinfo_acc_type,
                    "os": self.m_sysinfo_os_type, "components": t_com}
         t_deploy = {"type": self.m_deploy_type, "work_dir": self.m_deploy_work_dir,
-                    "entrypoint": self.m_deploy_python_file}
-        # if self.m_sysinfo_engine_type == 'tensorrt':
-        #     t_deploy['pre_exec'] = ['tensorrt-converter.py']
+                    # "entrypoint": self.m_deploy_python_file} 
+                    "entrypoint": self.m_deploy_entrypoint} 
         a_file = self.m_nninfo_annotation_file.split("/")
         b_file = a_file[-1]
         t_opt = {"nn_file": self.m_deploy_python_file,
@@ -1612,43 +1595,18 @@ class CodeGen:
         t_total = {"build": t_build, "deploy": t_deploy, "optional": t_opt}
 
         try:
-            r_file = "%s/%s" % (self.m_current_code_folder, self.m_requirement_file)
+            r_file = "%s/%s" % (self.m_current_code_folder, self.m_deployment_file)
             f = open(r_file, 'w')
         except IOError as err:
             logging.debug("Yaml File for deployment write error")
             return -1
         yaml.dump(t_total, f)
         f.close()
-        # khlee 
-        # copy deployment.yaml to m_current_filepath
         shutil.copy(r_file, self.m_current_file_path)
         return
-        
 
-
-
-    ####################################################################
-    def make_requirements_file_for_others(self):
-        """
-        make yaml file for deployment  - stand-alone PC or ondevices
-
-        Args: None
-        Returns: int
-            0 : success
-            -1 : error
-        """ 
-        logging.debug(self.m_sysinfo_engine_type) 
-        if self.m_sysinfo_engine_type == 'pytorch':
-            dev_req = "%s/%s" % (self.m_current_code_folder, def_ondevice_python_requirements)
-            if len(self.m_nninfo_yolo_require_packages) > 0 or len(self.m_nninfo_user_libs) > 0:
-                with open(dev_req, "w")  as f:
-                    for item in self.m_nninfo_yolo_require_packages:
-                        f.write(item)
-                        f.write("\n")
-                    for item in self.m_nninfo_user_libs:
-                        f.write(item)
-                        f.write("\n")
-
+    def make_deploayment_ondevice_yaml(self): 
+        #yaml
         t_pkg = {"atp": self.m_sysinfo_apt, "pypi": self.m_sysinfo_papi}
         if self.m_sysinfo_engine_type == 'acl':
             w_filw = "yolo_v3_tiny_darknet_fp32.tflite"
@@ -1663,7 +1621,7 @@ class CodeGen:
             t_com = {"engine": 'tvm', "libs": self.m_sysinfo_libs,
                  "custom_packages": t_pkg}
         else:  # .pt file
-            w_filw = self.m_nninfo_weight_pt_file
+            w_filw = self.m_nninfo_weight_ts_file
             t_com = {"engine": "pytorch", "libs": self.m_sysinfo_libs,
                  "custom_packages": t_pkg}
 
@@ -1672,8 +1630,6 @@ class CodeGen:
                    "os": self.m_sysinfo_os_type, "components": t_com}
         t_deploy = {"type": self.m_deploy_type, "work_dir": self.m_deploy_work_dir,
                     "entrypoint": self.m_deploy_python_file}
-        # if self.m_sysinfo_engine_type == 'tensorrt':
-        #     t_deploy['pre_exec'] = ['tensorrt-converter.py']
         a_file = self.m_nninfo_annotation_file.split("/")
         b_file = a_file[-1]
         t_opt = {"nn_file": self.m_deploy_python_file,
@@ -1682,18 +1638,17 @@ class CodeGen:
         t_total = {"build": t_build, "deploy": t_deploy, "optional": t_opt}
 
         try:
-            r_file = "%s/%s" % (self.m_current_code_folder, self.m_requirement_file)
+            r_file = "%s/%s" % (self.m_current_code_folder, self.m_deployment_file)
             f = open(r_file, 'w')
         except IOError as err:
             logging.debug("Yaml File for deployment write error")
             return -1
         yaml.dump(t_total, f)
         f.close()
-        # khlee 
-        # copy deployment.yaml to m_current_filepath
         shutil.copy(r_file, self.m_current_file_path)
         return
 
+        
     ####################################################################
     def response(self):
         """

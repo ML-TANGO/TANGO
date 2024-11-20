@@ -4,13 +4,14 @@ import requests
 import time
 
 # prj_mng port
-def_send_port = 8085
+# def_send_port = 8085
 # def_send_port = 8089
+def_send_port = 8888
 def_send_url = "%s%4d" % ("http://0.0.0.0:", def_send_port)
 
 # my port
-def_recv_port = 8888
-# def_recv_port = 8085
+# def_recv_port = 8888
+def_recv_port = 8085
 my_url = "%s%4d" % ("http://0.0.0.0:", def_recv_port)
 
 
@@ -29,13 +30,13 @@ def send_thr():
             data = 'user_id=""&project_id=""'
         elif x[0] == '1':
             url = "%s%s" % (def_send_url, '/start')
-            data = 'user_id=kyunghee&project_id=1'
+            data = 'user_id=giantlkh&project_id=1'
         elif x[0] == '2':
             url = "%s%s" % (def_send_url, '/stop')
-            data = 'user_id=kyunghee&project_id=1'
+            data = 'user_id=giantlkh&project_id=1'
         elif x[0] == '3':
             url = "%s%s" % (def_send_url, '/status_request')
-            data = 'user_id=kyunghee&project_id=1'
+            data = 'user_id=giantlkh&project_id=1'
         else:
             continue
 
@@ -112,7 +113,7 @@ class MyHandler(SimpleHTTPRequestHandler):
                     userid = ctmp[i].split('=')[1]
                 elif tval == 'project_id':
                     prjid = ctmp[i].split('=')[1]
-                elif tval == 'result':
+                elif tval == 'status':
                     res = ctmp[i].split('=')[1]
                 else:
                     print('unkown path')
@@ -121,7 +122,7 @@ class MyHandler(SimpleHTTPRequestHandler):
         print("conid =", conid)
         print("userid =", userid)
         print("prjid =", prjid)
-        print("result =", res)
+        print("status =", res)
         buf = "OK"
         self.send_response(200, 'ok')
         self.send_cors_headers()
