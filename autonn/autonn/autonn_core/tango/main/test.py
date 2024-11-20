@@ -233,6 +233,7 @@ def test(proj_info,
 
         # Metrics per image ----------------------------------------------------
         for si, pred in enumerate(out):
+            # print(si, pred.shape)
             labels = targets[targets[:, 0] == si, 1:]
             nl = len(labels)
             tcls = labels[:, 0].tolist() if nl else []  # target class
@@ -248,7 +249,6 @@ def test(proj_info,
             # Predictions
             predn = pred.clone()
             scale_coords(img[si].shape[1:], predn[:, :4], shapes[si][0], shapes[si][1])  # native-space pred
-
             # Evaluate : assign all predictions as incorrect
             correct = torch.zeros(pred.shape[0], niou, dtype=torch.bool, device=device)
             if nl:

@@ -582,15 +582,14 @@ def run_autonn(userid, project_id, resume=False, viz2code=False, nas=False, hpo=
     jetsonagxorin   : tensorrt
     jetsonagxxavier : tensorrt
     jetsonnano      : tensorrt
-    galaxys22       : tflite (-> opencl)
-    odroidn2        : onnx (tvm -> acl -> opencl)
+    galaxys22       : tflite
     raspberrypi     : edge-tpu tflite
     '''
     # Strip optimizers ---------------------------------------------------------
     # [tenace's note] what strip_optimizer does is ...
     # 1. load cpu model
     # 2. get attribute 'ema' if it exists
-    # 3. replace attribute 'model' with 'ema'
+    # 3. replace attribute 'model' with attribute 'ema'
     # 4. reset attributes 'optimizer', 'training_results', 'ema', and 'updates' to None
     # 5. reset attribute 'epoch' to -1
     # 6. convert model to FP16 precision (not anymore by tenace)

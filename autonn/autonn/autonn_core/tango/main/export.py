@@ -12,6 +12,12 @@ import time
 from datetime import datetime
 import warnings
 from pathlib import Path
+COMMON_ROOT = Path("/shared/common")
+DATASET_ROOT = Path("/shared/datasets")
+CORE_DIR = Path(__file__).resolve().parent.parent.parent # /source/autonn_core
+CFG_PATH = CORE_DIR / 'tango' / 'common' / 'cfg'
+INF_PATH = CORE_DIR / 'tango' / 'inference'
+
 import pandas as pd
 import torch
 from torch.utils.mobile_optimizer import optimize_for_mobile
@@ -21,9 +27,7 @@ from tango.common.models.yolo import    (   Detect,
                                             DDetect,
                                             DualDDetect,
                                             IDetect,
-                                            IKeypoint,
                                             IAuxDetect,
-                                            IBin,
                                             Model,
                                         )
 # from tango.utils.dataloaders import LoadImages
@@ -104,7 +108,8 @@ def export_onnx(model, im, file, opset, dynamic, simplify, task='detection', pre
             do_constant_folding=True,
             input_names=['images'],
             output_names=output_names,
-            dynamic_axes=dynamic or None)
+            dynamic_axes=dynamic or None
+        )
 
         # Checks
         model_onnx = onnx.load(f)  # load onnx model
@@ -132,13 +137,13 @@ def export_onnx(model, im, file, opset, dynamic, simplify, task='detection', pre
                 # logger.info(f'Model Exporter: {prefix} slimming with onnxlim {onnxslim.__version__}...')
                 # model_onnx = onnxslim.slim(model_onnx)
             except Exception as e:
-                logger.warn(f'Model Exporter: {prefix} simplifier failure: {e}')
+                logger.warning(f'Model Exporter: {prefix} simplifier failure: {e}')
 
         onnx.save(model_onnx, f)
         logger.info(f'Model Exporter: {colorstr("ONNX ")}export success, saved as {f}')
-        return f, model_onnx
+        return str(f), model_onnx
     except Exception as e:
-        logger.warn(f'Model Exporter: {colorstr("ONNX ")}export failure: {e}')
+        logger.warning(f'Model Exporter: {colorstr("ONNX ")}export failure: {e}')
         return None, None
 
 
@@ -318,26 +323,47 @@ def export_tensorrt(model,
         return None, None
 
 
-def export_tf(f_onnx, metadata, int8, prefix=colorstr("TF Saved Model:")):
+def export_tf(f_onnx, metadata, int8, imgsz, batch_size, stride=1, prefix=colorstr("TF Saved Model:")):
     # import tensorflow as tf
-    # import numpy as np
+    import numpy as np
     import onnx2tf
     import shutil
 
     try:
+        logger.info(f"\nModel Exporter: {prefix} Starting export with onnx2tf {onnx2tf.__version__}...")
+
         f = Path(str(f_onnx).replace('.onnx', '_saved_model'))
         if f.is_dir():
             shutil.rmtree(f)  # delete output folder
         
-        # onnx2tf_file = Path("calibration_image_sample_data_20x128x128x3_float32.npy")
-        # if not onnx2tf_file.exists():
-        #     logger.warning(f"Model Exporter: {prefix} {onnx2tf_file} does not exist.")
-        
+        onnx2tf_file = Path(INF_PATH / "calibration_image_sample_data_20x128x128x3_float32.npy")
+        if not onnx2tf_file.exists():
+            logger.warning(f"Model Exporter: {prefix} {onnx2tf_file} does not exist.")
+            url = 'github.com/ML-TANGO/TANGO/assets/releases/'
+            try:
+                torch.hub.download_url_to_file(
+                    url, 
+                    f'{onnx2tf_file}.zip'
+                )
+            except Exception as e:
+                logger.warning(f'{prefix} Failed to download {onnx2tf_file} from {url}')
+
         np_data = None
         if int8:
+            f.mkdir()
             tmp_file = f / "tmp_tflite_int8_calibration_images.npy"  # int8 calibration images file
+            data_yaml = str(DATASET_ROOT / 'coco128/dataset.yaml')
+            if os.path.isfile(data_yaml):
+                with open(data_yaml) as representative_data:
+                    data = yaml.load(representative_data, Loader=yaml.SafeLoader)
+            images = []
+            dataloader = get_int8_calibration_dataloader(data, imgsz, batch_size, stride)
+            for im, _, _, _ in dataloader:
+                images.append(im)
+            images = torch.nn.functional.interpolate(torch.cat(images, 0).float(), size=imgsz).permute(0, 2, 3, 1)
+            np.save(str(tmp_file), images.numpy().astype(np.float32))  # BHWC
+            np_data = [["images", tmp_file, [[[[0, 0, 0]]]], [[[[255, 255, 255]]]]]]
         
-        logger.info(f"\nModel Exporter: {prefix} Starting export with onnx2tf {onnx2tf.__version__}...")
         keras_model = onnx2tf.convert(
             input_onnx_file_path=f_onnx,
             output_folder_path=str(f),
@@ -351,6 +377,7 @@ def export_tf(f_onnx, metadata, int8, prefix=colorstr("TF Saved Model:")):
         )
         with open(f / "metadata.yaml", 'w') as yaml_file:
             yaml.safe_dump({k: str(v) if isinstance(v, Path) else v for k, v in metadata.items()}, yaml_file, sort_keys=False)
+        logger.info(f'Model Exporter: {colorstr("TF Lite: ")}external meta file saved as {f / "metadata.yaml"}.')
 
         # Remove/rename TFLite model
         if int8:
@@ -364,12 +391,13 @@ def export_tf(f_onnx, metadata, int8, prefix=colorstr("TF Saved Model:")):
 
         # Add TFLite metadata
         for file in f.rglob("*.tflite"):
-            f.unlink() if "quant_with_int16_act.tflite" in str(f) else add_tflite_metadata(file, metadata)
+            logger.info(f'Model Exporter: {colorstr("TF Lite: ")}{file}.')
+            add_tflite_metadata(file, metadata)
         
         logger.info(f'Model Exporter: {prefix} export success, saved as {f}')
     except Exception as e:
         logger.info(f'Model Exporter: {prefix} export failure: {e}')
-    return f, keras_model
+    return str(f), keras_model
 
 
 def export_tf_pb(keras_model, file, prefix=colorstr('TensorFlow GraphDef:')):
@@ -406,7 +434,7 @@ def export_tflite(file, half, prefix=colorstr("TensorFlow Lite:")):
         # f = saved_model / f"{file.stem}_fiq_int8.tflite"    # full integer quantization: int8 weights, int8 in/out
         f_tflite = file.with_suffix('.tflite')
         shutil.copyfile(str(f), f_tflite)
-        logger.info(f'Model Exporter: {prefix} export success, saved as {f_tflite}')
+        logger.info(f'Model Exporter: {prefix} export success, {str(f)} is saved as {f_tflite}')
     except Exception as e:
         logger.warning(f'Model Exporter: {prefix} export failure: {e}')
     return f_tflite, None
@@ -432,42 +460,48 @@ def export_edgetpu(tflite_model, prefix=colorstr('Edge TPU:')):
         ver = subprocess.run(cmd, shell=True, capture_output=True, check=True).stdout.decode().split()[-1]
 
         logger.info(f'\nModel Exporter: {prefix} starting export with Edge TPU compiler {ver}...')
-        f = str(tflite_model).replace(".tflite", "_edgetpu.tflite")  # Edge TPU model
+        f_tpu = str(tflite_model).replace(".tflite", "_edgetpu.tflite")  # Edge TPU model
 
         cmd = (
             "edgetpu_compiler "
-            f'--out_dir {str(Path(f).parent)} '
+            f'--out_dir {Path(f_tpu).parent} '
             "--show_operations "
             "--search_delegate "
             "--delegate_search_step 30 "
             "--timeout_sec 180 "
-            f'{str(tflite_model)}'
+            f'{tflite_model}'
         )
         subprocess.run(cmd.split(), check=True)
-        logger.info(f'Model Exporter: {prefix} export success, saved as {f}')
+        logger.info(f'Model Exporter: {prefix} export success, saved as {f_tpu}')
     except Exception as e:
         logger.info(f'Model Exporter: {prefix} export failure: {e}')
-    return str(f), None
+    return str(f_tpu), None
 
 
-def add_tflite_metadata(file, metadata):
+def add_tflite_metadata(file, meta):
     # Add metadata to *.tflite models per https://www.tensorflow.org/lite/models/convert/metadata
-    with contextlib.suppress(ImportError):
-        import flatbuffers
+    # with contextlib.suppress(ImportError):
+    import flatbuffers
+    try:
+        from tensorflow_lite_support.metadata import metadata_schema_py_generated as _metadata_fb
+        from tensorflow_lite_support.metadata.python import metadata as _metadata
+    except ImportError:
+        logger.warning(f'Model Export: {colorstr("TF Lite:")} Import Error')
         # from tflite_support import flatbuffers
         from tflite_support import metadata as _metadata
         from tflite_support import metadata_schema_py_generated as _metadata_fb
 
+    try:
         # tmp_file = Path('/tmp/meta.txt')
         tmp_file = Path(file).parent / "temp_meta.txt"
         with open(tmp_file, 'w') as f_meta:
-            f_meta.write(str(metadata))
+            f_meta.write(str(meta))
 
         model_meta = _metadata_fb.ModelMetadataT()
-        model_meta.name = metadata['description']
-        model_meta.version = metadata['version']
-        model_meta.author = metadata['author']
-        model_meta.license = metadata['license']
+        model_meta.name = meta['description']
+        model_meta.version = meta['version']
+        model_meta.author = meta['author']
+        model_meta.license = meta['license']
 
         label_file = _metadata_fb.AssociatedFileT()
         label_file.name = tmp_file.name
@@ -502,6 +536,22 @@ def add_tflite_metadata(file, metadata):
         populator.load_associated_files([str(tmp_file)])
         populator.populate()
         tmp_file.unlink()
+        logger.warning(f'Model Exporter: {colorstr("TF Lite: ")}successfully add metadata to {file}')
+    except Exception as e:
+        logger.warning(f'Model Exporter: {colorstr("TF Lite: ")}exception metadata {e}')
+
+
+def get_int8_calibration_dataloader(data, imgsz, batch, gs, prefix=colorstr("ONNX-to-TF:")):
+    """Build and return a dataloader suitable for calibration of INT8 models."""
+    from tango.utils.datasets import create_rep_dataloader
+
+    logger.info(f'Model Export: {prefix} collecting INT8 calibration images from data={data["val"]}')
+    dataloader, dataset = create_rep_dataloader(data["val"], imgsz[0], batch, gs)
+    n = len(dataset)
+    logger.info(f'Model Export: {prefix} found {n} images')
+    if n < 300:
+        logger.warning(f'Model Export: {prefix} more than 300 images recommended for INT8 callibration')
+    return dataloader
 
 
 def export_config(src, dst, data, base, device, engine, task='detection'):
@@ -513,7 +563,13 @@ def export_config(src, dst, data, base, device, engine, task='detection'):
     if task == 'classification':
         weight = 'bestmodel.pt'
     else: # if task == 'detection'
-        weight = ['bestmodel.torchscript', 'bestmodel.onnx']
+        weight = [
+            'bestmodel.pt', 
+            'bestmodel.torchscript', 
+            'bestmodel.onnx',
+            'bestmodel.tflite',
+            'bestmodel_edgetpu.tflite',
+        ]
     nn_dict['weight_file'] = weight
     nn_dict['config_file'] = config # not neccessary
 
@@ -649,15 +705,21 @@ def export_weight(weights, device, include, task='detection', ch=3, imgsz=[640,6
     if half and dynamic:
         logger.warning(f'{colorstr("Model Exporter: ")}--half not compatible with --dynamic, ignore --dynamic')
         dynamic = False
-    model = attempt_load(weights, map_location=device)  # load FP32 model
+    if int8 | edgetpu:
+        half = False # onnx2tf: int8 quantization requires fp32 inputs / edgetpu: mappign ops to tpu requires int8 quant 
+    model = attempt_load(weights, map_location=device, fused=True)  # load fused FP32 model
     logger.debug(model)
 
     # Checks
+    if edgetpu | tflite:
+        imgsz = 320
     imgsz = [imgsz] if isinstance(imgsz, int) else imgsz
     imgsz *= 2 if len(imgsz) == 1 else 1  # expand
     if optimize:
         if device.type != 'cpu':
-            logger.warning(f'{colorstr("Model Exporter: ")}--optimize not compatible with cuda devices, i.e. use --device cpu')
+            logger.warning(f'{colorstr("Model Exporter: ")}--optimize not compatible with cuda devices, ignore --optimize')
+            optimize = False
+
     # Input
     if task == 'detection':
         gs = int(max(model.stride))  # grid size (max stride)
@@ -671,12 +733,17 @@ def export_weight(weights, device, include, task='detection', ch=3, imgsz=[640,6
     model.eval()
     v9 = False
     for _, m in model.named_modules():
-        if isinstance(m, (Detect, DDetect, DualDDetect, DualDDetect)):
+        if isinstance(m, (DDetect, DualDDetect)):
             m.inplace = inplace
             m.dynamic = dynamic
             m.export = True
+            if any((saved_model, pb, tflite, edgetpu)):
+                m.format = 'tf'
+                if int8 | edgetpu:
+                    m.format = 'tf-int8'
             v9 = True
-        if isinstance(m, (Detect, IDetect, IKeypoint, IAuxDetect, IBin)):
+        if isinstance(m, (Detect, IDetect, IAuxDetect)):
+            # it is for v5/v7
             m.inplace = inplace
             m.dynamic = dynamic
             if onnx_end2end:
@@ -691,15 +758,55 @@ def export_weight(weights, device, include, task='detection', ch=3, imgsz=[640,6
     if half:
         im, model = im.half(), model.half()  # to FP16
 
-    shape = []
     if v9:
-        shape = tuple((y[0] if isinstance(y, (tuple, list)) else y).shape)  # model output shape
-    else:
-        if isinstance(y, (tuple, list)):
-            for yi in y:
-                shape.append(yi.shape)
+        '''
+        --------------------------------------------------------------------------------------------
+        | v9 head       | export | type(y) |             y                                         |
+        --------------------------------------------------------------------------------------------
+        | DualDDetect   |   T    |  tensor |  (aux-output ⨁ pred-output)*                          |
+        |               |   F    |  tuple  | ([aux-output, pred-output*], [aux-train, pred-train]) |
+        --------------------------------------------------------------------------------------------
+        | DDetect       |   T    |  tensor |     pred-output*                                      |
+        |               |   F    |  tuple  |    (pred-output*, pred-train)                         |
+        --------------------------------------------------------------------------------------------
+        '''
+        # shape = tuple((y[0] if isinstance(y, (tuple, list)) else y).shape)  # model output shape
+        if isinstance(y, tuple):
+            shape = tuple((y[0][-1] if isinstance(y[0], list) else y[0]).shape)
         else:
-            shape.append(y.shape)
+            shape = tuple((y[-1] if isinstance(y, list) else y).shape)
+    else:
+        '''
+        ------------------------------------------------------------------------------
+        | v7 head    | export | end2end | type(y) |              y                   |
+        ------------------------------------------------------------------------------
+        | IAuxDetect |   T    |    -    |  list   | [p3, p4, p5, p6, a3, a4, a5, a6] |
+        |            |   F    |    T    |  tensor |        predict-output            |
+        |            |   F    |    F    |  tuple  |    (pred, [p3, p4, p5, p6])      |
+        ------------------------------------------------------------------------------
+        | IDetect    |   T    |    -    |  list   |          [p3, p4, p5]            |
+        |            |   F    |    T    |  tensor |        predict-output            |
+        |            |   F    |    F    |  tuple  |      (pred, [p3, p4, p5])        |
+        ------------------------------------------------------------------------------
+        ------------------------------------------------------------------------------
+        | v5 head    | export | end2end | type(y) |              y                   |
+        ------------------------------------------------------------------------------   
+        | Detect     |   T    |    -    |  list   |          [p3, p4, p5]            |
+        |            |   F    |    T    |  tensor |        predict-output            |
+        |            |   F    |    F    |  tuple  |      (pred, [p3, p4, p5])        |
+        ------------------------------------------------------------------------------
+        actually, it must be 'list' or 'tensor'
+        '''
+        if isinstance(y, tuple):
+            shape = tuple(y[0].shape)
+        elif isinstance(y, list):
+            _shape_list = []
+            for yi in y:
+                _shape_list.append(yi.shape)
+            shape = tuple(_shape_list)
+        else:
+            shape = tuple(y.shape)
+   
     
     if task == 'detection':
         ver = 'v9' if v9 else 'v7'
@@ -754,25 +861,27 @@ def export_weight(weights, device, include, task='detection', ch=3, imgsz=[640,6
         logger.info('-'*100)
     if any((saved_model, pb, tflite, edgetpu)):  # TensorFlow formats
         int8 = int8 | edgetpu # edgetpu mapping reuires the int8 quantized tflite model
-        f[5], s_model = export_tf(f[2], metadata, int8)
+        f[5], s_model = export_tf(f[2], metadata, int8, imgsz, batch_size, stride=gs)
         logger.info('-'*100)
         if pb:
             f[6], _ = export_tf_pb(s_model, file)
             logger.info('-'*100)
         if tflite:
             f[7], _ = export_tflite(file, half)
-            add_tflite_metadata(f[7], metadata)
             logger.info('-'*100)
         if edgetpu:
             tflite_model = Path(f[5]) / f"{file.stem}_fiq_int8.tflite"
             if Path.exists(tflite_model):
-                f[8], _ = export_edgetpu(tflite_model)
+                f[8], _ = export_edgetpu(str(tflite_model))
                 add_tflite_metadata(f[8], metadata)
                 import shutil
                 shutil.copyfile(f[8], str(file.parent / f"{file.stem}_edgetpu.tflite"))
             else:
                 logger.warning(f'Model Exporter: {colorstr("Edge TPU: ")}export failure: not found {str(tflite_model)}')
             logger.info('-'*100)
+        # saved_model_dir = Path(str(file).replace('.pt', '_saved_model'))
+        # if saved_model_dir.is_dir():
+        #     shutil.rmtree(f)  # delete output folder
 
     # Finish
     f = [str(x) for x in f if x]  # filter out '' and None

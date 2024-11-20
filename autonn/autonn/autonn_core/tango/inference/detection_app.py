@@ -560,6 +560,60 @@ class LoadOnnxModel(nn.Module):
             return d['stride'], d['names']  # assign stride, names
         return None, None
 
+
+class LoadTFLiteModel(nn.Module):
+    def __init__(self, weights='bestmodel.tflite', device=torch.device('cpu')):
+        super().__init__()
+        w = str(weights[0] if isinstance(weights, list) else weights)
+        fp16 = False
+        stride = 32  # default stride
+        cuda = torch.cuda.is_available() and device.type != 'cpu'  # use CUDA
+        print(f'Loading {w} for TFLite inference...')
+        extra_files = {'config.txt': ''}  # model metadata
+        model = torch.jit.load(w, _extra_files=extra_files, map_location=device)
+        # model.half() if fp16 else model.float()
+        model.float()
+        if extra_files['config.txt']:  # load metadata dict
+            d = json.loads(extra_files['config.txt'],
+                            object_hook=lambda d: {int(k) if k.isdigit() else k: v
+                                                    for k, v in d.items()})
+            stride, names = int(d['stride']), d['names']
+        model.eval()
+        self.__dict__.update(locals())  # assign all variables to self
+
+    def forward(self, im):
+        if self.fp16 and im.dtype != torch.float16:
+            im = im.half()  # to FP16
+
+        print('model forward: torchscript model')
+        y = self.model(im)
+
+        if isinstance(y, (list, tuple)):
+            return self.from_numpy(y[0]) if len(y) == 1 else [self.from_numpy(x) for x in y]
+        else:
+            return self.from_numpy(y)
+
+    def from_numpy(self, x):
+        return torch.from_numpy(x).to(self.device) if isinstance(x, np.ndarray) else x
+
+    def warmup(self, imgsz=(1, 3, 640, 640)):
+        # Warmup model by running inference once
+        # warmup_types = self.pt, self.jit, self.onnx, self.engine, self.saved_model, self.pb, self.triton
+        # if any(warmup_types) and (self.device.type != 'cpu' or self.triton):
+        im = torch.empty(*imgsz, dtype=torch.half if self.fp16 else torch.float, device=self.device)  # input
+        for _ in range(2): # if self.jit else 1):
+            self.forward(im)  # warmup
+
+    @staticmethod
+    def _load_metadata(filepath=Path('path/to/meta.yaml')):
+        # Load metadata from meta.yaml if it exists
+        if filepath.exists():
+            with open(filepath, 'r') as f:
+                d = yaml.safe_load(f)
+            return d['stride'], d['names']  # assign stride, names
+        return None, None
+
+
 # image loader -----------------------------------------------------------------
 img_formats = ['bmp', 'jpg', 'jpeg', 'png', 'tif', 'tiff', 'dng', 'webp', 'mpo']  # acceptable image suffixes
 vid_formats = ['mov', 'avi', 'mp4', 'mpg', 'mpeg', 'm4v', 'wmv', 'mkv']  # acceptable video suffixes

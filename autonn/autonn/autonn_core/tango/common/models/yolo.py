@@ -125,9 +125,17 @@ class DDetect(nn.Module):
         self.inplace = inplace  # use inplace ops (e.g. slice assignment)
         self.stride = torch.zeros(self.nl)  # strides computed during build
 
-        c2, c3 = make_divisible(max((ch[0] // 4, self.reg_max * 4, 16)), 4), max((ch[0], min((self.nc * 2, 128))))  # channels
+        c2, c3 = make_divisible(max((ch[0] // 4, self.reg_max * 4, 16)), 4), max(
+            (ch[0], min((self.nc * 2, 128)))
+        )  # channels
         self.cv2 = nn.ModuleList(
-            nn.Sequential(Conv(x, c2, 3), Conv(c2, c2, 3, g=4), nn.Conv2d(c2, 4 * self.reg_max, 1, groups=4)) for x in ch)
+            nn.Sequential(
+                Conv(x, c2, 3),
+                Conv(c2, c2, 3, g=4),
+                nn.Conv2d(c2, 4 * self.reg_max, 1, groups=4)
+            )
+            for x in ch
+        )
         self.cv3 = nn.ModuleList(
             nn.Sequential(Conv(x, c3, 3), Conv(c3, c3, 3), nn.Conv2d(c3, self.nc, 1)) for x in ch)
         self.dfl = DFL(self.reg_max) if self.reg_max > 1 else nn.Identity()
@@ -142,10 +150,52 @@ class DDetect(nn.Module):
             self.anchors, self.strides = (x.transpose(0, 1) for x in make_anchors(x, self.stride, 0.5))
             self.shape = shape
 
-        box, cls = torch.cat([xi.view(shape[0], self.no, -1) for xi in x], 2).split((self.reg_max * 4, self.nc), 1)
-        dbox = dist2bbox(self.dfl(box), self.anchors.unsqueeze(0), xywh=True, dim=1) * self.strides
+        ''' Credit:  ultralytics/nn/modules/head.py, line 99-125, in def _inference(), class Detect
+            [1] TensorFlow conversion takes {Torch.Tensor}.split() complicated operation 'FlexSplitV'
+                solution:
+                don't use .split() and seperately compute each of 'box' and 'cls' instead
+            [2] TFLite INT8 quantization stability
+                dist2bbox() outputs are [0 ~ imgsz],
+                and TFLite INT8 quantiation needs to normalize them with imgsz
+                it is quite large value to operate with, which may cause values unstable
+                solution:
+                pre-normalize 'anchor' and 'stride' before using them in dist2bbox()
+        '''
+        # box, cls = torch.cat([xi.view(shape[0], self.no, -1) for xi in x], 2).split((self.reg_max * 4, self.nc), 1)
+        # dbox = dist2bbox(self.dfl(box), self.anchors.unsqueeze(0), xywh=True, dim=1) * self.strides
+        x_cat = torch.cat([xi.view(shape[0], self.no, -1) for xi in x], 2)
+        if self.export and self.format in {
+            "tf",
+            "tf-int8",
+        }:  # avoid TF FlexSplitV ops
+            box = x_cat[:, : self.reg_max * 4]
+            cls = x_cat[:, self.reg_max * 4 :]
+        else:
+            box, cls = x_cat.split((self.reg_max * 4, self.nc), 1)
+
+        if self.export and (self.format == "tf-int8"):
+            # Precompute normalization factor to increase numerical stability
+            # See https://github.com/ultralytics/ultralytics/issues/7371
+            grid_h = shape[2]
+            grid_w = shape[3]
+            grid_size = torch.tensor(
+                [grid_w, grid_h, grid_w, grid_h], device=box.device
+            ).reshape(1, 4, 1)
+            norm = self.strides / (self.stride[0] * grid_size)
+            dbox = self.decode_bboxes(
+                self.dfl(box) * norm, self.anchors.unsqueeze(0) * norm[:, :2]
+            )
+        else:
+            dbox = (
+                self.decode_bboxes(self.dfl(box), self.anchors.unsqueeze(0))
+                * self.strides
+            )
         y = torch.cat((dbox, cls.sigmoid()), 1)
         return y if self.export else (y, x)
+
+    def decode_bboxes(self, bboxes, anchors):
+        """Decode bounding boxes."""
+        return dist2bbox(bboxes, anchors, xywh=True, dim=1)
 
     def bias_init(self):
         # Initialize Detect() biases, WARNING: requires stride availability
@@ -200,11 +250,73 @@ class DualDDetect(nn.Module):
             self.anchors, self.strides = (d1.transpose(0, 1) for d1 in make_anchors(d1, self.stride, 0.5))
             self.shape = shape
 
-        box, cls = torch.cat([di.view(shape[0], self.no, -1) for di in d1], 2).split((self.reg_max * 4, self.nc), 1)
-        dbox = dist2bbox(self.dfl(box), self.anchors.unsqueeze(0), xywh=True, dim=1) * self.strides
-        box2, cls2 = torch.cat([di.view(shape[0], self.no, -1) for di in d2], 2).split((self.reg_max * 4, self.nc), 1)
-        dbox2 = dist2bbox(self.dfl2(box2), self.anchors.unsqueeze(0), xywh=True, dim=1) * self.strides
-        y = [torch.cat((dbox, cls.sigmoid()), 1), torch.cat((dbox2, cls2.sigmoid()), 1)]
+        ''' Credit:  ultralytics/nn/modules/head.py, line 99-125, in def _inference(), class Detect
+            [1] TensorFlow conversion takes {Torch.Tensor}.split() complicated operation 'FlexSplitV'
+            [2] TFLite INT8 quantization stability
+                dist2bbox() outputs are [0 ~ imgsz], and TFLite INT8 quantiation needs to normalize them with imgsz
+                it is quite large value to operate with, which may cause values unstable
+                solution: pre-normalize 'anchor' and 'stride' before using them in dist2bbox()
+        '''
+        # box, cls = torch.cat([di.view(shape[0], self.no, -1) for di in d1], 2).split((self.reg_max * 4, self.nc), 1)
+        # dbox = dist2bbox(self.dfl(box), self.anchors.unsqueeze(0), xywh=True, dim=1) * self.strides
+        # box2, cls2 = torch.cat([di.view(shape[0], self.no, -1) for di in d2], 2).split((self.reg_max * 4, self.nc), 1)
+        # dbox2 = dist2bbox(self.dfl2(box2), self.anchors.unsqueeze(0), xywh=True, dim=1) * self.strides
+        x_cat = torch.cat([di.view(shape[0], self.no, -1) for di in d1], 2)
+        x_cat2 = torch.cat([di.view(shape[0], self.no, -1) for di in d2], 2)
+        if self.export and self.format in {
+            "tf",
+            "tf-int8",
+        }:  # avoid TF FlexSplitV ops
+            box = x_cat[:, : self.reg_max * 4]
+            cls = x_cat[:, self.reg_max * 4 :]
+            box2 = x_cat2[:, : self.reg_max * 4]
+            cls2 = x_cat2[:, self.reg_max * 4 :]
+        else:
+            box, cls = x_cat.split((self.reg_max * 4, self.nc), 1)
+            box2, cls2 = x_cat2.split((self.reg_max * 4, self.nc), 1)
+
+        if self.export and (self.format == "tf-int8"):
+            # Precompute normalization factor to increase numerical stability
+            # See https://github.com/ultralytics/ultralytics/issues/7371
+            grid_h = shape[2]
+            grid_w = shape[3]
+            grid_size = torch.tensor(
+                [grid_w, grid_h, grid_w, grid_h], device=box.device
+            ).reshape(1, 4, 1)
+            norm = self.strides / (self.stride[0] * grid_size)
+            dbox = self.decode_bboxes(
+                self.dfl(box) * norm, self.anchors.unsqueeze(0) * norm[:, :2]
+            )
+            dbox2 = self.decode_bboxes(
+                self.dfl2(box2) * norm, self.anchors.unsqueeze(0) * norm[:, :2]
+            )
+        else:
+            dbox = (
+                self.decode_bboxes(self.dfl(box), self.anchors.unsqueeze(0))
+                * self.strides
+            )
+            dbox2 = (
+                self.decode_bboxes(self.dfl2(box2), self.anchors.unsqueeze(0))
+                * self.strides
+            )
+        ''' Credit: lhy0718/yolov9/models/yolo.py, line 411-417, in def forward(), class DualDDetect
+            Interesting solution to avoid unnecessary if-condition during inference
+            it makes dual heads LIST to single head TENSOR forcely
+            like [(1, 84, 8400), (1, 84, 8400)] -> (1, 84, 16800)
+            actually, 1st one in the list is auxiliary so should be ignored
+            it may be a temporary workaround to adapt TANGO model to Ultralytics model
+            but it costs its latency
+        '''
+        if not self.export:
+            y = [torch.cat((dbox, cls.sigmoid()), 1), torch.cat((dbox2, cls2.sigmoid()), 1)]
+        else:
+            y = torch.cat(
+                [
+                    torch.cat((dbox, cls.sigmoid()), 1),
+                    torch.cat((dbox2, cls2.sigmoid()), 1),
+                ],
+                2,
+            )
         return y if self.export else (y, [d1, d2])
         #y = torch.cat((dbox2, cls2.sigmoid()), 1)
         #return y if self.export else (y, d2)
@@ -212,6 +324,10 @@ class DualDDetect(nn.Module):
         #y2 = torch.cat((dbox2, cls2.sigmoid()), 1)
         #return [y1, y2] if self.export else [(y1, d1), (y2, d2)]
         #return [y1, y2] if self.export else [(y1, y2), (d1, d2)]
+
+    def decode_bboxes(self, bboxes, anchors):
+        """Decode bounding boxes."""
+        return dist2bbox(bboxes, anchors, xywh=True, dim=1)
 
     def bias_init(self):
         # Initialize Detect() biases, WARNING: requires stride availability
@@ -580,7 +696,7 @@ class IAuxDetect(nn.Module):
     def fuseforward(self, x):
         # x = x.copy()  # for profiling
         z = []  # inference output
-        # self.training |= self.export
+        self.training |= self.export
         for i in range(self.nl):
             x[i] = self.m[i](x[i])  # conv
             bs, _, ny, nx = x[i].shape  # x(bs,255,20,20) to x(bs,3,20,20,85)
@@ -755,6 +871,22 @@ class Model(nn.Module):
         yolo-specific grid size
     brief:
         model summary for log visualization
+
+    forward(input, argument, profile):
+        nn.Module forward() redefinition
+    forward_once(input, profile)
+        run this instead forward() if arguement == False
+    fuse()
+        fuse cv+bn or cv+implicit ops for inference
+    nms(mode)
+        add NMS if mode == True (and NMS does not exist)
+        remove NMS if mode == False (and NMS exists)
+    autoshape()
+        deprecated method (we don't use it)
+    info(verbose, img_size)
+        print model information
+    summary(img_size, verbose)
+        another version of info(): it has return value
     """
     def __init__(self, cfg='basemodel.yaml', ch=3, nc=None, anchors=None):  # model, input channels, number of classes
         super(Model, self).__init__()
