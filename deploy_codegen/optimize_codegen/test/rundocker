@@ -1,3 +1,4 @@
 # docker run -it --rm -v /var/snap/docker/common/var-lib-docker/volumes/tango_shared/_data:/tango -v ~/workspace/TANGO:/source  --net=host  --workdir=/app tango_code_gen /bin/bash
+# docker run -it --rm -v /var/snap/docker/common/var-lib-docker/volumes/tango_shared/_data:/tango -v ~/workspace/TANGO:/source  --net=host  --workdir=/app code_gen /bin/bash
 docker run -it --rm -v /var/snap/docker/common/var-lib-docker/volumes/tango_shared/_data:/tango -v ~/workspace/TANGO:/source  --net=host  --workdir=/app code_gen /bin/bash
  

@@ -23,6 +23,7 @@ class AWSConfig:
     @classmethod
     def validate(cls):
         if not all([cls.REGION, cls.ACCESS_KEY_ID, cls.SECRET_ACCESS_KEY]):
+            logger.error(f"region: {cls.REGION}, access key: {cls.ACCESS_KEY_ID}, secret key: {cls.SECRET_ACCESS_KEY}")
             logger.error("AWS credentials not set")
             raise ValueError("AWS credentials not set")
 
@@ -57,51 +58,14 @@ class AWSECS(CloudTargetBase):
 
         super().__init__(user_id, project_id)
 
-    def __init__(self, user_id: str, project_id: str, cluster_name: str, service_name: str):
-        super().__init__(user_id, project_id, service_name)
-        self.cluster_name = cluster_name
-
-    async def start_service(self):
-        try:
-            response = self.ecs_client.update_service(
-                cluster=self.cluster_name,
-                service=self.service_name,
-                desiredCount=1,
-            )
-            return response
-        except ClientError as e:
-            print(f"ECS Service start failed: {e}")
-            return None
-
-    async def stop_service(self):
-        try:
-            response = self.ecs_client.update_service(
-                cluster=self.cluster_name,
-                service=self.service_name,
-                desiredCount=0,
-            )
-            return response
-        except ClientError as e:
-            print(f"ECS Service stop failed: {e}")
-            return None
-
-    async def get_service_status(self):
-        try:
-            response = self.ecs_client.describe_services(
-                cluster=self.cluster_name,
-                services=[self.service_name],
-            )
-            service = response["services"][0]
-            return service['status'], service['runningCount'], service['desiredCount']
-        except ClientError as e:
-            print(f"Error getting service status: {e}")
-            return None, 0, 0
-
     async def start_service(self, deploy_yaml) -> Dict[str, str]:
         logger.info(f"Starting service for {deploy_yaml.deploy.service_name}")
         try:
-            self._register_task_definition(deploy_yaml)
+            list_cluster = self._list_clusters()
+            logging.info(f"list_cluster: {list_cluster}")
+            # TODO: if the cluster name is not exist, create cluster
             self._ensure_cluster_exists(deploy_yaml.deploy.service_name)
+            self._register_task_definition(deploy_yaml)
             return self._create_ecs_service(deploy_yaml)
         except ClientError as e:
             logger.error(f"Error starting service: {str(e)}")
@@ -123,9 +87,10 @@ class AWSECS(CloudTargetBase):
 
     async def get_service_status(self, service_name: str) -> Dict[str, Any]:
         logger.info(f"Getting status for service {service_name}")
+        cluster_name = service_name + "_" + self.user_id + "_" + self.project_id
         try:
             response = self.ecs_client.describe_services(
-                cluster=service_name, services=[service_name]
+                cluster=cluster_name, services=[service_name]
             )
             if not response["services"]:
                 logger.warning(f"No services found for {service_name}")
@@ -156,8 +121,12 @@ class AWSECS(CloudTargetBase):
 
     def _create_task_definition(self, deploy_yaml) -> Dict[str, Any]:
         logger.info("Creating task definition")
-        return {
+
+        execution_role_arn = getattr(deploy_yaml.deploy, 'execution_role_arn', None)
+
+        task_definition = {
             "family": deploy_yaml.deploy.service_name,
+            "executionRoleArn": deploy_yaml.deploy.execution_role_arn,
             "containerDefinitions": [
                 {
                     "name": deploy_yaml.deploy.service_name,
@@ -175,17 +144,23 @@ class AWSECS(CloudTargetBase):
                             "hostPort": deploy_yaml.deploy.network.service_host_port,
                             "protocol": "tcp",
                         }
-                    ],
+                    ]
                 }
             ],
             "requiresCompatibilities": ["FARGATE"],
             "networkMode": "awsvpc",  # awsvpc, bridge
             "cpu": str(deploy_yaml.deploy.resources.cpu * 1024),
-            "memory": str(deploy_yaml.deploy.resources.memory),
+            "memory": str(deploy_yaml.deploy.resources.memory)
         }
+
+        if execution_role_arn:
+            task_definition["executionRoleArn"] = execution_role_arn
+
+        return task_definition
 
     def _ensure_cluster_exists(self, cluster_name: str) -> None:
         logger.info(f"Ensuring cluster {cluster_name} exists")
+        cluster_name = cluster_name + "_" + self.user_id + "_" + self.project_id
         response = self.ecs_client.describe_clusters(clusters=[cluster_name])
         if not response["clusters"] or response["clusters"][0]["status"] == "INACTIVE":
             logger.info(f"Creating cluster {cluster_name}")
@@ -195,17 +170,19 @@ class AWSECS(CloudTargetBase):
 
     def _create_ecs_service(self, deploy_yaml) -> Dict[str, str]:
         logger.info(f"Creating ECS service for {deploy_yaml.deploy.service_name}")
+        cluster_name = deploy_yaml.deploy.service_name + "_" + self.user_id + "_" + self.project_id
+        logging.info(f"deploy yaml: {deploy_yaml}")
         self.ecs_client.create_service(
-            cluster=deploy_yaml.deploy.service_name,
+            cluster=cluster_name,
             serviceName=deploy_yaml.deploy.service_name,
             taskDefinition=deploy_yaml.deploy.service_name,
             desiredCount=1,
             # TODO: Harded-coded network configs for FARGATE type
             networkConfiguration={
                 "awsvpcConfiguration": {
-                    "assignPublicIp": "ENABLED",
-                    "subnets": ["subnet-0e1c240913e7c480c"],
-                    "securityGroups": ["sg-0882f75dd97251038"],
+                    "assignPublicIp": deploy_yaml.deploy.awsvpc['assign_publicip'],
+                    "subnets": deploy_yaml.deploy.awsvpc['subnets'],
+                    "securityGroups": deploy_yaml.deploy.awsvpc['security_groups'],
                 }
             },
             launchType="FARGATE",
@@ -219,20 +196,21 @@ class AWSECS(CloudTargetBase):
 
     def _stop_and_delete_service(self, service_name: str) -> None:
         logger.info(f"Stopping and deleting service {service_name}")
+        cluster_name = service_name + "_" + self.user_id + "_" + self.project_id
         self.ecs_client.update_service(
-            cluster=service_name, service=service_name, desiredCount=0
+            cluster=cluster_name, service=service_name, desiredCount=0
         )
         waiter = self.ecs_client.get_waiter("services_stable")
-        waiter.wait(cluster=service_name, services=[service_name])
+        waiter.wait(cluster=cluster_name, services=[service_name])
 
         self.ecs_client.delete_service(
-            cluster=service_name, service=service_name, force=True
+            cluster=cluster_name, service=service_name, force=True
         )
 
         while True:
             try:
                 response = self.ecs_client.describe_services(
-                    cluster=service_name, services=[service_name]
+                    cluster=cluster_name, services=[service_name]
                 )
                 if (
                     not response["services"]
@@ -243,11 +221,12 @@ class AWSECS(CloudTargetBase):
                 break
             time.sleep(10)
 
-        self._stop_running_tasks(service_name)
+        self._stop_running_tasks(cluster_name)
         logger.info(f"Service {service_name} stopped and deleted")
 
     def _stop_running_tasks(self, cluster_name: str) -> None:
         logger.info(f"Stopping running tasks in cluster {cluster_name}")
+        cluster_name = cluster_name + "_" + self.user_id + "_" + self.project_id
         running_tasks = self.ecs_client.list_tasks(cluster=cluster_name)
         for task_arn in running_tasks["taskArns"]:
             logger.info(f"Stopping task {task_arn}")
@@ -268,6 +247,7 @@ class AWSECS(CloudTargetBase):
 
     def _delete_cluster(self, cluster_name: str) -> None:
         logger.info(f"Deleting cluster {cluster_name}")
+        cluster_name = cluster_name + "_" + self.user_id + "_" + self.project_id
         self.ecs_client.delete_cluster(cluster=cluster_name)
         logger.info(f"Cluster {cluster_name} deleted")
 
@@ -296,17 +276,18 @@ class AWSECS(CloudTargetBase):
         self, service: Dict[str, Any], service_name: str
     ) -> Dict[str, Any]:
         logger.info(f"Getting public IP and port for task in service {service_name}")
+        cluster_name = service_name + "_" + self.user_id + "_" + self.project_id
         network_config = service.get("networkConfiguration", {}).get(
             "awsvpcConfiguration", {}
         )
         if network_config.get("assignPublicIp") == "ENABLED":
             tasks = self.ecs_client.list_tasks(
-                cluster=service_name, serviceName=service_name
+                cluster=cluster_name, serviceName=service_name
             )
             if tasks["taskArns"]:
                 task_arn = tasks["taskArns"][0]
                 task_details = self.ecs_client.describe_tasks(
-                    cluster=service_name, tasks=[task_arn]
+                    cluster=cluster_name, tasks=[task_arn]
                 )
                 task = task_details["tasks"][0]
 
@@ -342,3 +323,16 @@ class AWSECS(CloudTargetBase):
         else:
             logger.info("Public IP assignment is not enabled for this service")
         return {"status": ServiceStatus.RUNNING}
+
+    def _list_clusters(self) -> Dict[str, Any]:
+        logger.info(f"get cluster list ")
+        response = self.ecs_client.list_clusters()
+        cluster_names = [arn.split('/')[-1] for arn in response['clusterArns']]
+        return cluster_names
+
+    def _create_ecs_cluster(self, cluster_name: str) -> Dict[str, Any]:
+        logger.info(f"create cluster : {cluster_name}")
+        response = self.ecs_client.create_cluster(
+            clusterName = cluster_name
+        )
+        return response
