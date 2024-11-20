@@ -66,7 +66,7 @@ export default {
 
     onClose() {
       this.isOpen = false;
-      this.$router.push("/");
+      // this.$router.push("/");
     }
   }
 };

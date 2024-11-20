@@ -134,9 +134,11 @@ def get_deploy_container(deploy_type):
         host name, port
     """
 
-    if deploy_type == 'Cloud' :
+    type_lower = deploy_type.lower()
+
+    if type_lower == 'cloud' or deploy_type == 'kt_cloud' or deploy_type == 'GCP' or deploy_type == 'AWS':
         return "cloud_deploy"
-    elif deploy_type == 'K8S' or deploy_type == 'K8S_Jetson_Nano':
+    elif type_lower == 'k8s' or type_lower == 'k8s_jetson_nano':
         return "kube_deploy"
     else:
         # ondevice 등등.... 

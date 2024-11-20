@@ -9,7 +9,10 @@
             width="380"
             dark
             @click="manualCreate"
-            :disabled="projectInfo?.container_status === 'started' || projectInfo?.container_status === 'running'"
+            :disabled="
+              projectInfo?.container_status === ProjectStatus.STARTED ||
+              projectInfo?.container_status === ProjectStatus.RUNNING
+            "
           >
             Manually Generation of Neural Networks
           </v-btn>
@@ -20,7 +23,10 @@
             width="380"
             dark
             @click="autoCreate"
-            :disabled="projectInfo?.container_status === 'started' || projectInfo?.container_status === 'running'"
+            :disabled="
+              projectInfo?.container_status === ProjectStatus.STARTED ||
+              projectInfo?.container_status === ProjectStatus.RUNNING
+            "
           >
             Automatic Generation of Neural Networks
           </v-btn>
@@ -72,7 +78,7 @@ import LogViewer from "@/modules/project/log-viewer/LogViewer.vue";
 import { ProjectType } from "@/shared/consts";
 import { DisplayName, TaskType, ContainerName, LearningType, ProjectStatus } from "@/shared/enums";
 
-import { containerStart, updateProjectType } from "@/api";
+import { containerStart, updateProjectType, containerStop } from "@/api";
 export default {
   components: { ProgressCanvas, LogViewer },
   props: {
@@ -88,6 +94,7 @@ export default {
       DisplayName,
       TaskType,
       ContainerName,
+      ProjectStatus,
       ProjectType
     };
   },
@@ -130,12 +137,39 @@ export default {
     start(container) {
       const containerName = DisplayName[container];
 
-      if (this.project.container_status === "running" || this.project.container_status === "started") {
-        Swal.fire({
-          title: "이미 컨테이너가 실행 중입니다.",
-          icon: "error",
-          text: ""
-        });
+      if (
+        this.project.container_status === ProjectStatus.RUNNING ||
+        this.project.container_status === ProjectStatus.STARTED
+      ) {
+        if (this.project.container === container) {
+          Swal.fire({
+            title: `${containerName}를 중지하시겠습니까??`,
+            text: "",
+            icon: "warning",
+            showCancelButton: true,
+            confirmButtonColor: "#3085d6",
+            cancelButtonColor: "#d33",
+            confirmButtonText: "확인",
+            cancelButtonText: "취소"
+          }).then(async result => {
+            if (result.isConfirmed) {
+              await containerStop(container, this.projectInfo.create_user, this.projectInfo.id);
+
+              this.SET_PROJECT({
+                container: container,
+                container_status: ProjectStatus.STOPPED
+              });
+
+              this.$emit("stop");
+            }
+          });
+        } else {
+          Swal.fire({
+            title: "이미 컨테이너가 실행 중입니다.",
+            icon: "error",
+            text: ""
+          });
+        }
         return;
       }
 
@@ -152,7 +186,7 @@ export default {
         if (result.isConfirmed) {
           this.SET_PROJECT({
             container: container,
-            container_status: "started"
+            container_status: ProjectStatus.STARTED
           });
 
           this.$emit("start");

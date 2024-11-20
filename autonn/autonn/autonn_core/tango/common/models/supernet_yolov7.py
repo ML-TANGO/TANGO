@@ -230,7 +230,7 @@ if __name__ == "__main__":
     device = select_device('0')
     
     # Create model
-    supernet = NasModel(cfg='./yaml/yolov7_supernet.yml').to(device)
+    supernet = NASModel(cfg='./yaml/yolov7_supernet.yml').to(device)
     supernet.train()
     sample_depth_setting = supernet.sample_active_subnet()   
     subnet = supernet.get_active_subnet()

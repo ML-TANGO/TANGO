@@ -1,8 +1,5 @@
-# Copyright (c) Meta Platforms, Inc. and affiliates.
-# All rights reserved.
-
-# This source code is licensed under the license found in the
-# LICENSE file in the root directory of this source tree.
+# This source code is from Meta Platforms, Inc. and affiliates.
+# ETRI modified it for TANGO project.
 import json
 import os
 import re
@@ -13,18 +10,12 @@ from typing import Optional
 import torch
 
 from common.models.model import TransformerArgs
-
-# support running without installing as a package
-# wd = Path(__file__).parent.parent
-# sys.path.append(str(wd.resolve()))
-# sys.path.append(str((wd / "build").resolve()))
-
 from common.models.model import ModelArgs
 
 import logging
 logger = logging.getLogger(__name__)
 
-
+import streamlit as st
 
 @torch.inference_mode()
 def convert_hf_checkpoint(
@@ -40,11 +31,16 @@ def convert_hf_checkpoint(
 
     config_args = ModelArgs.from_name(model_name).transformer_args['text']
     config = TransformerArgs.from_params(config_args)
-    logger.info(f"Model config {config.__dict__}")
+    logger.info(f"Model config") # {config.__dict__}")
+    # st.write(f"--Transformer Model Configuration--")
+    for k, v in config.__dict__.items():
+        logger.info(f"   {k} : {v}")
+        # st.write(f"\t{k:>20}:{v}")
 
     # Load the json file containing weight mapping
     model_map_json = model_dir / "pytorch_model.bin.index.json"
     logger.info(f"Weight mapping file: {model_map_json}")
+    st.write(f"Weights mapped though {model_map_json}")
 
     # If there is no weight mapping, check for a consolidated model and
     # tokenizer we can move. Llama 2 and Mistral have weight mappings, while
@@ -138,7 +134,11 @@ def convert_hf_checkpoint(
     logger.info("Done.")
 
     if remove_bin_files:
+        logger.info(f"Delete binary files:")
+        st.write("Delete binary files:")
         for file in bin_files:
+            logger.info(f"   {str(file)}")
+            st.write(f"\t{str(file)}")
             os.remove(file)
 
 

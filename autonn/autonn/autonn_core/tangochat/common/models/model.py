@@ -1,12 +1,11 @@
-# Copyright (c) Meta Platforms, Inc. and affiliates.
-# All rights reserved.
+# This source code is from Meta Platforms, Inc. and affiliates.
+# ETRI modified it for TANGO project.
 
-# This source code is licensed under the license found in the
-# LICENSE file in the root directory of this source tree.
 import json
 import os
 import warnings
 from abc import ABC, abstractmethod
+import math
 
 from dataclasses import dataclass
 from enum import Enum
@@ -21,7 +20,7 @@ import torch
 import torch.nn as nn
 
 from torch import Tensor
-''' [tenace] torch.distributed module is supported in Python >= 3.10 '''
+''' [tenace] torch.distributed module is supported in Python >= 3.10 & torch >= 2.0'''
 # from torch.distributed._tensor import DTensor, Replicate
 # from torch.distributed.device_mesh import DeviceMesh
 # from torch.distributed.tensor.parallel import (
@@ -39,12 +38,11 @@ from torch.nn import functional as F
 # from torchtune.modules.model_fusion import DeepFusionModel
 # from torchtune.models.clip import clip_vision_encoder
 
-from utils.build_utils import find_multiple, get_precision
+from tangochat.utils.build_utils import find_multiple, get_precision
 
 import logging
 logger = logging.getLogger(__name__)
 
-# config_path = Path(f"{str(Path(__file__).parent)}/model_params")
 config_path = Path(f"{str(Path(__file__).parent.parent)}/cfg") # autonn_core/tangochat/common/cfg
 
 class QuickGELUActivation(nn.Module):
@@ -248,16 +246,18 @@ class ModelRecipe:
         #         return cls._llava()
         #     case _:
         #         raise ValueError(f"Can not find the model recipe for {model_type}")
+        logger.info(f"model type == {model_type}")
         if model_type == ModelType.TextOnly:
-            return cls.__text_only()
+            return cls._text_only()
         elif model_type == ModelType.Flamingo:
-            return cls.__flamingo()
+            return cls._flamingo()
         elif model_type == ModelType.Llama3_1:
-            return cls.__llama3_1()
+            return cls._llama3_1()
         elif model_type == ModelType.Llava:
-            return cls.__llava()
+            return cls._llava()
         else:
             logger.warning(f"Can not find the model recipe for {model_type}")
+
 
 @dataclass
 class TransformerArgs:
@@ -676,6 +676,7 @@ class Transformer(nn.Module):
         self._input_pos = input_pos
 
     def forward(self, x: Tensor, input_pos: Optional[Tensor] = None) -> Tensor:
+        logger.info("== forward [Transformer] ==")
         assert self.freqs_cis is not None, "Caches must be initialized first"
         # TODO: find a better way to pass input_pos to non-0 pipeline stages
         input_pos = input_pos if input_pos is not None else self._input_pos
@@ -711,9 +712,33 @@ class TransformerBlock(nn.Module):
     def forward(
         self, x: Tensor, input_pos: Tensor, freqs_cis: Tensor, mask: Tensor
     ) -> Tensor:
+        logger.info("== forward [TransformerBlock] ==")
         h = x + self.attention(self.attention_norm(x), freqs_cis, mask, input_pos)
         out = h + self.feed_forward(self.ffn_norm(h))
         return out
+
+
+# [tenace] add this function from pytorch 2.0
+def scaled_dot_product_attention(query, key, value, attn_mask=None, dropout_p=0.0, is_causal=False, scale=None) -> torch.Tensor:
+    device = attn_mask.device if attn_mask is not None else 'cpu'
+    L, S = query.size(-2), key.size(-2)
+    scale_factor = 1 / math.sqrt(query.size(-1)) if scale is None else scale
+    attn_bias = torch.zeros(1, 1, L, S, dtype=query.dtype, device=device) # [tenace] modifiy device and shape
+    if is_causal:
+        assert attn_mask is None
+        temp_mask = torch.ones(L, S, dtype=torch.bool).tril(diagonal=0)
+        attn_bias.masked_fill_(temp_mask.logical_not(), float("-inf"))
+        attn_bias.to(query.dtype)
+    if attn_mask is not None:
+        if attn_mask.dtype == torch.bool:
+            attn_bias.masked_fill_(attn_mask.logical_not(), float("-inf"))
+        else:
+            attn_bias += attn_mask
+    attn_weight = query @ key.transpose(-2, -1) * scale_factor
+    attn_weight += attn_bias
+    attn_weight = torch.softmax(attn_weight, dim=-1)
+    attn_weight = torch.dropout(attn_weight, dropout_p, train=True)
+    return attn_weight @ value
 
 
 class Attention(nn.Module):
@@ -804,6 +829,7 @@ class Attention(nn.Module):
         mask: Tensor,
         input_pos: Optional[Tensor] = None,
     ) -> Tensor:
+        logger.info("== forward [Attention] ==")
         bsz, seqlen, _ = x.shape
 
         q = self.wq(x)
@@ -832,8 +858,8 @@ class Attention(nn.Module):
 
         k = k.repeat_interleave(self.n_heads // self.n_local_heads, dim=1)
         v = v.repeat_interleave(self.n_heads // self.n_local_heads, dim=1)
-        y = F.scaled_dot_product_attention(q, k, v, attn_mask=mask, dropout_p=0.0)
-
+        # y = F.scaled_dot_product_attention(q, k, v, attn_mask=mask, dropout_p=0.0) # [tenace] F.SDPA requires PyTorch 2.0 or later
+        y = scaled_dot_product_attention(q, k, v, attn_mask=mask, dropout_p=0.0)
         # -1 = self.dim
         y = y.transpose(1, 2).contiguous().view(bsz, seqlen, -1)
 
@@ -855,6 +881,7 @@ class FeedForward(nn.Module):
     #     parallelize_module(self.w3, device_mesh, ColwiseParallel())
 
     def forward(self, x: Tensor) -> Tensor:
+        logger.info("== forward [FeedForward] ==")
         return self.w2(F.silu(self.w1(x)) * self.w3(x))
 
 
@@ -868,6 +895,7 @@ class RMSNorm(nn.Module):
         return x * torch.rsqrt(torch.mean(x * x, dim=-1, keepdim=True) + self.eps)
 
     def forward(self, x: Tensor) -> Tensor:
+        logger.info("== forward [RMS Norm] ==")
         output = self._norm(x.float()).type_as(x)
         return output * self.weight
 
@@ -944,9 +972,9 @@ def apply_rotary_emb(x: Tensor, freqs_cis: Tensor) -> Tensor:
     return x_out2.type_as(x)
 
 
-# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 # ExecuTorch model components
-# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 try:
     from executorch.extension.pybindings import portable_lib as exec_lib

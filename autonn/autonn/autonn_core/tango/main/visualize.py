@@ -18,19 +18,49 @@ from tango.viz.binder import CPyBinder
 
 logger = logging.getLogger(__name__)
 
-TORCH_NN_MODULES =  {   'Conv2d', 'ConvTranspose2d',
-                        'MaxPool2d', 'AvgPool2d', 'AdaptiveMaxPool2d', 'AdaptiveAvgPool2d',
-                        'ZeroPad2d',
-                        'ReLU', 'ReLU6', 'GELU', 'Sigmoid', 'SiLU', 'Mish', 'Tanh', 'Softmax',
-                        'BatchNorm2d', 'LayerNorm',
-                        'TransformerEncoder', 'TransformerDecoder',
-                        'Identify', 'Linear', 'Dropout',
-                        'Embedding',
-                        'MSELoss', 'CrossEntropyLoss', 'BCELoss',
-                        'Upsample', 'Flatten'
-                    }
-HEAD_MODULES = { 'Classify', 'Detect', 'IDetect', 'IAuxDetect', 'IKeypoint',
-                 'IBin', 'DDetect', 'DualDDetect', 'TripleDDetect', 'Segment', 'Pose'}
+TORCH_NN_MODULES = {
+    "Conv2d",
+    "ConvTranspose2d",
+    "MaxPool2d",
+    "AvgPool2d",
+    "AdaptiveMaxPool2d",
+    "AdaptiveAvgPool2d",
+    "ZeroPad2d",
+    "ReLU",
+    "ReLU6",
+    "GELU",
+    "Sigmoid",
+    "SiLU",
+    "Mish",
+    "Tanh",
+    "Softmax",
+    "BatchNorm2d",
+    "LayerNorm",
+    "TransformerEncoder",
+    "TransformerDecoder",
+    "Identify",
+    "Linear",
+    "Dropout",
+    "Embedding",
+    "MSELoss",
+    "CrossEntropyLoss",
+    "BCELoss",
+    "Upsample",
+    "Flatten",
+}
+HEAD_MODULES = {
+    "Classify",
+    "Detect",
+    "IDetect",
+    "IAuxDetect",
+    "IKeypoint",
+    "IBin",
+    "DDetect",
+    "DualDDetect",
+    "TripleDDetect",
+    "Segment",
+    "Pose",
+}
 
 
 class BasemodelViewer:
@@ -46,7 +76,7 @@ class BasemodelViewer:
         nodes.delete()
         edges.delete()
 
-        self.base_yaml = ''
+        self.base_yaml = ""
         self.base_dict = {}
         self.layers = []
         self.lines = []
@@ -65,12 +95,16 @@ class BasemodelViewer:
         # parse basemodel
         # nc = basemodel.get('nc', 80)  # default number of classes = 80 (coco)
         # ch = [basemodel.get('ch', 3)] # default channel = 3 (RGB)
-        basemodel['nc'] = nc = data_dict.get('nc', 80)
-        basemodel['ch'] = ch = [ data_dict.get('ch', 3) ] # TODO: it doesn't matter whether input is 1 channel or 3 channels for now
+        basemodel["nc"] = nc = data_dict.get("nc", 80)
+        basemodel["ch"] = ch = [
+            data_dict.get("ch", 3)
+        ]  # TODO: it doesn't matter whether input is 1 channel or 3 channels for now
         layers, lines, c2, edgeid = [], [], ch[-1], 0
-        logger.info(f'\nVisualizer: Reading basemodel.yaml...')
-        logger.info('-'*100)
-        for i, (f, n, m, args) in enumerate(basemodel['backbone'] + basemodel['head']):  # from, number, module, args
+        logger.info(f"\nVisualizer: Reading basemodel.yaml...")
+        logger.info("-" * 100)
+        for i, (f, n, m, args) in enumerate(
+                basemodel["backbone"] + basemodel["head"]
+        ):  # from, number, module, args
             logger.info(f"\tlayer-{i:2d} : {f}, {n}, {m}, {args}")
 
             # node parsing -------------------------------------------------
@@ -80,20 +114,20 @@ class BasemodelViewer:
                 try:
                     args[j] = eval(a) if isinstance(a, str) else a  # eval strings
                 except Exception as e:
-                    if a == 'nc':
+                    if a == "nc":
                         args[j] = nc
-                    elif a == 'anchors':
-                        args[j] = basemodel.get('anchors', ())
+                    elif a == "anchors":
+                        args[j] = basemodel.get("anchors", ())
                     elif isinstance(a, nn.Module):
                         # for example, nn.LeakeyReLU(0.1)
                         args[j] = a
-                    elif a in ('nearest', 'linear', 'bilinear', 'bicubic', 'trilinear'):
+                    elif a in ("nearest", "linear", "bilinear", "bicubic", "trilinear"):
                         # list of upsampling mode
                         args[j] = a
                     else:
                         logger.warn(f"unsupported arguements: {a}...ignored.")
 
-            if   m == 'nn.Conv2d':
+            if m == "nn.Conv2d":
                 c1 = ch[f]
                 c2 = args[0]
                 k = args[1]
@@ -108,18 +142,18 @@ class BasemodelViewer:
                     f"'padding': ({p}, {p}) \n "
                     f"'bias': {b}"
                 )
-            elif m == 'nn.BatchNorm2d':
+            elif m == "nn.BatchNorm2d":
                 c1 = ch[f]
                 c2 = c1
                 if len(args) > 0:
                     c2 = args[0]
                 if c1 != c2:
-                    logger.warn(f"Error! BatchNorm2d has to be the same features in {c1} & out {c2} of it")
+                    logger.warn(
+                        f"Error! BatchNorm2d has to be the same features in {c1} & out {c2} of it"
+                    )
                     c2 = c1
-                params = (
-                    f"'num_features': {c2}"
-                )
-            elif m == 'nn.MaxPool2d':
+                params = f"'num_features': {c2}"
+            elif m == "nn.MaxPool2d":
                 c1 = ch[f]
                 c2 = c1
                 k = args[0]
@@ -142,7 +176,7 @@ class BasemodelViewer:
                     f"'return_indices': {r} \n "
                     f"'ceil_mode': {c}"
                 )
-            elif m == 'nn.AvgPool2d':
+            elif m == "nn.AvgPool2d":
                 c1 = ch[f]
                 c2 = c1
                 k = args[0]
@@ -153,23 +187,19 @@ class BasemodelViewer:
                     f"'stride': ({s}, {s}) \n "
                     f"'padding': ({p}, {p})"
                 )
-            elif m == 'nn.AdaptiveAvgPool2d':
+            elif m == "nn.AdaptiveAvgPool2d":
                 c1 = ch[f]
                 c2 = c1
                 o = args[0]
-                params = (
-                    f"'output_size': ({o}, {o})"
-                )
-            elif m == 'MP':
+                params = f"'output_size': ({o}, {o})"
+            elif m == "MP":
                 c1 = ch[f]
                 c2 = c1
                 k = 2
                 if len(args) > 0:
                     k = args[0]
-                params = (
-                    f"'k': {k}"
-                )
-            elif m == 'SP':
+                params = f"'k': {k}"
+            elif m == "SP":
                 c1 = ch[f]
                 c2 = c1
                 k = 3
@@ -179,58 +209,43 @@ class BasemodelViewer:
                     s = args[1]
                 elif len(args) == 1:
                     k = args[0]
-                params = (
-                    f"'kernel_size': {k} \n "
-                    f"'stride': {s}"
-                )
-            elif m == 'nn.ConstantPad2d':
+                params = f"'kernel_size': {k} \n " f"'stride': {s}"
+            elif m == "nn.ConstantPad2d":
                 c1 = ch[f]
                 c2 = c1
                 p = args[0]
                 v = args[1]
-                params = (
-                    f"'padding': {p} \n "
-                    f"'value': {v}"
-                )
-            elif m == 'nn.ZeroPad2d':
+                params = f"'padding': {p} \n " f"'value': {v}"
+            elif m == "nn.ZeroPad2d":
                 c1 = ch[f]
                 c2 = c1
                 p = args[0]
-                params = (
-                    f"'padding': {p}"
-                )
-            elif m in ('nn.ReLU', 'nn.ReLU6'):
+                params = f"'padding': {p}"
+            elif m in ("nn.ReLU", "nn.ReLU6"):
                 c1 = ch[f]
                 c2 = c1
                 inp = True
                 if len(args) > 0:
                     inp = args[0]
-                params = (
-                    f"'inplace': {inp}"
-                )
-            elif m in ('nn.Sigmoid', 'nn.Tanh'):
+                params = f"'inplace': {inp}"
+            elif m in ("nn.Sigmoid", "nn.Tanh"):
                 c1 = ch[f]
                 c2 = c1
                 params = ()
-            elif m == 'nn.LeakyReLU':
+            elif m == "nn.LeakyReLU":
                 c1 = ch[f]
                 c2 = c1
                 neg = args[0]
                 inp = True
                 if len(args) > 1:
                     inp = args[1]
-                params = (
-                    f"'negative_slope': {neg} \n "
-                    f"'inplace': {inp}"
-                )
-            elif m == 'nn.Softmax':
+                params = f"'negative_slope': {neg} \n " f"'inplace': {inp}"
+            elif m == "nn.Softmax":
                 c1 = ch[f]
                 c2 = c1
                 d = args[0]
-                params = (
-                    f"'dim': {d}"
-                )
-            elif m == 'nn.Linear':
+                params = f"'dim': {d}"
+            elif m == "nn.Linear":
                 c1 = ch[f]
                 c2 = args[0]
                 b = True
@@ -241,18 +256,15 @@ class BasemodelViewer:
                     f"'out_features': {c2} \n "
                     f"'bias': {b}"
                 )
-            elif m == 'nn.Dropout':
+            elif m == "nn.Dropout":
                 c1 = ch[f]
                 c2 = c1
                 p = args[0]
                 inp = True
                 if len(args) > 1:
                     inp = args[1]
-                params = (
-                    f"'p': {p} \n "
-                    f"'inplace': {inp}"
-                )
-            elif m == 'nn.MESLoss':
+                params = f"'p': {p} \n " f"'inplace': {inp}"
+            elif m == "nn.MESLoss":
                 c1 = ch[f]
                 c2 = c1
                 avg = args[0]
@@ -263,7 +275,7 @@ class BasemodelViewer:
                     f"'reduce': {r1} \n "
                     f"'reduction': {r2}"
                 )
-            elif m == 'nn.BCELoss':
+            elif m == "nn.BCELoss":
                 c1 = ch[f]
                 c2 = c1
                 w = args[0]
@@ -276,7 +288,7 @@ class BasemodelViewer:
                     f"'reduce': {r1} \n "
                     f"'reduction': {r2}"
                 )
-            elif m == 'nn.CrossEntropyLoss':
+            elif m == "nn.CrossEntropyLoss":
                 c1 = ch[f]
                 c2 = c1
                 w = args[0]
@@ -293,7 +305,7 @@ class BasemodelViewer:
                     f"'reduction': {r2} \n"
                     f"'label_smoothing': {lsmooth}"
                 )
-            elif m in ('Flatten', 'nn.Flatten'):
+            elif m in ("Flatten", "nn.Flatten"):
                 # reshape input into a 1-dim tensor (channel-wise)
                 # hard to say how many output channel is
                 # assume default start dim = 1 and end dim = -1
@@ -302,30 +314,27 @@ class BasemodelViewer:
                 c1 = ch[f]
                 c2 = ch[f]
                 s_dim, e_dim = 1, -1
-                if len(args)>0:
+                if len(args) > 0:
                     s_dim = args[0]
-                if len(args)>1:
-                   e_dim = args[1]
-                params = (
-                    f"'start_dim': {s_dim} \n "
-                    f"'end_dim': {e_dim}"
-                )
-            elif m == 'ReOrg':
+                if len(args) > 1:
+                    e_dim = args[1]
+                params = f"'start_dim': {s_dim} \n " f"'end_dim': {e_dim}"
+            elif m == "ReOrg":
                 c1 = ch[f]
                 c2 = 4 * c1
-                params = ()            
-            elif m == 'nn.Upsample':
+                params = ()
+            elif m == "nn.Upsample":
                 c1 = ch[f]
                 c2 = c1
                 size = args[0]
                 scale = args[1]
-                mode = 'nearest'
+                mode = "nearest"
                 align, recompute = False, False
-                if len(args)>2:
+                if len(args) > 2:
                     mode = args[2]
-                if len(args)>3:
+                if len(args) > 3:
                     align = args[3]
-                if len(args)>4:
+                if len(args) > 4:
                     recompute = args[4]
                 params = (
                     f"'size': {size} \n "
@@ -334,9 +343,9 @@ class BasemodelViewer:
                     f"'align_corners': {align} \n "
                     f"'recompute_scale_factor': {recompute}"
                 )
-            elif m in ('BasicBlock', 'Bottleneck'):
+            elif m in ("BasicBlock", "Bottleneck"):
                 expansion = 1
-                if m == 'Bottleneck':
+                if m == "Bottleneck":
                     expansion = 4
                 inplanes = ch[f]
                 planes = args[0]
@@ -358,7 +367,7 @@ class BasemodelViewer:
                     f"'dilation': {d} \n "
                     f"'norm_layer': {norm_layer}"
                 )
-            elif m == 'cBasicBlock':
+            elif m == "cBasicBlock":
                 expansion = 1
                 inplanes = ch[f]
                 planes = args[0]
@@ -370,10 +379,10 @@ class BasemodelViewer:
                     f"'planes': {planes} \n "
                     f"'stride': ({s}, {s})"
                 )
-            elif m == 'Conv':
+            elif m == "Conv":
                 c1 = ch[f]
                 c2 = args[0]
-                k, s, p, g, a = 1, 1, None, 1, True # default
+                k, s, p, g, a = 1, 1, None, 1, True  # default
                 if len(args) > 1:
                     k = args[1]
                 if len(args) > 2:
@@ -393,10 +402,10 @@ class BasemodelViewer:
                     f"'groups': {g} \n "
                     f"'act': {a}"
                 )
-            elif m in ('DyConv', 'TinyDyConv'):
+            elif m in ("DyConv", "TinyDyConv"):
                 c1 = ch[f]
                 c2 = args[0]
-                k, s, a = 1, 1, True # default
+                k, s, a = 1, 1, True  # default
                 if len(args) > 1:
                     k = args[1]
                 if len(args) > 2:
@@ -410,29 +419,24 @@ class BasemodelViewer:
                     f"'stride': {s} \n "
                     f"'act': {a}"
                 )
-            elif m == 'Concat':
+            elif m == "Concat":
                 d = args[0]
                 if not isinstance(f, list):
                     c1 = ch[f]
                     c2 = c1
                 else:
                     c1 = [ch[x] for x in f]
-                    if d == 1: # (N, C, H, W); channel-wise concatentation
+                    if d == 1:  # (N, C, H, W); channel-wise concatentation
                         c2 = sum(c1)
                     else:
                         logger.warn("warning! only channel-wise concat is supported.")
-                        c2 = max(c1) # TODO: should be treated more elegantly..
-                params = (
-                    f"'dim': {d}"
-                )
-            elif m in ('ADown', 'AConv'):
-                c1 = ch[f] 
+                        c2 = max(c1)  # TODO: should be treated more elegantly..
+                params = f"'dim': {d}"
+            elif m in ("ADown", "AConv"):
+                c1 = ch[f]
                 c2 = args[0]
-                params = (
-                    f"'in_channels': {c1} \n "
-                    f"'out_channels': {c2}"
-                )
-            elif m == 'Shortcut':
+                params = f"'in_channels': {c1} \n " f"'out_channels': {c2}"
+            elif m == "Shortcut":
                 d = args[0]
                 if isinstance(f, int):
                     c1 = ch[f]
@@ -441,26 +445,24 @@ class BasemodelViewer:
                     c1 = ch[f[0]]
                     for x in f:
                         if ch[x] != c1:
-                            logger.warn("warning! all input must have the same dimension")
+                            logger.warn(
+                                "warning! all input must have the same dimension"
+                            )
                     c2 = c1
-                params = (
-                    f"'dim': {d}"
-                )
-            elif m == 'CBFuse': # basically, it is like point-wise sum
-                idx = args[0] # list-type
-                if not isinstance(f, list): # only 1 input for fusing ? 
+                params = f"'dim': {d}"
+            elif m == "CBFuse":  # basically, it is like point-wise sum
+                idx = args[0]  # list-type
+                if not isinstance(f, list):  # only 1 input for fusing ?
                     c1 = ch[f]
                     c2 = c1
                 else:
                     c1 = [ch[x] for x in f]
                     c2 = c1[-1]
-                params = (
-                    f"index': {idx}"
-                )
-            elif m == 'CBLinear': # basically, it is like channel-wise split
-                c1 = ch[f] 
-                c2s = args[0] # list-type
-                k, s, p, g = 1, 1, None, 1 # default
+                params = f"index': {idx}"
+            elif m == "CBLinear":  # basically, it is like channel-wise split
+                c1 = ch[f]
+                c2s = args[0]  # list-type
+                k, s, p, g = 1, 1, None, 1  # default
                 if len(args) > 1:
                     k = args[1]
                 if len(args) > 2:
@@ -477,7 +479,7 @@ class BasemodelViewer:
                     f"'padding': {p} \n "
                     f"'groups': {g}"
                 )
-            elif m == 'DownC':
+            elif m == "DownC":
                 c1 = ch[f]
                 c2 = args[0]
                 n = 1
@@ -491,10 +493,10 @@ class BasemodelViewer:
                     f"'n': {n} \n "
                     f"'kernel_size': {k}"
                 )
-            elif m == 'SPPCSPC':
+            elif m == "SPPCSPC":
                 c1 = ch[f]
                 c2 = args[0]
-                n, shortcut, g, e, k = 1, False, 1, 0.5, (5,9,13) # default
+                n, shortcut, g, e, k = 1, False, 1, 0.5, (5, 9, 13)  # default
                 if len(args) > 1:
                     n = args[1]
                 if len(args) > 2:
@@ -514,43 +516,41 @@ class BasemodelViewer:
                     f"'expansion': {e} \n "
                     f"'kernels': {k}"
                 )
-            elif m in ('Detect', 'IDetect', 'IAuxDetect', 'IKeypoint'):
+            elif m in ("Detect", "IDetect", "IAuxDetect", "IKeypoint"):
                 c2 = None
                 nc = args[0]
                 if isinstance(f, list):
-                    if m == 'IAuxDetect':
-                        nl = len(f) // 2 # one is an auxiliary head
+                    if m == "IAuxDetect":
+                        nl = len(f) // 2  # one is an auxiliary head
                     else:
-                        nl = len(f) # number of detection layers
+                        nl = len(f)  # number of detection layers
                     c1 = [ch[x] for x in f]
                 else:
                     logger.warn("warning! detection module needs two or more inputs")
                     nl = 1
                     c1 = [ch[f]]
-                anchors = [] # viz2code needs to store this
-                if len(args)>1:
+                anchors = []  # viz2code needs to store this
+                if len(args) > 1:
                     if isinstance(args[1], list):
                         # anchors = len(args[1])
                         if len(args[1]) != nl:
-                            logger.warn(f"warning! the number of detection layer is {nl},"
-                                  f" but anchors is for {len(args[1])} layers.")
+                            logger.warn(
+                                f"warning! the number of detection layer is {nl},"
+                                f" but anchors is for {len(args[1])} layers."
+                            )
                         anchors = args[1]
                     else:
-                        anchors = [list(range(args[1]*2))] * nl
+                        anchors = [list(range(args[1] * 2))] * nl
                 # ch_ = [] # actually, ch_ should be c1
                 ch_ = c1
-                if len(args)>2:
+                if len(args) > 2:
                     ch_ = args[2]
-                params = (
-                    f"'nc': {nc} \n "
-                    f"'anchors': {anchors} \n "
-                    f"'ch': {ch_}"
-                )
-            elif m in ('DDetect', 'DualDDetect', 'TripleDDetect'):
+                params = f"'nc': {nc} \n " f"'anchors': {anchors} \n " f"'ch': {ch_}"
+            elif m in ("DDetect", "DualDDetect", "TripleDDetect"):
                 c2 = None
                 nc = args[0]
                 if isinstance(f, list):
-                    nl = len(f) # number of detection layers
+                    nl = len(f)  # number of detection layers
                     c1 = [ch[x] for x in f]
                 else:
                     logger.warn("warning! detection module needs two or more inputs")
@@ -558,52 +558,48 @@ class BasemodelViewer:
                     c1 = [ch[f]]
                 # anchors = [] # anchor-free heads
                 ch_ = c1
-                if len(args)>1:
+                if len(args) > 1:
                     ch_ = args[1]
-                inplace_= True
-                if len(args)>2:
+                inplace_ = True
+                if len(args) > 2:
                     inplace_ = args[2]
-                params = (
-                    f"'nc': {nc} \n "
-                    f"'ch': {ch_} \n "
-                    f"'inplace': {inplace_}"
-                )
-            elif m == 'ELAN1':
+                params = f"'nc': {nc} \n " f"'ch': {ch_} \n " f"'inplace': {inplace_}"
+            elif m == "ELAN1":
                 c1 = ch[f]
-                c2 = args[0] # ch_out
-                c3 = args[1] # ch_hidden1
-                c4 = args[2] # ch_hidden2
+                c2 = args[0]  # ch_out
+                c3 = args[1]  # ch_hidden1
+                c4 = args[2]  # ch_hidden2
                 params = (
                     f"'in_channels': {c1} \n "
                     f"'out_channels': {c2} \n "
                     f"'1st_hidden_channels': {c3} \n "
                     f"'2nd_hidden_channels': {c4}"
                 )
-            elif m == 'BBoneELAN':
+            elif m == "BBoneELAN":
                 c1 = ch[f]
                 k = args[1]
                 d = args[2]
-                c2 = int(args[0]*(d+1))
+                c2 = int(args[0] * (d + 1))
                 params = (
                     f"'in_channels': {c1} \n "
                     f"'out_channels': {c2} \n "
                     f"'kernels': {k} \n "
                     f"'depth': {d}"
                 )
-                m = f'{m} d={d}'
-            elif m == 'HeadELAN':
+                m = f"{m} d={d}"
+            elif m == "HeadELAN":
                 c1 = ch[f]
                 k = args[1]
                 d = args[2]
-                c2 = int(args[0]*2 + args[0]/2*(d-1))
+                c2 = int(args[0] * 2 + args[0] / 2 * (d - 1))
                 params = (
                     f"'in_channels': {c1} \n "
                     f"'out_channels': {c2} \n "
                     f"'kernels': {k} \n "
                     f"'depth': {d}"
                 )
-                m = f'{m} d={d}'
-            elif m == 'SPPELAN':
+                m = f"{m} d={d}"
+            elif m == "SPPELAN":
                 c1 = ch[f]
                 c2 = args[0]
                 c3 = args[1]
@@ -612,10 +608,10 @@ class BasemodelViewer:
                     f"'out_channels': {c2} \n "
                     f"'hidden_channels' {c2}"
                 )
-            elif m == 'RepConv':
+            elif m == "RepConv":
                 c1 = ch[f]
                 c2 = args[0]
-                k, s, p, g, a, d = 1, 1, None, 1, True, False # default
+                k, s, p, g, a, d = 1, 1, None, 1, True, False  # default
                 if len(args) > 1:
                     k = args[1]
                 if len(args) > 2:
@@ -637,11 +633,11 @@ class BasemodelViewer:
                     f"'groups': {g} \n "
                     f"'act': {a} \n "
                     f"'deploy': {d}"
-                )            
-            elif m == 'RepNBottelneck':
-                c1 = ch[f] 
+                )
+            elif m == "RepNBottelneck":
+                c1 = ch[f]
                 c2 = args[0]
-                shortcut, g, k, e = True, 1, (3,3), 0.5 # default
+                shortcut, g, k, e = True, 1, (3, 3), 0.5  # default
                 if len(args) > 1:
                     shortcut = args[1]
                 if len(args) > 2:
@@ -658,10 +654,10 @@ class BasemodelViewer:
                     f"'kernel_size': ({k[0], k[1]}) \n "
                     f"'expansion': {e}"
                 )
-            elif m == 'RepNCSP':
+            elif m == "RepNCSP":
                 c1 = ch[f]
                 c2 = args[0]
-                n, shortcut, g, e = 1, True, 1, 0.5 # default
+                n, shortcut, g, e = 1, True, 1, 0.5  # default
                 if len(args) > 1:
                     n = args[1]
                 if len(args) > 2:
@@ -678,12 +674,12 @@ class BasemodelViewer:
                     f"'groups': {g} \n"
                     f"'expansion': {e}"
                 )
-            elif m == 'RepNCSPELAN4':
+            elif m == "RepNCSPELAN4":
                 c1 = ch[f]
                 c2 = args[0]
                 c3 = args[1]
                 c4 = args[2]
-                c5 = 1 # default
+                c5 = 1  # default
                 if len(args) > 4:
                     c5 = args[3]
                 params = (
@@ -693,8 +689,8 @@ class BasemodelViewer:
                     f"'2nd_hidden_channels': {c4} \n "
                     f"'3rd_hidden_channels': {c5}"
                 )
-            elif m == 'Silence':
-                c1 = ch[f] 
+            elif m == "Silence":
+                c1 = ch[f]
                 c2 = c1
                 params = ()
             else:
@@ -705,15 +701,17 @@ class BasemodelViewer:
 
             # append node --------------------------------------------------
             # for n_ in range(n):
-            node['order'] = i + 1 # start from 1
-            if 'nn.' in m:
-                m = m.replace('nn.', '')
+            node["order"] = i + 1  # start from 1
+            if "nn." in m:
+                m = m.replace("nn.", "")
             if n != 1:
-                m = f'{m} (x{n})'
-            node['layer'] = m
-            node['parameters'] = params
+                m = f"{m} (x{n})"
+            node["layer"] = m
+            node["parameters"] = params
             layers.append(node)
-            logger.debug(f"🚩 Create a node #{node['order']} : {node['layer']} - args \n {node['parameters']}")
+            logger.debug(
+                f"🚩 Create a node #{node['order']} : {node['layer']} - args \n {node['parameters']}"
+            )
 
             # manipulate input channel -------------------------------------
             if i == 0:
@@ -728,50 +726,82 @@ class BasemodelViewer:
             for p in prior:
                 edge = OrderedDict()
                 if p < 0:
-                    p += (i+1)
+                    p += i + 1
                 edgeid = edgeid + 1
-                edge['id'] = edgeid
-                edge['prior'] = p
-                edge['next'] = i + 1
+                edge["id"] = edgeid
+                edge["prior"] = p
+                edge["next"] = i + 1
                 lines.append(edge)
-                logger.debug(f"  ※ Create an edge #{edge['id']} : {edge['prior']}->{edge['next']}")
+                logger.debug(
+                    f"  ※ Create an edge #{edge['id']} : {edge['prior']}->{edge['next']}"
+                )
 
         self.base_dict = deepcopy(basemodel)
         self.layers = layers
         self.lines = lines
-        logger.info('-'*100)
-        logger.info('Visualizer: Parsing basemodel.yaml complete')
+        logger.info("-" * 100)
+        logger.info("Visualizer: Parsing basemodel.yaml complete")
 
     def update(self):
+
+        try:
+            info = Info.objects.get(userid=self.userid, project_id=self.projid)
+            task_type = info.task  # task_type이 classification인지 detection인지 확인
+
+            if task_type == "detection":
+                # Yolov9.json 파일 업데이트 수행
+                self.update_detection()
+            elif task_type == "classification":
+                # 기존 방식으로 업데이트 수행
+                self.update_classification()
+
+            info.progress = "viz_update"
+            info.save()
+        except Info.DoesNotExist:
+            logger.warn(f"not found {self.userid}/{self.project_id} information")
+
+        logger.info(f"Visualizer: Updating nodes and edges complete\n")
+
+    def update_classification(self):
         json_data = OrderedDict()
-        json_data['node'] = self.layers
-        json_data['edge'] = self.lines
+        json_data["node"] = self.layers
+        json_data["edge"] = self.lines
 
         self.initialize()
 
-        for i in json_data.get('node'):
+        for i in json_data.get("node"):
             serializerN = NodeSerializer(data=i)
             if serializerN.is_valid():
                 serializerN.save()
-        for j in json_data.get('edge'):
+
+        for j in json_data.get("edge"):
             serializerE = EdgeSerializer(data=j)
             if serializerE.is_valid():
                 serializerE.save()
 
-        try:
-            info = Info.objects.get(userid=self.userid, project_id=self.projid)
-            info.progress = 'viz_update'
-            info.save()
-        except Info.DoesNotExist:
-            logger.warn(f'not found {self.userid}/{self.project_id} information')
+    def update_detection(self):
+        yolov9_json_path = "/source/autonn_core/tango/common/cfg/yolov9/Yolov9.json"
 
-        logger.info(f'Visualizer: Updating nodes and edges complete\n')
+        with open(yolov9_json_path, 'r') as j:
+            json_data = json.load(j)
+
+        self.initialize()
+
+        for i in json_data.get("node"):
+            serializerN = NodeSerializer(data=i)
+            if serializerN.is_valid():
+                serializerN.save()
+
+        for j in json_data.get("edge"):
+            serializerE = EdgeSerializer(data=j)
+            if serializerE.is_valid():
+                serializerE.save()
 
 
 def export_pth(file_path):
-    '''
+    """
     Make a graph with nodes and edges and export pytorch model from the graph
-    '''
+    """
     nodes = Node.objects.all()
     edges = Edge.objects.all()
 
@@ -779,29 +809,28 @@ def export_pth(file_path):
     self_binder = CPyBinder()
     for node in nodes:
         # pylint: disable-msg=bad-option-value, consider-using-f-string
-        params_string = "{parameters}". \
-            format(**node.__dict__).replace("\n", '>')
+        params_string = "{parameters}".format(**node.__dict__).replace("\n", ">")
         # print(f"{params_string}")
 
         # tenace -------------------------------------------------------------->
         # workaround to avoid eval() error when a value is string or nn.Module
         params_dict = {}
-        params_ = params_string.split('>')
+        params_ = params_string.split(">")
         for p in params_:
             try:
-                eval_params_ = eval("{"+p+"}")
+                eval_params_ = eval("{" + p + "}")
             except:
                 # print(p)
-                p_key, p_value = p.split(': ') # [0] key [1] value
-                if 'LeakyReLU' in p_value:
+                p_key, p_value = p.split(": ")  # [0] key [1] value
+                if "LeakyReLU" in p_value:
                     p_value = f"nn.{p_value}"
-                    eval_params_ = eval("{"+p_key+": "+p_value+"}")
+                    eval_params_ = eval("{" + p_key + ": " + p_value + "}")
                 elif isinstance(p_value, str):
                     # print(f"---{p_key}---{p_value}---")
                     p_key = p_key.strip()
                     p_value = p_value.strip()
                     # print(f"---{p_key}---{p_value}---")
-                    p_key = p_key.replace("'","")
+                    p_key = p_key.replace("'", "")
                     p_value = p_value.replace("'", "")
                     # print(f"---{p_key}---{p_value}---")
                     eval_params_[p_key.strip("'")] = p_value
@@ -809,7 +838,7 @@ def export_pth(file_path):
                     # print("forced to convert string-to-dictionary")
                     p_key.strip()
                     p_value.strip()
-                    p_key = p_key.replace("'","")
+                    p_key = p_key.replace("'", "")
                     p_value = p_value.replace("'", "")
                     eval_params_[p_key] = p_value
             finally:
@@ -818,23 +847,29 @@ def export_pth(file_path):
         # tenace <--------------------------------------------------------------
 
         # pylint: disable-msg=bad-option-value, eval-used
-        graph.addnode(CNode("{order}".format(**node.__dict__),
-                            type_="{layer}".format(**node.__dict__),
-                            params=params_dict)) # params=eval("{" + params_string + "}")))
+        graph.addnode(
+            CNode(
+                "{order}".format(**node.__dict__),
+                type_="{layer}".format(**node.__dict__),
+                params=params_dict,
+            )
+        )  # params=eval("{" + params_string + "}")))
     for edge in edges:
         # pylint: disable-msg=bad-option-value, consider-using-f-string
-        graph.addedge(CEdge("{prior}".format(**edge.__dict__),
-                            "{next}".format(**edge.__dict__)))
+        graph.addedge(
+            CEdge("{prior}".format(**edge.__dict__), "{next}".format(**edge.__dict__))
+        )
     net = CPyBinder.exportmodel(self_binder, graph)
-    logger.info('PyTorch model export success, saved as %s' % file_path)
+    logger.info("PyTorch model export success, saved as %s" % file_path)
     logger.info(net)
     torch.save(net, file_path)
     return net
 
+
 def export_yml(name, yaml_path):
-    '''
+    """
     Make a graph with nodes and edges and export pytorch model from the graph
-    '''
+    """
     nodes = Node.objects.all()
     edges = Edge.objects.all()
 
@@ -857,39 +892,43 @@ def export_yml(name, yaml_path):
         edge_next_list.append(edge.next)
 
     # json ---------------------------------------------------------------------
-    #json_data = serializers.serialize('json', nodes)
+    # json_data = serializers.serialize('json', nodes)
     json_data = OrderedDict()
-    json_data['node'] = []
-    json_data['edge'] = []
+    json_data["node"] = []
+    json_data["edge"] = []
 
     for c in range(len(node_order_list)):
-        json_data['node'].append({
-            "order": node_order_list[c],
-            "layer": node_layer_list[c],
-            "parameters": node_parameters_list[c]
-        })
+        json_data["node"].append(
+            {
+                "order": node_order_list[c],
+                "layer": node_layer_list[c],
+                "parameters": node_parameters_list[c],
+            }
+        )
 
     for a in range(len(edge_id_list)):
-        json_data['edge'].append({
-            "id": edge_id_list[a],
-            "prior": edge_prior_list[a],
-            "next": edge_next_list[a]
-        })
+        json_data["edge"].append(
+            {
+                "id": edge_id_list[a],
+                "prior": edge_prior_list[a],
+                "next": edge_next_list[a],
+            }
+        )
 
-    logger.info('json gen success')
+    logger.info("json gen success")
     logger.debug(json.dumps(json_data, ensure_ascii=False, indent="\t"))
 
     # yolo-style yaml_data generation ------------------------------------------
     yaml_data = {}
-    yaml_data['name'] = name
-    yaml_data['hyp'] = 'p5'
-    yaml_data['imgsz'] = 640
-    yaml_data['nc'] = 80
-    yaml_data['depth_multiple'] = 1.0
-    yaml_data['width_multiple'] = 1.0
-    yaml_data['anchors'] = 3
-    yaml_data['backbone'] = []
-    yaml_data['head'] = []
+    yaml_data["name"] = name
+    yaml_data["hyp"] = "p5"
+    yaml_data["imgsz"] = 640
+    yaml_data["nc"] = 80
+    yaml_data["depth_multiple"] = 1.0
+    yaml_data["width_multiple"] = 1.0
+    yaml_data["anchors"] = 3
+    yaml_data["backbone"] = []
+    yaml_data["head"] = []
 
     # for yaml_index, node_index in enumerate(nodes_order):
     #     json_index = node_order_list.index(node_index)
@@ -898,8 +937,8 @@ def export_yml(name, yaml_path):
 
         # YOLO-style yaml module description
         # [from, number, module, args]
-        number_ = 1                             # repetition
-        module_ = node_layer_list[json_index]   # pytorch nn module
+        number_ = 1  # repetition
+        module_ = node_layer_list[json_index]  # pytorch nn module
 
         # module & its arguements
         # str_params = "{"+node_parameters_list[json_index]+"}"
@@ -908,22 +947,22 @@ def export_yml(name, yaml_path):
         str_params = node_parameters_list[json_index]
 
         params_ = {}
-        str_param = str_params.split('\n')
+        str_param = str_params.split("\n")
         for p in str_param:
             try:
-                eval_params_ = eval("{"+p+"}")
+                eval_params_ = eval("{" + p + "}")
             except:
                 # print(p)
-                p_key, p_value = p.split(': ') # [0] key [1] value
-                if 'LeakyReLU' in p_value:
+                p_key, p_value = p.split(": ")  # [0] key [1] value
+                if "LeakyReLU" in p_value:
                     p_value = f"nn.{p_value}"
-                    eval_params_ = eval("{"+p_key+": "+p_value+"}")
+                    eval_params_ = eval("{" + p_key + ": " + p_value + "}")
                 elif isinstance(p_value, str):
                     # print(f"---{p_key}---{p_value}---")
                     p_key = p_key.strip()
                     p_value = p_value.strip()
                     # print(f"---{p_key}---{p_value}---")
-                    p_key = p_key.replace("'","")
+                    p_key = p_key.replace("'", "")
                     p_value = p_value.replace("'", "")
                     # print(f"---{p_key}---{p_value}---")
                     eval_params_[p_key.strip("'")] = p_value
@@ -931,194 +970,194 @@ def export_yml(name, yaml_path):
                     print("forced to convert string-to-dictionary")
                     p_key.strip()
                     p_value.strip()
-                    p_key = p_key.replace("'","")
+                    p_key = p_key.replace("'", "")
                     p_value = p_value.replace("'", "")
                     eval_params_[p_key] = p_value
             finally:
                 params_.update(eval_params_)
 
         args_ = []
-        if module_ == 'Conv2d':
-            ch_ = params_['out_channels']
-            k_ = params_['kernel_size'][0]
-            s_ = params_['stride'][0]
-            p_ = params_['padding'][0]
-            b_ = params_['bias']
+        if module_ == "Conv2d":
+            ch_ = params_["out_channels"]
+            k_ = params_["kernel_size"][0]
+            s_ = params_["stride"][0]
+            p_ = params_["padding"][0]
+            b_ = params_["bias"]
             args_ = [ch_, k_, s_, p_, b_]
-        elif module_ == 'BatchNorm2d':
-            ch_ = params_['num_features']
+        elif module_ == "BatchNorm2d":
+            ch_ = params_["num_features"]
             args_ = [ch_]
-        elif module_ in ('MaxPool2d', 'AvgPool2d'):
-            k_ = params_['kernel_size'][0]
-            s_ = params_['stride'][0]
-            p_ = params_['padding'][0]
+        elif module_ in ("MaxPool2d", "AvgPool2d"):
+            k_ = params_["kernel_size"][0]
+            s_ = params_["stride"][0]
+            p_ = params_["padding"][0]
             args_ = [k_, s_, p_]
-        elif module_ == 'AdaptiveAvgPool2d':
-            o_ = params_['output_size']
+        elif module_ == "AdaptiveAvgPool2d":
+            o_ = params_["output_size"]
             if o_[0] == o_[1]:
                 args_ = [o_[0]]
             else:
                 args_ = o_
-        elif module_ == 'MP':
-            k_ = params_['k']
+        elif module_ == "MP":
+            k_ = params_["k"]
             if k_ == 2:
                 args_ = []
             else:
                 args_ = [k_]
-        elif module_ == 'SP':
-            k_ = params_['kernel_size']
-            s_ = params_['stride']
+        elif module_ == "SP":
+            k_ = params_["kernel_size"]
+            s_ = params_["stride"]
             args_ = [k_, s_]
-        elif module_ == 'ConstantPad2d':
-            p_ = params_['padding']
-            v_ = params_['value']
+        elif module_ == "ConstantPad2d":
+            p_ = params_["padding"]
+            v_ = params_["value"]
             args_ = [p_, v_]
-        elif module_ == 'ZeroPad2d':
-            p_ = params_['padding']
+        elif module_ == "ZeroPad2d":
+            p_ = params_["padding"]
             args_ = [p_]
-        elif module_ in ('ReLU', 'ReLU6', 'Sigmoid', 'LeakyReLU', 'Tanh'):
+        elif module_ in ("ReLU", "ReLU6", "Sigmoid", "LeakyReLU", "Tanh"):
             args_ = []
-        elif module_ == 'Softmax':
-            d_ = params_['dim']
+        elif module_ == "Softmax":
+            d_ = params_["dim"]
             args_ = [d_]
-        elif module_ == 'Linear':
-            o_ = params_['out_features']
-            b_ = params_['bias']
+        elif module_ == "Linear":
+            o_ = params_["out_features"]
+            b_ = params_["bias"]
             args_ = [o_, b_]
-        elif module_ == 'Dropout':
-            p_ = param_['p']
+        elif module_ == "Dropout":
+            p_ = param_["p"]
             args_ = [p_]
-        elif module_ in ('BCELoss', 'CrossEntropyLoss', 'MESLoss'):
-            r_ = params_['reduction']
+        elif module_ in ("BCELoss", "CrossEntropyLoss", "MESLoss"):
+            r_ = params_["reduction"]
             args_ = [r_]
-        elif module_ in 'Flatten':
+        elif module_ in "Flatten":
             # TODO: needs to wrap this with export-friendly classes
-            d_st = params_['start_dim']
-            d_ed = params_['end_dim']
+            d_st = params_["start_dim"]
+            d_ed = params_["end_dim"]
             args_ = [d_st, d_ed]
-        elif module_ == 'ReOrg':
+        elif module_ == "ReOrg":
             args_ = []
-        elif module_ == 'Upsample':
-            s_ = params_['size']
-            f_ = params_['scale_factor']
-            m_ = params_['mode']
+        elif module_ == "Upsample":
+            s_ = params_["size"]
+            f_ = params_["scale_factor"]
+            m_ = params_["mode"]
             args_ = [s_, f_, m_]
-        elif module_ in ('Bottleneck', 'BasicBlock'):
+        elif module_ in ("Bottleneck", "BasicBlock"):
             # torchvision.models.resnet
-            ch_ = params_['planes']
-            s_ = params_['stride'][0]
-            g_ = params_['groups']
-            d_ = params_['dilation']
-            n_ = params_['norm_layer']
-            downsample_ = params_['downsample']
-            w_ = params_['base_width']
-            norm_ = params_['norm_layer']
+            ch_ = params_["planes"]
+            s_ = params_["stride"][0]
+            g_ = params_["groups"]
+            d_ = params_["dilation"]
+            n_ = params_["norm_layer"]
+            downsample_ = params_["downsample"]
+            w_ = params_["base_width"]
+            norm_ = params_["norm_layer"]
             args_ = [ch_, s_, downsample_, g_, w_, d_, norm_]
-        elif module_ == 'cBasicBlock':
+        elif module_ == "cBasicBlock":
             # resent-cifar10
-            ch_ = params_['planes']
-            s_ = params_['stride']
+            ch_ = params_["planes"]
+            s_ = params_["stride"]
             args_ = [ch_, s_]
-        elif module_ == 'Conv':
-            ch_ = params_['out_channels']
-            k_ = params_['kernel_size']
-            s_ = params_['stride']
-            p_ = params_['pad']
-            g_ = params_['groups']
-            a_ = params_['act']
+        elif module_ == "Conv":
+            ch_ = params_["out_channels"]
+            k_ = params_["kernel_size"]
+            s_ = params_["stride"]
+            p_ = params_["pad"]
+            g_ = params_["groups"]
+            a_ = params_["act"]
             args_ = [ch_, k_, s_, p_, g_, a_]
-        elif module_ in ('DyConv', 'TinyDyConv'):
-            ch_ = params_['out_channels']
-            k_ = params_['kernel_size']
-            s_ = params_['stride']
-            a_ = params_['act']
+        elif module_ in ("DyConv", "TinyDyConv"):
+            ch_ = params_["out_channels"]
+            k_ = params_["kernel_size"]
+            s_ = params_["stride"]
+            a_ = params_["act"]
             args_ = [ch_, k_, s_, a_]
-        elif module_ == 'Concat':
-            d_ = params_['dim']
+        elif module_ == "Concat":
+            d_ = params_["dim"]
             args_ = [d_]
-        elif module_ in ('ADown', 'AConv'):
-            ch_ = params_['out_channels']
+        elif module_ in ("ADown", "AConv"):
+            ch_ = params_["out_channels"]
             args_ = [ch_]
-        elif module_ == 'Shortcut':
-            d_ = params_['dim']
+        elif module_ == "Shortcut":
+            d_ = params_["dim"]
             args_ = [d_]
-        elif module_ == 'CBFuse':
-            idx_ = params_['index']
+        elif module_ == "CBFuse":
+            idx_ = params_["index"]
             args_ = [idx_]
-        elif module_ == 'CBLinear':
-            ch_ = params_['out_channels']
-            k_ = params_['kernel_size']
-            s_ = params_['stride']
-            p_ = params_['padding']
-            g_ = params_['groups']
+        elif module_ == "CBLinear":
+            ch_ = params_["out_channels"]
+            k_ = params_["kernel_size"]
+            s_ = params_["stride"]
+            p_ = params_["padding"]
+            g_ = params_["groups"]
             args_ = [ch_, k_, s_, p_, g_]
-        elif module_ == 'DownC':
-            ch_ = params_['out_channels']
-            n_ = params_['n']
-            k_ = params_['kernel_size'][0]
+        elif module_ == "DownC":
+            ch_ = params_["out_channels"]
+            n_ = params_["n"]
+            k_ = params_["kernel_size"][0]
             args_ = [ch_, n_, k_]
-        elif module_ == 'SPPCSPC':
-            ch_ = params_['out_channels']
-            n_ = params_['n']
-            sh_ = params_['shortcut']
-            g_ = params_['groups']
-            e_ = params_['expansion']
-            k_ = params_['kernels']
+        elif module_ == "SPPCSPC":
+            ch_ = params_["out_channels"]
+            n_ = params_["n"]
+            sh_ = params_["shortcut"]
+            g_ = params_["groups"]
+            e_ = params_["expansion"]
+            k_ = params_["kernels"]
             args_ = [ch_, n_, sh_, g_, e_, k_]
-        elif module_ in ('Detect', 'IDetect', 'IAuxDetect', 'IKeypoint'):
-            nc_ = params_['nc']
-            anchors_ = params_['anchors']
-            ch_ = params_['ch']
+        elif module_ in ("Detect", "IDetect", "IAuxDetect", "IKeypoint"):
+            nc_ = params_["nc"]
+            anchors_ = params_["anchors"]
+            ch_ = params_["ch"]
             args_ = [nc_, anchors_, ch_]
-        elif module_ in ('DDetect', 'DualDDetect', 'TripleDDetect'):
-            nc_ = params_['nc']
-            ch_ = params_['ch']
-            inplace_ = params_['inplace']
+        elif module_ in ("DDetect", "DualDDetect", "TripleDDetect"):
+            nc_ = params_["nc"]
+            ch_ = params_["ch"]
+            inplace_ = params_["inplace"]
             args_ = [nc_, ch_, inplace_]
-        elif module_ == 'ELAN1':
-            ch_ = params_['out_channels']
-            hdch_ = params_['1st_hidden_channels']
-            hdch2_ = params_['2nd_hidden_channels']
+        elif module_ == "ELAN1":
+            ch_ = params_["out_channels"]
+            hdch_ = params_["1st_hidden_channels"]
+            hdch2_ = params_["2nd_hidden_channels"]
             args_ = [ch_, hdch_, hdch2_]
-        elif module_ in ('BBoneELAN', 'HeadELAN'):
-            ch_ = params_['out_channels']
-            k_ = params_['kernel_size']
-            d_ = params_['depth']
+        elif module_ in ("BBoneELAN", "HeadELAN"):
+            ch_ = params_["out_channels"]
+            k_ = params_["kernel_size"]
+            d_ = params_["depth"]
             args_ = [ch_, k_, d_]
-        elif module_ == 'SPPELAN':
-            ch_ = params_['out_channels']
-            hdch_ = params_['hidden_channels']
+        elif module_ == "SPPELAN":
+            ch_ = params_["out_channels"]
+            hdch_ = params_["hidden_channels"]
             args_ = [ch_, hdch_]
-        elif module_ == 'RepConvN':
-            ch_ = params_['out_channels']
-            k_ = params_['kernel_size']
-            s_ = params_['stride']
-            p_ = params_['padding']
-            g_ = params_['groups']
-            d_ = params_['depth']
-            a_ = params_['act']
+        elif module_ == "RepConvN":
+            ch_ = params_["out_channels"]
+            k_ = params_["kernel_size"]
+            s_ = params_["stride"]
+            p_ = params_["padding"]
+            g_ = params_["groups"]
+            d_ = params_["depth"]
+            a_ = params_["act"]
             args_ = [ch_, k_, s_, p_, g_, d_, a_]
-        elif module_ == 'RepNBottleneck':
-            ch_ = params_['out_channels']
-            shortcut_ = params_['shortcut']
-            g_ = params_['groups']
-            k_ = params_['kernel_size']
-            e_ = params_['expansion']
+        elif module_ == "RepNBottleneck":
+            ch_ = params_["out_channels"]
+            shortcut_ = params_["shortcut"]
+            g_ = params_["groups"]
+            k_ = params_["kernel_size"]
+            e_ = params_["expansion"]
             args_ = [ch_, shortcut_, g_, k_, e_]
-        elif module_ == 'RepNCSP':
-            ch_ = params_['out_channels']
-            n_ = params_['repetition']
-            shortcut_ = params_['shortcut']
-            g_ = params_['groups']
-            e_ = params_['expansion']
+        elif module_ == "RepNCSP":
+            ch_ = params_["out_channels"]
+            n_ = params_["repetition"]
+            shortcut_ = params_["shortcut"]
+            g_ = params_["groups"]
+            e_ = params_["expansion"]
             args_ = [ch_, n_, shortcut_, g_, e_]
-        elif module_ == 'RepNCSPELAN4':
-            ch_ = params_['out_channels']
-            hdch_ = params_['1st_hidden_channels']
-            hdch2_ = params_['2nd_hidden_channels']
-            hdch3_ = params_['3rd_hidden_channels']
-            args_ = [ch_, hdch_, hdch2_, hdch3_] 
-        elif module_ == 'Silence':
+        elif module_ == "RepNCSPELAN4":
+            ch_ = params_["out_channels"]
+            hdch_ = params_["1st_hidden_channels"]
+            hdch2_ = params_["2nd_hidden_channels"]
+            hdch3_ = params_["3rd_hidden_channels"]
+            args_ = [ch_, hdch_, hdch2_, hdch3_]
+        elif module_ == "Silence":
             args_ = []
         else:
             print(f"{module_} is not supported yet")
@@ -1126,7 +1165,9 @@ def export_yml(name, yaml_path):
         # yaml_index: 0, 1, 2, ...
         # node_index: 1, 2, 3, ...
         # json_index: 1, 2, 3, ...
-        logger.debug(f"layer #{yaml_index} (node_index #{node_index}; json_index #{json_index}) : {module_}")
+        logger.debug(
+            f"layer #{yaml_index} (node_index #{node_index}; json_index #{json_index}) : {module_}"
+        )
 
         # from
         f_ = []
@@ -1135,11 +1176,13 @@ def export_yml(name, yaml_path):
                 f_.append(edge_prior_list[a])
         logger.debug(f"f_={f_}")
         if not f_:
-            from_ = -1 # this has to be the first layer
-            assert yaml_index == 0, f'it must be the first layer but index is {yaml_index}'
+            from_ = -1  # this has to be the first layer
+            assert (
+                    yaml_index == 0
+            ), f"it must be the first layer but index is {yaml_index}"
         elif len(f_) == 1:
             # x = nodes_order.index(f_[0])
-            from_ = f_[0] - 1 - yaml_index # node_index = yaml_index + 1
+            from_ = f_[0] - 1 - yaml_index  # node_index = yaml_index + 1
             if from_ < -5:
                 # too far to calcaulate prior node, write explicit node number instead.
                 from_ = f_[0] - 1
@@ -1165,11 +1208,11 @@ def export_yml(name, yaml_path):
             module_ = f"nn.{module_}"
         layer_ = [from_, number_, module_, args_]
         if module_ in HEAD_MODULES:
-            yaml_data['head'].append(layer_)
+            yaml_data["head"].append(layer_)
         else:
-            yaml_data['backbone'].append(layer_)
+            yaml_data["backbone"].append(layer_)
 
-    logger.debug('-'*100)
+    logger.debug("-" * 100)
     for k, v in yaml_data.items():
         if isinstance(v, list):
             if len(v):
@@ -1180,10 +1223,10 @@ def export_yml(name, yaml_path):
                 logger.debug(f"{k}: {v}")
         else:
             logger.debug(f"{k}: {v}")
-    logger.debug('-'*100)
+    logger.debug("-" * 100)
 
-    with open(yaml_path, 'w') as f:
-                yaml.dump(yaml_data, f)
+    with open(yaml_path, "w") as f:
+        yaml.dump(yaml_data, f)
 
-    logger.info('Yaml export success, saved as %s' % f)
+    logger.info("Yaml export success, saved as %s" % f)
     return yaml_data

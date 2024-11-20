@@ -4,7 +4,7 @@
       style="grid-column: 1; margin-left: 43px; color: #0000008a; letter-spacing: 3px"
       v-if="$route.name !== 'ProjectDetail'"
     >
-      {{ $route.name.toUpperCase() }}
+      {{ $route.name?.toUpperCase() }}
     </h3>
     <h3 style="grid-column: 1; margin-left: 43px; color: #0000008a; letter-spacing: 3px" v-else>
       {{ project.project_name }}

@@ -7,6 +7,7 @@ import os
 # sys.path.append(os.path.dirname(os.path.dirname(__file__)))  # to run '$ python *.py' files in subdirectories
 
 import torch
+import torch.nn as nn
 from tango.common.models.common import *
 from tango.common.models.experimental import *
 from tango.common.models.search_block import *
@@ -926,7 +927,7 @@ class Model(nn.Module):
             b = mi.bias.view(m.na, -1)  # conv.bias(255) to (3,85)
             b.data[:, 4] += math.log(8 / (640 / s) ** 2)  # obj (8 objects per 640 image)
             b.data[:, 5:] += math.log(0.6 / (m.nc - 0.99)) if cf is None else torch.log(cf / cf.sum())  # cls
-            mi.bias = torch.nn.Parameter(b.view(-1), requires_grad=True)
+            mi.bias = nn.Parameter(b.view(-1), requires_grad=True)
 
     def _initialize_aux_biases(self, cf=None):  # initialize biases into Detect(), cf is class frequency
         # https://arxiv.org/abs/1708.02002 section 3.3
@@ -936,11 +937,11 @@ class Model(nn.Module):
             b = mi.bias.view(m.na, -1)  # conv.bias(255) to (3,85)
             b.data[:, 4] += math.log(8 / (640 / s) ** 2)  # obj (8 objects per 640 image)
             b.data[:, 5:] += math.log(0.6 / (m.nc - 0.99)) if cf is None else torch.log(cf / cf.sum())  # cls
-            mi.bias = torch.nn.Parameter(b.view(-1), requires_grad=True)
+            mi.bias = nn.Parameter(b.view(-1), requires_grad=True)
             b2 = mi2.bias.view(m.na, -1)  # conv.bias(255) to (3,85)
             b2.data[:, 4] += math.log(8 / (640 / s) ** 2)  # obj (8 objects per 640 image)
             b2.data[:, 5:] += math.log(0.6 / (m.nc - 0.99)) if cf is None else torch.log(cf / cf.sum())  # cls
-            mi2.bias = torch.nn.Parameter(b2.view(-1), requires_grad=True)
+            mi2.bias = nn.Parameter(b2.view(-1), requires_grad=True)
 
     def _initialize_biases_bin(self, cf=None):  # initialize biases into Detect(), cf is class frequency
         # https://arxiv.org/abs/1708.02002 section 3.3
@@ -955,7 +956,7 @@ class Model(nn.Module):
             b[:, obj_idx].data += math.log(8 / (640 / s) ** 2)  # obj (8 objects per 640 image)
             b[:, (obj_idx+1):].data += math.log(0.6 / (m.nc - 0.99)) if cf is None else torch.log(cf / cf.sum())  # cls
             b[:, (0,1,2,bc+3)].data = old
-            mi.bias = torch.nn.Parameter(b.view(-1), requires_grad=True)
+            mi.bias = nn.Parameter(b.view(-1), requires_grad=True)
 
     def _initialize_biases_kpt(self, cf=None):  # initialize biases into Detect(), cf is class frequency
         # https://arxiv.org/abs/1708.02002 section 3.3
@@ -965,7 +966,7 @@ class Model(nn.Module):
             b = mi.bias.view(m.na, -1)  # conv.bias(255) to (3,85)
             b.data[:, 4] += math.log(8 / (640 / s) ** 2)  # obj (8 objects per 640 image)
             b.data[:, 5:] += math.log(0.6 / (m.nc - 0.99)) if cf is None else torch.log(cf / cf.sum())  # cls
-            mi.bias = torch.nn.Parameter(b.view(-1), requires_grad=True)
+            mi.bias = nn.Parameter(b.view(-1), requires_grad=True)
 
     def _print_biases(self):
         m = self.model[-1]  # Detect() module

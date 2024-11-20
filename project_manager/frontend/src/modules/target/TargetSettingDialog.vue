@@ -128,7 +128,7 @@ export default {
           host_ip: this.target.host_ip,
           host_port: this.target.host_port,
           host_service_port: this.target.host_service_port,
-          image: this.target.image
+          image: this.target.image || ""
         };
         await updateTarget(params);
       } else {

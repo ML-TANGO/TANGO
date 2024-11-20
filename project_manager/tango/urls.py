@@ -42,6 +42,7 @@ urlpatterns = [
 
 
     re_path(r'^container_start', viewsProject.container_start, name='container_start'),       # 컨테이너 실행
+    re_path(r'^container_stop', viewsProject.container_stop, name='container_stop'),       # 컨테이너 중지
     re_path(r'^next_pipeline_start', viewsProject.next_pipeline_start, name='next_pipeline_start'),       # 다음 버전의 파이프라인을 실행 (CI/CD pipeline 반복 기능)
     re_path(r'^status_request', viewsProject.status_request, name='status_request'),       # 컨테이너 실행 상태 확인 요청
 

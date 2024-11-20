@@ -41,11 +41,12 @@ export default {
       if (this.targetName === "" || !this.targetName) {
         Swal.fire("Target", "Target 이름을 입력해 주세요.", "error");
         return;
-      } else if (this.image === "" || !this.image) {
-        Swal.fire("Target", "Target 이미지를 입력해 주세요.", "error");
-        return;
       }
-      this.$emit("next", { name: this.targetName, image: this.image });
+      // else if (this.image === "" || !this.image) {
+      //   Swal.fire("Target", "Target 이미지를 입력해 주세요.", "error");
+      //   return;
+      // }
+      this.$emit("next", { name: this.targetName, image: this.image || "" });
     },
 
     async onUpload(file) {
