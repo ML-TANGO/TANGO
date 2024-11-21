@@ -11,7 +11,9 @@ TANGO (**T**arget **A**ware  **N**o-code neural network **G**eneration and **O**
 
 It aims to develop automatic neural network generation and deployment framework that helps novice users to easily develop neural network applications with less or ideally no code efforts and deploy the neural network application onto the target device.
 
-The users of TANGO just prepare their labelled datasets to train models and target devices. Then, TANGO analyzes the datasets and target devices characteristics, generates task-specific neural network based on user requirements, trains it with the datasets, creates Docker container images and deploys the container images onto target device.
+#### No Code
+> 
+> The TANGO framework aims to help users without specialized knowledge to create and use their own neural network models. To this end, it provides an environment that users can use without writing code, such as a project manager and a neural network visualization tool. The users of TANGO just prepare their labelled datasets to train models and target devices. Then, TANGO analyzes the datasets and target devices characteristics, generates task-specific neural network based on user requirements, trains it with the datasets, creates Docker container images and deploys the container images onto target device.
 
 TANGO uses container technology and MSA (Micro Service Architecture). Containers require less system resources than traditional or hardware virtual machine environments because they don't include operating system images. Applications running in containers can be deployed easily to multiple different operating systems and hardware platforms.
 
@@ -135,15 +137,61 @@ The supported target(cloud, K8S, ondevice) is as follows.
 | Odroid N2  | ARM + Mali GPU | TVM, ACL | YoloV3 supporting | |
 | Odroid M1 | ARM + RKNN NPU |  RKNN | YoloV7 supporting |
 
+ #### Neural Network Deployment technology
 
-### No Code
+The neural network deployment module provides functions for optimizing the neural network model, generating executable code for inference, distributing to the target, and automating execution for each target's computing environment/inference engine/execution environment.
 
-The TANGO framework aims to help users without specialized knowledge to create and use their own neural network models. To this end, it provides an environment that users can use without writing code, such as a project manager and a neural network visualization tool.
+- Key features of the Neural Network Deployment Module
+1) Ability to convert neural network models into executable code
+The neural network deployment module provides an automatic generation function for executable code templates, such as pre-processing code for neural network input and post-processing code for interpreting neural network output, so that the neural network model can be operated on the operating system, programming language, and inference engine.
 
-<img src="./docs/media/TANGO_No_Code.png" alt="ETRI SuperNeck" width="1200px"/>
+2) Ability to optimize the neural network model to suit the target environment
+The neural network deployment module provides neural network model optimization functions such as quantization so that the neural network model can operate in the target environment, such as CPU performance and available memory size.
+
+3) Diversity support function of neural network accelerators
+The neural network deployment module provides functions to make full use of accelerators such as NVIDIA GPU, Tensor Processing Unit, and ARM Mali GPU.
+
+4) Support for diversity of inference engines
+The neural network deployment module provides various inference engine support functions such as PyTorch, TensorRT, TVM, and Tensorflow Lite.
+
+5) Providing convenience of distribution and installation
+The neural network deployment module provides a convenient deployment feature that automates the deployment process to GCP, AWS, etc. as much as possible.
+
+- Examples of the Neural Network Deployment Module’s operation
+1) Smartphone
+Model for PyTorch -> Convert to ONNX model -> Integer Quantization -> Convert to Tensorflow Lite model -> Generate neural network execution code for Android -> Generate executable file (.apk) for Android
+
+2) Raspberry Pi+TPU(Tensor Processing Unit)
+Model for PyTorch -> Convert to ONNX model -> Convert to Tensorflow Lite model -> Convert to model for TPU -> Generate Python-based neural network execution code for TPU 
+
+3) TensorRT-based devices
+Model for PyTorch -> Convert to ONNX model -> Generate Python-based  ONNX-TensorRT converter and execution code for TensorRT
+
+4) TVM-based devices
+Model for PyTorch -> Convert to ONNX model -> Convert to model for TVM -> Generate Python-based neural network execution code for TVM
+
+5) Web services such as GCP/AWS
+pytorch model -> Create a PyTorch-based web application service -> Create a POD for K8S -> Deploy/execute the POD using the deployment environment set by the user.
+---- 
+
+## How to build images and run containers <a name="img_build_container_run"></a>
+
+refer to TANGO wiki [HowTo | TANGO Image Build and Run](https://github.com/ML-TANGO/TANGO/wiki/HowTo-%7C-TANGO-Image-Build-and-Run)
 
 
 ----
+
+## Developer Guides and References<a name="dev_guides"></a>
+
+* [TANGO Architecture Overview](https://github.com/ML-TANGO/TANGO/wiki/Guides-%7C-TANGO-Architecture)
+* [TANGO Container Port Mapping guide](https://github.com/ML-TANGO/TANGO/wiki/Guides-%7C-Container-Port-Map)
+* [Exchanging Data among Containers](https://github.com/ML-TANGO/TANGO/wiki/Guides-%7C-Exchanging-Data-among-Containers)
+* [TANGO REST API Guide](https://github.com/ML-TANGO/TANGO/wiki/Guides-%7C-Rest-API)
+* [how to prepare dataset for classification.pdf](https://github.com/user-attachments/files/17841949/how.to.prepare.dataset.for.classification.pdf)
+----
+
+
+
 ## Source Tree Structure <a name="source_tree"></a>
 
 The source tree is organized with the MSA principles: each subdirectory contains component container source code. Due to the separation of source directory, component container developers just only work on their own isolated subdirectory and publish minimal REST API to serve project manager container's service request.
@@ -161,23 +209,6 @@ TANGO
          ├─── k8s
          └─── ondevice
 ```
-
-----
-
-
-## How to build images and run containers <a name="img_build_container_run"></a>
-
-refer to TANGO wiki [HowTo | TANGO Image Build and Run](https://github.com/ML-TANGO/TANGO/wiki/HowTo-%7C-TANGO-Image-Build-and-Run)
-
-
-----
-
-## Developer Guides and References<a name="dev_guides"></a>
-
-* [TANGO Architecture Overview](https://github.com/ML-TANGO/TANGO/wiki/Guides-%7C-TANGO-Architecture)
-* [TANGO Container Port Mapping guide](https://github.com/ML-TANGO/TANGO/wiki/Guides-%7C-Container-Port-Map)
-* [Exchanging Data among Containers](https://github.com/ML-TANGO/TANGO/wiki/Guides-%7C-Exchanging-Data-among-Containers)
-* [TANGO REST API Guide](https://github.com/ML-TANGO/TANGO/wiki/Guides-%7C-Rest-API)
 
 ----
 
