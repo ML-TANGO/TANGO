@@ -28,12 +28,7 @@ The component interacts with other component via REST APIs as depicted in the fo
 
 The TANGO framework aims to deploy and load ready-to-use deep learning models for the specific vision task (classification, object detection, or instance segmentation) onto the user's target devices by automatically constructing and training deep learning models without the help of experts or with minimal knowledge on usage on TANGO. To this end, data preparation, neural network model creation, and optimization for target device can be accomplished within TANGO framework.
 
-<img src="./docs/media/TANGO_AutoML.png" alt="TANGO Auto ML" width="1200px"/>
-
-  * ***Unified UX(user experiences)***: One container with same pipleline, two different vision tasks - **classification** and **detection**
-  * ***TangoChat*** prototype: Next-generation TANGO beyond vision-based task, towards generative AI and more  
-----
-
+  
 ### Data Preparation
 
 Data preparation consists of two main processes. First, you need to take or collect images (raw data) in various situations suitable for the given vision task. Then, collected row data should be annotated to be used for training of depp learning models. The latter process is very labor intensive and takes a lot of manpower and time. TANGO's labeling tool is a Web-based GUI tool that enables the users easily perform annotation on raw data. The user can load local raw data by just drag and drop style, perform class labeling, bounding box annotation, polygon annotation, etc. according to the specific task, and then save them.
@@ -141,37 +136,45 @@ The supported target(cloud, K8S, ondevice) is as follows.
 
 The neural network deployment module provides functions for optimizing the neural network model, generating executable code for inference, distributing to the target, and automating execution for each target's computing environment/inference engine/execution environment.
 
-- Key features of the Neural Network Deployment Module
-1) Ability to convert neural network models into executable code
+##### Key features of the Neural Network Deployment Module:
+
+* Ability to convert neural network models into executable code  
 The neural network deployment module provides an automatic generation function for executable code templates, such as pre-processing code for neural network input and post-processing code for interpreting neural network output, so that the neural network model can be operated on the operating system, programming language, and inference engine.
 
-2) Ability to optimize the neural network model to suit the target environment
+* Ability to optimize the neural network model to suit the target environment  
 The neural network deployment module provides neural network model optimization functions such as quantization so that the neural network model can operate in the target environment, such as CPU performance and available memory size.
 
-3) Diversity support function of neural network accelerators
+* Diversity support function of neural network accelerators  
 The neural network deployment module provides functions to make full use of accelerators such as NVIDIA GPU, Tensor Processing Unit, and ARM Mali GPU.
 
-4) Support for diversity of inference engines
+* Support for diversity of inference engines  
 The neural network deployment module provides various inference engine support functions such as PyTorch, TensorRT, TVM, and Tensorflow Lite.
 
-5) Providing convenience of distribution and installation
+* Providing convenience of distribution and installation  
 The neural network deployment module provides a convenient deployment feature that automates the deployment process to GCP, AWS, etc. as much as possible.
 
-- Examples of the Neural Network Deployment Module’s operation
-1) Smartphone
-Model for PyTorch -> Convert to ONNX model -> Integer Quantization -> Convert to Tensorflow Lite model -> Generate neural network execution code for Android -> Generate executable file (.apk) for Android
+##### Deployment Module’s operation depending on targets
 
-2) Raspberry Pi+TPU(Tensor Processing Unit)
-Model for PyTorch -> Convert to ONNX model -> Convert to Tensorflow Lite model -> Convert to model for TPU -> Generate Python-based neural network execution code for TPU 
+> * Web services such as GCP/AWS  
+> pytorch model -> Create a PyTorch-based web application service -> Create a POD for K8S -> Deploy/execute the POD using the deployment environment set by the user.
+>
+> * Smartphone  
+> Model for PyTorch -> Convert to ONNX model -> Integer Quantization -> Convert to Tensorflow Lite model -> Generate neural network execution code for Android -> Generate executable file (.apk) for Android
+>
+> 
+> * Raspberry Pi+TPU(Tensor Processing Unit)
+> Model for PyTorch -> Convert to ONNX model -> Convert to Tensorflow Lite model -> Convert to model for TPU -> Generate Python-based neural network execution code for TPU 
+>
+> 
+> * TensorRT-based devices  
+> Model for PyTorch -> Convert to ONNX model -> Generate Python-based  ONNX-TensorRT converter and execution code for TensorRT
+>
+> 
+> * TVM-based devices  
+> Model for PyTorch -> Convert to ONNX model -> Convert to model for TVM -> Generate Python-based neural network execution code for TVM
+>
 
-3) TensorRT-based devices
-Model for PyTorch -> Convert to ONNX model -> Generate Python-based  ONNX-TensorRT converter and execution code for TensorRT
 
-4) TVM-based devices
-Model for PyTorch -> Convert to ONNX model -> Convert to model for TVM -> Generate Python-based neural network execution code for TVM
-
-5) Web services such as GCP/AWS
-pytorch model -> Create a PyTorch-based web application service -> Create a POD for K8S -> Deploy/execute the POD using the deployment environment set by the user.
 ---- 
 
 ## How to build images and run containers <a name="img_build_container_run"></a>
