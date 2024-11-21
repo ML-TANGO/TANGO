@@ -18,7 +18,7 @@ TANGO uses container technology and MSA (Micro Service Architecture). Containers
 Each component of TANGO is self-contained service component implemented with container technology.
 The component interacts with other component via REST APIs as depicted in the following image;
 
-<img src="./docs/media/TANGO_structure_v2.png" alt="TANGO Project Overview" width="800px"/>
+<img src="./docs/media/TANGO_structure_v2.png" alt="TANGO Project Overview" width="1200px"/>
 
 ----
 
@@ -26,7 +26,7 @@ The component interacts with other component via REST APIs as depicted in the fo
 
 The TANGO framework aims to deploy and load ready-to-use deep learning models for the specific vision task (classification, object detection, or instance segmentation) onto the user's target devices by automatically constructing and training deep learning models without the help of experts or with minimal knowledge on usage on TANGO. To this end, data preparation, neural network model creation, and optimization for target device can be accomplished within TANGO framework.
 
-<img src="./docs/media/TANGO_AutoML.png" alt="TANGO Auto ML" width="600px"/>
+<img src="./docs/media/TANGO_AutoML.png" alt="TANGO Auto ML" width="1200px"/>
 
   * ***Unified UX(user experiences)***: One container with same pipleline, two different vision tasks - **classification** and **detection**
   * ***TangoChat*** prototype: Next-generation TANGO beyond vision-based task, towards generative AI and more  
@@ -36,7 +36,7 @@ The TANGO framework aims to deploy and load ready-to-use deep learning models fo
 
 Data preparation consists of two main processes. First, you need to take or collect images (raw data) in various situations suitable for the given vision task. Then, collected row data should be annotated to be used for training of depp learning models. The latter process is very labor intensive and takes a lot of manpower and time. TANGO's labeling tool is a Web-based GUI tool that enables the users easily perform annotation on raw data. The user can load local raw data by just drag and drop style, perform class labeling, bounding box annotation, polygon annotation, etc. according to the specific task, and then save them.
 
-<img src="./docs/media/TANGO_labeling.png" alt="TANGO labeling" width="600px"/>
+<img src="./docs/media/TANGO_labeling.png" alt="TANGO labeling" width="1200px"/>
 
 ### Base Model Selection
 
@@ -56,7 +56,7 @@ Currently, TANGO selects a base model according to dedicated rules with the numb
 
 It is important that user recognizes the neural network model architecture, so TANGO provides visual description on the base model. 
 
-<img src="./docs/media/TANGO_Model_Viz.png" alt="TANGO Model Viz" width="500px"/>
+<img src="./docs/media/TANGO_Model_Viz.png" alt="TANGO Model Viz" width="1200px"/>
 
 As you can see this example, model visualization provides
 
@@ -67,7 +67,7 @@ As you can see this example, model visualization provides
 
 In other hands, it makes sure users want to look at the progress of training, so TANGO provides another tab to show graphs and numbers over training periods.
 
-<img src="./docs/media/TANGO_Train_Viz.png" alt="TANGO Train Viz" width="500px"/>
+<img src="./docs/media/TANGO_Train_Viz.png" alt="TANGO Train Viz" width="1200px"/>
 
 Training graph provides
 
@@ -80,7 +80,7 @@ AutoML (Automated Machine Learning) refers to the process of automating the end-
 
 Neural network model generation is a key process in the TANGO framework. The TANGO framework provides guidelines for this kind of task automatically. First, a base neural network is extracted through a base model selector recommended by one of the existing SOTA, State of the Art, neural networks proved to work well. Afterwards, AutoNN uses automation techniques such as NAS ([Neural Architecture Search](https://en.wikipedia.org/wiki/Neural_architecture_search)) and HPO ([Hyper Parameter Optimization](https://en.wikipedia.org/wiki/Hyperparameter_optimization)) to find an appropriate neural network configuration. This includes retraining of the final model.
 
-<img src="./docs/media/TANGO_BMS_AutoNN.png" alt="TANGO labeling" width="500px"/>
+<img src="./docs/media/TANGO_BMS_AutoNN.png" alt="TANGO labeling" width="1200px"/>
 
 AutoNN provides a number of automated ways to find proper models that match user requirements.
 * ***Automatci Bag-of-Freebie*** 
@@ -115,7 +115,7 @@ Even though neural network training is largely automated, there are still many v
 
 During TANGO project configuration, users can specify theirs target(cloud, K8S, ondevice), which is used for inference with trained neural network model. Due to different acceleration engines and available resources for each target environment, it is difficult to deploy immediately the neural network model generated from AutoNN. Depending on the target environment, TANGO makes the executable code including essential libraries and pre/post-processing code into a compressed file, builds containerized image, and installs it on the the target(device) and unpacks it.
 
-<img src="./docs/media/TANGO_AutoNN_Deployment.png" alt="Deployment in TANGO" width="500px"/>
+<img src="./docs/media/TANGO_AutoNN_Deployment.png" alt="Deployment in TANGO" width="1200px"/>
 
 The supported target(cloud, K8S, ondevice) is as follows.  
 | Target | NN acceleration | Runtim Engine | remark |
@@ -140,13 +140,7 @@ The supported target(cloud, K8S, ondevice) is as follows.
 
 The TANGO framework aims to help users without specialized knowledge to create and use their own neural network models. To this end, it provides an environment that users can use without writing code, such as a project manager and a neural network visualization tool.
 
-<img src="./docs/media/TANGO_No_Code.png" alt="ETRI SuperNeck" width="800px"/>
-
-You can watch 2022 early version demo on Youtube. Click the below images.
-
-<a href="https://youtu.be/T80YKRyIR3g">
-<img src="./docs/media/TANGO_2022_Demo.png" alt="TANGO 2022 Demon on Youtube" width="300px"/>
-</a>
+<img src="./docs/media/TANGO_No_Code.png" alt="ETRI SuperNeck" width="1200px"/>
 
 
 ----
@@ -158,27 +152,14 @@ The source tree is organized with the MSA principles: each subdirectory contains
 TANGO
   ├─── docker-compose.yml
   ├─── project_manager
-  │ 
-  ├─── model_select
-  │      ├─── device_based
-  │      └─── data_feature_based
-  │ 
-  ├─── visualize
-  │      └─── vis2code
-  │ 
-  ├─── auto_nn
-  │      ├─── backbone_nas
-  │      ├─── neck_nas
-  │      └─── yolov7e
-  │
+  ├─── autonn
+  │      └─── autonn
   ├─── deploy_codegen 
   │      └─── optimize_codegen
-  │
   └─── deploy_targets
          ├─── cloud
          ├─── k8s
          └─── ondevice
-
 ```
 
 ----
