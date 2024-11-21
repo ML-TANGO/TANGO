@@ -20,6 +20,8 @@ from .load_targets import convert_image_to_base64
 
 from .models import Target
 
+from django.db.models import Case, When, Value, IntegerField
+
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 
 
@@ -84,7 +86,15 @@ def target_read(request):
 
     try:
         # 모든 사용자가 타겟을 확인할 수 있도록 수정
-        queryset = Target.objects.filter()
+        queryset = Target.objects.annotate(
+            # 정렬 우선순위 필드 추가
+            order_priority=Case(
+                When(order=0, then=Value(1)),  # 'order'가 0인 경우 우선순위를 1로 설정 (후순위)
+                default=Value(0),              # 나머지는 우선순위를 0으로 설정 (정상 순위)
+                output_field=IntegerField(),
+            )
+        ).order_by('order_priority', 'order')
+        
         data = list(queryset.values())
         data_list = []
         
@@ -105,7 +115,9 @@ def target_read(request):
                            'host_ip': i['target_host_ip'],
                            'host_port': i['target_host_port'],
                            'host_service_port': i['target_host_service_port'],
-                           'image': str(i['target_image'])}
+                           'image': str(i['target_image']),
+                           'order': int(i['order']),
+                           }
 
             data_list.append(target_data)
 
