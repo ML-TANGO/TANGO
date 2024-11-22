@@ -22,9 +22,18 @@ def load_targets():
 
     for target in targets_json:
         try:
-            target = Target.objects.get(target_name = target['target_name'])
-            # target.delete()
-            pass
+            targetObject = Target.objects.get(target_name = target['target_name'])
+
+            image_path = os.path.join(BASE_DIR, "images", str(target["image_file_name"]))
+            image_base64 = convert_image_to_base64(image_path)
+
+            targetObject.target_image = image_base64
+
+            # 엑셀파일에 정의된 order 순으로 저장하는 과정
+            if targetObject.order == 0 and int(target['order']) > 0:
+                targetObject.order = int(target['order'])
+                
+            targetObject.save()
 
         except ObjectDoesNotExist:
             image_path = os.path.join(BASE_DIR, "images", str(target["image_file_name"]))
@@ -48,6 +57,10 @@ def load_targets():
             
             target.save()
             # print(str(target['target_name']) + " target 생성 완료")
+        except Exception as e:
+            print("기본 타겟 생성 중 예상치 못한 오류")
+            print(e)
+            print("--------------------------------------------------------------------")
 
 
 
