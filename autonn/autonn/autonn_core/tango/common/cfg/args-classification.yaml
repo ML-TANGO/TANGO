@@ -1,43 +1,44 @@
 # args.yaml for ResNet-Cifar10
-weights: ''
-cfg: ''
-data: ''
-hyp: ''
-epochs: 2
+
+# basic options (!!user does not have to change them!!)
+weights: '' # checkpoint (pt/file/path)
+cfg: '' # model config (yaml/file/path)
+data: '' # dataset config (dataset.yaml)
+hyp: '' # hyperparameter config (hyp.yaml)
+device: '' # '0' or '0, 1' or 'cpu' (it'll be changed by select-device if '') 
+
+# train options that may affect accuracy
+epochs: 500
 batch_size: -1  # it'll be changed by auto-batch
 img_size: [256, 256]
-mean: 0.5
-std: 0.5
-rect: False
-resume: False
-nosave: False
-notest: False
-noautoanchor: False
-evolve: False
-bucket: ''
-cache_images: False
-image_weights: False
-device: ''
-multi_scale: False
-single_cls: False
-adam: False # optimizer = SGD
-sync_bn: False
-local_rank: -1
-workers: 8
-project: 'runs/train' # it must be changed to /shared/common/{uid}/{pid}
-entity: None
-name: 'autonn'
-exist_ok: True
-quad: False
-linear_lr: False
-label_smoothing: 0.0
-upload_dataset: False
-bbox_interval: -1
-save_period: -1
-artifact_alias: 'latest'
-freeze: [0]
-metric: 'v5' # metirc
-loss_name: 'CE'
-seed: 1
-patience: 10
+adam: False # optimizer = SGD / ADAM
+linear_lr: False # schedular = OneCycleLR / LinearLR ref.https://arxiv.org/pdf/1812.01187
+loss_name: 'CE' # loss function = CE(CrossEntropyLoss) / FL(FocalLoss)
+label_smoothing: 0.1 # softening hard label ref.https://arxiv.org/abs/1512.00567
+multi_scale: False # randomly scale image per epoch (x0.5 ~ x1.5)
+quad: False # loss *= 4
+single_cls: False # treat all classes as the one same class
+image_weights: False # give sampling priority low accuracy class
 
+# miscellaneous options that do not affect accuracy
+resume: False # start from checkpoint
+nosave: False # not save any checkpoints
+notest: False # not measure accuracy during training
+evolve: False # search optimal hyperparameters
+bucket: '' # gsutils (google storage) bucket
+cache_images: False # save all images into local memory
+
+# parallelization
+workers: 8 # data loading thread workers
+local_rank: -1 # data distributed option (-1 means using only one GPU)
+sync_bn: False
+
+# checkpoints / final result (!!user does not have to change them!!)
+project: 'runs/train' # it will be changed to /shared/common/{uid}/{pid}
+name: 'autonn' # directory to save files during training (/shared/common/{uid}/{pid}/autonn)
+exist_ok: True # overwrite existing directory(T) or make incremental directories(F)
+
+# additional options
+freeze: [0] # list of not training layers (transfer learning)
+seed: 1 # random seed for reproducible result
+patience: 10 # early stopping

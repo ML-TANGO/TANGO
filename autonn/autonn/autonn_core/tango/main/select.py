@@ -235,10 +235,25 @@ def get_user_requirements(userid, projid, resume=False):
     if os.path.isdir(str(DATASET_ROOT / dataset_on_proj)):
         dataset_yaml_path = DATASET_ROOT / dataset_on_proj / "dataset.yaml"
     else:
-        logger.warning(f"There is no {DATASET_ROOT}/{dataset_on_proj}. "
-                    f"Instead embedded COCO128 dataset will be used.")
-        dataset_on_proj = 'coco128'
-        dataset_yaml_path = CORE_DIR / 'datasets' / 'coco128' / 'dataset.yaml'
+        logger.warning(f"There is no {DATASET_ROOT}/{dataset_on_proj}. ")
+        if task == 'detection':
+            logger.info(f"Instead embedded COCO128 dataset will be used.")
+            dataset_on_proj = 'coco128'
+            dataset_yaml_path = CORE_DIR / 'datasets' / 'coco128' / 'dataset.yaml'
+    if not os.path.isfile(dataset_yaml_path):
+        logger.warning(f"Not found dataset.yaml")
+        if task == "classficiation":
+            logger.info(f"Try to make dataset.yaml from {DATASET_ROOT}/{dataset_on_proj}...")
+            import glob
+            dataset_dict = {}
+            dataset_dict['train'] = f'{str(DATASET_ROOT / dataset_on_proj / "train")}'
+            dataset_dict['val'] = f'{str(DATASET_ROOT / dataset_on_proj / "val")}'
+            dataset_dict['nc'] = 2
+            dataset_dict['ch'] = 1
+            dataset_dict['names'] = []
+            with open(dataset_yaml_path, "w") as f:
+                yaml.dump(dataset_dict, f)
+
     with open(dataset_yaml_path) as f:
         data_dict = yaml.load(f, Loader=yaml.SafeLoader)
     data_dict['dataset_name'] = dataset_on_proj
@@ -261,12 +276,16 @@ def get_user_requirements(userid, projid, resume=False):
                                                             data_dict)
     with open(basemodel_yaml_path, "r") as f:
         basemodel_dict = yaml.load(f, Loader=yaml.SafeLoader)
-    basemodel_dict['hyp'] = 'p5' if basemodel_dict['hyp'] == 'tiny' \
-                                 else basemodel_dict['hyp']
+    if task == 'detection':
+        basemodel_dict['hyp'] = 'p5' if basemodel_dict['hyp'] == 'tiny' \
+                                    else basemodel_dict['hyp']
+    else: # if task == 'classification'
+        basemodel_dict['hyp'] = 'cls'
     proj_info_dict['nas'] = True if basemodel['model_size'] == '-supernet' else False
 
     # --------------------------- hyperparameter -------------------------------
     hyp_yaml_path = CFG_PATH / f"hyp.scratch.{basemodel_dict['hyp']}.yaml"
+    logger.info(f'{colorstr("hyp: ")}hyperparameters from {hyp_yaml_path}')
     with open(hyp_yaml_path) as f:
         hyp_dict = yaml.safe_load(f)
     # hyp_dict['lrc'] = hyp_dict['lr0']

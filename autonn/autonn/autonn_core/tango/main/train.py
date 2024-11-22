@@ -32,7 +32,7 @@ from tango.common.models.supernet_yolov7    import NASModel
 # from tango.common.models import *
 from tango.utils.autoanchor import check_anchors
 from tango.utils.autobatch import get_batch_size_for_gpu
-from tango.utils.datasets import create_dataloader
+from tango.utils.datasets import create_dataloader, AlbumentationDatasetImageFolder
 from tango.utils.general import (   DEBUG,
                                     labels_to_class_weights,
                                     labels_to_image_weights,
@@ -386,6 +386,7 @@ def train(proj_info, hyp, opt, data_dict, tb_writer=None):
         logger.info('Using SyncBatchNorm()')
 
     # TrainDataloader ----------------------------------------------------------
+    # dataloader = None
     if task == 'detection':
         dataloader, dataset = create_dataloader(
                                             userid,
@@ -408,17 +409,58 @@ def train(proj_info, hyp, opt, data_dict, tb_writer=None):
         mlc = np.concatenate(dataset.labels, 0)[:, 0].max()  # max label class
     elif task == 'classification':
         try:
-            from torchvision import datasets, transforms
-            transform = transforms.Compose(
+            # from torchvision import datasets, transforms
+            # train_transform = transforms.Compose(
+            #     [
+            #         transforms.Grayscale(num_output_channels=1),
+            #         transforms.Resize(imgsz),
+            #         transforms.CenterCrop(imgsz),
+            #         transforms.ToTensor(),
+            #         transforms.Normalize(mean=hyp['mean'], std=hyp['std']),
+            #     ]
+            # )
+            # dataset = datasets.ImageFolder(root=train_path, transform=train_transform)
+            import albumentations as A
+            from albumentations.pytorch import ToTensorV2
+            train_transform = A.Compose(
                 [
-                    transforms.Grayscale(num_output_channels=1),
-                    transforms.Resize(imgsz),
-                    transforms.CenterCrop(imgsz),
-                    transforms.ToTensor(),
-                    transforms.Normalize(mean=opt.mean, std=opt.std),
+                    # A.ToGray(p=1.0),
+                    A.Resize(height=imgsz, width=imgsz),
+                    A.Affine(rotate=hyp['rotate'], 
+                             scale=hyp['scale'],
+                             shear=hyp['shear'],
+                    ),
+                    A.OneOf(
+                        [
+                            A.ElasticTransform(
+                                p=hyp['elastic_tr']['p'],
+                                alpha=hyp['elastic_tr']['alpha'],
+                                sigma=hyp['elastic_tr']['sigma'],
+                            ),
+                            A.GridDistortion(
+                                p=hyp['grid_distr']['p'],
+                                num_steps=hyp['grid_distr']['step'],
+                                distort_limit=hyp['grid_distr']['distort_limit'],
+                            ),
+                            A.OpticalDistortion(
+                                p=hyp['optical_distr']['p'],
+                                distort_limit=hyp['optical_distr']['distort_limit'], 
+                                shift_limit=hyp['optical_distr']['shift_limit'], 
+                            ),
+                        ],
+                        p=hyp['one_of_tr_prob'],
+                    ),
+                    A.HorizontalFlip(p=hyp['hflip']),
+                    A.VerticalFlip(p=hyp['vflip']),
+                    A.Normalize(mean=hyp['mean'], std=hyp['std']),
+                    ToTensorV2(),
                 ]
             )
-            dataset = datasets.ImageFolder(train_path, transform=transform)
+            dataset = AlbumentationDatasetImageFolder(
+                root=train_path, 
+                transform=train_transform, 
+                ch=ch
+            )
             dataset_info = {}
             total_files_cnt = sum([len(f) for r,d,f in os.walk(train_path)])
             dataset_info['total'] = len(dataset.imgs)
@@ -485,7 +527,29 @@ def train(proj_info, hyp, opt, data_dict, tb_writer=None):
                 #         tb_writer.add_histogram('classes', c, 0)
         elif task == 'classification':
             try:
-                val_dataset = datasets.ImageFolder(test_path, transform=transform)
+                # val_transform = transforms.Compose(
+                #     [
+                #         transforms.Grayscale(num_output_channels=1),
+                #         transforms.Resize(imgsz),
+                #         transforms.CenterCrop(imgsz),
+                #         transforms.ToTensor(),
+                #         transforms.Normalize(mean=hyp['mean'], std=hyp['std']),
+                #     ]
+                # )
+                # val_dataset = datasets.ImageFolder(root=test_path, transform=val_transform)
+                val_transform = A.Compose(
+                    [
+                        # A.ToGray(p=1.0),
+                        A.Resize(height=imgsz, width=imgsz),
+                        A.Normalize(mean=hyp['mean'], std=hyp['std']),
+                        ToTensorV2(),
+                    ]
+                )
+                val_dataset = AlbumentationDatasetImageFolder(
+                    root=train_path, 
+                    transform=val_transform, 
+                    ch=ch
+                )
                 dataset_info = {}
                 total_files_cnt = sum([len(f) for r,d,f in os.walk(test_path)])
                 dataset_info['total'] = len(val_dataset.imgs)
@@ -551,7 +615,11 @@ def train(proj_info, hyp, opt, data_dict, tb_writer=None):
     # Loss function ------------------------------------------------------------
     if task == 'classification':
         if opt.loss_name == 'CE':
-            compute_loss = nn.CrossEntropyLoss(label_smoothing=0.1)
+            if opt.label_smoothing > 0.0:
+                ls_alpha = hyp['label_smoothing'] = opt.label_smoothing
+            else:
+                ls_alpha = 0.1
+            compute_loss = nn.CrossEntropyLoss(label_smoothing=ls_alpha) # 0.1
         elif opt.loss_name == 'FL':
             compute_loss = FocalLossCE()
         else:

@@ -1,0 +1,33 @@
+lr0: 0.01  # initial learning rate (SGD=1E-2, Adam=1E-3)
+lrf: 0.01  # final OneCycleLR learning rate (lr0 * lrf)
+momentum: 0.937  # SGD momentum/Adam beta1
+weight_decay: 0.0005  # optimizer weight decay 5e-4
+warmup_epochs: 3.0  # warmup epochs (fractions ok)
+warmup_momentum: 0.8  # warmup initial momentum
+warmup_bias_lr: 0.1  # warmup initial bias lr
+
+# affine
+rotate: -10
+scale: 0.8
+shear: 10
+# oneof
+one_of_tr_prob: 0.5
+elastic_tr:
+  p: 1.0
+  alpha: 60
+  sigma: 50
+grid_distr:
+  p: 1.0
+  step: 5
+  distort_limit: 0.3
+optical_distr:
+  p: 1.0
+  distort_limit: 0.05
+  shift_limit: 0.05
+# flip
+hflip: 0.5
+vflip: 0.5
+# norm
+mean: 0.5 #(0.485, 0.456, 0.406) for 3-ch
+std: 0.5  #(0.229, 0.224, 0.225) for 3-ch
+
