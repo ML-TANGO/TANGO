@@ -661,7 +661,10 @@ def run_autonn(userid, project_id, resume=False, viz2code=False, nas=False, hpo=
 
     # print model export summary -----------------------------------------------
     mb = os.path.getsize(train_final) / 1E6  # filesize
-    logger.info(f'Source Model = {train_final}({mb:.1f} MB), {results[3]} mAP')
+    if task == 'detection':
+        logger.info(f'Source Model = {train_final}({mb:.1f} MB), {results[3]} mAP')
+    elif task == 'classification':
+        logger.info(f'Source Model = {train_final}({mb:.1f} MB), val-accuracy = {results[0]}')
     logger.info('='*100)
     for model_type in convert:
         if model_type == 'onnx_end2end':

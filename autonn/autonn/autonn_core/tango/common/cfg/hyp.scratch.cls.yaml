@@ -10,18 +10,18 @@ warmup_bias_lr: 0.1  # warmup initial bias lr
 rotate: -10
 scale: 0.8
 shear: 10
-# oneof
+# use one of these 3 transforms
 one_of_tr_prob: 0.5
 elastic_tr:
-  p: 1.0
+  p: 1.0 # actual prob = one_of_tr_prob * p
   alpha: 60
   sigma: 50
 grid_distr:
-  p: 1.0
+  p: 1.0 # actual prob = one_of_tr_prob * p
   step: 5
   distort_limit: 0.3
 optical_distr:
-  p: 1.0
+  p: 1.0 # actual prob = one_of_tr_prob * p
   distort_limit: 0.05
   shift_limit: 0.05
 # flip

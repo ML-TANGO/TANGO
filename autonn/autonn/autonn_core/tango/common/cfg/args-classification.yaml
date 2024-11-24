@@ -41,4 +41,4 @@ exist_ok: True # overwrite existing directory(T) or make incremental directories
 # additional options
 freeze: [0] # list of not training layers (transfer learning)
 seed: 1 # random seed for reproducible result
-patience: 3 # early stopping
+patience: '' # early stopping
