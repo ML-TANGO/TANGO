@@ -441,6 +441,7 @@ def base_model_select(userid, project_id, proj_info, data, manual_select=False):
 
 
 def backup_previous_work(model):
+    logger.info(f'!!! backup previous works !!!')
     m = Path(model)
     cur_dir = m.parent
     model_name = m.stem

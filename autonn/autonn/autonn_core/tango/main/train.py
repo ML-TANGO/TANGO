@@ -92,6 +92,8 @@ def train(proj_info, hyp, opt, data_dict, tb_writer=None):
     # if not opt.resume and opt.lt != 'incremental' and opt.lt != 'transfer':
     #     logger.warn(f'FileSystem: {save_dir} already exists. It will deleted and remade')
     #     shutil.rmtree(opt.save_dir)
+    if os.path.isdir(str(save_dir)):
+        shutil.rmtree(save_dir) # remove 'autonn' dir
     wdir = save_dir / 'weights'
     wdir.mkdir(parents=True, exist_ok=True)  # make dir
     last = wdir / 'last.pt'
@@ -639,7 +641,7 @@ def train(proj_info, hyp, opt, data_dict, tb_writer=None):
     # Ealry Stopper ------------------------------------------------------------
     # how many epochs could you be waiting for patiently 
     # although accuracy was not better?
-    patience_epochs = opt.patience if opt.patience else 10
+    patience_epochs = opt.patience if opt.patience else ''
     stopper, stop = EarlyStopping(patience=patience_epochs), False
 
     # Start training -----------------------------------------------------------
