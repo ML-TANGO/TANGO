@@ -546,7 +546,7 @@ def train(proj_info, hyp, opt, data_dict, tb_writer=None):
                     ]
                 )
                 val_dataset = AlbumentationDatasetImageFolder(
-                    root=train_path, 
+                    root=test_path, 
                     transform=val_transform, 
                     ch=ch
                 )
@@ -711,7 +711,6 @@ def train(proj_info, hyp, opt, data_dict, tb_writer=None):
         # progress bar
         pbar = enumerate(dataloader)
 
-        logger.info(('\n' + '%10s' * 8) % ('TrainEpoch', 'GPU_Mem', 'Box', 'Obj', 'Cls', 'Total', 'Labels', 'Img_Size'))
         # if rank in [-1, 0]:
         #     pbar = tqdm(pbar, total=nb)  # progress bar
 
@@ -719,6 +718,7 @@ def train(proj_info, hyp, opt, data_dict, tb_writer=None):
         # optimizer.zero_grad()
         # training batches start ===============================================
         if task == 'detection':
+            logger.info(('\n' + '%10s' * 8) % ('TrainEpoch', 'GPU_Mem', 'Box', 'Obj', 'Cls', 'Total', 'Labels', 'Img_Size'))
             for i, (imgs, targets, paths, _) in pbar:
                 logger.info(f"{i} {len(imgs)} imgs")
                 t_batch = time.time() #time_synchronized()
@@ -816,6 +816,7 @@ def train(proj_info, hyp, opt, data_dict, tb_writer=None):
                     #     wandb_logger.log({"Mosaics": [wandb_logger.wandb.Image(str(x), caption=x.name) for x in
                     #                                   save_dir.glob('train*.jpg') if x.exists()]})
         elif task == 'classification':
+            logger.info(('\n' + '%10s' * 6) % ('TrainEpoch', 'GPU_Mem', 'Batch', 'mLoss', 'mAcc', '=Right/All'))
             accumulated_imgs_cnt = 0
             tacc = 0
             for i, (imgs, targets) in pbar:
@@ -874,8 +875,8 @@ def train(proj_info, hyp, opt, data_dict, tb_writer=None):
                     macc = (macc * accumulated_imgs_cnt + acc) / (accumulated_imgs_cnt + len(imgs)) # mean train accuracy
                     tacc += acc.item()
                     accumulated_imgs_cnt += len(imgs)
-                    s = ('%10s' * 2 + '%10.4g' * 4) % (
-                        '%g/%g' % (epoch, epochs - 1), mem, mloss, macc, targets.shape[0], tacc) #imgs.shape[-1])
+                    s = ('%10s' * 2 + '%10.4g' * 3 + '%10s') % (
+                        '%g/%g' % (epoch, epochs - 1), mem, targets.shape[0], mloss, macc, '%g/%g' % (tacc, accumulated_imgs_cnt)) #imgs.shape[-1])
                     mloss_item = mloss.item()
                     macc_item = macc.item()
                     train_loss['epoch'] = epoch + 1
@@ -893,16 +894,8 @@ def train(proj_info, hyp, opt, data_dict, tb_writer=None):
                     status_update(userid, project_id,
                                   update_id="train_loss",
                                   update_content=train_loss)
-                    # Plot
-                    # if plots and ni < 10:
-                    #     f = save_dir / f'train_batch{ni}.jpg'  # filename
-                    #     Thread(target=plot_images, args=(imgs, targets, paths, f), daemon=True).start()
-                    #     if tb_writer:
-                    #         tb_writer.add_image(f, result, dataformats='HWC', global_step=epoch)
-                    #         tb_writer.add_graph(torch.jit.trace(model, imgs, strict=False), [])  # add model graph
-                    # elif plots and ni == 10 and wandb_logger.wandb:
-                    #     wandb_logger.log({"Mosaics": [wandb_logger.wandb.Image(str(x), caption=x.name) for x in
-                    #                                   save_dir.glob('train*.jpg') if x.exists()]})
+                    if len(dataloader) -1 == i:
+                        logger.info(f'{s}')
         # training batches end =================================================
 
         # Scheduler

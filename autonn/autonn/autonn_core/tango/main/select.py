@@ -647,9 +647,10 @@ def run_autonn(userid, project_id, resume=False, viz2code=False, nas=False, hpo=
     # export weights -----------------------------------------------------------
     target_engine = proj_info['engine']
     channel = data.get('ch')
-    convert = ['torchscript', 'onnx', 'pb', 'tflite', 'edgetpu']
+    if task == 'classification':
+        convert = ['torchscript', 'onnx']
     if task == 'detection':
-        convert.append('onnx_end2end')
+        convert = ['torchscript', 'onnx', 'onnx_end2end', 'pb', 'tflite', 'edgetpu']
     export_weight(train_final, target_acc, convert, task=task, ch=channel, imgsz=opt.img_size)
 
     # export meta file ---------------------------------------------------------

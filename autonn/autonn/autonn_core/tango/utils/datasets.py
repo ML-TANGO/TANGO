@@ -40,7 +40,7 @@ from tango.utils.general import (   check_requirements,
 from tango.utils.torch_utils import torch_distributed_zero_first
 
 # Parameters
-help_url = 'https://github.com/ultralytics/yolov5/wiki/Train-Custom-Data'
+help_url = 'https://github.com/ML-TANGO/TANGO/wiki'
 img_formats = ['bmp', 'jpg', 'jpeg', 'png', 'tif', 'tiff', 'dng', 'webp', 'mpo']  # acceptable image suffixes
 vid_formats = ['mov', 'avi', 'mp4', 'mpg', 'mpeg', 'm4v', 'wmv', 'mkv']  # acceptable video suffixes
 
@@ -965,6 +965,8 @@ class AlbumentationDatasetImageFolder(DatasetFolder):
 
         return image, target
 
+    def __len__(self) -> int:
+        return len(self.imgs)
 
 # Ancillary functions --------------------------------------------------------------------------------------------------
 def load_image(self, index):
