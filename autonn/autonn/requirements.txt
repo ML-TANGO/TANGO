@@ -56,3 +56,5 @@ sng4onnx>=1.0.1 # 1.0.4 # for onnx2tf
 tensorflow==2.16.1 # tensorflow model export
 tf_keras==2.16.0
 tflite_support==0.4.4 # tflite metadata
+# Augmentation =================================================================
+# albumentations==1.0.0 --no-binary qudida,albumentations

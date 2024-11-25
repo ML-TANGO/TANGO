@@ -86,9 +86,9 @@ RUN pip install -r requirements.txt
 # RUN pip install torch==1.13.1
 # RUN pip install torchvision==0.14.1
 # RUN pip install tqdm==4.65.0
-# RUN pip install typing_extensions==4.12.2
+# RUN pip install typing_extensions
 # RUN pip install urllib3==1.26.7
-
+RUN pip install albumentations==1.0.0 --no-binary qudida,albumentations
 COPY . .
 
 COPY --from=builder /frontend /frontend

@@ -32,7 +32,7 @@ from tango.common.models.supernet_yolov7    import NASModel
 # from tango.common.models import *
 from tango.utils.autoanchor import check_anchors
 from tango.utils.autobatch import get_batch_size_for_gpu
-from tango.utils.datasets import create_dataloader
+from tango.utils.datasets import create_dataloader, AlbumentationDatasetImageFolder
 from tango.utils.general import (   DEBUG,
                                     labels_to_class_weights,
                                     labels_to_image_weights,
@@ -92,6 +92,8 @@ def train(proj_info, hyp, opt, data_dict, tb_writer=None):
     # if not opt.resume and opt.lt != 'incremental' and opt.lt != 'transfer':
     #     logger.warn(f'FileSystem: {save_dir} already exists. It will deleted and remade')
     #     shutil.rmtree(opt.save_dir)
+    if os.path.isdir(str(save_dir)):
+        shutil.rmtree(save_dir) # remove 'autonn' dir
     wdir = save_dir / 'weights'
     wdir.mkdir(parents=True, exist_ok=True)  # make dir
     last = wdir / 'last.pt'
@@ -386,6 +388,7 @@ def train(proj_info, hyp, opt, data_dict, tb_writer=None):
         logger.info('Using SyncBatchNorm()')
 
     # TrainDataloader ----------------------------------------------------------
+    # dataloader = None
     if task == 'detection':
         dataloader, dataset = create_dataloader(
                                             userid,
@@ -408,17 +411,58 @@ def train(proj_info, hyp, opt, data_dict, tb_writer=None):
         mlc = np.concatenate(dataset.labels, 0)[:, 0].max()  # max label class
     elif task == 'classification':
         try:
-            from torchvision import datasets, transforms
-            transform = transforms.Compose(
+            # from torchvision import datasets, transforms
+            # train_transform = transforms.Compose(
+            #     [
+            #         transforms.Grayscale(num_output_channels=1),
+            #         transforms.Resize(imgsz),
+            #         transforms.CenterCrop(imgsz),
+            #         transforms.ToTensor(),
+            #         transforms.Normalize(mean=hyp['mean'], std=hyp['std']),
+            #     ]
+            # )
+            # dataset = datasets.ImageFolder(root=train_path, transform=train_transform)
+            import albumentations as A
+            from albumentations.pytorch import ToTensorV2
+            train_transform = A.Compose(
                 [
-                    transforms.Grayscale(num_output_channels=1),
-                    transforms.Resize(imgsz),
-                    transforms.CenterCrop(imgsz),
-                    transforms.ToTensor(),
-                    transforms.Normalize(mean=opt.mean, std=opt.std),
+                    # A.ToGray(p=1.0),
+                    A.Resize(height=imgsz, width=imgsz),
+                    A.Affine(rotate=hyp['rotate'], 
+                             scale=hyp['scale'],
+                             shear=hyp['shear'],
+                    ),
+                    A.OneOf(
+                        [
+                            A.ElasticTransform(
+                                p=hyp['elastic_tr']['p'],
+                                alpha=hyp['elastic_tr']['alpha'],
+                                sigma=hyp['elastic_tr']['sigma'],
+                            ),
+                            A.GridDistortion(
+                                p=hyp['grid_distr']['p'],
+                                num_steps=hyp['grid_distr']['step'],
+                                distort_limit=hyp['grid_distr']['distort_limit'],
+                            ),
+                            A.OpticalDistortion(
+                                p=hyp['optical_distr']['p'],
+                                distort_limit=hyp['optical_distr']['distort_limit'], 
+                                shift_limit=hyp['optical_distr']['shift_limit'], 
+                            ),
+                        ],
+                        p=hyp['one_of_tr_prob'],
+                    ),
+                    A.HorizontalFlip(p=hyp['hflip']),
+                    A.VerticalFlip(p=hyp['vflip']),
+                    A.Normalize(mean=hyp['mean'], std=hyp['std']),
+                    ToTensorV2(),
                 ]
             )
-            dataset = datasets.ImageFolder(train_path, transform=transform)
+            dataset = AlbumentationDatasetImageFolder(
+                root=train_path, 
+                transform=train_transform, 
+                ch=ch
+            )
             dataset_info = {}
             total_files_cnt = sum([len(f) for r,d,f in os.walk(train_path)])
             dataset_info['total'] = len(dataset.imgs)
@@ -485,7 +529,29 @@ def train(proj_info, hyp, opt, data_dict, tb_writer=None):
                 #         tb_writer.add_histogram('classes', c, 0)
         elif task == 'classification':
             try:
-                val_dataset = datasets.ImageFolder(test_path, transform=transform)
+                # val_transform = transforms.Compose(
+                #     [
+                #         transforms.Grayscale(num_output_channels=1),
+                #         transforms.Resize(imgsz),
+                #         transforms.CenterCrop(imgsz),
+                #         transforms.ToTensor(),
+                #         transforms.Normalize(mean=hyp['mean'], std=hyp['std']),
+                #     ]
+                # )
+                # val_dataset = datasets.ImageFolder(root=test_path, transform=val_transform)
+                val_transform = A.Compose(
+                    [
+                        # A.ToGray(p=1.0),
+                        A.Resize(height=imgsz, width=imgsz),
+                        A.Normalize(mean=hyp['mean'], std=hyp['std']),
+                        ToTensorV2(),
+                    ]
+                )
+                val_dataset = AlbumentationDatasetImageFolder(
+                    root=test_path, 
+                    transform=val_transform, 
+                    ch=ch
+                )
                 dataset_info = {}
                 total_files_cnt = sum([len(f) for r,d,f in os.walk(test_path)])
                 dataset_info['total'] = len(val_dataset.imgs)
@@ -551,7 +617,11 @@ def train(proj_info, hyp, opt, data_dict, tb_writer=None):
     # Loss function ------------------------------------------------------------
     if task == 'classification':
         if opt.loss_name == 'CE':
-            compute_loss = nn.CrossEntropyLoss(label_smoothing=0.1)
+            if opt.label_smoothing > 0.0:
+                ls_alpha = hyp['label_smoothing'] = opt.label_smoothing
+            else:
+                ls_alpha = 0.1
+            compute_loss = nn.CrossEntropyLoss(label_smoothing=ls_alpha) # 0.1
         elif opt.loss_name == 'FL':
             compute_loss = FocalLossCE()
         else:
@@ -571,7 +641,7 @@ def train(proj_info, hyp, opt, data_dict, tb_writer=None):
     # Ealry Stopper ------------------------------------------------------------
     # how many epochs could you be waiting for patiently 
     # although accuracy was not better?
-    patience_epochs = opt.patience if opt.patience else 10
+    patience_epochs = opt.patience if opt.patience else ''
     stopper, stop = EarlyStopping(patience=patience_epochs), False
 
     # Start training -----------------------------------------------------------
@@ -643,7 +713,6 @@ def train(proj_info, hyp, opt, data_dict, tb_writer=None):
         # progress bar
         pbar = enumerate(dataloader)
 
-        logger.info(('\n' + '%10s' * 8) % ('TrainEpoch', 'GPU_Mem', 'Box', 'Obj', 'Cls', 'Total', 'Labels', 'Img_Size'))
         # if rank in [-1, 0]:
         #     pbar = tqdm(pbar, total=nb)  # progress bar
 
@@ -651,6 +720,7 @@ def train(proj_info, hyp, opt, data_dict, tb_writer=None):
         # optimizer.zero_grad()
         # training batches start ===============================================
         if task == 'detection':
+            logger.info(('\n' + '%10s' * 8) % ('TrainEpoch', 'GPU_Mem', 'Box', 'Obj', 'Cls', 'Total', 'Labels', 'Img_Size'))
             for i, (imgs, targets, paths, _) in pbar:
                 logger.info(f"{i} {len(imgs)} imgs")
                 t_batch = time.time() #time_synchronized()
@@ -748,6 +818,7 @@ def train(proj_info, hyp, opt, data_dict, tb_writer=None):
                     #     wandb_logger.log({"Mosaics": [wandb_logger.wandb.Image(str(x), caption=x.name) for x in
                     #                                   save_dir.glob('train*.jpg') if x.exists()]})
         elif task == 'classification':
+            logger.info(('\n' + '%10s' * 6) % ('TrainEpoch', 'GPU_Mem', 'Batch', 'mLoss', 'mAcc', '=Right/All'))
             accumulated_imgs_cnt = 0
             tacc = 0
             for i, (imgs, targets) in pbar:
@@ -806,8 +877,8 @@ def train(proj_info, hyp, opt, data_dict, tb_writer=None):
                     macc = (macc * accumulated_imgs_cnt + acc) / (accumulated_imgs_cnt + len(imgs)) # mean train accuracy
                     tacc += acc.item()
                     accumulated_imgs_cnt += len(imgs)
-                    s = ('%10s' * 2 + '%10.4g' * 4) % (
-                        '%g/%g' % (epoch, epochs - 1), mem, mloss, macc, targets.shape[0], tacc) #imgs.shape[-1])
+                    s = ('%10s' * 2 + '%10.4g' * 3 + '%10s') % (
+                        '%g/%g' % (epoch, epochs - 1), mem, targets.shape[0], mloss, macc, '%g/%g' % (tacc, accumulated_imgs_cnt)) #imgs.shape[-1])
                     mloss_item = mloss.item()
                     macc_item = macc.item()
                     train_loss['epoch'] = epoch + 1
@@ -825,16 +896,8 @@ def train(proj_info, hyp, opt, data_dict, tb_writer=None):
                     status_update(userid, project_id,
                                   update_id="train_loss",
                                   update_content=train_loss)
-                    # Plot
-                    # if plots and ni < 10:
-                    #     f = save_dir / f'train_batch{ni}.jpg'  # filename
-                    #     Thread(target=plot_images, args=(imgs, targets, paths, f), daemon=True).start()
-                    #     if tb_writer:
-                    #         tb_writer.add_image(f, result, dataformats='HWC', global_step=epoch)
-                    #         tb_writer.add_graph(torch.jit.trace(model, imgs, strict=False), [])  # add model graph
-                    # elif plots and ni == 10 and wandb_logger.wandb:
-                    #     wandb_logger.log({"Mosaics": [wandb_logger.wandb.Image(str(x), caption=x.name) for x in
-                    #                                   save_dir.glob('train*.jpg') if x.exists()]})
+                    if len(dataloader) -1 == i:
+                        logger.info(f'{s}')
         # training batches end =================================================
 
         # Scheduler

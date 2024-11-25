@@ -647,16 +647,21 @@ def export_config(src, dst, data, base, device, engine, task='detection'):
                              'common/models/supernet_yolov7.py',
                              'common/models/my_modules.py',
                             ]
-    nn_dict['class_name'] = "Model(cfg='basemodel.yaml')"
+    if task == 'detection':
+        nn_dict['class_name'] = "Model(cfg='basemodel.yaml')"
+    elif task == 'classification':
+        nn_dict['class_name'] = "ClassifyModel(cfg='basemodel.yaml')"
     # nn_dict['label_info_file'] = None
     # nn_dict['vision_lib'] = None
     # nn_dict['norm'] = None
     # nn_dict['mean'] = None
     # nn_dict['output_format_allow_list'] = None
-    if anchors and (anchors != 'None'):
-        nn_dict['output_pred_format'] = ['x', 'y', 'w', 'h', 'confidence', 'probability_of_classes']
-    else:
-        nn_dict['output_pred_format'] = ['x', 'y', 'w', 'h', 'probability_of_classes']
+
+    if task == 'detection':
+        if anchors and (anchors != 'None'):
+            nn_dict['output_pred_format'] = ['x', 'y', 'w', 'h', 'confidence', 'probability_of_classes']
+        else:
+            nn_dict['output_pred_format'] = ['x', 'y', 'w', 'h', 'probability_of_classes']
 
     with open(dst, 'w') as f:
         yaml.dump(nn_dict, f, default_flow_style=False)

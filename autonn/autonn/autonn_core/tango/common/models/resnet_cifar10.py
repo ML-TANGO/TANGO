@@ -494,6 +494,7 @@ class ClassifyModel(nn.Module):
                 self.traced=False
 
             if profile:
+                import thop
                 o = thop.profile(m, inputs=x, verbose=False)[0] / 1E9 * 2 if thop else 0  # FLOPS
                 for _ in range(10):
                     m(x)

@@ -40,7 +40,7 @@ from tango.utils.general import (   check_requirements,
 from tango.utils.torch_utils import torch_distributed_zero_first
 
 # Parameters
-help_url = 'https://github.com/ultralytics/yolov5/wiki/Train-Custom-Data'
+help_url = 'https://github.com/ML-TANGO/TANGO/wiki'
 img_formats = ['bmp', 'jpg', 'jpeg', 'png', 'tif', 'tiff', 'dng', 'webp', 'mpo']  # acceptable image suffixes
 vid_formats = ['mov', 'avi', 'mp4', 'mpg', 'mpeg', 'm4v', 'wmv', 'mkv']  # acceptable video suffixes
 
@@ -911,6 +911,63 @@ class LoadDetectionData(Dataset):  # for training/testing
             l[:, 0] = i  # add target image index for build_targets()
         return torch.stack(img, 0), torch.cat(label, 0), path, shapes
 
+
+from typing import Any, Callable, cast, Dict, List, Optional, Tuple, Union
+from torchvision.datasets import DatasetFolder
+import cv2
+# IMG_EXTENSIONS = (".jpg", ".jpeg", ".png", ".ppm", ".bmp", ".pgm", ".tif", ".tiff", ".webp")
+
+def cv2_loader(path: str, ch: int) -> np.ndarray:
+    img = cv2.imread(path)
+    if ch == 1:
+        img = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+    else:
+        img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
+    return img
+
+def pil_loader(path: str) -> Image.Image:
+    # open path as file to avoid ResourceWarning (https://github.com/python-pillow/Pillow/issues/835)
+    with open(path, "rb") as f:
+        img = Image.open(f)
+        return img.convert("RGB")
+
+class AlbumentationDatasetImageFolder(DatasetFolder):
+    def __init__(
+        self,
+        root: Union[str, Path],
+        transform: Optional[Callable] = None,
+        target_transform: Optional[Callable] = None,
+        loader: Callable[[str], Any] = cv2_loader,
+        is_valid_file: Optional[Callable[[str], bool]] = None,
+        # allow_empty: bool = False,
+        ch: int = 3,
+    ):
+        super().__init__(
+            root,
+            loader,
+            img_formats if is_valid_file is None else None,
+            transform=transform,
+            target_transform=target_transform,
+            is_valid_file=is_valid_file,
+            # allow_empty=allow_empty,
+        )
+        self.imgs = self.samples
+        self.ch = ch
+
+    def __getitem__(self, index: int) -> Tuple[Any, Any]:
+        path, target = self.imgs[index]
+        img = self.loader(path, self.ch)
+        if self.transform is not None:
+            augmented = self.transform(image=img)
+            image = augmented['image']
+        if self.target_transform is not None:
+            target = self.target_transform(target)
+
+        return image, target
+
+    def __len__(self) -> int:
+        return len(self.imgs)
+
 # Ancillary functions --------------------------------------------------------------------------------------------------
 def load_image(self, index):
     # loads 1 image from dataset, returns img, original hw, resized hw
@@ -1263,6 +1320,51 @@ def letterbox(img, new_shape=(640, 640), color=(114, 114, 114), auto=True, scale
     return img, ratio, (dw, dh)
 
 
+def random_perspective_for_cls(img, degrees=10, translate=.1, scale=.1, shear=10, perspective=0.0, border=(0, 0)):
+    # torchvision.transforms.RandomAffine(degrees=(-10, 10), translate=(.1, .1), scale=(.9, 1.1), shear=(-10, 10))
+
+    height = img.shape[0] + border[0] * 2  # shape(h,w,c)
+    width = img.shape[1] + border[1] * 2
+
+    # Center
+    C = np.eye(3)
+    C[0, 2] = -img.shape[1] / 2  # x translation (pixels)
+    C[1, 2] = -img.shape[0] / 2  # y translation (pixels)
+
+    # Perspective
+    P = np.eye(3)
+    P[2, 0] = random.uniform(-perspective, perspective)  # x perspective (about y)
+    P[2, 1] = random.uniform(-perspective, perspective)  # y perspective (about x)
+
+    # Rotation and Scale
+    R = np.eye(3)
+    a = random.uniform(-degrees, degrees)
+    # a += random.choice([-180, -90, 0, 90])  # add 90deg rotations to small rotations
+    s = random.uniform(1 - scale, 1.1 + scale)
+    # s = 2 ** random.uniform(-scale, scale)
+    R[:2] = cv2.getRotationMatrix2D(angle=a, center=(0, 0), scale=s)
+
+    # Shear
+    S = np.eye(3)
+    S[0, 1] = math.tan(random.uniform(-shear, shear) * math.pi / 180)  # x shear (deg)
+    S[1, 0] = math.tan(random.uniform(-shear, shear) * math.pi / 180)  # y shear (deg)
+
+    # Translation
+    T = np.eye(3)
+    T[0, 2] = random.uniform(0.5 - translate, 0.5 + translate) * width  # x translation (pixels)
+    T[1, 2] = random.uniform(0.5 - translate, 0.5 + translate) * height  # y translation (pixels)
+
+    # Combined rotation matrix
+    M = T @ S @ R @ P @ C  # order of operations (right to left) is IMPORTANT
+    if (border[0] != 0) or (border[1] != 0) or (M != np.eye(3)).any():  # image changed
+        if perspective:
+            img = cv2.warpPerspective(img, M, dsize=(width, height), borderValue=(114, 114, 114))
+        else:  # affine
+            img = cv2.warpAffine(img, M[:2], dsize=(width, height), borderValue=(114, 114, 114))
+
+    return img
+
+
 def random_perspective(img, targets=(), segments=(), degrees=10, translate=.1, scale=.1, shear=10, perspective=0.0,
                        border=(0, 0)):
     # torchvision.transforms.RandomAffine(degrees=(-10, 10), translate=(.1, .1), scale=(.9, 1.1), shear=(-10, 10))
@@ -1463,6 +1565,7 @@ def pastein(image, labels, sample_labels, sample_images, sample_masks):
                     image[ymin:ymin+r_h, xmin:xmin+r_w] = temp_crop
 
     return labels
+
 
 class Albumentations:
     # YOLOv5 Albumentations class (optional, only used if package is installed)

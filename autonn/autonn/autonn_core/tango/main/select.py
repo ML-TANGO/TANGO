@@ -235,10 +235,25 @@ def get_user_requirements(userid, projid, resume=False):
     if os.path.isdir(str(DATASET_ROOT / dataset_on_proj)):
         dataset_yaml_path = DATASET_ROOT / dataset_on_proj / "dataset.yaml"
     else:
-        logger.warning(f"There is no {DATASET_ROOT}/{dataset_on_proj}. "
-                    f"Instead embedded COCO128 dataset will be used.")
-        dataset_on_proj = 'coco128'
-        dataset_yaml_path = CORE_DIR / 'datasets' / 'coco128' / 'dataset.yaml'
+        logger.warning(f"There is no {DATASET_ROOT}/{dataset_on_proj}. ")
+        if task == 'detection':
+            logger.info(f"Instead embedded COCO128 dataset will be used.")
+            dataset_on_proj = 'coco128'
+            dataset_yaml_path = CORE_DIR / 'datasets' / 'coco128' / 'dataset.yaml'
+    if not os.path.isfile(dataset_yaml_path):
+        logger.warning(f"Not found dataset.yaml")
+        if task == "classficiation":
+            logger.info(f"Try to make dataset.yaml from {DATASET_ROOT}/{dataset_on_proj}...")
+            import glob
+            dataset_dict = {}
+            dataset_dict['train'] = f'{str(DATASET_ROOT / dataset_on_proj / "train")}'
+            dataset_dict['val'] = f'{str(DATASET_ROOT / dataset_on_proj / "val")}'
+            dataset_dict['nc'] = 2
+            dataset_dict['ch'] = 1
+            dataset_dict['names'] = []
+            with open(dataset_yaml_path, "w") as f:
+                yaml.dump(dataset_dict, f)
+
     with open(dataset_yaml_path) as f:
         data_dict = yaml.load(f, Loader=yaml.SafeLoader)
     data_dict['dataset_name'] = dataset_on_proj
@@ -261,12 +276,16 @@ def get_user_requirements(userid, projid, resume=False):
                                                             data_dict)
     with open(basemodel_yaml_path, "r") as f:
         basemodel_dict = yaml.load(f, Loader=yaml.SafeLoader)
-    basemodel_dict['hyp'] = 'p5' if basemodel_dict['hyp'] == 'tiny' \
-                                 else basemodel_dict['hyp']
+    if task == 'detection':
+        basemodel_dict['hyp'] = 'p5' if basemodel_dict['hyp'] == 'tiny' \
+                                    else basemodel_dict['hyp']
+    else: # if task == 'classification'
+        basemodel_dict['hyp'] = 'cls'
     proj_info_dict['nas'] = True if basemodel['model_size'] == '-supernet' else False
 
     # --------------------------- hyperparameter -------------------------------
     hyp_yaml_path = CFG_PATH / f"hyp.scratch.{basemodel_dict['hyp']}.yaml"
+    logger.info(f'{colorstr("hyp: ")}hyperparameters from {hyp_yaml_path}')
     with open(hyp_yaml_path) as f:
         hyp_dict = yaml.safe_load(f)
     # hyp_dict['lrc'] = hyp_dict['lr0']
@@ -422,6 +441,7 @@ def base_model_select(userid, project_id, proj_info, data, manual_select=False):
 
 
 def backup_previous_work(model):
+    logger.info(f'!!! backup previous works !!!')
     m = Path(model)
     cur_dir = m.parent
     model_name = m.stem
@@ -628,9 +648,10 @@ def run_autonn(userid, project_id, resume=False, viz2code=False, nas=False, hpo=
     # export weights -----------------------------------------------------------
     target_engine = proj_info['engine']
     channel = data.get('ch')
-    convert = ['torchscript', 'onnx', 'pb', 'tflite', 'edgetpu']
+    if task == 'classification':
+        convert = ['torchscript', 'onnx']
     if task == 'detection':
-        convert.append('onnx_end2end')
+        convert = ['torchscript', 'onnx', 'onnx_end2end', 'pb', 'tflite', 'edgetpu']
     export_weight(train_final, target_acc, convert, task=task, ch=channel, imgsz=opt.img_size)
 
     # export meta file ---------------------------------------------------------
@@ -640,7 +661,10 @@ def run_autonn(userid, project_id, resume=False, viz2code=False, nas=False, hpo=
 
     # print model export summary -----------------------------------------------
     mb = os.path.getsize(train_final) / 1E6  # filesize
-    logger.info(f'Source Model = {train_final}({mb:.1f} MB), {results[3]} mAP')
+    if task == 'detection':
+        logger.info(f'Source Model = {train_final}({mb:.1f} MB), {results[3]} mAP')
+    elif task == 'classification':
+        logger.info(f'Source Model = {train_final}({mb:.1f} MB), val-accuracy = {results[0]}')
     logger.info('='*100)
     for model_type in convert:
         if model_type == 'onnx_end2end':
