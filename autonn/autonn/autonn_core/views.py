@@ -288,6 +288,8 @@ def stop(request):
         info = Info.objects.get(userid=userid, project_id=project_id)
         # print('GET/stop')
         # info.print()
+        process_done = PROCESSES.pop(str(info.process_id))
+        process_done.terminate()
         print(f'[AutoNN Get/stop] TODO: Delete all temporary files')
         # TODO: delete all temp. files at /shared/common/uid/pid/autonn/
     except Info.DoesNotExist:
@@ -416,6 +418,7 @@ def process_autonn(userid, project_id):
     #         torch.cuda.empty_cache()
     #     gc.collect()
 
+
 def get_process_id():
     """
     Assign a new random number into a process
@@ -427,6 +430,7 @@ def get_process_id():
         except KeyError:
             break
     return pr_num
+
 
 def synchronize_project_manager_db(user):
     infos = Info.objects.all()

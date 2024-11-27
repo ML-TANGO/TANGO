@@ -596,12 +596,12 @@ def run_autonn(userid, project_id, resume=False, viz2code=False, nas=False, hpo=
     '''
     cloud           : pytorch (torchscript)
     k8s             : pytorch (torchscript)
-    k8sjetsonnano   : tensorrt
+    k8sjetsonnano   : onnx -> tensorrt at target
     pcweb           : pytorch (torchscript)
     pc              : pytorch (torchscript)
-    jetsonagxorin   : tensorrt
-    jetsonagxxavier : tensorrt
-    jetsonnano      : tensorrt
+    jetsonagxorin   : onnx -> tensorrt at target
+    jetsonagxxavier : onnx -> tensorrt at target
+    jetsonnano      : onnx -> tensorrt at target
     galaxys22       : tflite
     raspberrypi     : edge-tpu tflite
     '''

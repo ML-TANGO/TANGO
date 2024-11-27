@@ -1803,13 +1803,14 @@ class ComputeLossTAL:
         self.reg_max = m.reg_max
         self.device = device
 
-        self.assigner = [TaskAlignedAssigner(num_classes=self.nc) for _ in range(self.nh)]
-        # self.assigner = TaskAlignedAssigner(topk=int(os.getenv('YOLOM', 10)),
-        #                                     num_classes=self.nc,
-        #                                     alpha=float(os.getenv('YOLOA', 0.5)),
-        #                                     beta=float(os.getenv('YOLOB', 6.0)))
-        self.bbox_loss = [BboxLoss(m.reg_max - 1, use_dfl=use_dfl).to(device) for _ in range(self.nh)]
-        # self.bbox_loss = BboxLoss(m.reg_max - 1, use_dfl=use_dfl).to(device)
+        self.assigner = [TaskAlignedAssigner(topk=10,
+                                             num_classes=self.nc,
+                                             alpha=0.5,
+                                             beta=6.0
+                                            ) for _ in range(self.nh)]
+        self.bbox_loss = [BboxLoss(m.reg_max - 1, 
+                                   use_dfl=use_dfl
+                                   ).to(device) for _ in range(self.nh)]
         self.proj = torch.arange(m.reg_max).float().to(device)  # / 120.0
         self.use_dfl = use_dfl
 
@@ -1843,17 +1844,18 @@ class ComputeLossTAL:
         feats, pred_distri, pred_scores = [], [], []
         for i in range(self.nh):
             _feats = p[1][i] if isinstance(p, tuple) else p[i]
-            _pred_distri, _pred_scores = torch.cat([xi.view(_feats[0].shape[0], self.no, -1) for xi in _feats], 2).split(
-                (self.reg_max * 4, self.nc), 1)
+            _pred_distri, _pred_scores = torch.cat([xi.view(_feats[0].shape[0], self.no, -1) for xi in _feats], 2).split((self.reg_max * 4, self.nc), 1)
             _pred_scores = _pred_scores.permute(0, 2, 1).contiguous()
             _pred_distri = _pred_distri.permute(0, 2, 1).contiguous()
             feats.append(_feats)
             pred_distri.append(_pred_distri)
             pred_scores.append(_pred_scores)
+
         dtype = pred_scores[0].dtype
         batch_size, grid_size = pred_scores[0].shape[:2]
         imgsz = torch.tensor(feats[0][0].shape[2:], device=self.device, dtype=dtype) * self.stride[0]  # image size (h,w)
         anchor_points, stride_tensor = make_anchors(feats[0], self.stride, 0.5)
+
         # targets
         targets = self.preprocess(targets, batch_size, scale_tensor=imgsz[[1, 0, 1, 0]])
         gt_labels, gt_bboxes = targets.split((1, 4), 2)  # cls, xyxy
@@ -1884,10 +1886,15 @@ class ComputeLossTAL:
 
         # cls loss
         # loss[2] = self.varifocal_loss(pred_scores, target_scores, target_labels) / target_scores_sum  # VFL way
-        factor = [0.25, 0.25, 1.0]
+        if self.nh == 1:
+            factor = [1.0]
+        if self.nh == 2:
+            factor = [0.25, 1.0]
+        elif self.nh == 3:
+            factor = [0.25, 0.25, 1.0]
         for i in range(self.nh):
             loss[2] += factor[i] * self.BCEcls(pred_scores[i], target_scores[i].to(dtype)).sum() / target_scores_sum[i]  # BCE
-        
+
         # bbox loss
         iou = []
         for i in range(self.nh):
@@ -1904,8 +1911,10 @@ class ComputeLossTAL:
                 iou.append(iou_)
         
         loss[0] *= 7.5  # box gain
-        loss[1] *= 1.5  # cls gain
-        loss[2] *= 0.5  # dfl gain
-        loss[3] = loss[0] + loss[1] + loss[2]
+        loss[1] *= 1.5  # dlf gain
+        loss[2] *= 0.5  # cls gain
+        # loss[3] = loss[0] + loss[1] + loss[2]
+        sum_loss = loss.sum()
+        loss[3] = sum_loss
 
-        return loss[3] * batch_size, loss.detach()  # loss(box, dlf, cls, total)
+        return sum_loss * batch_size, loss.detach()  # loss(box, dlf, cls, total)

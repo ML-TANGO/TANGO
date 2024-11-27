@@ -1,40 +1,62 @@
 # args.yaml for Yolov9 
+
+# base
 weights: ''
 cfg: ''
 data: ''
 hyp: ''
-epochs: 500
+epochs: 2
 batch_size: -1  # it'll be changed by auto-batch
 img_size: [640, 640]
-rect: False
-resume: False
-nosave: False
-notest: False
-noautoanchor: False
-evolve: False
-bucket: ''
-cache_images: False
-image_weights: False
 device: ''
+
+# transfer learning
+resume: False
+freeze: [0]
+
+# input images
+seed: 0
+rect: False
+quad: False
 multi_scale: False
 single_cls: False
-adam: False # optimizer
+image_weights: False
+
+# optimizer
+adam: False # optimizer: Adam or SGD
+linear_lr: True # schedular: cos_lr if False
+
+# speed
+cache_images: False
+nosave: False
+save_period: 1
+notest: False
+patience: 100
+
+# hpo
+evolve: False
+
+# loss/metric
+noautoanchor: False # check/recompute anchors if True, [note] useless for 'v9'
+metric: 'v5' # mAP metirc 'v5' / 'v7'
+loss_name: 'TAL' # anchor-free: TAL, anchor: OTA
+label_smoothing: 0.0
+
+# ddp
 sync_bn: False
 local_rank: -1
 workers: 8
+
+# save
+bucket: ''
 project: 'runs/train' # it must be changed to /shared/common/{uid}/{pid}
-entity: None
 name: 'autonn'
-exist_ok: True
-quad: False
-linear_lr: False
-label_smoothing: 0.0
-upload_dataset: False
-bbox_interval: -1
-save_period: -1
-artifact_alias: 'latest'
-freeze: [0]
-metric: 'v5' # metirc
-loss_name: 'TAL' # anchor-free: TAL, anchor: OTA
-seed: 1
-patience: 10
+exist_ok: True # make incremetal directory if False (e.g. autonn1, autonn2, ...)
+
+# logger (not use)
+# entity: None
+# upload_dataset: False
+# bbox_interval: -1
+# artifact_alias: 'latest'
+
+

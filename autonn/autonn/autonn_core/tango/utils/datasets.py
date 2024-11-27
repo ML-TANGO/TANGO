@@ -35,7 +35,8 @@ from tango.utils.general import (   check_requirements,
                                     segment2box,
                                     segments2boxes,
                                     resample_segments,
-                                    clean_str
+                                    clean_str,
+                                    colorstr,
                                 )
 from tango.utils.torch_utils import torch_distributed_zero_first
 
@@ -43,6 +44,13 @@ from tango.utils.torch_utils import torch_distributed_zero_first
 help_url = 'https://github.com/ML-TANGO/TANGO/wiki'
 img_formats = ['bmp', 'jpg', 'jpeg', 'png', 'tif', 'tiff', 'dng', 'webp', 'mpo']  # acceptable image suffixes
 vid_formats = ['mov', 'avi', 'mp4', 'mpg', 'mpeg', 'm4v', 'wmv', 'mkv']  # acceptable video suffixes
+GLOBAL_RANK = int(os.getenv('GLOBAL_RANK', -1))
+''' 
+Suppose we run our training in 2 nodes and each node has 4 GPUs. 
+- The WORLD_SIZE is 4*2=8. 
+- The GLOBAL_RANK for the processes will be [0, 1, 2, 3, 4, 5, 6, 7]. 
+- In each node, the LOCAL_RANK will be [0, 1, 2, 3].
+'''
 
 logger = logging.getLogger(__name__)
 
@@ -86,34 +94,63 @@ def create_rep_dataloader(path, imgsz, batch, stride):
     return rep_dataloader, rep_dataset
 
 
+def seed_worker(worker_id):
+    # https://pytorch.org/docs/stable/notes/randomness.html#dataloader
+    worker_seed = torch.initial_seed() % 2 ** 32
+    np.random.seed(worker_seed)
+    random.seed(worker_seed)
+
+
 def create_dataloader(uid, pid, path, imgsz, batch_size, stride, opt, hyp=None,
                       augment=False, cache=False, pad=0.0, rect=False,
                       rank=-1, world_size=1, workers=8, image_weights=False, quad=False,
                       prefix=''):
     # Make sure only the first process in DDP process the dataset first, and the following others can use the cache
     with torch_distributed_zero_first(rank):
-        dataset = LoadImagesAndLabels(uid, pid, path, imgsz, batch_size,
-                                      augment=augment,  # augment images
-                                      hyp=hyp,  # augmentation hyperparameters
-                                      rect=rect,  # rectangular training
-                                      cache_images=cache,
-                                      single_cls=opt.single_cls,
-                                      stride=int(stride),
-                                      pad=pad,
-                                      image_weights=image_weights,
-                                      prefix=prefix)
+        dataset = LoadImagesAndLabels(
+            uid, pid, 
+            path, imgsz, batch_size,
+            augment=augment,  # augment images
+            hyp=hyp,  # augmentation hyperparameters
+            rect=rect,  # rectangular training
+            cache_images=cache,
+            single_cls=opt.single_cls,
+            stride=int(stride),
+            pad=pad,
+            image_weights=image_weights,
+            prefix=prefix
+        )
 
     batch_size = min(batch_size, len(dataset))
+    nd = torch.cuda.device_count() # number of CUDA devices
     nw = min([os.cpu_count() // world_size, batch_size if batch_size > 1 else 0, workers])  # number of workers
+    logger.info(
+        f'cpu count : {os.cpu_count()}, '
+        f'cuda count: {nd}, '
+        f'local rank : {rank}, '
+        f'global rank: {GLOBAL_RANK}, '
+        f'world size : {world_size}'
+    )
     sampler = torch.utils.data.distributed.DistributedSampler(dataset) if rank != -1 else None
     loader = torch.utils.data.DataLoader if image_weights else InfiniteDataLoader
-    # Use torch.utils.data.DataLoader() if dataset.properties will update during training else InfiniteDataLoader()
-    dataloader = loader(dataset,
-                        batch_size=batch_size,
-                        num_workers=nw,
-                        sampler=sampler,
-                        pin_memory=False,
-                        collate_fn=LoadImagesAndLabels.collate_fn4 if quad else LoadImagesAndLabels.collate_fn)
+    generator = torch.manual_seed(6148914691236517205 + GLOBAL_RANK)
+    ''' https://discuss.pytorch.org/t/when-to-set-pin-memory-to-true/19723
+        If you load your samples in the Dataset on CPU
+        and would like to push it during training to the GPU, 
+        you can speed up the host to device transfer by enabling pin_memory.
+        This lets your DataLoader allocate the samples in page-locked memory, 
+        which speeds-up the transfer.
+    '''
+    dataloader = loader(
+        dataset,
+        batch_size=batch_size,
+        num_workers=nw,
+        sampler=sampler,
+        pin_memory=True, # False,
+        collate_fn=LoadImagesAndLabels.collate_fn4 if quad else LoadImagesAndLabels.collate_fn,
+        worker_init_fn=seed_worker,
+        generator=generator
+    )
     return dataloader, dataset
 
 
@@ -392,9 +429,8 @@ class LoadImagesAndLabels(Dataset):  # for training/testing
         self.mosaic = self.augment and not self.rect  # load 4 images at a time into a mosaic (only during training)
         self.mosaic_border = [-img_size // 2, -img_size // 2]
         self.stride = stride
-        self.path = path        
-        #self.albumentations = Albumentations() if augment else None
-
+        self.path = path
+        self.albumentations = AlbumentationsTransform(size=img_size) if augment else None
         try:
             f = []  # image files
             for p in path if isinstance(path, list) else [path]:
@@ -409,12 +445,12 @@ class LoadImagesAndLabels(Dataset):  # for training/testing
                         f += [x.replace('./', parent) if x.startswith('./') else x for x in t]  # local to global path
                         # f += [p.parent / x.lstrip(os.sep) for x in t]  # local to global path (pathlib)
                 else:
-                    raise Exception(f'{prefix}{p} does not exist')
+                    raise Exception(f'{colorstr(f"{prefix}_dataset: ")}{p} does not exist')
             self.img_files = sorted([x.replace('/', os.sep) for x in f if x.split('.')[-1].lower() in img_formats])
             # self.img_files = sorted([x for x in f if x.suffix[1:].lower() in img_formats])  # pathlib
-            assert self.img_files, f'{prefix}No images found'
+            assert self.img_files, f'{colorstr(f"{prefix}_dataset: ")}No images found'
         except Exception as e:
-            raise Exception(f'{prefix}Error loading data from {path}: {e}\nSee {help_url}')
+            raise Exception(f'{colorstr(f"{prefix}_dataset: ")}Error loading data from {path}: {e}\nSee {help_url}')
 
         # Check cache
         self.label_files = img2label_paths(self.img_files)  # labels
@@ -443,26 +479,46 @@ class LoadImagesAndLabels(Dataset):  # for training/testing
             status_update(self.userid, self.project_id,
                           update_id=f"{prefix}_dataset",
                           update_content=dataset_info)
-        assert nf > 0 or not augment, f'{prefix}No labels in {cache_path}. Can not train without labels. See {help_url}'
+        assert nf > 0 or not augment, f'{colorstr(f"{prefix}_dataset: ")}No labels in {cache_path}. Can not train without labels. See {help_url}'
 
         # Read cache
         cache.pop('hash')  # remove hash
         cache.pop('version')  # remove version
         labels, shapes, self.segments = zip(*cache.values())
         self.labels = list(labels)
-        self.shapes = np.array(shapes, dtype=np.float64)
+        self.shapes = np.array(shapes) #, dtype=np.float64)
         self.img_files = list(cache.keys())  # update
         self.label_files = img2label_paths(cache.keys())  # update
-        if single_cls:
-            for x in self.labels:
-                x[:, 0] = 0
 
-        n = len(shapes)  # number of images
+        # Filtering out non-labeled images
+        '''
+        include = np.array([len(x) > 0 for x in self.labels]).nonzero()[0].astype(int)
+        logger.info(f'{colorstr(f"{prefix}_dataset: ")}{n - len(include)} images filtered from dataset because they have no labels')
+        self.img_files = [self.img_files[i] for i in include]
+        self.label_files = [self.label_files[i] for i in include]
+        self.labels = [self.labels[i] for i in include]
+        self.segments = [self.segments[i] for i in include]
+        self.shapes = self.shapes[include]  # wh
+        '''
+        
+        n = len(self.shapes)  # number of images
         bi = np.floor(np.arange(n) / batch_size).astype(int)  # batch index
         nb = bi[-1] + 1  # number of batches
         self.batch = bi  # batch index of image
         self.n = n
         self.indices = range(n)
+
+        # Update labels
+        include_class = []  # filter labels to include only these classes (optional)
+        include_class_array = np.array(include_class).reshape(1, -1)
+        for i, (label, segment) in enumerate(zip(self.labels, self.segments)):
+            if include_class:
+                j = (label[:, 0:1] == include_class_array).any(1)
+                self.labels[i] = label[j]
+                if segment:
+                    self.segments[i] = segment[j]
+            if single_cls:  # single-class training, merge all classes into 0
+                self.labels[i][:, 0] = 0
 
         # Rectangular Training
         if self.rect:
@@ -485,7 +541,6 @@ class LoadImagesAndLabels(Dataset):  # for training/testing
                     shapes[i] = [maxi, 1]
                 elif mini > 1:
                     shapes[i] = [1, 1 / mini]
-
             self.batch_shapes = np.ceil(np.array(shapes) * img_size / stride + pad).astype(int) * stride
 
         # Cache images into memory for faster training (WARNING: large datasets may exceed system RAM)
@@ -508,18 +563,19 @@ class LoadImagesAndLabels(Dataset):  # for training/testing
                     else:
                         self.imgs[i], self.img_hw0[i], self.img_hw[i] = x
                         gb += self.imgs[i].nbytes
-                    pbar.desc = f'{prefix}Caching images ({gb / 1E9:.1f}GB)'
+                    pbar.desc = f'{colorstr(f"{prefix}_dataset: ")}Caching images ({gb / 1E9:.1f}GB)'
             pbar.close()
 
     def cache_labels(self, path=Path('./labels.cache'), prefix=''):
         # Cache dataset labels, check images and read shapes
         x = {}  # dict
         nm, nf, ne, nc = 0, 0, 0, 0  # number missing, found, empty, duplicate
-        # pbar = tqdm(zip(self.img_files, self.label_files), desc='Scanning images', total=len(self.img_files))
-        # for i, (im_file, lb_file) in enumerate(pbar):
         dataset_info = {}
         dataset_info['total'] = len(self.img_files)
-        logger.info(f'\nDataset_{prefix}: Scanning {path.parent / path.stem} images and labels... ')
+        logger.info(f'\n{colorstr(f"{prefix}_dataset: ")}Scanning {path.parent / path.stem} images and labels... ')
+        title_s =('%10s' * 4) % ('found', 'missing', 'empty', 'corrupted')
+        logger.info(title_s)
+
         for i, (im_file, lb_file) in enumerate(zip(self.img_files, self.label_files)):
             try:
                 # verify images
@@ -554,30 +610,28 @@ class LoadImagesAndLabels(Dataset):  # for training/testing
                 x[im_file] = [l, shape, segments]
             except Exception as e:
                 nc += 1
-                print(f'Dataset_{prefix}: WARNING: Ignoring corrupted image and/or label {im_file}: {e}')
+                logger.warning(f'{colorstr(f"{prefix}_dataset: ")}WARNING: Ignoring corrupted image and/or label {im_file}: {e}')
 
+            ten_percent_cnt = int((i+1)/len(self.img_files)*10+0.5)
+            bar = '|'+ '🟩'*ten_percent_cnt + ' '*(20-ten_percent_cnt*2)+'|'
+            s = f'{nf:10.0f}{nm:10.0f}{ne:10.0f}{nc:10.0f}'
+            s += (f'{bar} {(i+1)/len(self.img_files)*100:3.0f}% {i+1:6.0f}/{len(self.img_files):6.0f}')
             if (i+1) % 5000 == 0:
                 dataset_info['current'] = i+1
                 dataset_info['found'] = nf
                 dataset_info['missing'] = nm
                 dataset_info['empty'] = ne
                 dataset_info['corrupted'] = nc
-
+                logger.info(s)
                 status_update(self.userid, self.project_id,
                               update_id=f"{prefix}_dataset",
                               update_content=dataset_info)
 
-                logger.info(f'Dataset_{prefix}: {nf} found, {nm} missing, {ne} empty, {nc} corrupted')
-
-        #     pbar.desc = f"{prefix}Scanning '{path.parent / path.stem}' images and labels... " \
-        #                 f"{nf} found, {nm} missing, {ne} empty, {nc} corrupted"
-        # pbar.close()
-
         if nf == 0:
-            print(f'{prefix}WARNING: No labels found in {path}. See {help_url}')
+            logger.warning(f'{colorstr(f"{prefix}_dataset: ")}WARNING: No labels found in {path}. See {help_url}')
 
         x['hash'] = get_hash(self.label_files + self.img_files)
-        x['results'] = nf, nm, ne, nc, i + 1
+        x['results'] = nf, nm, ne, nc, len(self.img_files)
         x['version'] = 0.1  # cache version
         torch.save(x, path)  # save for next time
         # logging.info(f'{prefix}New cache created: {path}')
@@ -590,7 +644,7 @@ class LoadImagesAndLabels(Dataset):  # for training/testing
         status_update(self.userid, self.project_id,
                       update_id=f"{prefix}_dataset",
                       update_content=dataset_info)
-        logger.info(f'Dataset_{prefix}: Summary {i+1} total : '
+        logger.info(f'{colorstr(f"{prefix}_dataset: ")}Summary {i+1} total : '
                     f'{nf} found, {nm} missing, {ne} empty, {nc} corrupted')
         return x
 
@@ -608,7 +662,7 @@ class LoadImagesAndLabels(Dataset):  # for training/testing
 
         hyp = self.hyp
         mosaic = self.mosaic and random.random() < hyp['mosaic']
-        mosaic = False
+        # mosaic = False
         if mosaic:
             # Load mosaic
             if random.random() < 0.8:
@@ -915,7 +969,6 @@ class LoadDetectionData(Dataset):  # for training/testing
 from typing import Any, Callable, cast, Dict, List, Optional, Tuple, Union
 from torchvision.datasets import DatasetFolder
 import cv2
-# IMG_EXTENSIONS = (".jpg", ".jpeg", ".png", ".ppm", ".bmp", ".pgm", ".tif", ".tiff", ".webp")
 
 def cv2_loader(path: str, ch: int) -> np.ndarray:
     img = cv2.imread(path)
@@ -967,6 +1020,46 @@ class AlbumentationDatasetImageFolder(DatasetFolder):
 
     def __len__(self) -> int:
         return len(self.imgs)
+
+
+class AlbumentationsTransform:
+    def __init__(self, size=640):
+        self.transform = None
+        prefix = colorstr('albumentations: ')
+        try:
+            import albumentations as A
+
+            T = [
+                A.RandomResizedCrop(height=size, width=size, scale=(0.8, 1.0), ratio=(0.9, 1.11), p=0.0),
+                A.Blur(p=0.01),
+                A.MedianBlur(p=0.01),
+                A.ToGray(p=0.01),
+                A.CLAHE(p=0.01),
+                A.RandomBrightnessContrast(p=0.0),
+                A.RandomGamma(p=0.0),
+                A.ImageCompression(quality_lower=75, p=0.0)
+            ]  # transforms
+            self.transform = A.Compose(
+                T, 
+                bbox_params=A.BboxParams(format='yolo', label_fields=['class_labels'])
+            )
+
+            logger.info(prefix + ', '.join(f'{x}'.replace('always_apply=False, ', '') for x in T if x.p))
+        except ImportError:  # package not installed, skip
+            pass
+        except Exception as e:
+            logger.warning(f'{prefix}{e}')
+
+    def __call__(self, im, labels, p=1.0):
+        if self.transform and random.random() < p:
+            new = self.transform(
+                image=im, 
+                bboxes=labels[:, 1:], 
+                class_labels=labels[:, 0]
+            )  # transformed
+            im, labels = new['image'], np.array([[c, *b] for c, b in zip(new['class_labels'], new['bboxes'])])
+        return im, labels
+
 
 # Ancillary functions --------------------------------------------------------------------------------------------------
 def load_image(self, index):

@@ -148,28 +148,62 @@ def train(proj_info, hyp, opt, data_dict, tb_writer=None):
         exclude = []
 
         if task == 'classification':
-            model = ClassifyModel(opt.cfg or ckpt['model'].yaml, ch=ch, nc=nc).to(device)
+            model = ClassifyModel(
+                opt.cfg or ckpt['model'].yaml, 
+                ch=ch, 
+                nc=nc
+            ).to(device)
         elif task == 'detection':
             if nas or target == 'Galaxy_S22':
-                model = NASModel(opt.cfg or ckpt['model'].yaml, ch=ch, nc=nc, anchors=hyp.get('anchors')).to(device)  # create
+                model = NASModel(
+                    opt.cfg or ckpt['model'].yaml, 
+                    ch=ch, 
+                    nc=nc, 
+                    anchors=hyp.get('anchors')
+                ).to(device)  # create
             else:
-                model = Model(opt.cfg or ckpt['model'].yaml, ch=ch, nc=nc, anchors=hyp.get('anchors')).to(device)  # create
+                model = Model(
+                    opt.cfg or ckpt['model'].yaml, 
+                    ch=ch, 
+                    nc=nc, 
+                    anchors=hyp.get('anchors')
+                ).to(device)  # create
             exclude = ['anchor'] if (opt.cfg or hyp.get('anchors')) and not opt.resume else []  # exclude keys
 
-        logger.info(f'{colorstr("Models: ")}Loading and overwrite weights from the pretrained model...')
+        logger.info(f'{colorstr("Models: ")}'
+                    f'Loading and overwrite weights from the pretrained model...')
         state_dict = ckpt['model'].float().state_dict()  # to FP32
-        state_dict = intersect_dicts(state_dict, model.state_dict(), exclude=exclude)  # intersect
+        state_dict = intersect_dicts(
+            state_dict, 
+            model.state_dict(), 
+            exclude=exclude
+        )  # intersect
         model.load_state_dict(state_dict, strict=False)  # load
-        logger.info(f'{colorstr("Models: ")}Transferred {len(state_dict)}/{len(model.state_dict())} items from {weights}')  # report
+        logger.info(f'{colorstr("Models: ")}'
+                    f'Transferred {len(state_dict)}/{len(model.state_dict())} items from {weights}')  # report
     else:
         ''' learning from scratch '''
         if task == 'classification':
-            model = ClassifyModel(opt.cfg, ch=ch, nc=nc).to(device)
+            model = ClassifyModel(
+                opt.cfg, 
+                ch=ch, 
+                nc=nc
+            ).to(device)
         elif task == 'detection':
             if nas or target == 'Galaxy_S22':
-                model = NASModel(opt.cfg, ch=ch, nc=nc, anchors=hyp.get('anchors')).to(device)  # create
+                model = NASModel(
+                    opt.cfg, 
+                    ch=ch, 
+                    nc=nc, 
+                    anchors=hyp.get('anchors')
+                ).to(device)  # create
             else:
-                model = Model(opt.cfg, ch=ch, nc=nc, anchors=hyp.get('anchors')).to(device)  # create
+                model = Model(
+                    opt.cfg, 
+                    ch=ch, 
+                    nc=nc, 
+                    anchors=hyp.get('anchors')
+                ).to(device)  # create
     status_update(userid, project_id,
                   update_id="model",
                   update_content=model.nodes_info)
@@ -206,18 +240,21 @@ def train(proj_info, hyp, opt, data_dict, tb_writer=None):
     if opt.lt == 'incremental' and opt.weights:
         batch_size = opt.batch_size
     else:
-        autobatch_rst = get_batch_size_for_gpu( userid,
-                                            project_id,
-                                            model,
-                                            ch,
-                                            imgsz,
-                                            bs_factor,
-                                            amp_enabled=True,
-                                            max_search=True )
+        autobatch_rst = get_batch_size_for_gpu( 
+            userid,
+            project_id,
+            model,
+            ch,
+            imgsz,
+            bs_factor,
+            amp_enabled=True,
+            max_search=True 
+        )
         batch_size = int(autobatch_rst) # autobatch_rst = result * bs_factor * gpu_number
     
     batch_size = min(batch_size, server_gpu_mem*2)
-    logger.info(f'{colorstr("AutoBatch: ")}Limit batch size {batch_size} (up to 2 x GPU memory {server_gpu_mem}G)')
+    logger.info(f'{colorstr("AutoBatch: ")}'
+                f'Limit batch size {batch_size} (up to 2 x GPU memory {server_gpu_mem}G)')
 
     if opt.local_rank != -1: # DDP mode
         logger.info(f'LOCAL RANK is not -1; Multi-GPU training')
@@ -266,58 +303,58 @@ def train(proj_info, hyp, opt, data_dict, tb_writer=None):
         elif hasattr(v, 'weight') and isinstance(v.weight, nn.Parameter):
             pg1.append(v.weight)  # apply decay
         if hasattr(v, 'im'):
-            if hasattr(v.im, 'implicit'):           
+            if hasattr(v.im, 'implicit'):
                 pg0.append(v.im.implicit)
             else:
                 for iv in v.im:
                     pg0.append(iv.implicit)
         if hasattr(v, 'imc'):
-            if hasattr(v.imc, 'implicit'):           
+            if hasattr(v.imc, 'implicit'):
                 pg0.append(v.imc.implicit)
             else:
                 for iv in v.imc:
                     pg0.append(iv.implicit)
         if hasattr(v, 'imb'):
-            if hasattr(v.imb, 'implicit'):           
+            if hasattr(v.imb, 'implicit'):
                 pg0.append(v.imb.implicit)
             else:
                 for iv in v.imb:
                     pg0.append(iv.implicit)
         if hasattr(v, 'imo'):
-            if hasattr(v.imo, 'implicit'):           
+            if hasattr(v.imo, 'implicit'):
                 pg0.append(v.imo.implicit)
             else:
                 for iv in v.imo:
                     pg0.append(iv.implicit)
         if hasattr(v, 'ia'):
-            if hasattr(v.ia, 'implicit'):           
+            if hasattr(v.ia, 'implicit'):
                 pg0.append(v.ia.implicit)
             else:
                 for iv in v.ia:
                     pg0.append(iv.implicit)
         if hasattr(v, 'attn'):
-            if hasattr(v.attn, 'logit_scale'):   
+            if hasattr(v.attn, 'logit_scale'):
                 pg0.append(v.attn.logit_scale)
-            if hasattr(v.attn, 'q_bias'):   
+            if hasattr(v.attn, 'q_bias'):
                 pg0.append(v.attn.q_bias)
-            if hasattr(v.attn, 'v_bias'):  
+            if hasattr(v.attn, 'v_bias'):
                 pg0.append(v.attn.v_bias)
-            if hasattr(v.attn, 'relative_position_bias_table'):  
+            if hasattr(v.attn, 'relative_position_bias_table'):
                 pg0.append(v.attn.relative_position_bias_table)
         if hasattr(v, 'rbr_dense'):
-            if hasattr(v.rbr_dense, 'weight_rbr_origin'):  
+            if hasattr(v.rbr_dense, 'weight_rbr_origin'):
                 pg0.append(v.rbr_dense.weight_rbr_origin)
-            if hasattr(v.rbr_dense, 'weight_rbr_avg_conv'): 
+            if hasattr(v.rbr_dense, 'weight_rbr_avg_conv'):
                 pg0.append(v.rbr_dense.weight_rbr_avg_conv)
-            if hasattr(v.rbr_dense, 'weight_rbr_pfir_conv'):  
+            if hasattr(v.rbr_dense, 'weight_rbr_pfir_conv'):
                 pg0.append(v.rbr_dense.weight_rbr_pfir_conv)
-            if hasattr(v.rbr_dense, 'weight_rbr_1x1_kxk_idconv1'): 
+            if hasattr(v.rbr_dense, 'weight_rbr_1x1_kxk_idconv1'):
                 pg0.append(v.rbr_dense.weight_rbr_1x1_kxk_idconv1)
-            if hasattr(v.rbr_dense, 'weight_rbr_1x1_kxk_conv2'):   
+            if hasattr(v.rbr_dense, 'weight_rbr_1x1_kxk_conv2'):
                 pg0.append(v.rbr_dense.weight_rbr_1x1_kxk_conv2)
-            if hasattr(v.rbr_dense, 'weight_rbr_gconv_dw'):   
+            if hasattr(v.rbr_dense, 'weight_rbr_gconv_dw'):
                 pg0.append(v.rbr_dense.weight_rbr_gconv_dw)
-            if hasattr(v.rbr_dense, 'weight_rbr_gconv_pw'):   
+            if hasattr(v.rbr_dense, 'weight_rbr_gconv_pw'):
                 pg0.append(v.rbr_dense.weight_rbr_gconv_pw)
             if hasattr(v.rbr_dense, 'vector'):   
                 pg0.append(v.rbr_dense.vector)
@@ -339,7 +376,7 @@ def train(proj_info, hyp, opt, data_dict, tb_writer=None):
     # https://arxiv.org/pdf/1812.01187.pdf
     # https://pytorch.org/docs/stable/_modules/torch/optim/lr_scheduler.html#OneCycleLR
     if opt.linear_lr:
-        lf = lambda x: (1 - x / (epochs - 1)) * (1.0 - hyp['lrf']) + hyp['lrf']  # linear
+        lf = lambda x: (1 - x / epochs) * (1.0 - hyp['lrf']) + hyp['lrf']  # linear
     else:
         lf = one_cycle(1, hyp['lrf'], epochs)  # cosine 1->hyp['lrf']
     scheduler = lr_scheduler.LambdaLR(optimizer, lr_lambda=lf)
@@ -388,26 +425,26 @@ def train(proj_info, hyp, opt, data_dict, tb_writer=None):
         logger.info('Using SyncBatchNorm()')
 
     # TrainDataloader ----------------------------------------------------------
-    # dataloader = None
     if task == 'detection':
         dataloader, dataset = create_dataloader(
-                                            userid,
-                                            project_id,
-                                            train_path,
-                                            imgsz,
-                                            batch_size // opt.world_size,
-                                            gs, # stride
-                                            opt,
-                                            hyp=hyp,
-                                            augment=True,
-                                            cache=opt.cache_images,
-                                            rect=opt.rect,
-                                            rank=rank,
-                                            world_size=opt.world_size,
-                                            workers=opt.workers,
-                                            image_weights=opt.image_weights,
-                                            quad=opt.quad,
-                                            prefix='train')
+            userid,
+            project_id,
+            train_path,
+            imgsz,
+            batch_size // opt.world_size,
+            gs, # stride
+            opt, # single_cls
+            hyp=hyp,
+            augment=True,
+            cache=opt.cache_images,
+            rect=opt.rect,
+            rank=rank,
+            world_size=opt.world_size,
+            workers=opt.workers,
+            image_weights=opt.image_weights,
+            quad=opt.quad,
+            prefix='train'
+        )
         mlc = np.concatenate(dataset.labels, 0)[:, 0].max()  # max label class
     elif task == 'classification':
         try:
@@ -496,21 +533,22 @@ def train(proj_info, hyp, opt, data_dict, tb_writer=None):
     if rank in [-1, 0]:
         if task == 'detection':
             testloader = create_dataloader(
-                                       userid,
-                                       project_id,
-                                       test_path,
-                                       imgsz_test,
-                                       batch_size // opt.world_size,
-                                       gs,
-                                       opt,
-                                       hyp=hyp,
-                                       cache=opt.cache_images and not opt.notest,
-                                       rect=True,
-                                       rank=-1,
-                                       world_size=opt.world_size,
-                                       workers=opt.workers,
-                                       pad=0.5,
-                                       prefix='val')[0]
+                userid,
+                project_id,
+                test_path,
+                imgsz_test,
+                batch_size // opt.world_size, # * 2 may lead out-of-memory
+                gs, # stride
+                opt, # single_cls
+                hyp=hyp,
+                cache=opt.cache_images and not opt.notest,
+                rect=True,
+                rank=-1,
+                world_size=opt.world_size,
+                workers=opt.workers * 2,
+                pad=0.5,
+                prefix='val'
+            )[0]
 
             if not opt.resume:
                 labels = np.concatenate(dataset.labels, 0)
@@ -625,7 +663,7 @@ def train(proj_info, hyp, opt, data_dict, tb_writer=None):
         elif opt.loss_name == 'FL':
             compute_loss = FocalLossCE()
         else:
-            logger.warn(f'not supported loss function {opt.loss_name}')
+            logger.warning(f'not supported loss function {opt.loss_name}')
     else: # if task == 'detection':
         if opt.loss_name == 'TAL':
             compute_loss = ComputeLossTAL(model)
@@ -713,16 +751,32 @@ def train(proj_info, hyp, opt, data_dict, tb_writer=None):
         # progress bar
         pbar = enumerate(dataloader)
 
+        # class TqdmLogger:
+        #     def __init__(self, logger: logging.Logger):
+        #         self.logger = logger
+        #     def write(self, msg: str) -> None:
+        #         self.logger.info(msg.lstrip("\r"))
+        #     def flush(self) -> None:
+        #         pass
+    
+        # TQDM_BAR_FORMAT = '{l_bar}{bar:10}| {n_fmt}/{total_fmt} {elapsed}'
+
         # if rank in [-1, 0]:
-        #     pbar = tqdm(pbar, total=nb)  # progress bar
+        #     pbar = tqdm(
+        #         pbar, 
+        #         total=nb, 
+        #         file=TqdmLogger(logger),
+        #         maxinterval=10,
+        #         bar_format=TQDM_BAR_FORMAT,
+        #         ascii=True
+        #     )  # progress bar
 
         train_loss = {}
         # optimizer.zero_grad()
         # training batches start ===============================================
         if task == 'detection':
-            logger.info(('\n' + '%10s' * 8) % ('TrainEpoch', 'GPU_Mem', 'Box', 'Obj', 'Cls', 'Total', 'Labels', 'Img_Size'))
             for i, (imgs, targets, paths, _) in pbar:
-                logger.info(f"{i} {len(imgs)} imgs")
+                # logger.info(f"{i} {len(imgs)} imgs")
                 t_batch = time.time() #time_synchronized()
                 ni = i + nb * epoch  # number integrated batches (since train start)
                 imgs = imgs.to(device, non_blocking=True).float() / 255.0  # uint8 to float32, 0-255 to 0.0-1.0
@@ -756,7 +810,7 @@ def train(proj_info, hyp, opt, data_dict, tb_writer=None):
                 optimizer.zero_grad()
                 with amp.autocast(enabled=cuda):
                     pred = model(imgs)  # forward
-                    logger.info('-'*100)
+                    # logger.info('-'*100)
                     # if 'loss_ota' not in hyp or hyp['loss_ota'] == 1:
                     if 'OTA' in opt.loss_name: #opt.loss_name == 'OTA':
                         loss, loss_items = compute_loss_ota(pred, targets.to(device), imgs)  # loss scaled by batch_size
@@ -806,7 +860,20 @@ def train(proj_info, hyp, opt, data_dict, tb_writer=None):
                     status_update(userid, project_id,
                                   update_id="train_loss",
                                   update_content=train_loss)
-                    logger.info(f'{s}')
+                    ten_percent_cnt = int((i+1)/nb*10+0.5)
+                    bar = '|'+ '🟩'*ten_percent_cnt + ' '*(20-ten_percent_cnt*2)+'|'
+                    s += (f'{bar}{(i+1)/nb*100:3.0f}% {i+1:4.0f}/{nb:4.0f}')
+                    if opt.loss_name == 'TAL':
+                        title_s = ('%10s' * 8) % (
+                            'Epoch', 'GPU_Mem', 'box_loss', 'dfl_loss', 'cls_loss', 'loss_sum', 'Labels', 'Img_Size'
+                        )
+                    else:
+                        title_s = ('%10s' * 8) % (
+                            'Epoch', 'GPU_Mem', 'Box', 'Obj', 'Cls', 'Total', 'Labels', 'Img_Size'
+                        )                        
+                    if (i % 50) == 0:
+                        logger.info(title_s)
+                    logger.info(s)
                     # Plot
                     # if plots and ni < 10:
                     #     f = save_dir / f'train_batch{ni}.jpg'  # filename
@@ -818,7 +885,7 @@ def train(proj_info, hyp, opt, data_dict, tb_writer=None):
                     #     wandb_logger.log({"Mosaics": [wandb_logger.wandb.Image(str(x), caption=x.name) for x in
                     #                                   save_dir.glob('train*.jpg') if x.exists()]})
         elif task == 'classification':
-            logger.info(('\n' + '%10s' * 6) % ('TrainEpoch', 'GPU_Mem', 'Batch', 'mLoss', 'mAcc', '=Right/All'))
+            logger.info(('\n' + '%10s' * 6) % ('TrainEpoch', 'GPU_Mem', 'Batch', 'mLoss', 'mAcc', '=curr/all'))
             accumulated_imgs_cnt = 0
             tacc = 0
             for i, (imgs, targets) in pbar:
@@ -923,35 +990,39 @@ def train(proj_info, hyp, opt, data_dict, tb_writer=None):
                     # results: tuple    (mp, mr, map50, map, box, obj, cls)
                     # maps: numpy array (ap0, ap1, ..., ap79)  : mAP per cls
                     # times: tuple      (inf, nms, total, imgsz, imgsz, batchsz)
-                    results, maps, times = test.test(proj_info,
-                                                     data_dict,
-                                                     batch_size=batch_size // opt.world_size, # multiplying by 2 may cause out of gpu memory
-                                                     imgsz=imgsz_test,
-                                                     model=ema.ema,
-                                                     single_cls=opt.single_cls,
-                                                     dataloader=testloader,
-                                                     save_dir=save_dir,
-                                                     verbose=nc < 50 and final_epoch,
-                                                     plots=plots and final_epoch,
-                                                     # wandb_logger=wandb_logger,
-                                                     half_precision=True,
-                                                     compute_loss=compute_loss,
-                                                     is_coco=is_coco,
-                                                     metric=opt.metric)
+                    results, maps, times = test.test(
+                        proj_info,
+                        data_dict,
+                        batch_size=batch_size // opt.world_size, # multiplying by 2 may cause out of gpu memory
+                        imgsz=imgsz_test,
+                        model=ema.ema,
+                        single_cls=opt.single_cls,
+                        dataloader=testloader,
+                        save_dir=save_dir,
+                        verbose=nc < 50 and final_epoch,
+                        plots=plots and final_epoch,
+                        # wandb_logger=wandb_logger,
+                        half_precision=True,
+                        compute_loss=compute_loss,
+                        is_coco=is_coco,
+                        metric=opt.metric
+                    )
                 elif task == 'classification':
                     # results: tuple - (val_accuracy, val_loss)
                     # times:   float - total
-                    results, times = test.test_cls(proj_info,
-                                                   data_dict,
-                                                   batch_size=batch_size,
-                                                   imgsz=imgsz_test,
-                                                   model=ema.ema,
-                                                   dataloader=testloader,
-                                                   save_dir=save_dir,
-                                                   verbose=nc < 50 and final_epoch,
-                                                   plots=False, #plots and final_epoch,
-                                                   compute_loss=compute_loss,
-                                                   half_precision=True)
+                    results, times = test.test_cls(
+                        proj_info,
+                        data_dict,
+                        batch_size=batch_size,
+                        imgsz=imgsz_test,
+                        model=ema.ema,
+                        dataloader=testloader,
+                        save_dir=save_dir,
+                        verbose=nc < 50 and final_epoch,
+                        plots=False, #plots and final_epoch,
+                        compute_loss=compute_loss,
+                        half_precision=True
+                    )
 
             # Write
             with open(results_file, 'a') as f:
