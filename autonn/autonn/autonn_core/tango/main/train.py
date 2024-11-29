@@ -839,10 +839,13 @@ def train(proj_info, hyp, opt, data_dict, tb_writer=None):
                 # Report & Plot(option)
                 if rank in [-1, 0]:
                     mem = '%.3gG' % (torch.cuda.memory_reserved() / 1E9 if torch.cuda.is_available() else 0)  # (GB)
-
                     mloss = (mloss * i + loss_items) / (i + 1)  # update mean losses
-                    s = ('%10s' * 2 + '%10.4g' * 6) % (
-                        '%g/%g' % (epoch, epochs - 1), mem, *mloss, targets.shape[0], imgs.shape[-1])
+
+                    s = ('%10s' * 2 + '%10.4f' * 4 + '%10.0f' * 2) % (
+                        '%g/%g' % (epoch, epochs - 1), mem,         # epoch/total, gpu_mem
+                        *mloss, targets.shape[0], imgs.shape[-1]    # box, dfl or obj, cls, total, labels, imgsz
+                    )
+
                     # pbar.set_description(s)
                     mloss_list = mloss.to('cpu').numpy().tolist()
                     train_loss['epoch'] = epoch + 1
@@ -862,18 +865,18 @@ def train(proj_info, hyp, opt, data_dict, tb_writer=None):
                                   update_content=train_loss)
                     ten_percent_cnt = int((i+1)/nb*10+0.5)
                     bar = '|'+ '🟩'*ten_percent_cnt + ' '*(20-ten_percent_cnt*2)+'|'
-                    s += (f'{bar}{(i+1)/nb*100:3.0f}% {i+1:4.0f}/{nb:4.0f}')
-                    if opt.loss_name == 'TAL':
+                    content_s = s + (f'{bar}{(i+1)/nb*100:3.0f}% {i+1:4.0f}/{nb:4.0f}')
+                    if opt.loss_name == 'TAL': # v9
                         title_s = ('%10s' * 8) % (
-                            'Epoch', 'GPU_Mem', 'box_loss', 'dfl_loss', 'cls_loss', 'loss_sum', 'Labels', 'Img_Size'
+                            'Epoch', 'GPU_Mem', 'Box', 'Dfl', 'Cls', 'Total', 'Labels', 'Img_Size'
                         )
-                    else:
+                    else: # v7
                         title_s = ('%10s' * 8) % (
                             'Epoch', 'GPU_Mem', 'Box', 'Obj', 'Cls', 'Total', 'Labels', 'Img_Size'
-                        )                        
+                        )
                     if (i % 50) == 0:
                         logger.info(title_s)
-                    logger.info(s)
+                    logger.info(content_s)
                     # Plot
                     # if plots and ni < 10:
                     #     f = save_dir / f'train_batch{ni}.jpg'  # filename
@@ -944,8 +947,13 @@ def train(proj_info, hyp, opt, data_dict, tb_writer=None):
                     macc = (macc * accumulated_imgs_cnt + acc) / (accumulated_imgs_cnt + len(imgs)) # mean train accuracy
                     tacc += acc.item()
                     accumulated_imgs_cnt += len(imgs)
+
                     s = ('%10s' * 2 + '%10.4g' * 3 + '%10s') % (
-                        '%g/%g' % (epoch, epochs - 1), mem, targets.shape[0], mloss, macc, '%g/%g' % (tacc, accumulated_imgs_cnt)) #imgs.shape[-1])
+                        '%g/%g' % (epoch, epochs - 1), mem,     # epoch/total, gpu_mem
+                        targets.shape[0], mloss, macc,          # labels, loss, acc
+                        '%g/%g' % (tacc, accumulated_imgs_cnt)  # correct/all
+                    ) #imgs.shape[-1])
+
                     mloss_item = mloss.item()
                     macc_item = macc.item()
                     train_loss['epoch'] = epoch + 1
@@ -1027,18 +1035,24 @@ def train(proj_info, hyp, opt, data_dict, tb_writer=None):
             # Write
             with open(results_file, 'a') as f:
                 if task == 'detection':
-                    f.write(s + '%10.4g' * 7 % results + '\n')  # append metrics, val_loss
+                    f.write(s + '%10.4f' * 7 % results + '\n')  # append metrics, val_loss
                 elif task == 'classification':
-                    f.write(s + '%10.4g' * 2 % results + '\n') # append val_acc, val_loss
+                    f.write(s + '%10.4f' * 2 % results + '\n') # append val_acc, val_loss
             if len(opt.name) and opt.bucket:
                 os.system('gsutil cp %s gs://%s/results/results%s.txt' % (results_file, opt.bucket, opt.name))
 
             # Log
             if task == 'detection':
-                tags = ['train/box_loss', 'train/obj_loss', 'train/cls_loss',  # train loss
-                        'metrics/precision', 'metrics/recall', 'metrics/mAP_0.5', 'metrics/mAP_0.5_0.95',
-                        'val/box_loss', 'val/obj_loss', 'val/cls_loss',  # val loss
-                        'x/lr0', 'x/lr1', 'x/lr2']  # params
+                if opt.loss_name == 'TAL': # v9
+                    tags = ['train/box_loss', 'train/dfl_loss', 'train/cls_loss',  # train loss
+                            'metrics/precision', 'metrics/recall', 'metrics/mAP_0.5', 'metrics/mAP_0.5_0.95',
+                            'val/box_loss', 'val/obj_loss', 'val/cls_loss',  # val loss
+                            'x/lr0', 'x/lr1', 'x/lr2']  # params
+                else: # v7
+                    tags = ['train/box_loss', 'train/obj_loss', 'train/cls_loss',  # train loss
+                            'metrics/precision', 'metrics/recall', 'metrics/mAP_0.5', 'metrics/mAP_0.5_0.95',
+                            'val/box_loss', 'val/obj_loss', 'val/cls_loss',  # val loss
+                            'x/lr0', 'x/lr1', 'x/lr2']  # params
                 zip_list = list(mloss[:-1]) + list(results) + lr
             elif task == 'classification':
                 tags = ['train/acc', 'train/loss', # train accurarcy and loss
@@ -1142,7 +1156,7 @@ def train(proj_info, hyp, opt, data_dict, tb_writer=None):
         # Plots ----------------------------------------------------------------
         if plots:
             if task == 'detection':
-                plot_results(save_dir=save_dir)  # save as results.png
+                plot_results(save_dir=save_dir, use_dfl=True if opt.loss_name == 'TAL' else False)
                 # if wandb_logger.wandb:
                 #     files = ['results.png', 'confusion_matrix.png', *[f'{x}_curve.png' for x in ('F1', 'PR', 'P', 'R')]]
                 #     wandb_logger.log({"Results": [wandb_logger.wandb.Image(str(save_dir / f), caption=f) for f in files

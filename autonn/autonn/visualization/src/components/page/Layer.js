@@ -130,13 +130,15 @@ function LayerList() {
   useEffect(() => {
     const get_params = async () => {
       try {
-        await axios
-          .get("/api/node/".concat(String(idState)).concat("/"))
-          .then((response) => {
-            setParam(response.data.parameters);
-          });
+        if (String(idState) != "") {
+          await axios
+            .get("/api/node/".concat(String(idState)).concat("/"))
+            .then((response) => {
+              setParam(response.data.parameters);
+            });
+        }
       } catch (error) {
-        console.error(error);
+        // console.error(error); // do nothing....
       }
     };
     get_params();

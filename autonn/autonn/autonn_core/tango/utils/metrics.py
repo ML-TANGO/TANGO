@@ -41,7 +41,7 @@ def ap_per_class(tp, conf, pred_cls, target_cls, metric='v5', plot=False, save_d
     tp, conf, pred_cls = tp[i], conf[i], pred_cls[i]
 
     # Find unique classes
-    unique_classes = np.unique(target_cls)
+    unique_classes, nt = np.unique(target_cls, return_counts=True)
     nc = unique_classes.shape[0]  # number of classes, number of detections
 
     # print(f"====shape=======")
@@ -56,7 +56,7 @@ def ap_per_class(tp, conf, pred_cls, target_cls, metric='v5', plot=False, save_d
     ap, p, r = np.zeros((nc, tp.shape[1])), np.zeros((nc, 1000)), np.zeros((nc, 1000))
     for ci, c in enumerate(unique_classes):
         i = pred_cls == c
-        n_l = (target_cls == c).sum()  # number of labels
+        n_l = nt[ci] # (target_cls == c).sum()  # number of labels
         n_p = i.sum()  # number of predictions
 
         if n_p == 0 or n_l == 0:
@@ -82,6 +82,8 @@ def ap_per_class(tp, conf, pred_cls, target_cls, metric='v5', plot=False, save_d
 
     # Compute F1 (harmonic mean of precision and recall)
     f1 = 2 * p * r / (p + r + 1e-16)
+    names = [v for k,v in names.items() if k in unique_classes]
+    names = dict(enumerate(names))
     # if plot:
     #     plot_pr_curve(px, py, ap, Path(save_dir) / 'PR_curve.png', names)
     #     plot_mc_curve(px, f1, Path(save_dir) / 'F1_curve.png', names, ylabel='F1')
@@ -90,6 +92,9 @@ def ap_per_class(tp, conf, pred_cls, target_cls, metric='v5', plot=False, save_d
 
     # i = f1.mean(0).argmax()  # max F1 index
     i = smooth(f1.mean(0), 0.1).argmax()  # max F1 index
+    # p, r, f1 = p[:, i], r[:, i], f1[:, i] # precision, recall, f1(harmonic mean)
+    # tp = (r * nt).round() # true positive
+    # fp = (tp / (p + 1e-16) - tp).round() # false positive
     return p[:, i], r[:, i], ap, f1[:, i], unique_classes.astype('int32')
 
 

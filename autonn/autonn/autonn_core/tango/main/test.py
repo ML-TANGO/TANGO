@@ -78,10 +78,9 @@ def report_progress(userid,
                     update_content=val_acc)
 
     # Print 
-    pf_t = '%20s' + '%12s' * 6
-    title = ('Class', 'Images', 'Labels', 'P', 'R', 'mAP@.5', 'mAP@.5:.95')
-    logger.info('')
-    logger.info(pf_t % title)
+    # pf_t = '%20s' + '%12s' * 6
+    # title = ('Class', 'Images', 'Labels', 'P', 'R', 'mAP@.5', 'mAP@.5:.95')
+    # logger.info(pf_t % title)
 
     pf_c = '%20s' + '%12i' * 2 + '%12.3g' *4
     content = ('all', seen, label_cnt, _mp, _mr, _map50, _map)
@@ -118,16 +117,16 @@ def test(proj_info,
          imgsz=640,
          conf_thres=0.001, # for NMS
          iou_thres=0.7,  # for NMS
-         save_json=False,
          single_cls=False,
          augment=False,
          verbose=False,
          model=None,
          dataloader=None,
-         save_dir=Path(''),  # for saving images
+         save_dir=Path(''),  # for saving results
          save_txt=False,  # for auto-labelling
          save_hybrid=False,  # for hybrid auto-labelling
          save_conf=False,  # save auto-label confidences
+         save_json=False, # save json; with it, measuring metrics using pycocotool
          plots=True,
          # wandb_logger=None,
          compute_loss=None,
@@ -230,8 +229,12 @@ def test(proj_info,
     p, r, f1, mp, mr, map50, map  = 0., 0., 0., 0., 0., 0., 0. # mean accuracy
     t, t0, t1, t2 = 0., 0., 0., 0. # latency
     loss = torch.zeros(3, device=device) # loss
-    jdict, stats, ap, ap_class = [], [], [], [] # accuaracy
+    jdict, stats, ap, ap_class = [], [], [], [] # accuracy
     
+    pf_t = '%20s' + '%12s' * 6
+    title = ('Class', 'Images', 'Labels', 'P', 'R', 'mAP@.5', 'mAP@.5:.95')
+    logger.info(pf_t % title)
+
     # for batch_i, (img, targets, paths, shapes) in enumerate(tqdm(dataloader, desc=s)):
     for batch_i, (img, targets, paths, shapes) in enumerate(dataloader):
         t = time_synchronized()
@@ -272,12 +275,12 @@ def test(proj_info,
             t1 += _t1
 
             # Compute loss -----------------------------------------------------
-            # if compute_loss:
-            #     if v9:
-            #         loss = compute_loss(train_out, targets)[1][:3] # box, dfl, cls
-            #     else:
-            #         loss += compute_loss([x.float() for x in train_out], targets)[1][:3]  # box, obj, cls
-            #     logger.info(f"      Batch #{batch_i}: Computing loss - {loss}")
+            if compute_loss:
+                if v9:
+                    loss = compute_loss(train_out, targets)[1][:3] # box, dfl, cls
+                else:
+                    loss += compute_loss([x.float() for x in train_out], targets)[1][:3]  # box, obj, cls (detached)
+                logger.info(f"      Batch #{batch_i}: Computing loss - {loss.to('cpu').tolist()}")
 
             # Run NMS ----------------------------------------------------------
             '''
@@ -418,10 +421,12 @@ def test(proj_info,
         else:
             statsn = [np.concatenate(x, 0) for x in zip(*statsn)]
         latency = _t0 + _t1 + _t2
-        ''' t0:  accumulated inference time 
-            t1:  accumulated nms time
-            _t0: inference time for this batch
-            _t1: nms time for this batch
+        ''' t0:  accumulated preprocessing time
+            t1:  accumulated inference time
+            t2:  accumulated nms time
+            _t0: preprocessing time for this batch
+            _t1: inference time for this batch
+            _t2: nms time for this batch
         '''
         report_progress(
             userid, 
@@ -455,8 +460,14 @@ def test(proj_info,
         nt = torch.zeros(1)
 
     # Print results ------------------------------------------------------------
-    pf = '%20s' + '%12i' * 2 + '%12.3g' * 4  # print format
-    logger.info(pf % ('all', seen, nt.sum(), mp, mr, map50, map))
+    logger.info('')
+    pf_t = '%20s' + '%12s' * 6
+    title = ('Class', 'Images', 'Labels', 'P', 'R', 'mAP@.5', 'mAP@.5:.95')
+    logger.info(pf_t % title)
+
+    pf_c = '%20s' + '%12i' * 2 + '%12.3g' * 4
+    logger.info(pf_c % ('all', seen, nt.sum(), mp, mr, map50, map))
+    logger.info('')
 
     # nt_sum_value = nt.sum().item()
     # val_acc['class'] = 'all'
@@ -475,13 +486,14 @@ def test(proj_info,
     # Print results per class --------------------------------------------------
     if (verbose or (nc < 50 and not training)) and nc > 1 and len(stats):
         for i, c in enumerate(ap_class):
-            logger.info(pf % (names[c], seen, nt[c], p[i], r[i], ap50[i], ap[i]))
+            logger.info(pf_c % (names[c], seen, nt[c], p[i], r[i], ap50[i], ap[i]))
 
     # Print speeds -------------------------------------------------------------
-    # t = (inference time, nms time, total time, imgsz, imgsz, batchsize)
-    t = tuple(x / seen * 1E3 for x in (t0, t1, t0 + t1)) + (imgsz, imgsz, batch_size)
+    # t = (avg. preprocess time, avg. inference time, avg. nms time)
+    # 'seen' may be less than 'batch_size' at last batch
+    t = tuple(x / seen * 1E3 for x in (t0, t1, t2))
     if not training:
-        logger.info('Speed: %.1f/%.1f/%.1f ms inference/NMS/total per %gx%g image at batch-size %g' % t)
+        logger.info('Speed(avg.): %.1fms pre-process, %.1fms inference, %.1fms nms per images' % t)
 
     # Plots --------------------------------------------------------------------
     if plots:

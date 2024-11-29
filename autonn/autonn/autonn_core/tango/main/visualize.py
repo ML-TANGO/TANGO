@@ -81,6 +81,7 @@ class BasemodelViewer:
         self.base_dict = {}
         self.layers = []
         self.lines = []
+        logger.info(f'{colorstr("Visualizer: ")}Init nodes and edges')
 
     def parse_yaml(self, basemodel_yaml, data_dict):
         # load basemode.yaml
