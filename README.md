@@ -5,6 +5,9 @@
 
 ![2024_1120_1351_poster](https://github.com/user-attachments/assets/a50119af-e60c-492a-a1a4-5b9dd7d28f64)
 
+사전등록 및 행사 안내 사이트 : http://tangoai.or.kr
+
+----
 
 > **Announcement**
 > * [2024 November TANGO Release](https://github.com/ML-TANGO/TANGO/releases/tag/tango-24.11)
