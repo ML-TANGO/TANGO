@@ -217,20 +217,14 @@ TANGO
 
 ## TANGO 커뮤티니 컨퍼런스
 
-행사 안내 사이트 : http://tangoai.or.kr
+* 행사 안내 사이트 : http://tangoai.or.kr
 
-### 1회 컨퍼런스
-[발표자료](https://github.com/ML-TANGO/TANGO/tree/main/docs/2022_Fall_Community_Conference)
-
-### 2회 컨퍼런스
-[발표자료](https://github.com/ML-TANGO/TANGO/tree/main/docs/2023_Fall_Community_Conference)
-
-#### 3회 컨퍼런스
-[발표자료](https://github.com/ML-TANGO/TANGO/tree/main/docs/2024_Fall_Community_Conference)
-
-[![2024_1120_1351_poster](https://github.com/user-attachments/assets/a50119af-e60c-492a-a1a4-5b9dd7d28f64)](http://tangoai.or.kr)
+* [2022 TANGO 커뮤니티 제1회 컨퍼런스 발표자료](https://github.com/ML-TANGO/TANGO/tree/main/docs/2022_Fall_Community_Conference)
+* [2023 TANGO 커뮤니티 제2회 컨퍼런스 발표자료](https://github.com/ML-TANGO/TANGO/tree/main/docs/2023_Fall_Community_Conference)
+* [2024 TANGO 커뮤니티 제3회 컨퍼런스 발표자료](https://github.com/ML-TANGO/TANGO/tree/main/docs/2024_Fall_Community_Conference)
 
 ----
+
 ## TANGO on media
 
 YouTube Videos
