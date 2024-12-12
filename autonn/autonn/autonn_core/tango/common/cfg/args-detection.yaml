@@ -16,17 +16,18 @@ freeze: [0]
 
 # input images
 seed: 0
-rect: False
-quad: False
+workers: 8
+rect: False # rectangular batch for training
 multi_scale: False
 single_cls: False
 image_weights: False
+close_mosaic: 15 # do not use mosaic during last 15 epochs
 
 # optimizer
 adam: False # optimizer: Adam or SGD
 linear_lr: True # schedular: cos_lr if False
 
-# speed
+# speedy training
 cache_images: False
 nosave: False
 save_period: 1
@@ -37,15 +38,15 @@ patience: 100
 evolve: False
 
 # loss/metric
+quad: False
 noautoanchor: False # check/recompute anchors if True, [note] useless for 'v9'
-metric: 'v5' # mAP metirc 'v5' / 'v7'
+metric: 'v9' # mAP metirc 'v5' / 'v7' / 'v9'
 loss_name: 'TAL' # anchor-free: TAL, anchor: OTA
 label_smoothing: 0.0
 
 # ddp
 sync_bn: False
 local_rank: -1
-workers: 8
 
 # save
 bucket: ''
@@ -58,5 +59,3 @@ exist_ok: True # make incremetal directory if False (e.g. autonn1, autonn2, ...)
 # upload_dataset: False
 # bbox_interval: -1
 # artifact_alias: 'latest'
-
-

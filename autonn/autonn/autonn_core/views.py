@@ -369,8 +369,8 @@ def process_autonn(userid, project_id):
     3. Report status to PM (completed / failed)
     '''
     info = Info.objects.get(userid=userid, project_id=project_id)
-    print('process_autonn()')
-    info.print()
+    # print('process_autonn()')
+    # info.print()
 
     resume = True if info.progress == 'oom' else False
 

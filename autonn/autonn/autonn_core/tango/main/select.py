@@ -158,8 +158,8 @@ def get_user_requirements(userid, projid, resume=False):
     task = proj_info_dict['task_type'].lower()
 
     info = Info.objects.get(userid=userid, project_id=projid)
-    logger.info('DB checking...')
-    info.print()
+    # logger.info('DB checking...')
+    # info.print()
     info.target = target
     info.device = device
     info.dataset = proj_info_dict['dataset']
@@ -415,8 +415,11 @@ def base_model_select(userid, project_id, proj_info, data, manual_select=False):
 
     # construct nodes and edges
     viewer = BasemodelViewer(userid, project_id)
-    viewer.parse_yaml(target_path, data)
-    viewer.update()
+    if model.upper() == 'YOLOV9': # and size.upper() == '-M':
+        viewer.update_detection()
+    else:
+        viewer.parse_yaml(target_path, data)
+        viewer.update()
 
     # save internally
     info = Info.objects.get(userid=userid, project_id=project_id)
@@ -518,7 +521,6 @@ def run_autonn(userid, project_id, resume=False, viz2code=False, nas=False, hpo=
             opt.weights = ckpt
             logger.info(f'{colorstr("Project Info: ")}Resuming training from %s' % ckpt)
 
-
     # Pre-train --------------------------------------------------------------------
     tb_writer = None  # init loggers
     # if opt.global_rank in [-1, 0]:
@@ -594,14 +596,14 @@ def run_autonn(userid, project_id, resume=False, viz2code=False, nas=False, hpo=
 
     # Model Export -------------------------------------------------------------
     '''
-    cloud           : pytorch (torchscript)
-    k8s             : pytorch (torchscript)
-    k8sjetsonnano   : onnx -> tensorrt at target
-    pcweb           : pytorch (torchscript)
-    pc              : pytorch (torchscript)
-    jetsonagxorin   : onnx -> tensorrt at target
-    jetsonagxxavier : onnx -> tensorrt at target
-    jetsonnano      : onnx -> tensorrt at target
+    cloud           : pytorch (torchscript, onnx)
+    k8s             : pytorch (torchscript, onnx)
+    k8sjetsonnano   : onnx_end2end -> tensorrt at target
+    pcweb           : pytorch (torchscript, onnx)
+    pc              : pytorch (torchscript, onnx)
+    jetsonagxorin   : onnx_end2end -> tensorrt at target
+    jetsonagxxavier : onnx_end2end -> tensorrt at target
+    jetsonnano      : onnx_end2end -> tensorrt at target
     galaxys22       : tflite
     raspberrypi     : edge-tpu tflite
     '''
@@ -648,10 +650,15 @@ def run_autonn(userid, project_id, resume=False, viz2code=False, nas=False, hpo=
     # export weights -----------------------------------------------------------
     target_engine = proj_info['engine']
     channel = data.get('ch')
-    if task == 'classification':
-        convert = ['torchscript', 'onnx']
+    convert = ['torchscript', 'onnx']
     if task == 'detection':
-        convert = ['torchscript', 'onnx', 'onnx_end2end', 'pb', 'tflite', 'edgetpu']
+        if target_engine == 'tensorrt':
+            convert.append('onnx_end2end')
+        if target_engine == 'tflite':
+            tfmodels = ['pb', 'tflite']
+            convert.extend(tfmodels)
+            if target_acc == 'tpu':
+                convert.append('edgetpu')
     export_weight(train_final, target_acc, convert, task=task, ch=channel, imgsz=opt.img_size)
 
     # export meta file ---------------------------------------------------------

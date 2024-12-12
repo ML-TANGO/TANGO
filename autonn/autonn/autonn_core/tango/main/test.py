@@ -14,25 +14,61 @@ from . import status_update, Info
 
 from tango.common.models.experimental import attempt_load
 from tango.utils.datasets import create_dataloader
-from tango.utils.general import (   coco80_to_coco91_class,
-                                    check_dataset,
-                                    check_file,
-                                    check_img_size,
-                                    box_iou,
-                                    non_max_suppression,
-                                    non_max_suppression_v9,
-                                    scale_coords,
-                                    xyxy2xywh,
-                                    xywh2xyxy,
-                                    set_logging,
-                                    increment_path,
-                                    colorstr
-                                )
-from tango.utils.metrics import ap_per_class, ConfusionMatrix
+from tango.utils.general import (
+    coco80_to_coco91_class,
+    check_dataset,
+    check_file,
+    check_img_size,
+    box_iou,
+    non_max_suppression,
+    non_max_suppression_v9,
+    scale_coords,
+    xyxy2xywh,
+    xyxy2xywh_v9,
+    xywh2xyxy,
+    xywh2xyxy_v9,
+    set_logging,
+    increment_path,
+    colorstr,
+    smart_inference_mode,
+    TQDM_BAR_FORMAT,
+    TqdmLogger,
+)
+from tango.utils.metrics import (
+    ap_per_class,
+    ap_per_class_v9,
+    ConfusionMatrix,
+    ConfusionMatrix_v9,
+)
 from tango.utils.plots import plot_images, output_to_target, plot_study_txt
-from tango.utils.torch_utils import select_device, time_synchronized, TracedModel
+from tango.utils.torch_utils import (
+    select_device,
+    time_synchronized,
+    TracedModel,
+)
 
 logger = logging.getLogger(__name__)
+
+def save_one_txt(predn, save_conf, shape, file):
+    # Save one txt result
+    gn = torch.tensor(shape)[[1, 0, 1, 0]]  # normalization gain whwh
+    for *xyxy, conf, cls in predn.tolist():
+        xywh = (xyxy2xywh_v9(torch.tensor(xyxy).view(1, 4)) / gn).view(-1).tolist()  # normalized xywh
+        line = (cls, *xywh, conf) if save_conf else (cls, *xywh)  # label format
+        with open(file, 'a') as f:
+            f.write(('%g ' * len(line)).rstrip() % line + '\n')
+
+def save_one_json(predn, jdict, path, class_map):
+    # Save one JSON result {"image_id": 42, "category_id": 18, "bbox": [258.15, 41.29, 348.26, 243.78], "score": 0.236}
+    image_id = int(path.stem) if path.stem.isnumeric() else path.stem
+    box = xyxy2xywh_v9(predn[:, :4])  # xywh
+    box[:, :2] -= box[:, 2:] / 2  # xy center to top-left corner
+    for p, b in zip(predn.tolist(), box.tolist()):
+        jdict.append({
+            'image_id': image_id,
+            'category_id': class_map[int(p[5])],
+            'bbox': [round(x, 3) for x in b],
+            'score': round(p[4], 5)})
 
 def report_progress(userid, 
                     project_id, 
@@ -110,6 +146,7 @@ def process_batch(detections, labels, iouv):
             correct[matches[:, 1].astype(int), i] = True
     return torch.tensor(correct, dtype=torch.bool, device=iouv.device)
 
+@smart_inference_mode()
 def test(proj_info,
          data,
          weights=None,
@@ -120,25 +157,25 @@ def test(proj_info,
          single_cls=False,
          augment=False,
          verbose=False,
+         save_txt=False,  # for auto-labelling
+         save_hybrid=False,  # for hybrid auto-labelling
+         save_conf=False,  # save confidence in save_txt file
+         save_json=False, # save json; with it, measuring metrics using pycocotool
          model=None,
          dataloader=None,
          save_dir=Path(''),  # for saving results
-         save_txt=False,  # for auto-labelling
-         save_hybrid=False,  # for hybrid auto-labelling
-         save_conf=False,  # save auto-label confidences
-         save_json=False, # save json; with it, measuring metrics using pycocotool
          plots=True,
          # wandb_logger=None,
          compute_loss=None,
          half_precision=True,
          trace=False,
          is_coco=False,
-         metric='v5'):
+         metric='v5'
+):
     # Set device ---------------------------------------------------------------
     training = model is not None
     if training:  # called by train.py
         device = next(model.parameters()).device  # get model device
-
     else:  # called directly
         set_logging()
         device = select_device(opt.device, batch_size=batch_size)
@@ -157,10 +194,7 @@ def test(proj_info,
 
     # Half ---------------------------------------------------------------------
     half = device.type != 'cpu' and half_precision  # half precision only supported on CUDA
-    if half:
-        model.half()
-    else:
-        model.float()
+    model.half() if half else model.float()
 
     # Configure ----------------------------------------------------------------
     userid = proj_info['userid']
@@ -171,17 +205,12 @@ def test(proj_info,
     info.status = "running"
     info.progress = "validation"
     info.save()
-    # print('test() enters')
-    # info.print()
 
     model.eval() # it will set {DualDDetect}.training to False
     if isinstance(data, str):
-        # is_coco = data.endswith('coco.yaml')
         with open(data) as f:
             data = yaml.load(f, Loader=yaml.SafeLoader)
     check_dataset(data)  # check
-    test_path = data['val']
-    is_coco = True if data['dataset_name'] == 'coco' and 'coco' in test_path else False
 
     nc = 1 if single_cls else int(data['nc'])  # number of classes
     iouv = torch.linspace(0.5, 0.95, 10).to(device)  # iou vector for mAP@0.5:0.95
@@ -201,9 +230,7 @@ def test(proj_info,
                                        prefix=colorstr(f'{purpose}: '))[0]
 
     # Metrics ------------------------------------------------------------------
-    if metric == 'v5':
-        logger.info(f"\n{colorstr('Test: ')}Testing with YOLOv5 AP metric..."
-                    f"You can change it metric = 'v7' in args.yaml")
+    # logger.info(f"\n{colorstr('Test: ')}Testing with YOLO{metric} AP metric...")
         
     # V9 head numbers ----------------------------------------------------------
     m = model.model[-1]  # Detect() module
@@ -220,23 +247,35 @@ def test(proj_info,
     
     # Test start ===============================================================
 
-    confusion_matrix = ConfusionMatrix(nc=nc)
+    if metric == 'v9':
+        confusion_matrix = ConfusionMatrix_v9(nc=nc)
+    else:
+        confusion_matrix = ConfusionMatrix(nc=nc)
     names = {k: v for k, v in enumerate(model.names if hasattr(model, 'names') else model.module.names)}
     coco91class = coco80_to_coco91_class() if is_coco else list(range(1000))
 
     seen, label_cnt = 0, 0 # count
-    tp, fp = 0., 0. 
-    p, r, f1, mp, mr, map50, map  = 0., 0., 0., 0., 0., 0., 0. # mean accuracy
+    tp, fp = 0., 0. # true positive, false positive
+    p, r, f1, mp, mr, map50, map  = 0., 0., 0., 0., 0., 0., 0. # f1: hormonic value of P and R
     t, t0, t1, t2 = 0., 0., 0., 0. # latency
     loss = torch.zeros(3, device=device) # loss
-    jdict, stats, ap, ap_class = [], [], [], [] # accuracy
+    jdict, stats, ap, ap_class = [], [], [], [] # jdict=json dict, ap=average precision
     
-    pf_t = '%20s' + '%12s' * 6
-    title = ('Class', 'Images', 'Labels', 'P', 'R', 'mAP@.5', 'mAP@.5:.95')
-    logger.info(pf_t % title)
+    pf_t = '%34s' + '%11s' * 6
+    title = ('Class', 'Images', 'Labels', 'P', 'R', 'mAP@50', 'mAP@50-95')
+    # logger.info(pf_t % title)
 
+    # pbar = enumerate(dataloader)
+    pbar = tqdm(
+        dataloader, # pbar,
+        desc=pf_t % title,
+        total=len(dataloader),
+        bar_format=TQDM_BAR_FORMAT,
+    )  # progress bar
+
+    # logger.info(f'dataset size = {len(dataloader)}')
     # for batch_i, (img, targets, paths, shapes) in enumerate(tqdm(dataloader, desc=s)):
-    for batch_i, (img, targets, paths, shapes) in enumerate(dataloader):
+    for batch_i, (img, targets, paths, shapes) in enumerate(pbar): # enumerate(dataloader):
         t = time_synchronized()
         img = img.to(device, non_blocking=True)
         img = img.half() if half else img.float()  # uint8 to fp16/32
@@ -262,12 +301,12 @@ def test(proj_info,
             out, train_out = model(img, augment=augment)  # inference and training outputs
             '''
             for single anchor-based head (v7)
-                out.shape = (bs, 25200, 85) : tensor
+                out.shape = (bs, 25200, 5+80) : tensor // 5=x,y,w,h,conf, 80=cls
                 train_out.shape = ( (bs,3,80,80,85), (bs,3,40,40,85), (bs,3,20,20,85) ) : list
             for dual anchor-free heads (v9)
-                out.shape = ( (bs, 84, 8400), (bs, 84, 8400) ) : list
-                train_out.shape = ( ((bs,80,80,84), (bs,40,40,84), (bs,20,20,84)),
-                                    ((bs,80,80,84), (bs,40,40,84), (bs,20,20,84))  ) : list
+                out.shape = ( (bs, 64+80, 8400), (bs, 64+80, 8400) ) : list // 64=bbox, 80=cls
+                train_out.shape = ( ((bs,144,80,80), (bs,144,40,40), (bs,144,20,20)),
+                                    ((bs,144,80,80), (bs,144,40,40), (bs,144,20,20))  ) : list
             '''
             if v9 and nh > 1:
                 out = out[nh-1]
@@ -280,14 +319,14 @@ def test(proj_info,
                     loss = compute_loss(train_out, targets)[1][:3] # box, dfl, cls
                 else:
                     loss += compute_loss([x.float() for x in train_out], targets)[1][:3]  # box, obj, cls (detached)
-                logger.info(f"      Batch #{batch_i}: Computing loss - {loss.to('cpu').tolist()}")
+                # logger.info(f"      Batch #{batch_i}: Computing loss - {loss.to('cpu').tolist()}")
 
             # Run NMS ----------------------------------------------------------
             '''
             after nms,
                 out = (bs, n, 6) : bs = batch size, n = detected object number, 6 = (x,y,w,h,conf,cls)
-                (v7) (bs, 25200, 85) ==> NMS   ==> approx. (bs, n, 6)
-                (v9) (bs, 84, 8400)  ==> NMSv9 ==> approx. (bs, n, 6)
+                (v7) (bs, 25200, 5+80) ==> NMS   ==> approx. (bs, n, 6)
+                (v9) (bs, 64+80, 8400) ==> NMSv9 ==> approx. (bs, n, 6)
                 in fact, 'out' is list-type and it can have a different 'n' which image it is on
                 out = [ [n1, 6], [n2, 6], ... [nbs, 6] ]
 
@@ -332,7 +371,6 @@ def test(proj_info,
 
             seen += 1
             label_cnt += nl
-            # logger.info(f'{si}: nl = {nl}, npr = {npr}')
             if npr == 0:
                 if nl:
                     # stats.append((torch.zeros(0, niou, dtype=torch.bool), torch.Tensor(), torch.Tensor(), tcls))
@@ -351,7 +389,10 @@ def test(proj_info,
                 tcls_tensor = labels[:, 0]
 
                 # target boxes
-                tbox = xywh2xyxy(labels[:, 1:5])
+                if v9:
+                    tbox = xywh2xyxy_v9(labels[:, 1:5])
+                else:
+                    tbox = xywh2xyxy(labels[:, 1:5])
                 scale_coords(img[si].shape[1:], tbox, shapes[si][0], shapes[si][1])  # native-space labels
                 labelsn = torch.cat((labels[:, 0:1], tbox), 1) # native-space labels
                 if plots:
@@ -388,24 +429,30 @@ def test(proj_info,
 
             # Save / log
             if save_txt:
-                gn = torch.tensor(shapes[si][0])[[1, 0, 1, 0]]  # normalization gain whwh
-                for *xyxy, conf, cls in predn.tolist():
-                    xywh = (xyxy2xywh(torch.tensor(xyxy).view(1, 4)) / gn).view(-1).tolist()  # normalized xywh
-                    line = (cls, *xywh, conf) if save_conf else (cls, *xywh)  # label format
-                    with open(save_dir / 'labels' / (path.stem + '.txt'), 'a') as f:
-                        f.write(('%g ' * len(line)).rstrip() % line + '\n')
-            
+                if v9:
+                    save_one_txt(predn, save_conf, shapes[si][0], file=save_dir / 'labels' / f'{path.stem}.txt')
+                else:
+                    gn = torch.tensor(shapes[si][0])[[1, 0, 1, 0]]  # normalization gain whwh
+                    for *xyxy, conf, cls in predn.tolist():
+                        xywh = (xyxy2xywh(torch.tensor(xyxy).view(1, 4)) / gn).view(-1).tolist()  # normalized xywh
+                        line = (cls, *xywh, conf) if save_conf else (cls, *xywh)  # label format
+                        with open(file, 'a') as f:
+                            f.write(('%g ' * len(line)).rstrip() % line + '\n')
+
             if save_json:
-                # [{"image_id": 42, "category_id": 18, "bbox": [258.15, 41.29, 348.26, 243.78], "score": 0.236}, ...
-                image_id = int(path.stem) if path.stem.isnumeric() else path.stem
-                box = xyxy2xywh(predn[:, :4])  # xywh
-                box[:, :2] -= box[:, 2:] / 2  # xy center to top-left corner
-                for p, b in zip(predn.tolist(), box.tolist()):
-                    jdict.append({'image_id': image_id,
-                                  'category_id': coco91class[int(p[5])] if is_coco else int(p[5]),
-                                  'bbox': [round(x, 3) for x in b],
-                                  'score': round(p[4], 5)})
-                    
+                if v9:
+                    save_one_json(predn, jdict, path, coco91class)  # append to COCO-JSON dictionary
+                else:
+                    # [{"image_id": 42, "category_id": 18, "bbox": [258.15, 41.29, 348.26, 243.78], "score": 0.236}, ...
+                    image_id = int(path.stem) if path.stem.isnumeric() else path.stem
+                    box = xyxy2xywh(predn[:, :4])  # xywh
+                    box[:, :2] -= box[:, 2:] / 2  # xy center to top-left corner
+                    for p, b in zip(predn.tolist(), box.tolist()):
+                        jdict.append({'image_id': image_id,
+                                    'category_id': coco91class[int(p[5])] if is_coco else int(p[5]),
+                                    'bbox': [round(x, 3) for x in b],
+                                    'score': round(p[4], 5)})
+
         # Plot images ----------------------------------------------------------
         # if plots and batch_i < 3:
         #     f = save_dir / f'test_batch{batch_i}_labels.jpg'  # labels
@@ -428,20 +475,20 @@ def test(proj_info,
             _t1: inference time for this batch
             _t2: nms time for this batch
         '''
-        report_progress(
-            userid, 
-            project_id, 
-            statsn, 
-            seen,
-            label_cnt,
-            batch_i+1,
-            len(dataloader),
-            plots, 
-            metric, 
-            save_dir, 
-            names, 
-            latency,
-        )
+        # report_progress(
+        #     userid,
+        #     project_id,
+        #     statsn,
+        #     seen,
+        #     label_cnt,
+        #     batch_i+1,
+        #     len(dataloader),
+        #     plots,
+        #     metric,
+        #     save_dir,
+        #     names,
+        #     latency,
+        # )
     # Test end =================================================================
 
     # Compute final metrics ----------------------------------------------------
@@ -452,22 +499,35 @@ def test(proj_info,
         stats = [np.concatenate(x, 0) for x in zip(*stats)]
 
     if len(stats) and stats[0].any():
-        p, r, ap, f1, ap_class = ap_per_class(*stats, plot=plots, metric=metric, save_dir=save_dir, names=names)
+        if metric == 'v9':
+            tp, fp, p, r, f1, ap, ap_class = ap_per_class_v9(
+                *stats,
+                plot=plots,
+                save_dir=save_dir,
+                names=names
+            )
+        else:
+            p, r, ap, f1, ap_class = ap_per_class(
+                *stats,
+                plot=plots,
+                metric=metric,
+                save_dir=save_dir,
+                names=names
+            )
         ap50, ap = ap[:, 0], ap.mean(1)  # AP@0.5, AP@0.5:0.95
         mp, mr, map50, map = p.mean(), r.mean(), ap50.mean(), ap.mean()
-        nt = np.bincount(stats[3].astype(np.int64), minlength=nc)  # number of targets per class
-    else:
-        nt = torch.zeros(1)
+    nt = np.bincount(stats[3].astype(int), minlength=nc) # number of targets per class
 
     # Print results ------------------------------------------------------------
-    logger.info('')
-    pf_t = '%20s' + '%12s' * 6
-    title = ('Class', 'Images', 'Labels', 'P', 'R', 'mAP@.5', 'mAP@.5:.95')
-    logger.info(pf_t % title)
+    # logger.info('')
+    # pf_t = '%20s' + '%12s' * 6
+    # title = ('Class', 'Images', 'Labels', 'P', 'R', 'mAP@.5', 'mAP@.5:.95')
+    # logger.info(pf_t % title)
 
-    pf_c = '%20s' + '%12i' * 2 + '%12.3g' * 4
+    if nt.sum() == 0:
+        logger.warning(f'WARNING: no labels found in dataset, can not compute metrics w/o labels')
+    pf_c = '%22s' + '%11i' * 2 + '%11.3g' * 4
     logger.info(pf_c % ('all', seen, nt.sum(), mp, mr, map50, map))
-    logger.info('')
 
     # nt_sum_value = nt.sum().item()
     # val_acc['class'] = 'all'
@@ -481,7 +541,6 @@ def test(proj_info,
     # status_update(userid, project_id,
     #           update_id="val_accuracy",
     #           update_content=val_acc)
-
 
     # Print results per class --------------------------------------------------
     if (verbose or (nc < 50 and not training)) and nc > 1 and len(stats):
@@ -498,11 +557,6 @@ def test(proj_info,
     # Plots --------------------------------------------------------------------
     if plots:
         confusion_matrix.plot(save_dir=save_dir, names=list(names.values()))
-    #     if wandb_logger and wandb_logger.wandb:
-    #         val_batches = [wandb_logger.wandb.Image(str(f), caption=f.name) for f in sorted(save_dir.glob('test*.jpg'))]
-    #         wandb_logger.log({"Validation": val_batches})
-    # if wandb_images:
-    #     wandb_logger.log({"Bounding Box Debugger/Images": wandb_images})
 
     # Save JSON ----------------------------------------------------------------
     if save_json and len(jdict):
@@ -563,7 +617,7 @@ def test_cls(proj_info,
         device = next(model.parameters()).device  # get model device
     else: # called directly
         # logging
-        set_logginig()
+        set_logging()
 
         # device
         device = select_device(opt.device, batch_size=batch_size)

@@ -26,29 +26,40 @@ from tqdm import tqdm
 from . import status_update, Info
 from . import test  # import test.py to get mAP or val_accuracy after each epoch
 from tango.common.models.experimental import attempt_load
-from tango.common.models.yolo               import Model
+from tango.common.models.yolo               import Model, DetectionModel
 from tango.common.models.resnet_cifar10     import ClassifyModel
 from tango.common.models.supernet_yolov7    import NASModel
 # from tango.common.models import *
 from tango.utils.autoanchor import check_anchors
 from tango.utils.autobatch import get_batch_size_for_gpu
-from tango.utils.datasets import create_dataloader, AlbumentationDatasetImageFolder
+from tango.utils.datasets import (  create_dataloader,
+                                    create_dataloader_v9,
+                                    AlbumentationDatasetImageFolder
+                                 )
 from tango.utils.general import (   DEBUG,
                                     labels_to_class_weights,
+                                    labels_to_class_weights_v9,
                                     labels_to_image_weights,
                                     init_seeds,
+                                    init_seeds_v9,
                                     fitness,
                                     strip_optimizer,
                                     check_dataset,
                                     check_img_size,
+                                    check_amp,
                                     one_cycle,
-                                    colorstr
+                                    colorstr,
+                                    TQDM_BAR_FORMAT,
+                                    TqdmLogger,
+                                    save_csv,
+                                    save_npy,
                                 )
 from tango.utils.google_utils import attempt_download
 from tango.utils.loss import    (   ComputeLoss,
                                     ComputeLossOTA,
                                     ComputeLossAuxOTA,
                                     ComputeLossTAL,
+                                    ComputeLoss_v9,
                                     FocalLossCE
                                 )
 from tango.utils.plots import   (   plot_images,
@@ -63,12 +74,123 @@ from tango.utils.torch_utils import (   ModelEMA,
                                         intersect_dicts,
                                         torch_distributed_zero_first,
                                         is_parallel,
+                                        de_parallel,
                                         time_synchronized
                                     )
 # from tango.utils.wandb_logging.wandb_utils import WandbLogger
 
 
 logger = logging.getLogger(__name__)
+
+
+def get_optimizer(model, is_adam=False, lr=0.001, momentum=0.9, decay=1e-5):
+    # YOLOv5 3-param group optimizer: 0) weights with decay, 1) weights no decay, 2) biases no decay
+    g = [], [], []  # optimizer parameter groups
+    bn = tuple(v for k, v in nn.__dict__.items() if 'Norm' in k)  # normalization layers, i.e. BatchNorm2d()
+
+    for v in model.modules():
+        if hasattr(v, 'bias') and isinstance(v.bias, nn.Parameter):  # bias (no decay)
+            g[2].append(v.bias)
+        if isinstance(v, bn):  # weight (no decay)
+            g[1].append(v.weight)
+        elif hasattr(v, 'weight') and isinstance(v.weight, nn.Parameter):  # weight (with decay)
+            g[0].append(v.weight)
+
+        if hasattr(v, 'im'):
+            if hasattr(v.im, 'implicit'):
+                g[1].append(v.im.implicit)
+            else:
+                for iv in v.im:
+                    g[1].append(iv.implicit)
+        if hasattr(v, 'ia'):
+            if hasattr(v.ia, 'implicit'):
+                g[1].append(v.ia.implicit)
+            else:
+                for iv in v.ia:
+                    g[1].append(iv.implicit)
+        if hasattr(v, 'im2'):
+            if hasattr(v.im2, 'implicit'):
+                g[1].append(v.im2.implicit)
+            else:
+                for iv in v.im2:
+                    g[1].append(iv.implicit)
+        if hasattr(v, 'ia2'):
+            if hasattr(v.ia2, 'implicit'):
+                g[1].append(v.ia2.implicit)
+            else:
+                for iv in v.ia2:
+                    g[1].append(iv.implicit)
+        if hasattr(v, 'im3'):
+            if hasattr(v.im3, 'implicit'):
+                g[1].append(v.im3.implicit)
+            else:
+                for iv in v.im3:
+                    g[1].append(iv.implicit)
+        if hasattr(v, 'ia3'):
+            if hasattr(v.ia3, 'implicit'):
+                g[1].append(v.ia3.implicit)
+            else:
+                for iv in v.ia3:
+                    g[1].append(iv.implicit)
+        if hasattr(v, 'im4'):
+            if hasattr(v.im4, 'implicit'):
+                g[1].append(v.im4.implicit)
+            else:
+                for iv in v.im4:
+                    g[1].append(iv.implicit)
+        if hasattr(v, 'ia4'):
+            if hasattr(v.ia4, 'implicit'):
+                g[1].append(v.ia4.implicit)
+            else:
+                for iv in v.ia4:
+                    g[1].append(iv.implicit)
+        if hasattr(v, 'im5'):
+            if hasattr(v.im5, 'implicit'):
+                g[1].append(v.im5.implicit)
+            else:
+                for iv in v.im5:
+                    g[1].append(iv.implicit)
+        if hasattr(v, 'ia5'):
+            if hasattr(v.ia5, 'implicit'):
+                g[1].append(v.ia5.implicit)
+            else:
+                for iv in v.ia5:
+                    g[1].append(iv.implicit)
+        if hasattr(v, 'im6'):
+            if hasattr(v.im6, 'implicit'):
+                g[1].append(v.im6.implicit)
+            else:
+                for iv in v.im6:
+                    g[1].append(iv.implicit)
+        if hasattr(v, 'ia6'):
+            if hasattr(v.ia6, 'implicit'):
+                g[1].append(v.ia6.implicit)
+            else:
+                for iv in v.ia6:
+                    g[1].append(iv.implicit)
+        if hasattr(v, 'im7'):
+            if hasattr(v.im7, 'implicit'):
+                g[1].append(v.im7.implicit)
+            else:
+                for iv in v.im7:
+                    g[1].append(iv.implicit)
+        if hasattr(v, 'ia7'):
+            if hasattr(v.ia7, 'implicit'):
+                g[1].append(v.ia7.implicit)
+            else:
+                for iv in v.ia7:
+                    g[1].append(iv.implicit)
+
+    if is_adam:
+        optimizer = torch.optim.Adam(g[2], lr=lr, betas=(momentum, 0.999))  # adjust beta1 to momentum
+    else:
+        optimizer = torch.optim.SGD(g[2], lr=lr, momentum=momentum, nesterov=True)
+
+    optimizer.add_param_group({'params': g[0], 'weight_decay': decay})  # add g0 with weight_decay
+    optimizer.add_param_group({'params': g[1], 'weight_decay': 0.0})  # add g1 (BatchNorm2d weights)
+    logger.info(f"{colorstr('optimizer:')} {type(optimizer).__name__}(lr={lr}) with parameter groups "
+                f"{len(g[1])} weight(decay=0.0), {len(g[0])} weight(decay={decay}), {len(g[2])} bias")
+    return optimizer
 
 
 def train(proj_info, hyp, opt, data_dict, tb_writer=None):
@@ -85,8 +207,6 @@ def train(proj_info, hyp, opt, data_dict, tb_writer=None):
     info.status = "running"
     info.progress = "train"
     info.save()
-    # print('train() is called')
-    # info.print()
 
     # Directories --------------------------------------------------------------
     # if not opt.resume and opt.lt != 'incremental' and opt.lt != 'transfer':
@@ -117,6 +237,8 @@ def train(proj_info, hyp, opt, data_dict, tb_writer=None):
         system_info = {}
         system_info['devices'] = d[0]
         system_info['gpu_model'] =  d[1]
+        if d[0] == 'CPU':
+            d[2] = "0.0"
         system_info['memory'] = d[2]
         server_gpu_mem = round(float(d[2]))
         system[f'{i}'] = system_info
@@ -128,10 +250,11 @@ def train(proj_info, hyp, opt, data_dict, tb_writer=None):
     # Configure ----------------------------------------------------------------
     plots = not opt.evolve # create plots
     cuda = device.type != 'cpu'
-    # init_seeds(2 + rank)
-    seed = opt.seed if opt.seed else 1
-    init_seeds(seed + 1 + rank, deterministric=True) # from yolov9
-
+    seed = opt.seed if opt.seed else 0
+    if opt.loss_name == 'TAL':
+        init_seeds_v9(seed + 1 + rank, deterministic=True) # from yolov9
+    else:
+        init_seeds(2 + rank)
     nc = 1 if opt.single_cls else int(data_dict['nc'])  # number of classes
     ch = int(data_dict.get('ch', 3))
     names = ['item'] if opt.single_cls and len(data_dict['names']) != 1 else data_dict['names']  # class names
@@ -161,11 +284,18 @@ def train(proj_info, hyp, opt, data_dict, tb_writer=None):
                     nc=nc, 
                     anchors=hyp.get('anchors')
                 ).to(device)  # create
+            elif opt.loss_name == 'TAL':
+                model = DetectionModel(
+                    opt.cfg or ckpt['model'].yaml,
+                    ch=ch,
+                    nc=nc,
+                    anchors=hyp.get('anchors')
+                ).to(device)  # create
             else:
                 model = Model(
-                    opt.cfg or ckpt['model'].yaml, 
-                    ch=ch, 
-                    nc=nc, 
+                    opt.cfg or ckpt['model'].yaml,
+                    ch=ch,
+                    nc=nc,
                     anchors=hyp.get('anchors')
                 ).to(device)  # create
             exclude = ['anchor'] if (opt.cfg or hyp.get('anchors')) and not opt.resume else []  # exclude keys
@@ -197,16 +327,25 @@ def train(proj_info, hyp, opt, data_dict, tb_writer=None):
                     nc=nc, 
                     anchors=hyp.get('anchors')
                 ).to(device)  # create
-            else:
-                model = Model(
-                    opt.cfg, 
-                    ch=ch, 
-                    nc=nc, 
+            elif opt.loss_name == 'TAL':
+                model = DetectionModel(
+                    opt.cfg or ckpt['model'].yaml,
+                    ch=ch,
+                    nc=nc,
                     anchors=hyp.get('anchors')
                 ).to(device)  # create
-    status_update(userid, project_id,
-                  update_id="model",
-                  update_content=model.nodes_info)
+            else:
+                model = Model(
+                    opt.cfg,
+                    ch=ch,
+                    nc=nc,
+                    anchors=hyp.get('anchors')
+                ).to(device)  # create
+    amp_enable = check_amp(model)
+
+    # status_update(userid, project_id,
+    #               update_id="model",
+    #               update_content=model.nodes_info)
     status_update(userid, project_id,
                   update_id="model_summary",
                   update_content=model.briefs)
@@ -247,7 +386,7 @@ def train(proj_info, hyp, opt, data_dict, tb_writer=None):
             ch,
             imgsz,
             bs_factor,
-            amp_enabled=True,
+            amp_enabled=amp_enable,
             max_search=True 
         )
         batch_size = int(autobatch_rst) # autobatch_rst = result * bs_factor * gpu_number
@@ -290,87 +429,7 @@ def train(proj_info, hyp, opt, data_dict, tb_writer=None):
     accumulate = max(round(nbs / opt.total_batch_size), 1)  # accumulate loss before optimizing
     hyp['weight_decay'] *= opt.total_batch_size * accumulate / nbs  # scale weight_decay
     weight_decay_, momentum_, lr0_ = hyp['weight_decay'], hyp['momentum'], hyp['lr0']
-    logger.info(f'\n{colorstr("Optimizer: ")}Scaled weight_decay = {weight_decay_}')
-    logger.info(f'{colorstr("Optimizer: ")} Momentum = {momentum_}')
-    logger.info(f'{colorstr("Optimizer: ")} Learning Rate = {lr0_}')
-
-    pg0, pg1, pg2 = [], [], []  # optimizer parameter grouping
-    for k, v in model.named_modules():
-        if hasattr(v, 'bias') and isinstance(v.bias, nn.Parameter):
-            pg2.append(v.bias)  # biases
-        if isinstance(v, nn.BatchNorm2d):
-            pg0.append(v.weight)  # no decay
-        elif hasattr(v, 'weight') and isinstance(v.weight, nn.Parameter):
-            pg1.append(v.weight)  # apply decay
-        if hasattr(v, 'im'):
-            if hasattr(v.im, 'implicit'):
-                pg0.append(v.im.implicit)
-            else:
-                for iv in v.im:
-                    pg0.append(iv.implicit)
-        if hasattr(v, 'imc'):
-            if hasattr(v.imc, 'implicit'):
-                pg0.append(v.imc.implicit)
-            else:
-                for iv in v.imc:
-                    pg0.append(iv.implicit)
-        if hasattr(v, 'imb'):
-            if hasattr(v.imb, 'implicit'):
-                pg0.append(v.imb.implicit)
-            else:
-                for iv in v.imb:
-                    pg0.append(iv.implicit)
-        if hasattr(v, 'imo'):
-            if hasattr(v.imo, 'implicit'):
-                pg0.append(v.imo.implicit)
-            else:
-                for iv in v.imo:
-                    pg0.append(iv.implicit)
-        if hasattr(v, 'ia'):
-            if hasattr(v.ia, 'implicit'):
-                pg0.append(v.ia.implicit)
-            else:
-                for iv in v.ia:
-                    pg0.append(iv.implicit)
-        if hasattr(v, 'attn'):
-            if hasattr(v.attn, 'logit_scale'):
-                pg0.append(v.attn.logit_scale)
-            if hasattr(v.attn, 'q_bias'):
-                pg0.append(v.attn.q_bias)
-            if hasattr(v.attn, 'v_bias'):
-                pg0.append(v.attn.v_bias)
-            if hasattr(v.attn, 'relative_position_bias_table'):
-                pg0.append(v.attn.relative_position_bias_table)
-        if hasattr(v, 'rbr_dense'):
-            if hasattr(v.rbr_dense, 'weight_rbr_origin'):
-                pg0.append(v.rbr_dense.weight_rbr_origin)
-            if hasattr(v.rbr_dense, 'weight_rbr_avg_conv'):
-                pg0.append(v.rbr_dense.weight_rbr_avg_conv)
-            if hasattr(v.rbr_dense, 'weight_rbr_pfir_conv'):
-                pg0.append(v.rbr_dense.weight_rbr_pfir_conv)
-            if hasattr(v.rbr_dense, 'weight_rbr_1x1_kxk_idconv1'):
-                pg0.append(v.rbr_dense.weight_rbr_1x1_kxk_idconv1)
-            if hasattr(v.rbr_dense, 'weight_rbr_1x1_kxk_conv2'):
-                pg0.append(v.rbr_dense.weight_rbr_1x1_kxk_conv2)
-            if hasattr(v.rbr_dense, 'weight_rbr_gconv_dw'):
-                pg0.append(v.rbr_dense.weight_rbr_gconv_dw)
-            if hasattr(v.rbr_dense, 'weight_rbr_gconv_pw'):
-                pg0.append(v.rbr_dense.weight_rbr_gconv_pw)
-            if hasattr(v.rbr_dense, 'vector'):   
-                pg0.append(v.rbr_dense.vector)
-
-    if opt.adam:
-        optimizer = optim.Adam(pg0, lr=lr0_, betas=(momentum_, 0.999))  # adjust beta1 to momentum
-        logger.info(f'{colorstr("Optimizer: ")}Using Adam')
-    else:
-        optimizer = optim.SGD( pg0, lr=lr0_, momentum=momentum_, nesterov=True)
-        logger.info(f'{colorstr("Optimizer: ")}Using SGD')
-    optimizer.add_param_group({'params': pg1, 'weight_decay': weight_decay_})  # add pg1 with weight_decay
-    optimizer.add_param_group({'params': pg2})  # add pg2 (biases)
-    logger.info(f'{colorstr("Optimizer: ")}grouping ({len(pg2)} .bias)'
-                f' ({len(pg1)} conv.weight: w/weight decay)'
-                f' ({len(pg0)} others: w/o weight decay)')
-    del pg0, pg1, pg2
+    optimizer = get_optimizer(model, opt.adam, lr0_, momentum_, weight_decay_)
 
     # Scheduler ----------------------------------------------------------------
     # https://arxiv.org/pdf/1812.01187.pdf
@@ -426,25 +485,46 @@ def train(proj_info, hyp, opt, data_dict, tb_writer=None):
 
     # TrainDataloader ----------------------------------------------------------
     if task == 'detection':
-        dataloader, dataset = create_dataloader(
-            userid,
-            project_id,
-            train_path,
-            imgsz,
-            batch_size // opt.world_size,
-            gs, # stride
-            opt, # single_cls
-            hyp=hyp,
-            augment=True,
-            cache=opt.cache_images,
-            rect=opt.rect,
-            rank=rank,
-            world_size=opt.world_size,
-            workers=opt.workers,
-            image_weights=opt.image_weights,
-            quad=opt.quad,
-            prefix='train'
-        )
+        if opt.loss_name == 'TAL': # v9
+            dataloader, dataset = create_dataloader_v9(
+                train_path,
+                imgsz,
+                batch_size // opt.world_size,
+                gs,
+                opt.single_cls,
+                hyp=hyp,
+                augment=True,
+                cache=opt.cache_images,
+                rect=opt.rect,
+                rank=local_rank,
+                workers=opt.workers,
+                image_weights=opt.image_weights,
+                close_mosaic=opt.close_mosaic != 0,
+                quad=opt.quad,
+                prefix='train',
+                shuffle=True,
+                min_items=0 #opt.min_items
+            )
+        else: # v7
+            dataloader, dataset = create_dataloader(
+                userid,
+                project_id,
+                train_path,
+                imgsz,
+                batch_size // opt.world_size,
+                gs, # stride
+                opt, # single_cls
+                hyp=hyp,
+                augment=True,
+                cache=opt.cache_images,
+                rect=opt.rect,
+                rank=rank,
+                world_size=opt.world_size,
+                workers=opt.workers,
+                image_weights=opt.image_weights,
+                quad=opt.quad,
+                prefix='train'
+            )
         mlc = np.concatenate(dataset.labels, 0)[:, 0].max()  # max label class
     elif task == 'classification':
         try:
@@ -525,30 +605,44 @@ def train(proj_info, hyp, opt, data_dict, tb_writer=None):
                                     drop_last=True)
         except Exception as e:
             logger.warning(f'Failed to get dataloder for training: {e}')
-
-    nb = len(dataloader)  # number of batches
     assert mlc < nc, 'Label class %g exceeds nc=%g in %s. Possible class labels are 0-%g' % (mlc, nc, opt.data, nc - 1)
 
     # Process 0 (TestDataLoader) -----------------------------------------------
     if rank in [-1, 0]:
         if task == 'detection':
-            testloader = create_dataloader(
-                userid,
-                project_id,
-                test_path,
-                imgsz_test,
-                batch_size // opt.world_size, # * 2 may lead out-of-memory
-                gs, # stride
-                opt, # single_cls
-                hyp=hyp,
-                cache=opt.cache_images and not opt.notest,
-                rect=True,
-                rank=-1,
-                world_size=opt.world_size,
-                workers=opt.workers * 2,
-                pad=0.5,
-                prefix='val'
-            )[0]
+            if opt.loss_name == 'TAL': # v9
+                testloader = create_dataloader_v9(
+                    test_path,
+                    imgsz,
+                    batch_size // opt.world_size * 2,
+                    gs,
+                    opt.single_cls,
+                    hyp=hyp,
+                    cache=opt.cache_images and not opt.notest,
+                    rect=True,
+                    rank=-1,
+                    workers=opt.workers * 2,
+                    pad=0.5,
+                    prefix='val'
+                )[0]
+            else:
+                testloader = create_dataloader(
+                    userid,
+                    project_id,
+                    test_path,
+                    imgsz_test,
+                    batch_size // opt.world_size, # * 2 may lead out-of-memory
+                    gs, # stride
+                    opt, # single_cls
+                    hyp=hyp,
+                    cache=opt.cache_images and not opt.notest,
+                    rect=True,
+                    rank=-1,
+                    world_size=opt.world_size,
+                    workers=opt.workers * 2,
+                    pad=0.5,
+                    prefix='val'
+                )[0]
 
             if not opt.resume:
                 labels = np.concatenate(dataset.labels, 0)
@@ -631,13 +725,16 @@ def train(proj_info, hyp, opt, data_dict, tb_writer=None):
 
     # Model parameters ---------------------------------------------------------
     if task == 'detection':
-        nl = model.module.model[-1].nl if is_parallel(model) else model.model[-1].nl
-        # nl = model.model[-1].nl  # number of detection layers (used for scaling hyp['obj'])
-        hyp['box'] *= 3. / nl  # scale to layers
-        hyp['cls'] *= nc / 80. * 3. / nl  # scale to classes and layers
-        hyp['obj'] *= (imgsz / 640) ** 2 * 3. / nl  # scale to image size and layers
-        model.gr = 1.0  # iou loss ratio (obj_loss = 1.0 or iou)
-        model.class_weights = labels_to_class_weights(dataset.labels, nc).to(device) * nc  # attach class weights
+        # nl = model.module.model[-1].nl if is_parallel(model) else model.model[-1].nl
+        nl = de_parallel(model).model[-1].nl # number of detection layers (to scale hyps)
+        if opt.loss_name != 'TAL': # v7
+            hyp['box'] *= 3. / nl  # scale to layers
+            hyp['cls'] *= nc / 80. * 3. / nl  # scale to classes and layers
+            hyp['obj'] *= (imgsz / 640) ** 2 * 3. / nl  # scale to image size and layers
+            model.gr = 1.0  # iou loss ratio (obj_loss = 1.0 or iou)
+            model.class_weights = labels_to_class_weights(dataset.labels, nc).to(device) * nc  # attach class weights
+        else:
+            model.class_weights = labels_to_class_weights_v9(dataset.labels, nc).to(device) * nc  # attach class weights
         hyp['label_smoothing'] = opt.label_smoothing
     model.nc = nc  # attach number of classes to model
     model.hyp = hyp  # attach hyperparameters to model
@@ -666,7 +763,7 @@ def train(proj_info, hyp, opt, data_dict, tb_writer=None):
             logger.warning(f'not supported loss function {opt.loss_name}')
     else: # if task == 'detection':
         if opt.loss_name == 'TAL':
-            compute_loss = ComputeLossTAL(model)
+            compute_loss = ComputeLoss_v9(model) #ComputeLossTAL(model)
         else:
             if opt.loss_name == 'OTA':
                 compute_loss_ota = ComputeLossOTA(model)  # init loss class
@@ -685,7 +782,8 @@ def train(proj_info, hyp, opt, data_dict, tb_writer=None):
     # Start training -----------------------------------------------------------
 
     t0 = time.time() # time_synchronized()
-    nw = max(round(hyp['warmup_epochs'] * nb), 1000)  # number of warmup iterations, max(3 epochs, 1k iterations)
+    nb = len(dataloader)  # number of batches
+    nw = max(round(hyp['warmup_epochs'] * nb), 100)  # number of warmup iterations, max(3 epochs, 100 iterations)
     nw = min(nw, (epochs - start_epoch) / 2 * nb)  # limit warmup to < 1/2 of training
     if task == 'detection':
         maps = np.zeros(nc)  # mAP per class
@@ -694,7 +792,7 @@ def train(proj_info, hyp, opt, data_dict, tb_writer=None):
         results = (0, 0) # val_accuracy, val_loss
     last_opt_step = -1
     scheduler.last_epoch = start_epoch - 1  # do not move
-    scaler = amp.GradScaler(enabled=cuda) # use amp(automatic mixed precision)
+    scaler = amp.GradScaler(enabled=amp_enable)
 
     logger.info(f'\n{colorstr("Train: ")}Image sizes {imgsz}, {imgsz_test}\n'
                 f'       Using {dataloader.num_workers} dataloader workers\n'
@@ -733,13 +831,21 @@ def train(proj_info, hyp, opt, data_dict, tb_writer=None):
             else:
                 logger.warning(f"taks = {task}: only detection task supports image weight")
 
+        # Stop mosaic augmentation
+        if epoch == (epochs - opt.close_mosaic):
+            logger.info("Closing dataloader mosaic")
+            dataset.mosaic = False
+
         # Update mosaic border
         # b = int(random.uniform(0.25 * imgsz, 0.75 * imgsz + gs) // gs * gs)
         # dataset.mosaic_border = [b - imgsz, -b]  # height, width borders
 
         # mean losses
         if task == 'detection':
-            mloss = torch.zeros(4, device=device)
+            if opt.loss_name == 'TAL':
+                mloss = torch.zeros(3, device=device)
+            else:
+                mloss = torch.zeros(4, device=device)
         elif task == 'classification':
             mloss = torch.zeros(1, device=device)
             macc = torch.zeros(1, device=device)
@@ -750,36 +856,35 @@ def train(proj_info, hyp, opt, data_dict, tb_writer=None):
 
         # progress bar
         pbar = enumerate(dataloader)
+        # pbar = tqdm(pbar, total=nb, bar_format=TQDM_BAR_FORMAT)
 
-        # class TqdmLogger:
-        #     def __init__(self, logger: logging.Logger):
-        #         self.logger = logger
-        #     def write(self, msg: str) -> None:
-        #         self.logger.info(msg.lstrip("\r"))
-        #     def flush(self) -> None:
-        #         pass
-    
-        # TQDM_BAR_FORMAT = '{l_bar}{bar:10}| {n_fmt}/{total_fmt} {elapsed}'
+        if opt.loss_name == 'TAL': # v9
+            title_s = ('\n' + '%11s' * 7) % (
+                'Epoch', 'GPU_Mem', 'box', 'cls', 'dfl', 'Labels', 'Img_Size'
+            )
+        else: # v7
+            title_s = ('\n' + '%11s' * 8) % (
+                'Epoch', 'GPU_Mem', 'Box', 'Obj', 'Cls', 'Total', 'Labels', 'Img_Size'
+            )
 
         # if rank in [-1, 0]:
         #     pbar = tqdm(
-        #         pbar, 
-        #         total=nb, 
-        #         file=TqdmLogger(logger),
-        #         maxinterval=10,
+        #         pbar,
+        #         desc=title_s,
+        #         total=nb,
+        #         miniters=1,
         #         bar_format=TQDM_BAR_FORMAT,
-        #         ascii=True
         #     )  # progress bar
 
         train_loss = {}
-        # optimizer.zero_grad()
+        optimizer.zero_grad()
         # training batches start ===============================================
         if task == 'detection':
             for i, (imgs, targets, paths, _) in pbar:
-                # logger.info(f"{i} {len(imgs)} imgs")
                 t_batch = time.time() #time_synchronized()
                 ni = i + nb * epoch  # number integrated batches (since train start)
-                imgs = imgs.to(device, non_blocking=True).float() / 255.0  # uint8 to float32, 0-255 to 0.0-1.0
+                imgs = imgs.to(device, non_blocking=True).float() / 255  # uint8 to float32, 0-255 to 0.0-1.0
+
                 # Warmup
                 if ni <= nw:
                     xi = [0, nw]  # x interp
@@ -787,13 +892,14 @@ def train(proj_info, hyp, opt, data_dict, tb_writer=None):
                     accumulate = max(1, np.interp(ni, xi, [1, nbs / opt.total_batch_size]).round())
                     for j, x in enumerate(optimizer.param_groups):
                         # bias lr falls from 0.1 to lr0, all other lrs rise from 0.0 to lr0
-                        x['lr'] = np.interp(ni, xi, [hyp['warmup_bias_lr'] if j == 2 else 0.0, x['initial_lr'] * lf(epoch)])
+                        # x['lr'] = np.interp(ni, xi, [hyp['warmup_bias_lr'] if j == 2 else 0.0, x['initial_lr'] * lf(epoch)])
+                        x['lr'] = np.interp(ni, xi, [hyp['warmup_bias_lr'] if j == 0 else 0.0, x['initial_lr'] * lf(epoch)])
                         if 'momentum' in x:
                             x['momentum'] = np.interp(ni, xi, [hyp['warmup_momentum'], hyp['momentum']])
-                            hyp[f'momentum_group{j}'] = x['momentum']
-                        else:
-                            hyp[f'momentum_group{j}'] = None
-                        hyp[f'lr_group{j}'] = x['lr']
+                        #     hyp[f'momentum_group{j}'] = x['momentum']
+                        # else:
+                        #     hyp[f'momentum_group{j}'] = None
+                        # hyp[f'lr_group{j}'] = x['lr']
                     # status_update(userid, project_id,
                     #           update_id="hyperparameter",
                     #           update_content=hyp)
@@ -807,10 +913,9 @@ def train(proj_info, hyp, opt, data_dict, tb_writer=None):
                         imgs = F.interpolate(imgs, size=ns, mode='bilinear', align_corners=False)
 
                 # Forward
-                optimizer.zero_grad()
-                with amp.autocast(enabled=cuda):
+                # optimizer.zero_grad()
+                with amp.autocast(enabled=amp_enable):
                     pred = model(imgs)  # forward
-                    # logger.info('-'*100)
                     # if 'loss_ota' not in hyp or hyp['loss_ota'] == 1:
                     if 'OTA' in opt.loss_name: #opt.loss_name == 'OTA':
                         loss, loss_items = compute_loss_ota(pred, targets.to(device), imgs)  # loss scaled by batch_size
@@ -841,10 +946,16 @@ def train(proj_info, hyp, opt, data_dict, tb_writer=None):
                     mem = '%.3gG' % (torch.cuda.memory_reserved() / 1E9 if torch.cuda.is_available() else 0)  # (GB)
                     mloss = (mloss * i + loss_items) / (i + 1)  # update mean losses
 
-                    s = ('%10s' * 2 + '%10.4f' * 4 + '%10.0f' * 2) % (
-                        '%g/%g' % (epoch, epochs - 1), mem,         # epoch/total, gpu_mem
-                        *mloss, targets.shape[0], imgs.shape[-1]    # box, dfl or obj, cls, total, labels, imgsz
-                    )
+                    if opt.loss_name == 'TAL':
+                        s = ('%11s' * 2 + '%11.4g' * 5) % (
+                            '%g/%g' % (epoch, epochs - 1), mem,         # epoch/total, gpu_mem
+                            *mloss, targets.shape[0], imgs.shape[-1]    # box, dfl, cls, labels, imgsz
+                        )
+                    else:
+                        s = ('%10s' * 2 + '%11.4f' * 4 + '%11.0f' * 2) % (
+                            '%g/%g' % (epoch, epochs - 1), mem,         # epoch/total, gpu_mem
+                            *mloss, targets.shape[0], imgs.shape[-1]    # box, obj, cls, total, labels, imgsz
+                        )
 
                     # pbar.set_description(s)
                     mloss_list = mloss.to('cpu').numpy().tolist()
@@ -854,7 +965,10 @@ def train(proj_info, hyp, opt, data_dict, tb_writer=None):
                     train_loss['box'] = mloss_list[0]
                     train_loss['obj'] = mloss_list[1]
                     train_loss['cls'] = mloss_list[2]
-                    train_loss['total'] = mloss_list[3]
+                    if opt.loss_name == 'TAL':
+                        train_loss['total'] = sum(mloss_list)
+                    else:
+                        train_loss['total'] = mloss_list[3]
                     train_loss['label'] = targets.shape[0]
                     train_loss['step'] = i + 1
                     train_loss['total_step'] = nb
@@ -866,18 +980,11 @@ def train(proj_info, hyp, opt, data_dict, tb_writer=None):
                     ten_percent_cnt = int((i+1)/nb*10+0.5)
                     bar = '|'+ '🟩'*ten_percent_cnt + ' '*(20-ten_percent_cnt*2)+'|'
                     content_s = s + (f'{bar}{(i+1)/nb*100:3.0f}% {i+1:4.0f}/{nb:4.0f}')
-                    if opt.loss_name == 'TAL': # v9
-                        title_s = ('%10s' * 8) % (
-                            'Epoch', 'GPU_Mem', 'Box', 'Dfl', 'Cls', 'Total', 'Labels', 'Img_Size'
-                        )
-                    else: # v7
-                        title_s = ('%10s' * 8) % (
-                            'Epoch', 'GPU_Mem', 'Box', 'Obj', 'Cls', 'Total', 'Labels', 'Img_Size'
-                        )
+
                     if (i % 50) == 0:
                         logger.info(title_s)
                     logger.info(content_s)
-                    # Plot
+
                     # if plots and ni < 10:
                     #     f = save_dir / f'train_batch{ni}.jpg'  # filename
                     #     Thread(target=plot_images, args=(imgs, targets, paths, f), daemon=True).start()
@@ -916,7 +1023,7 @@ def train(proj_info, hyp, opt, data_dict, tb_writer=None):
 
                 # Forward
                 optimizer.zero_grad()
-                with amp.autocast(enabled=cuda):
+                with amp.autocast(enabled=amp_enable):
                     pred = model(imgs)  # forward
                     loss = compute_loss(pred, targets)
                     _, out = pred.max(1)  # top-1_pred_value, top-1_pred_cls_idx
@@ -988,7 +1095,10 @@ def train(proj_info, hyp, opt, data_dict, tb_writer=None):
         if rank in [-1, 0]:
             # mAP
             if task == 'detection':
-                ema.update_attr(model, include=['yaml', 'nc', 'hyp', 'gr', 'names', 'stride', 'class_weights'])
+                if opt.loss_name == 'TAL':
+                    ema.update_attr(model, include=['yaml', 'nc', 'hyp', 'names', 'stride', 'class_weights'])
+                else:
+                    ema.update_attr(model, include=['yaml', 'nc', 'hyp', 'gr', 'names', 'stride', 'class_weights'])
             elif task == 'classification':
                 ema.update_attr(model, include=['yaml', 'nc', 'hyp', 'names', 'class_weights'])
             final_epoch = (epoch + 1 == epochs) or stopper.possible_stop
@@ -1074,7 +1184,10 @@ def train(proj_info, hyp, opt, data_dict, tb_writer=None):
                 epoch_summary['train_loss_box'] = mloss_list[0]
                 epoch_summary['train_loss_obj'] = mloss_list[1]
                 epoch_summary['train_loss_cls'] = mloss_list[2]
-                epoch_summary['train_loss_total'] = mloss_list[3]
+                if opt.loss_name == 'TAL':
+                    epoch_summary['train_loss_total'] = sum(mloss_list)
+                else:
+                    epoch_summary['train_loss_total'] = mloss_list[3]
                 epoch_summary['val_acc_P'] = results[0]
                 epoch_summary['val_acc_R'] = results[1]
                 epoch_summary['val_acc_map50'] = results[2]
@@ -1167,39 +1280,47 @@ def train(proj_info, hyp, opt, data_dict, tb_writer=None):
         logger.info(f'\n{colorstr("Train: ")}{epoch-start_epoch+1} epochs completed({(time.time() - t0) / 60:.3f} min.')
 
         # Test best.pt after fusing layers -------------------------------------
-        # [tenace's note] argument of type 'PosixPath' is not iterable
-        # [tenace's note] a bit redundant testing
+        # [tenace's note] argument of type 'PosixPath' is not iterable (??)
         if best.exists():
-            m = str(best)
-        else:
-            m = str(last)
-        # if task == 'detection':
-        #     results, _, _ = test.test(proj_info,
-        #                               data_dict,
-        #                               batch_size=batch_size * 2,
-        #                               imgsz=imgsz_test,
-        #                               conf_thres=0.001,
-        #                               iou_thres=0.7,
-        #                               model=attempt_load(m, device), #.half(),
-        #                               single_cls=opt.single_cls,
-        #                               dataloader=testloader,
-        #                               save_dir=save_dir,
-        #                               save_json=False, #True,
-        #                               plots=False,
-        #                               is_coco=is_coco,
-        #                               v5_metric=opt.v5_metric)
-        # elif task == 'classification':
-        #     results, _ = test.test_cls(proj_info,
-        #                                data_dict,
-        #                                batch_size=batch_size * 2,
-        #                                imgsz=imgsz_test,
-        #                                model=attempt_load(m, device),
-        #                                dataloader=testloader,
-        #                                save_dir=save_dir,
-        #                                plots=False,
-        #                                half_precision=True)
+            if task == 'detection':
+                m = os.path.splitext(best)[0] + "_stripped.pt"
+                strip_optimizer(best, m)
+                results, _, _ = test.test(
+                    proj_info,
+                    data_dict,
+                    batch_size=1, # batch_size * 2, # default: 32
+                    imgsz=imgsz_test,  # default: 640
+                    conf_thres=0.001, # default: 0.001
+                    iou_thres=0.7, # default: 0.7
+                    single_cls=opt.single_cls, # default: False
+                    augment=False, # default: False
+                    verbose=False, # default: False
+                    model=attempt_load(m, map_location=device, fused=True), #.half(),
+                    dataloader=testloader,
+                    save_dir=save_dir,
+                    save_txt=False, # default: False
+                    save_hybrid=False, # default: False
+                    save_conf=False, # default: False
+                    save_json=True, #  # default: False # pycocotool
+                    plots=False, # default: True
+                    compute_loss=None,  # default: None
+                    half_precision=False, # default: True
+                    trace=False, # default: False
+                    is_coco=is_coco, # default: False
+                    metric=opt.metric # default: 'v5', possible: 'v7', 'v9'
+                )
+            # elif task == 'classification':
+            #     results, _ = test.test_cls(proj_info,
+            #                                data_dict,
+            #                                batch_size=batch_size * 2,
+            #                                imgsz=imgsz_test,
+            #                                model=attempt_load(m, device),
+            #                                dataloader=testloader,
+            #                                save_dir=save_dir,
+            #                                plots=False,
+            #                                half_precision=True)
 
-        final_model = best if best.exists() else last  # final model
+        final_model = best if best.exists() else last  # final model file
 
     else:
         dist.destroy_process_group()

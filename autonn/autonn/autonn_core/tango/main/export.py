@@ -572,15 +572,20 @@ def export_config(src, dst, data, base, device, engine, task='detection'):
     # NN Model
     config = ''
     if task == 'classification':
-        weight = 'bestmodel.pt'
+        weight = 'bestmodel.pt' # 'bestmodel.torchscript', 'bestmodel.onnx'
     else: # if task == 'detection'
         weight = [
             'bestmodel.pt', 
             'bestmodel.torchscript', 
-            'bestmodel.onnx',
-            'bestmodel.tflite',
-            'bestmodel_edgetpu.tflite',
+            'bestmodel.onnx'
         ]
+        if engine == 'tensorrt':
+            weight.append('bestmodel_end2end.onnx')
+        elif engine == 'tflite':
+            tfmodels = ['bestmodel.pb', 'bestmodel.tflite']
+            weight.extend(tfmodels)
+            if device == 'tpu':
+                weight.append('bestmodel_edgetpu.tflite')
     nn_dict['weight_file'] = weight
     nn_dict['config_file'] = config # not neccessary
 
