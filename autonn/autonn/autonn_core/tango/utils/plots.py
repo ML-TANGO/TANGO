@@ -401,12 +401,20 @@ def plot_results_overlay(start=0, stop=0):  # from utils.plots import *; plot_re
         fig.savefig(f.replace('.txt', '.png'), dpi=200)
 
 
-def plot_results(start=0, stop=0, bucket='', id=(), labels=(), save_dir=''):
+def plot_results(start=0, stop=0, bucket='', id=(), labels=(), save_dir='', use_dfl=True):
     # Plot training 'results*.txt'. from utils.plots import *; plot_results(save_dir='runs/train/exp')
     fig, ax = plt.subplots(2, 5, figsize=(12, 6), tight_layout=True)
     ax = ax.ravel()
-    s = ['Box', 'Objectness', 'Classification', 'Precision', 'Recall',
-         'val Box', 'val Objectness', 'val Classification', 'mAP@0.5', 'mAP@0.5:0.95']
+    ''' DFL = Distribution Focal Loss
+        Ref. https://ieeexplore.ieee.org/document/9792391
+        It is used for bounding box regression along with CIOU.
+    '''
+    if use_dfl:
+        s = ['Box Loss', 'DFL', 'Class Loss', 'Precision', 'Recall',
+            'val Box', 'val DFL', 'val Class', 'mAP@0.5', 'mAP@0.5:0.95']
+    else:
+        s = ['Box', 'Objectness', 'Classification', 'Precision', 'Recall',
+            'val Box', 'val Objectness', 'val Classification', 'mAP@0.5', 'mAP@0.5:0.95']
     if bucket:
         # files = ['https://storage.googleapis.com/%s/results%g.txt' % (bucket, x) for x in id]
         files = ['results%g.txt' % x for x in id]

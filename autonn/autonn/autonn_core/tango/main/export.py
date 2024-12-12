@@ -177,22 +177,33 @@ def export_onnx_end2end(model,
                     }
         dynamic_axes.update(output_axes)
 
-        model = End2End(model, topk_all, iou_thres, conf_thres, None ,device, labels, v9)
+        model = End2End(
+            model, 
+            max_obj=topk_all, 
+            iou_thres=iou_thres, 
+            score_thres=conf_thres, 
+            max_wh=None, # None -> ONNX End module for TensorRT, # int -> ONNX End module for ONNX runtime
+            device=device, 
+            n_classes=labels, 
+            v9=v9
+        )
 
         output_names = ['num_dets', 'det_boxes', 'det_scores', 'det_classes']
         shapes = [ batch_size, 1,  batch_size,  topk_all, 4,
                    batch_size,  topk_all,  batch_size,  topk_all]
 
-        torch.onnx.export(  model,
-                            im,
-                            f,
-                            verbose=False,
-                            export_params=True,       # store the trained parameter weights inside the model file
-                            opset_version=12,
-                            do_constant_folding=True, # whether to execute constant folding for optimization
-                            input_names=['images'],
-                            output_names=output_names,
-                            dynamic_axes=dynamic_axes)
+        torch.onnx.export(  
+            model,
+            im,
+            f,
+            verbose=False,
+            export_params=True,       # store the trained parameter weights inside the model file
+            opset_version=12,
+            do_constant_folding=True, # whether to execute constant folding for optimization
+            input_names=['images'],
+            output_names=output_names,
+            dynamic_axes=dynamic_axes
+        )
 
         # Checks
         model_onnx = onnx.load(f)  # load onnx model
@@ -210,7 +221,7 @@ def export_onnx_end2end(model,
                 assert check, 'assert check failed'
                 logger.info(f'Model Exporter: {prefix} simplifier success')
             except Exception as e:
-                logger.warn(f'Model Exporter: {prefix} simplifier failure: {e}')
+                logger.warning(f'Model Exporter: {prefix} simplifier failure: {e}')
 
         # print(onnx.helper.printable_graph(onnx_model.graph))  # print a human readable model
         onnx.save(model_onnx,f)
@@ -254,13 +265,13 @@ def export_tensorrt(model,
     try:
         import tensorrt as trt
     except Exception as e:
-        logger.warn(f'{prefix} export failure: {e}')
+        logger.warning(f'{prefix} export failure: {e}')
         return None, None
 
     import pkg_resources as pkg
     current, minimum, maximum = (pkg.parse_version(x) for x in (trt.__version__, '8.0.0', '10.1.0'))
     if minimum >= current or current >= maximum:
-        logger.warn(f'{prefix} export failure: {prefix}>={minimum},<={maximum} required by autonn in ml-tango')
+        logger.warning(f'{prefix} export failure: {prefix}>={minimum},<={maximum} required by autonn in ml-tango')
         return None, None
 
     is_trt10 = int(trt.__version__.split(".")[0]) >= 10
@@ -561,15 +572,20 @@ def export_config(src, dst, data, base, device, engine, task='detection'):
     # NN Model
     config = ''
     if task == 'classification':
-        weight = 'bestmodel.pt'
+        weight = 'bestmodel.pt' # 'bestmodel.torchscript', 'bestmodel.onnx'
     else: # if task == 'detection'
         weight = [
             'bestmodel.pt', 
             'bestmodel.torchscript', 
-            'bestmodel.onnx',
-            'bestmodel.tflite',
-            'bestmodel_edgetpu.tflite',
+            'bestmodel.onnx'
         ]
+        if engine == 'tensorrt':
+            weight.append('bestmodel_end2end.onnx')
+        elif engine == 'tflite':
+            tfmodels = ['bestmodel.pb', 'bestmodel.tflite']
+            weight.extend(tfmodels)
+            if device == 'tpu':
+                weight.append('bestmodel_edgetpu.tflite')
     nn_dict['weight_file'] = weight
     nn_dict['config_file'] = config # not neccessary
 
@@ -900,7 +916,8 @@ def export_weight(weights, device, include, task='detection', ch=3, imgsz=[640,6
 
 
 def convert_small_model(model, ckpt):
-    idx = 0
+    idx, cnt = 0, 0
+    max = len(model.state_dict().items())
     for k, v in model.state_dict().items():
         if "model.{}.".format(idx) in k:
             if idx < 22:
@@ -926,6 +943,11 @@ def convert_small_model(model, ckpt):
         else:
             while True:
                 idx += 1
+                ten_percent_cnt = int((cnt+1)/max*10+0.5)
+                bar = '|'+ '🟩'*ten_percent_cnt + ' '*(20-ten_percent_cnt*2)+'|'
+                s = f'model.{idx:2.0f} weights transferring...'
+                s += (f'{bar} {(cnt+1)/max*100:3.0f}% {cnt+1:6.0f}/{max:6.0f}')
+                logger.info(s)
                 if "model.{}.".format(idx) in k:
                     break
             if idx < 22:
@@ -948,122 +970,137 @@ def convert_small_model(model, ckpt):
                 model.state_dict()[k] -= model.state_dict()[k]
                 model.state_dict()[k] += ckpt['model'].state_dict()[kr]
                 logger.debug(f"{k}: perfectly matched!!")
+        cnt += 1
     _ = model.eval()
     return model
 
 
 def convert_medium_model(model, ckpt):
-    idx = 0
+    idx, cnt = 0, 0
+    max = len(model.state_dict().items())
     for k, v in model.state_dict().items():
         if "model.{}.".format(idx) in k:
             if idx < 22:
                 kr = k.replace("model.{}.".format(idx), "model.{}.".format(idx+1))
                 model.state_dict()[k] -= model.state_dict()[k]
                 model.state_dict()[k] += ckpt['model'].state_dict()[kr]
-                logger.info(f"{k}: perfectly matched!!")
+                logger.debug(f"{k}: perfectly matched!!")
             elif "model.{}.cv2.".format(idx) in k:
                 kr = k.replace("model.{}.cv2.".format(idx), "model.{}.cv4.".format(idx+16))
                 model.state_dict()[k] -= model.state_dict()[k]
                 model.state_dict()[k] += ckpt['model'].state_dict()[kr]
-                logger.info(f"{k}: perfectly matched!!")
+                logger.debug(f"{k}: perfectly matched!!")
             elif "model.{}.cv3.".format(idx) in k:
                 kr = k.replace("model.{}.cv3.".format(idx), "model.{}.cv5.".format(idx+16))
                 model.state_dict()[k] -= model.state_dict()[k]
                 model.state_dict()[k] += ckpt['model'].state_dict()[kr]
-                logger.info(f"{k}: perfectly matched!!")
+                logger.debug(f"{k}: perfectly matched!!")
             elif "model.{}.dfl.".format(idx) in k:
                 kr = k.replace("model.{}.dfl.".format(idx), "model.{}.dfl2.".format(idx+16))
                 model.state_dict()[k] -= model.state_dict()[k]
                 model.state_dict()[k] += ckpt['model'].state_dict()[kr]
-                logger.info(f"{k}: perfectly matched!!")
+                logger.debug(f"{k}: perfectly matched!!")
         else:
             while True:
                 idx += 1
+                ten_percent_cnt = int((cnt+1)/max*10+0.5)
+                bar = '|'+ '🟩'*ten_percent_cnt + ' '*(20-ten_percent_cnt*2)+'|'
+                s = f'model.{idx:2.0f} weights transferring...'
+                s += (f'{bar} {(cnt+1)/max*100:3.0f}% {cnt+1:6.0f}/{max:6.0f}')
+                logger.debug(s)
                 if "model.{}.".format(idx) in k:
                     break
             if idx < 22:
                 kr = k.replace("model.{}.".format(idx), "model.{}.".format(idx+1))
                 model.state_dict()[k] -= model.state_dict()[k]
                 model.state_dict()[k] += ckpt['model'].state_dict()[kr]
-                logger.info(f"{k}: perfectly matched!!")
+                logger.debug(f"{k}: perfectly matched!!")
             elif "model.{}.cv2.".format(idx) in k:
                 kr = k.replace("model.{}.cv2.".format(idx), "model.{}.cv4.".format(idx+16))
                 model.state_dict()[k] -= model.state_dict()[k]
                 model.state_dict()[k] += ckpt['model'].state_dict()[kr]
-                logger.info(f"{k}: perfectly matched!!")
+                logger.debug(f"{k}: perfectly matched!!")
             elif "model.{}.cv3.".format(idx) in k:
                 kr = k.replace("model.{}.cv3.".format(idx), "model.{}.cv5.".format(idx+16))
                 model.state_dict()[k] -= model.state_dict()[k]
                 model.state_dict()[k] += ckpt['model'].state_dict()[kr]
-                logger.info(f"{k}: perfectly matched!!")
+                logger.debug(f"{k}: perfectly matched!!")
             elif "model.{}.dfl.".format(idx) in k:
                 kr = k.replace("model.{}.dfl.".format(idx), "model.{}.dfl2.".format(idx+16))
                 model.state_dict()[k] -= model.state_dict()[k]
                 model.state_dict()[k] += ckpt['model'].state_dict()[kr]
-                logger.info(f"{k}: perfectly matched!!")
+                logger.debug(f"{k}: perfectly matched!!")
+        cnt += 1
     _ = model.eval()
     return model
 
 
 def convert_large_model(model, ckpt):
-    idx = 0
+    idx, cnt = 0, 0
+    max = len(model.state_dict().items())
     for k, v in model.state_dict().items():
         if "model.{}.".format(idx) in k:
             if idx < 29:
                 kr = k.replace("model.{}.".format(idx), "model.{}.".format(idx))
                 model.state_dict()[k] -= model.state_dict()[k]
                 model.state_dict()[k] += ckpt['model'].state_dict()[kr]
-                logger.info(f"{k}: perfectly matched!!")
+                logger.debug(f"{k}: perfectly matched!!")
             elif idx < 42:
                 kr = k.replace("model.{}.".format(idx), "model.{}.".format(idx+7))
                 model.state_dict()[k] -= model.state_dict()[k]
                 model.state_dict()[k] += ckpt['model'].state_dict()[kr]
-                logger.info(f"{k}: perfectly matched!!")
+                logger.debug(f"{k}: perfectly matched!!")
             elif "model.{}.cv2.".format(idx) in k:
                 kr = k.replace("model.{}.cv2.".format(idx), "model.{}.cv4.".format(idx+7))
                 model.state_dict()[k] -= model.state_dict()[k]
                 model.state_dict()[k] += ckpt['model'].state_dict()[kr]
-                logger.info(f"{k}: perfectly matched!!")
+                logger.debug(f"{k}: perfectly matched!!")
             elif "model.{}.cv3.".format(idx) in k:
                 kr = k.replace("model.{}.cv3.".format(idx), "model.{}.cv5.".format(idx+7))
                 model.state_dict()[k] -= model.state_dict()[k]
                 model.state_dict()[k] += ckpt['model'].state_dict()[kr]
-                logger.info(f"{k}: perfectly matched!!")
+                logger.debug(f"{k}: perfectly matched!!")
             elif "model.{}.dfl.".format(idx) in k:
                 kr = k.replace("model.{}.dfl.".format(idx), "model.{}.dfl2.".format(idx+7))
                 model.state_dict()[k] -= model.state_dict()[k]
                 model.state_dict()[k] += ckpt['model'].state_dict()[kr]
-                logger.info(f"{k}: perfectly matched!!")
+                logger.debug(f"{k}: perfectly matched!!")
         else:
             while True:
                 idx += 1
+                ten_percent_cnt = int((cnt+1)/max*10+0.5)
+                bar = '|'+ '🟩'*ten_percent_cnt + ' '*(20-ten_percent_cnt*2)+'|'
+                s = f'model.{idx:2.0f} weights transferring...'
+                s += (f'{bar} {(cnt+1)/max*100:3.0f}% {cnt+1:6.0f}/{max:6.0f}')
+                logger.info(s)
                 if "model.{}.".format(idx) in k:
                     break
             if idx < 29:
                 kr = k.replace("model.{}.".format(idx), "model.{}.".format(idx))
                 model.state_dict()[k] -= model.state_dict()[k]
                 model.state_dict()[k] += ckpt['model'].state_dict()[kr]
-                logger.info(f"{k}: perfectly matched!!")
+                logger.debug(f"{k}: perfectly matched!!")
             elif idx < 42:
                 kr = k.replace("model.{}.".format(idx), "model.{}.".format(idx+7))
                 model.state_dict()[k] -= model.state_dict()[k]
                 model.state_dict()[k] += ckpt['model'].state_dict()[kr]
-                logger.info(f"{k}: perfectly matched!!")
+                logger.debug(f"{k}: perfectly matched!!")
             elif "model.{}.cv2.".format(idx) in k:
                 kr = k.replace("model.{}.cv2.".format(idx), "model.{}.cv4.".format(idx+7))
                 model.state_dict()[k] -= model.state_dict()[k]
                 model.state_dict()[k] += ckpt['model'].state_dict()[kr]
-                logger.info(f"{k}: perfectly matched!!")
+                logger.debug(f"{k}: perfectly matched!!")
             elif "model.{}.cv3.".format(idx) in k:
                 kr = k.replace("model.{}.cv3.".format(idx), "model.{}.cv5.".format(idx+7))
                 model.state_dict()[k] -= model.state_dict()[k]
                 model.state_dict()[k] += ckpt['model'].state_dict()[kr]
-                logger.info(f"{k}: perfectly matched!!")
+                logger.debug(f"{k}: perfectly matched!!")
             elif "model.{}.dfl.".format(idx) in k:
                 kr = k.replace("model.{}.dfl.".format(idx), "model.{}.dfl2.".format(idx+7))
                 model.state_dict()[k] -= model.state_dict()[k]
                 model.state_dict()[k] += ckpt['model'].state_dict()[kr]
-                logger.info(f"{k}: perfectly matched!!")
+                logger.debug(f"{k}: perfectly matched!!")
+        cnt += 1
     _ = model.eval()
     return model
 
@@ -1085,13 +1122,12 @@ def convert_yolov9(model_pt, cfg):
     ckpt = torch.load(model_pt, map_location='cpu')
     model.names = ckpt['model'].names
     model.nc = ckpt['model'].nc
-
     cfg_name = os.path.basename(cfg).lower()
-    if '-t' in cfg_name or '-s' in cfg_name:
-        model = convert_small_model(model, ckpt)    
-    elif '-m' in cfg_name or '-c' in cfg_name:
+    if 'yolov9-t' in cfg_name or 'yolov9-s' in cfg_name:
+        model = convert_small_model(model, ckpt)
+    elif 'yolov9-m' in cfg_name or 'yolov9-c' in cfg_name:
         model = convert_medium_model(model, ckpt)
-    else: #if '-e' in cfg_name:
+    else: #if 'yolov9-e' in cfg_name:
         model = convert_large_model(model, ckpt)
 
     reparamed_model = {

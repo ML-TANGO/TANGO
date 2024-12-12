@@ -1991,11 +1991,12 @@ class NASModel(DetectModel):
                 self.traced=False
 
             if self.traced:
-                if isinstance(m, Detect) or isinstance(m, IDetect) or isinstance(m, IAuxDetect) or isinstance(m, IKeypoint):
+                if isinstance(m, Detect) or isinstance(m, IDetect) or isinstance(m, IAuxDetect):
                     break
 
             if profile:
-                c = isinstance(m, (Detect, IDetect, IAuxDetect, IBin))
+                import thop
+                c = isinstance(m, (Detect, IDetect, IAuxDetect))
                 o = thop.profile(m, inputs=(x.copy() if c else x,), verbose=False)[0] / 1E9 * 2 if thop else 0  # FLOPS
                 for _ in range(10):
                     m(x.copy() if c else x)
@@ -2528,7 +2529,7 @@ def model_info(model, verbose=False, img_size=640):
     print('='*100)
     print(f"Model Summary: {len(list(model.modules()))} layers, {n_p} parameters, {n_g} gradients{fs}")
     print('='*100)
-    
+
 def check_suffix(file='yolo.pt', suffix=('.pt',), msg=''):
     if file and suffix:
         if isinstance(suffix, str):

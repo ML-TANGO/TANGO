@@ -635,14 +635,6 @@ def parse_model(d, ch):  # model_dict, input_channels(1 or 3)
             c2 = ch[f[0]]
         elif m is Foldcut:
             c2 = ch[f] // 2
-        # elif m in [ Detect,
-        #             IDetect,
-        #             IAuxDetect,
-        #             IBin,
-        #             IKeypoint   ]:
-        #     args.append([ch[x] for x in f])
-        #     if isinstance(args[1], int):  # number of anchors
-        #         args[1] = [list(range(args[1] * 2))] * len(f)
         elif m is ReOrg:
             c2 = ch[f] * 4
         elif m is Contract:

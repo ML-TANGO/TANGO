@@ -28,8 +28,8 @@ def check_anchors(uid, pid, dataset, model, thr=4.0, imgsz=640):
     logger.info(f'\n{prefix}Analyzing anchors... ')
     m = model.module.model[-1] if hasattr(model, 'module') else model.model[-1]  # Detect()
 
-    if not hasattr(m, 'anchor_grid'):
-        logger.info(f"{prefix}This head [{m.type}] is an anchor-free module\n")
+    if not hasattr(m, 'anchor_grid'): # v9
+        logger.info(f"{prefix}This head {colorstr('bold', m.type)} is an anchor-free module\n")
         anchor_summary = {}
         anchor_summary['anchor2target_ratio'] = 0.00
         anchor_summary['best_possible_recall'] = 0.0000

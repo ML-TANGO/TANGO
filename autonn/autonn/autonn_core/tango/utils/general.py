@@ -9,14 +9,22 @@ import random
 import re
 import subprocess
 import time
-from pathlib import Path
-
 import cv2
 import numpy as np
 import pandas as pd
+import pkg_resources as pkg
+import yaml
+from pathlib import Path
+
+COMMON_ROOT     = Path("/shared/common")
+DATASET_ROOT    = Path("/shared/datasets")
+MODEL_ROOT      = Path("/shared/models")
+CORE_DIR        = Path(__file__).resolve().parent.parent.parent # /source/autonn_core
+TANGO_ROOT      = CORE_DIR / 'tango'
+CFG_PATH        = TANGO_ROOT / 'common' / 'cfg'
+
 import torch
 import torchvision
-import yaml
 
 from tango.utils.google_utils import gsutil_getsize
 from tango.utils.metrics import fitness
@@ -29,10 +37,20 @@ pd.options.display.max_columns = 10
 cv2.setNumThreads(0)  # prevent OpenCV from multithreading (incompatible with PyTorch DataLoader)
 os.environ['NUMEXPR_MAX_THREADS'] = str(min(os.cpu_count(), 8))  # NumExpr max threads
 os.environ["PYTORCH_CUDA_ALLOC_CONF"] = "max_split_size_mb:512"
-
+TQDM_BAR_FORMAT = '{l_bar}{bar:10}| {n_fmt}/{total_fmt} {elapsed}'
 DEBUG = False
 
+
 logger = logging.getLogger(__name__)
+
+
+class TqdmLogger:
+    def __init__(self, logger: logging.Logger):
+        self.logger = logger
+    def write(self, msg: str) -> None:
+        self.logger.info(msg.lstrip("\r"))
+    def flush(self) -> None:
+        pass
 
 
 def set_logging(rank=-1):
@@ -42,11 +60,26 @@ def set_logging(rank=-1):
         level=logging.INFO if rank in [-1, 0] else logging.WARN)
 
 
-def init_seeds(seed=0, deterministric=False):
+def init_seeds(seed=0, deterministic=False):
     # Initialize random number generator (RNG) seeds
     random.seed(seed)
     np.random.seed(seed)
-    init_torch_seeds(seed, deterministric)
+    init_torch_seeds(seed, deterministic)
+
+
+def init_seeds_v9(seed=0, deterministic=False):
+    # Initialize random number generator (RNG) seeds https://pytorch.org/docs/stable/notes/randomness.html
+    random.seed(seed)
+    np.random.seed(seed)
+    torch.manual_seed(seed)
+    torch.cuda.manual_seed(seed)
+    torch.cuda.manual_seed_all(seed)  # for Multi-GPU, exception safe
+    # torch.backends.cudnn.benchmark = True  # AutoBatch problem https://github.com/ultralytics/yolov5/issues/9287
+    if deterministic and check_version(torch.__version__, '1.12.0'):  # https://github.com/ultralytics/yolov5/pull/8213
+        torch.use_deterministic_algorithms(True)
+        torch.backends.cudnn.deterministic = True
+        os.environ['CUBLAS_WORKSPACE_CONFIG'] = ':4096:8'
+        os.environ['PYTHONHASHSEED'] = str(seed)
 
 
 def get_latest_run(search_dir='.'):
@@ -63,6 +96,8 @@ def isdocker():
 def emojis(str=''):
     # Return platform-dependent emoji-safe version of string
     return str.encode().decode('ascii', 'ignore') if platform.system() == 'Windows' else str
+
+
 
 
 def check_online():
@@ -166,7 +201,7 @@ def check_dataset(dict):
     if val and len(val):
         val = [Path(x).resolve() for x in (val if isinstance(val, list) else [val])]  # val path
         if not all(x.exists() for x in val):
-            logger.warn('\nWARNING: Dataset not found, nonexistent paths: %s' % [str(x) for x in val if not x.exists()])
+            logger.warning('\nWARNING: Dataset not found, nonexistent paths: %s' % [str(x) for x in val if not x.exists()])
             if s and len(s):  # download script
                 logger.info('Downloading %s ...' % s)
                 if s.startswith('http') and s.endswith('.zip'):  # URL
@@ -180,16 +215,26 @@ def check_dataset(dict):
                 raise Exception('Dataset not found.')
 
 
-def check_version(current='0.0.0', minimum='0.0.0', name='version', pinned=False, hard=False, verbose=False):
-    import pkg_resources as pkg
+def check_version(current='0.0.0', minimum='0.0.0', name='version ', pinned=False, hard=False, verbose=False):
     current, minimum = (pkg.parse_version(x) for x in (current, minimum))
-    result = (current == minimum) if pinned else (current >=minimum)
+    result = (current == minimum) if pinned else (current >= minimum)
     s = f'WARNING {name}{minimum} is required by TANGO, but {name}{current} is currently installed'
     if hard:
         assert result, s
     if verbose and not result:
-        logger.warn(s)
+        logger.warning(s)
     return result
+
+
+def check_amp(model):
+    device = next(model.parameters()).device  # get model device
+    if device.type in ('cpu', 'mps'):
+        return False  # AMP only used on CUDA devices
+    if not torch.cuda.is_available():
+        return False
+    return True
+
+
 
 
 def make_divisible(x, divisor):
@@ -232,6 +277,27 @@ def colorstr(*input):
     return ''.join(colors[x] for x in args) + f'{string}' + colors['end']
 
 
+
+
+def labels_to_class_weights_v9(labels, nc=80):
+    # Get class weights (inverse frequency) from training labels
+    if labels[0] is None:  # no labels loaded
+        return torch.Tensor()
+
+    labels = np.concatenate(labels, 0)  # labels.shape = (866643, 5) for COCO
+    classes = labels[:, 0].astype(int)  # labels = [class xywh]
+    weights = np.bincount(classes, minlength=nc)  # occurrences per class
+
+    # Prepend gridpoint count (for uCE training)
+    # gpi = ((320 / 32 * np.array([1, 2, 4])) ** 2 * 3).sum()  # gridpoints per image
+    # weights = np.hstack([gpi * len(labels)  - weights.sum() * 9, weights * 9]) ** 0.5  # prepend gridpoints to start
+
+    weights[weights == 0] = 1  # replace empty bins with 1
+    weights = 1 / weights  # number of targets per class
+    weights /= weights.sum()  # normalize
+    return torch.from_numpy(weights).float()
+
+
 def labels_to_class_weights(labels, nc=80):
     # Get class weights (inverse frequency) from training labels
     if labels[0] is None:  # no labels loaded
@@ -271,6 +337,8 @@ def coco80_to_coco91_class():  # converts 80-index (val2014) to 91-index (paper)
     return x
 
 
+
+
 def xyxy2xywh(x):
     # Convert nx4 boxes from [x1, y1, x2, y2] to [x, y, w, h] where xy1=top-left, xy2=bottom-right
     y = x.clone() if isinstance(x, torch.Tensor) else np.copy(x)
@@ -278,6 +346,28 @@ def xyxy2xywh(x):
     y[:, 1] = (x[:, 1] + x[:, 3]) / 2  # y center
     y[:, 2] = x[:, 2] - x[:, 0]  # width
     y[:, 3] = x[:, 3] - x[:, 1]  # height
+    return y
+
+
+def xyxy2xywh_v9(x):
+    # Convert nx4 boxes from [x1, y1, x2, y2] to [x, y, w, h] where xy1=top-left, xy2=bottom-right
+    y = x.clone() if isinstance(x, torch.Tensor) else np.copy(x)
+    y[..., 0] = (x[..., 0] + x[..., 2]) / 2  # x center
+    y[..., 1] = (x[..., 1] + x[..., 3]) / 2  # y center
+    y[..., 2] = x[..., 2] - x[..., 0]  # width
+    y[..., 3] = x[..., 3] - x[..., 1]  # height
+    return y
+
+
+def xyxy2xywhn(x, w=640, h=640, clip=False, eps=0.0):
+    # Convert nx4 boxes from [x1, y1, x2, y2] to [x, y, w, h] normalized where xy1=top-left, xy2=bottom-right
+    if clip:
+        clip_boxes(x, (h - eps, w - eps))  # warning: inplace clip
+    y = x.clone() if isinstance(x, torch.Tensor) else np.copy(x)
+    y[..., 0] = ((x[..., 0] + x[..., 2]) / 2) / w  # x center
+    y[..., 1] = ((x[..., 1] + x[..., 3]) / 2) / h  # y center
+    y[..., 2] = (x[..., 2] - x[..., 0]) / w  # width
+    y[..., 3] = (x[..., 3] - x[..., 1]) / h  # height
     return y
 
 
@@ -291,6 +381,16 @@ def xywh2xyxy(x):
     return y
 
 
+def xywh2xyxy_v9(x):
+    # Convert nx4 boxes from [x, y, w, h] to [x1, y1, x2, y2] where xy1=top-left, xy2=bottom-right
+    y = x.clone() if isinstance(x, torch.Tensor) else np.copy(x)
+    y[..., 0] = x[..., 0] - x[..., 2] / 2  # top left x
+    y[..., 1] = x[..., 1] - x[..., 3] / 2  # top left y
+    y[..., 2] = x[..., 0] + x[..., 2] / 2  # bottom right x
+    y[..., 3] = x[..., 1] + x[..., 3] / 2  # bottom right y
+    return y
+
+
 def xywhn2xyxy(x, w=640, h=640, padw=0, padh=0):
     # Convert nx4 boxes from [x, y, w, h] normalized to [x1, y1, x2, y2] where xy1=top-left, xy2=bottom-right
     y = x.clone() if isinstance(x, torch.Tensor) else np.copy(x)
@@ -301,12 +401,31 @@ def xywhn2xyxy(x, w=640, h=640, padw=0, padh=0):
     return y
 
 
+def xywhn2xyxy_v9(x, w=640, h=640, padw=0, padh=0):
+    # Convert nx4 boxes from [x, y, w, h] normalized to [x1, y1, x2, y2] where xy1=top-left, xy2=bottom-right
+    y = x.clone() if isinstance(x, torch.Tensor) else np.copy(x)
+    y[..., 0] = w * (x[..., 0] - x[..., 2] / 2) + padw  # top left x
+    y[..., 1] = h * (x[..., 1] - x[..., 3] / 2) + padh  # top left y
+    y[..., 2] = w * (x[..., 0] + x[..., 2] / 2) + padw  # bottom right x
+    y[..., 3] = h * (x[..., 1] + x[..., 3] / 2) + padh  # bottom right y
+    return y
+
+
 def xyn2xy(x, w=640, h=640, padw=0, padh=0):
     # Convert normalized segments into pixel segments, shape (n,2)
     y = x.clone() if isinstance(x, torch.Tensor) else np.copy(x)
     y[:, 0] = w * x[:, 0] + padw  # top left x
     y[:, 1] = h * x[:, 1] + padh  # top left y
     return y
+
+
+def xyn2xy_v9(x, w=640, h=640, padw=0, padh=0):
+    # Convert normalized segments into pixel segments, shape (n,2)
+    y = x.clone() if isinstance(x, torch.Tensor) else np.copy(x)
+    y[..., 0] = w * x[..., 0] + padw  # top left x
+    y[..., 1] = h * x[..., 1] + padh  # top left y
+    return y
+
 
 
 def segment2box(segment, width=640, height=640):
@@ -336,6 +455,8 @@ def resample_segments(segments, n=1000):
     return segments
 
 
+
+
 def scale_coords(img1_shape, coords, img0_shape, ratio_pad=None):
     # Rescale coords (xyxy) from img1_shape to img0_shape
     if ratio_pad is None:  # calculate from img0_shape
@@ -352,12 +473,26 @@ def scale_coords(img1_shape, coords, img0_shape, ratio_pad=None):
     return coords
 
 
+def clip_boxes(boxes, shape):
+    # Clip boxes (xyxy) to image shape (height, width)
+    if isinstance(boxes, torch.Tensor):  # faster individually
+        boxes[:, 0].clamp_(0, shape[1])  # x1
+        boxes[:, 1].clamp_(0, shape[0])  # y1
+        boxes[:, 2].clamp_(0, shape[1])  # x2
+        boxes[:, 3].clamp_(0, shape[0])  # y2
+    else:  # np.array (faster grouped)
+        boxes[:, [0, 2]] = boxes[:, [0, 2]].clip(0, shape[1])  # x1, x2
+        boxes[:, [1, 3]] = boxes[:, [1, 3]].clip(0, shape[0])  # y1, y2
+
+
 def clip_coords(boxes, img_shape):
     # Clip bounding xyxy bounding boxes to image shape (height, width)
     boxes[:, 0].clamp_(0, img_shape[1])  # x1
     boxes[:, 1].clamp_(0, img_shape[0])  # y1
     boxes[:, 2].clamp_(0, img_shape[1])  # x2
     boxes[:, 3].clamp_(0, img_shape[0])  # y2
+
+
 
 
 def bbox_iou(box1, box2, x1y1x2y2=True, GIoU=False, DIoU=False, CIoU=False, eps=1e-7):
@@ -529,6 +664,27 @@ def box_iou(box1, box2):
     return inter / (area1[:, None] + area2 - inter)  # iou = inter / (area1 + area2 - inter)
 
 
+def box_iou_v9(box1, box2, eps=1e-7):
+    # https://github.com/pytorch/vision/blob/master/torchvision/ops/boxes.py
+    """
+    Return intersection-over-union (Jaccard index) of boxes.
+    Both sets of boxes are expected to be in (x1, y1, x2, y2) format.
+    Arguments:
+        box1 (Tensor[N, 4])
+        box2 (Tensor[M, 4])
+    Returns:
+        iou (Tensor[N, M]): the NxM matrix containing the pairwise
+            IoU values for every element in boxes1 and boxes2
+    """
+
+    # inter(N,M) = (rb(N,M,2) - lt(N,M,2)).clamp(0).prod(2)
+    (a1, a2), (b1, b2) = box1.unsqueeze(1).chunk(2, 2), box2.unsqueeze(0).chunk(2, 2)
+    inter = (torch.min(a2, b2) - torch.max(a1, b1)).clamp(0).prod(2)
+
+    # IoU = inter / (area1 + area2 - inter)
+    return inter / ((a2 - a1).prod(2) + (b2 - b1).prod(2) - inter + eps)
+
+
 def wh_iou(wh1, wh2):
     # Returns the nxm IoU matrix. wh1 is nx2, wh2 is mx2
     wh1 = wh1[:, None]  # [N,1,2]
@@ -666,6 +822,8 @@ def box_diou(box1, box2, eps: float = 1e-7):
     # The distance IoU is the IoU penalized by a normalized
     # distance between boxes' centers squared.
     return iou - (centers_distance_squared / diagonal_distance_squared)
+
+
 
 
 def non_max_suppression(prediction, conf_thres=0.25, iou_thres=0.45, classes=None, agnostic=False, multi_label=False,
@@ -973,6 +1131,8 @@ def non_max_suppression_v9(
     return output
 
 
+
+
 def strip_optimizer(f='best.pt', s=''):  # from utils.general import *; strip_optimizer()
     # Strip optimizer from 'f' to finalize training, optionally save as 's'
     x = torch.load(f, map_location=torch.device('cpu'))
@@ -1059,6 +1219,130 @@ def apply_classifier(x, model, img, im0):
     return x
 
 
+
+
+def convert_tensor_to_numpy(input_tensor, tensor_name='Input tensor'):
+    if input_tensor.get_device() < 0: # CPU tensor
+        if not input_tensor.requires_grad:
+            logger.info(f'{tensor_name}({[*input_tensor.shape]}) is a tensor (CPU, no grad)')
+            na_weights = input_tensor.numpy()
+            c_weights = na_weights.copy() # eliminate effect of shared storage
+        else:
+            logger.info(f'{tensor_name}({[*input_tensor.shape]}) is a tensor (CPU, with grad)')
+            na_weights = input_tensor.detach().numpy()
+            c_weights = na_weights.copy() # eliminate effect of shared storage
+    else: # CUDA tensor
+        if not input_tensor.requires_grad:
+            logger.info(f'{tensor_name}({[*input_tensor.shape]}) is a tensor (CUDA, no grad)')
+            c_weights = input_tensor.cpu().numpy()
+        else:
+            logger.info(f'{tensor_name}({[*input_tensor.shape]}) is a tensor (CUDA, with grad)')
+            c_weights = input_tensor.detach().cpu().numpy()
+    return c_weights
+
+
+def save_csv(weights, var_name):
+    path = TANGO_ROOT / f'{var_name}.csv'
+    if path.is_file():
+        os.remove(path)
+
+    def csv_write(filepath, data):
+        if not isinstance(data, np.ndarray):
+            import csv
+            with open(filepath, 'w') as csvfile:
+                writer = csv.writer(csvfile)
+                writer.writerow(data)
+            return filepath
+
+        if data.ndim <= 2:
+            df = pd.DataFrame(c_weights)
+            df.to_csv(path, index=False, header=False)
+
+        if data.ndim == 4: # NCHW tensor
+            filepaths = []
+            for b, b_data in enumerate(data):
+                for c, c_data in enumerate(b_data):
+                    _path = TANGO_ROOT / f'{var_name}_{b}_{c}.csv'
+                    df = pd.DataFrame(c_data)
+                    df.to_csv(_path, index=False, header=False)
+                    filepaths.append(_path)
+            return filepaths
+
+    if isinstance(weights, torch.Tensor):
+        c_weights = convert_tensor_to_numpy(weights, tensor_name=var_name)
+        csv_write(path, c_weights)
+    elif isinstance(weights, np.ndarray):
+        logger.info(f'{var_name} is a numpy array (CPU, no grad)')
+        c_weights = weights.copy() # eliminate effect of shared storage
+        csv_write(path, c_weights)
+    else:
+        logger.info(f'{var_name} is a list: {len(weights)}')
+        for index, element in enumerate(weights):
+            _var_name =  f'{var_name}_{index}.csv'
+            _path = TANGO_ROOT / _var_name
+            if isinstance(element, torch.Tensor):
+                element = convert_tensor_to_numpy(element, tensor_name=_var_name)
+                csv_write(_path, element)
+            elif isinstance(element, (list, tuple)):
+                logger.info(f'{var_name}_{index} is a list: {len(element)}')
+                for index2, element2 in enumerate(element):
+                    _var_name2 = f'{var_name}_{index}_{index2}.csv'
+                    _path2 = TANGO_ROOT / _var_name2
+                    if isinstance(element2, torch.Tensor):
+                        element2 = convert_tensor_to_numpy(element2, tensor_name=_var_name2)
+                        csv_write(_path2, element2)
+            else:
+                logger.info(f'{var_name}_{index} is a {type(element)}')
+                csv_write(_path, element)
+
+
+def save_npy(weights, var_name):
+    path = TANGO_ROOT / f'{var_name}.npy'
+    if path.is_file():
+        os.remove(path)
+
+    if isinstance(weights, torch.Tensor):
+        c_weights = convert_tensor_to_numpy(weights, tensor_name=var_name)
+        np.save(path, c_weights)
+    elif isinstance(weights, np.ndarray):
+        logger.info(f'{var_name} is a numpy array (CPU, no grad)')
+        c_weights = weights.copy()
+        np.save(path, c_weights)
+    else:
+        logger.info(f'{var_name} is a list: {len(weights)}')
+        for index, element in enumerate(weights):
+            _var_name =  f'{var_name}_{index}.npy'
+            _path = TANGO_ROOT / _var_name
+            if isinstance(element, torch.Tensor):
+                element = convert_tensor_to_numpy(element, tensor_name=_var_name)
+                np.save(_path, element)
+            elif isinstance(element, (list, tuple)):
+                logger.info(f'{var_name}_{index} is a list: {len(element)}')
+                for index2, element2 in enumerate(element):
+                    _var_name2 = f'{var_name}_{index}_{index2}.npy'
+                    _path2 = TANGO_ROOT / _var_name2
+                    if isinstance(element2, torch.Tensor):
+                        element2 = convert_tensor_to_numpy(element2, tensor_name=_var_name2)
+                        np.save(_path2, element2)
+            else:
+                logger.info(f'{var_name}_{index} is a {type(element)}')
+                n_element = np.ndarray([element])
+                np.save(_path, n_element)
+
+
+def compare_npy(tango_npy, yolov9_npy):
+    tango_npy_path = TANGO_ROOT / f'{tango_npy}.npy'
+    yolov9_npy_path = TANGO_ROOT / f'{yolov9_npy}.npy'
+
+    tango_array = np.load(tango_npy_path)
+    yolov9_array = np.load(yolov9_npy_path)
+
+    if np.array_equal(tango_array, yolov9_array):
+        logger.info(f'{tango_npy} and {yolov9_npy} are equal')
+    else:
+        logger.info(f'{tango_npy} and {yolov9_npy} are different')
+
+
 def increment_path(path, exist_ok=True, sep=''):
     # Increment path, i.e. runs/exp --> runs/exp{sep}0, runs/exp{sep}1 etc.
     path = Path(path)  # os-agnostic
@@ -1075,3 +1359,11 @@ def increment_path(path, exist_ok=True, sep=''):
         # print(n)
         # print(f'{path}{sep}{n}')
         return f"{path}{sep}{n}"  # update path
+
+
+def smart_inference_mode(torch_1_9=check_version(torch.__version__, '1.9.0')):
+    # Applies torch.inference_mode() decorator if torch>=1.9.0 else torch.no_grad() decorator
+    def decorate(fn):
+        return (torch.inference_mode if torch_1_9 else torch.no_grad)()(fn)
+
+    return decorate
