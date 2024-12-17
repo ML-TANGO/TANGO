@@ -411,7 +411,7 @@ def plot_results(start=0, stop=0, bucket='', id=(), labels=(), save_dir='', use_
     '''
     if use_dfl:
         s = ['Box Loss', 'Class Loss', 'DFL', 'Precision', 'Recall',
-             'mAP@0.5', 'mAP@0.5:0.95', 'val Box', 'val Class', 'val DFL']
+             'val Box', 'val Class', 'val DFL', 'mAP@0.5', 'mAP@0.5:0.95']
     else:
         s = ['Box', 'Objectness', 'Classification', 'Precision', 'Recall',
              'val Box', 'val Objectness', 'val Classification', 'mAP@0.5', 'mAP@0.5:0.95']
@@ -426,7 +426,7 @@ def plot_results(start=0, stop=0, bucket='', id=(), labels=(), save_dir='', use_
     for fi, f in enumerate(files):
         try:
             if use_dfl:
-                results = np.loadtxt(f, usecols=[2, 3, 4, 7, 8, 9, 10, 11, 12, 13], ndmin=2).T
+                results = np.loadtxt(f, usecols=[2, 3, 4, 7, 8, 9, 12, 13, 10, 11], ndmin=2).T
             else:
                 results = np.loadtxt(f, usecols=[2, 3, 4, 8, 9, 12, 13, 14, 10, 11], ndmin=2).T
             n = results.shape[1]  # number of rows

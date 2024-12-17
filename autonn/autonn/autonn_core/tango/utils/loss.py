@@ -1925,13 +1925,11 @@ class ComputeLossTAL:
                 iou.append(iou_)
         
         loss[0] *= 7.5  # box gain
-        loss[1] *= 1.5  # dlf gain
+        loss[1] *= 1.5  # dfl gain
         loss[2] *= 0.5  # cls gain
-        # loss[3] = loss[0] + loss[1] + loss[2]
         sum_loss = loss.sum()
-        # loss[3] = sum_loss
 
-        return sum_loss * batch_size, loss.detach()  # loss(box, dlf, cls)
+        return sum_loss * batch_size, loss.detach()  # loss(box, dfl, cls)
 
 
 class ComputeLoss_v9:

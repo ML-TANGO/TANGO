@@ -925,6 +925,7 @@ def train(proj_info, hyp, opt, data_dict, tb_writer=None):
                         loss *= opt.world_size  # gradient averaged between devices in DDP mode
                     if opt.quad:
                         loss *= 4.
+
                 # Backward
                 scaler.scale(loss).backward()
 
@@ -958,15 +959,19 @@ def train(proj_info, hyp, opt, data_dict, tb_writer=None):
                         )
 
                     # pbar.set_description(s)
-                    mloss_list = mloss.to('cpu').numpy().tolist()
+                    mloss_np = mloss.to('cpu').numpy()
+                    mloss_list = mloss_np.tolist()
                     train_loss['epoch'] = epoch + 1
                     train_loss['total_epoch'] = epochs
                     train_loss['gpu_mem'] = mem
-                    train_loss['box'] = mloss_list[0]
-                    train_loss['obj'] = mloss_list[1]
-                    train_loss['cls'] = mloss_list[2]
+                    if not np.isinf(mloss_list[0]) and not np.isnan(mloss_list[0]):
+                        train_loss['box'] = mloss_list[0]
+                    if not np.isinf(mloss_list[1]) and not np.isnan(mloss_list[1]):
+                        train_loss['obj'] = mloss_list[1]
+                    if not np.isinf(mloss_list[2]) and not np.isnan(mloss_list[2]):
+                        train_loss['cls'] = mloss_list[2]
                     if opt.loss_name == 'TAL':
-                        train_loss['total'] = sum(mloss_list)
+                        train_loss['total'] = train_loss['box'] + train_loss['obj'] + train_loss['cls'] #sum(mloss_list)
                     else:
                         train_loss['total'] = mloss_list[3]
                     train_loss['label'] = targets.shape[0]
