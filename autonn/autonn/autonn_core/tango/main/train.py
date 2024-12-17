@@ -1269,22 +1269,21 @@ def train(proj_info, hyp, opt, data_dict, tb_writer=None):
         # Plots ----------------------------------------------------------------
         if plots:
             if task == 'detection':
-                plot_results(save_dir=save_dir, use_dfl=True if opt.loss_name == 'TAL' else False)
-                # if wandb_logger.wandb:
-                #     files = ['results.png', 'confusion_matrix.png', *[f'{x}_curve.png' for x in ('F1', 'PR', 'P', 'R')]]
-                #     wandb_logger.log({"Results": [wandb_logger.wandb.Image(str(save_dir / f), caption=f) for f in files
-                #                                   if (save_dir / f).exists()]})
+                plot_results(
+                    save_dir=save_dir,
+                    use_dfl=True if opt.loss_name == 'TAL' else False
+                )
             elif task == 'classification':
                 plot_cls_results(save_dir=save_dir)
 
-        logger.info(f'\n{colorstr("Train: ")}{epoch-start_epoch+1} epochs completed({(time.time() - t0) / 60:.3f} min.')
+        logger.info(f'\n{colorstr("Train: ")}{epoch-start_epoch+1} epochs completed({(time.time() - t0) / 60:.3f} min).')
 
         # Test best.pt after fusing layers -------------------------------------
         # [tenace's note] argument of type 'PosixPath' is not iterable (??)
         if best.exists():
             if task == 'detection':
                 m = os.path.splitext(best)[0] + "_stripped.pt"
-                strip_optimizer(best, m)
+                strip_optimizer(best, m, prefix=colorstr("Test: "))
                 results, _, _ = test.test(
                     proj_info,
                     data_dict,

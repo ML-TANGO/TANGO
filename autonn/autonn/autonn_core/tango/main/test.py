@@ -429,8 +429,9 @@ def test(proj_info,
 
             # Save / log
             if save_txt:
+                file = save_dir / 'labels' / f'{path.stem}.txt'
                 if v9:
-                    save_one_txt(predn, save_conf, shapes[si][0], file=save_dir / 'labels' / f'{path.stem}.txt')
+                    save_one_txt(predn, save_conf, shapes[si][0], file=file)
                 else:
                     gn = torch.tensor(shapes[si][0])[[1, 0, 1, 0]]  # normalization gain whwh
                     for *xyxy, conf, cls in predn.tolist():
@@ -696,7 +697,7 @@ def test_cls(proj_info,
     # Compute statistics -------------------------------------------------------
     val_loss /= len(dataloader)
     if len(dataloader.dataset) != accumulated_data_count:
-        logger.warn(f"total data = {accumulated_data_count} is not match with lenght of dataset = {len(dataloader.dataset)}")
+        logger.warning(f"total data = {accumulated_data_count} is not match with lenght of dataset = {len(dataloader.dataset)}")
 
     logger.info(f'total = {accumulated_data_count}, '
                 f'correct={val_accuracy.item()}, '

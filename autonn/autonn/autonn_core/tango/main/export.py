@@ -29,6 +29,7 @@ from tango.common.models.yolo import    (   Detect,
                                             IDetect,
                                             IAuxDetect,
                                             Model,
+                                            DetectionModel,
                                         )
 # from tango.utils.dataloaders import LoadImages
 from tango.utils.general import (   check_dataset,
@@ -762,6 +763,8 @@ def export_weight(weights, device, include, task='detection', ch=3, imgsz=[640,6
                 m.format = 'tf'
                 if int8 | edgetpu:
                     m.format = 'tf-int8'
+            else:
+                m.format = 'pytorch'
             v9 = True
         if isinstance(m, (Detect, IDetect, IAuxDetect)):
             # it is for v5/v7
@@ -1116,7 +1119,7 @@ def convert_yolov9(model_pt, cfg):
         logger.warning(f'{colorstr("Model Exporter: ")}not found {cfg}')
         return ckpt
     
-    model = Model(cfg, ch=3, nc=80, anchors=3).to(device) # create empty model
+    model = DetectionModel(cfg, ch=3, nc=80, anchors=3).to(device) # create empty model
     _ = model.eval()
 
     ckpt = torch.load(model_pt, map_location='cpu')
