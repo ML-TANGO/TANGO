@@ -946,7 +946,14 @@ def train(proj_info, hyp, opt, data_dict, tb_writer=None):
                 # Report & Plot(option)
                 if rank in [-1, 0]:
                     mem = '%.3gG' % (torch.cuda.memory_reserved() / 1E9 if torch.cuda.is_available() else 0)  # (GB)
-                    mloss = (mloss * i + loss_items) / (i + 1)  # update mean losses
+                    loss_items_na = loss_items.cpu().numpy()
+                    is_missing_value = False
+                    for l in loss_items_na:
+                        if np.isinf(l) or np.isnan(l):
+                            is_missing_value = True
+                            break
+                    if not is_missing_value:
+                        mloss = (mloss * i + loss_items) / (i + 1)  # update mean losses
 
                     if opt.loss_name == 'TAL':
                         s = ('%11s' * 2 + '%11.4g' * 5) % (
@@ -965,12 +972,9 @@ def train(proj_info, hyp, opt, data_dict, tb_writer=None):
                     train_loss['epoch'] = epoch + 1
                     train_loss['total_epoch'] = epochs
                     train_loss['gpu_mem'] = mem
-                    if not np.isinf(mloss_list[0]) and not np.isnan(mloss_list[0]):
-                        train_loss['box'] = mloss_list[0]
-                    if not np.isinf(mloss_list[1]) and not np.isnan(mloss_list[1]):
-                        train_loss['obj'] = mloss_list[1]
-                    if not np.isinf(mloss_list[2]) and not np.isnan(mloss_list[2]):
-                        train_loss['cls'] = mloss_list[2]
+                    train_loss['box'] = mloss_list[0]
+                    train_loss['obj'] = mloss_list[1]
+                    train_loss['cls'] = mloss_list[2]
                     if opt.loss_name == 'TAL':
                         train_loss['total'] = train_loss['box'] + train_loss['obj'] + train_loss['cls'] # sum(mloss_list)
                     else:
