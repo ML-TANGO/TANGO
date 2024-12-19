@@ -1215,7 +1215,7 @@ class LoadImagesAndLabels(Dataset):  # for training/testing
                 logger.warning(f'{colorstr(f"{prefix}_dataset: ")}WARNING: Ignoring corrupted image and/or label {im_file}: {e}')
 
             ten_percent_cnt = int((i+1)/len(self.img_files)*10+0.5)
-            bar = '|'+ '🟩'*ten_percent_cnt + ' '*(20-ten_percent_cnt*2)+'|'
+            bar = '|'+ '#'*ten_percent_cnt + ' '*(10-ten_percent_cnt)+'|'
             s = f'{nf:10.0f}{nm:10.0f}{ne:10.0f}{nc:10.0f}'
             s += (f'{bar} {(i+1)/len(self.img_files)*100:3.0f}% {i+1:6.0f}/{len(self.img_files):6.0f}')
             if (i+1) % 5000 == 0:
@@ -1238,26 +1238,21 @@ class LoadImagesAndLabels(Dataset):  # for training/testing
         torch.save(x, path)  # save for next time
         # logging.info(f'{prefix}New cache created: {path}')
 
-        dataset_info['current'] = i+1
-        dataset_info['found'] = nf
-        dataset_info['missing'] = nm
-        dataset_info['empty'] = ne
-        dataset_info['corrupted'] = nc
-        status_update(self.userid, self.project_id,
-                      update_id=f"{prefix}_dataset",
-                      update_content=dataset_info)
+        if (i+1) % 5000 != 0:
+            dataset_info['current'] = i+1
+            dataset_info['found'] = nf
+            dataset_info['missing'] = nm
+            dataset_info['empty'] = ne
+            dataset_info['corrupted'] = nc
+            status_update(self.userid, self.project_id,
+                        update_id=f"{prefix}_dataset",
+                        update_content=dataset_info)
         logger.info(f'{colorstr(f"{prefix}_dataset: ")}Summary {i+1} total : '
                     f'{nf} found, {nm} missing, {ne} empty, {nc} corrupted')
         return x
 
     def __len__(self):
         return len(self.img_files)
-
-    # def __iter__(self):
-    #     self.count = -1
-    #     print('ran dataset iter')
-    #     #self.shuffled_vector = np.random.permutation(self.nF) if self.augment else np.arange(self.nF)
-    #     return self
 
     def __getitem__(self, index):
         index = self.indices[index]  # linear, shuffled, or image_weights

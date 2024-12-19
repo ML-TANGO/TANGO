@@ -3,12 +3,13 @@ import logging
 import json
 import os
 from pathlib import Path
-from threading import Thread
 from copy import deepcopy
 import numpy as np
 import torch
 import yaml
 from tqdm import tqdm
+import time
+import datetime
 
 from . import status_update, Info
 
@@ -82,6 +83,7 @@ def report_progress(userid,
                     save_dir, 
                     names, 
                     latency,
+                    start_time,
 ):
     _p, _r, _f1, _mp, _mr, _map50, _map = 0., 0., 0., 0., 0., 0., 0.
     _ap, _ap_class = [], []
@@ -117,10 +119,15 @@ def report_progress(userid,
     # pf_t = '%20s' + '%12s' * 6
     # title = ('Class', 'Images', 'Labels', 'P', 'R', 'mAP@.5', 'mAP@.5:.95')
     # logger.info(pf_t % title)
-
-    pf_c = '%20s' + '%12i' * 2 + '%12.3g' *4
+    elapsed_sec = time.time() - start_time
+    elapsed_time = str(datetime.timedelta(seconds=elapsed_sec)).split('.')[0]
+    ten_percent_cnt = int(current_step/total_step*10+0.5)
+    bar = '|'+ '#'*ten_percent_cnt + ' '*(10-ten_percent_cnt)+'|'
+    pf_c = '%22s' + '%11i' * 2 + '%11.3g' *4
     content = ('all', seen, label_cnt, _mp, _mr, _map50, _map)
-    logger.info(pf_c % content)
+    s = pf_c % content
+    content_s = s + (f'{bar}{current_step/total_step*100:3.0f}% {current_step:4.0f}/{total_step:4.0f}  {elapsed_time}')
+    logger.info(content_s)
 
 def process_batch(detections, labels, iouv):
     """
@@ -261,21 +268,22 @@ def test(proj_info,
     loss = torch.zeros(3, device=device) # loss
     jdict, stats, ap, ap_class = [], [], [], [] # jdict=json dict, ap=average precision
     
-    pf_t = '%34s' + '%11s' * 6
+    pf_t = '%22s' + '%11s' * 6
     title = ('Class', 'Images', 'Labels', 'P', 'R', 'mAP@50', 'mAP@50-95')
-    # logger.info(pf_t % title)
+    logger.info(pf_t % title)
 
     # pbar = enumerate(dataloader)
-    pbar = tqdm(
-        dataloader, # pbar,
-        desc=pf_t % title,
-        total=len(dataloader),
-        bar_format=TQDM_BAR_FORMAT,
-    )  # progress bar
+    # pbar = tqdm(
+    #     dataloader, # pbar,
+    #     desc=pf_t % title,
+    #     total=len(dataloader),
+    #     bar_format=TQDM_BAR_FORMAT,
+    # )  # progress bar
 
     # logger.info(f'dataset size = {len(dataloader)}')
     # for batch_i, (img, targets, paths, shapes) in enumerate(tqdm(dataloader, desc=s)):
-    for batch_i, (img, targets, paths, shapes) in enumerate(pbar): # enumerate(dataloader):
+    start_time = time.time()
+    for batch_i, (img, targets, paths, shapes) in enumerate(dataloader): # enumerate(pbar):
         t = time_synchronized()
         img = img.to(device, non_blocking=True)
         img = img.half() if half else img.float()  # uint8 to fp16/32
@@ -476,20 +484,21 @@ def test(proj_info,
             _t1: inference time for this batch
             _t2: nms time for this batch
         '''
-        # report_progress(
-        #     userid,
-        #     project_id,
-        #     statsn,
-        #     seen,
-        #     label_cnt,
-        #     batch_i+1,
-        #     len(dataloader),
-        #     plots,
-        #     metric,
-        #     save_dir,
-        #     names,
-        #     latency,
-        # )
+        report_progress(
+            userid,
+            project_id,
+            statsn,
+            seen,
+            label_cnt,
+            batch_i+1,
+            len(dataloader),
+            plots,
+            metric,
+            save_dir,
+            names,
+            latency,
+            start_time,
+        )
     # Test end =================================================================
 
     # Compute final metrics ----------------------------------------------------
@@ -520,7 +529,7 @@ def test(proj_info,
     nt = np.bincount(stats[3].astype(int), minlength=nc) # number of targets per class
 
     # Print results ------------------------------------------------------------
-    # logger.info('')
+    logger.info('-'*100)
     # pf_t = '%20s' + '%12s' * 6
     # title = ('Class', 'Images', 'Labels', 'P', 'R', 'mAP@.5', 'mAP@.5:.95')
     # logger.info(pf_t % title)
@@ -578,7 +587,8 @@ def test(proj_info,
             pred = anno.loadRes(pred_json)  # init predictions api
             eval = COCOeval(anno, pred, 'bbox')
             if is_coco:
-                eval.params.imgIds = [int(Path(x).stem) for x in dataloader.dataset.img_files]  # image IDs to evaluate
+                # eval.params.imgIds = [int(Path(x).stem) for x in dataloader.dataset.img_files]  # image IDs to evaluate
+                eval.params.imgIds = [int(Path(x).stem) for x in dataloader.dataset.im_files]
             eval.evaluate()
             eval.accumulate()
             eval.summarize()

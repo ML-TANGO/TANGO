@@ -4,6 +4,7 @@ import os
 import gc
 import random
 import time
+import datetime
 import shutil
 from copy import deepcopy
 from pathlib import Path
@@ -784,7 +785,7 @@ def train(proj_info, hyp, opt, data_dict, tb_writer=None):
     t0 = time.time() # time_synchronized()
     nb = len(dataloader)  # number of batches
     nw = max(round(hyp['warmup_epochs'] * nb), 100)  # number of warmup iterations, max(3 epochs, 100 iterations)
-    nw = min(nw, (epochs - start_epoch) / 2 * nb)  # limit warmup to < 1/2 of training
+    # nw = min(nw, (epochs - start_epoch) / 2 * nb)  # limit warmup to < 1/2 of training
     if task == 'detection':
         maps = np.zeros(nc)  # mAP per class
         results = (0, 0, 0, 0, 0, 0, 0)  # P, R, mAP@.5, mAP@.5-.95, val_loss(box, obj, cls)
@@ -971,7 +972,7 @@ def train(proj_info, hyp, opt, data_dict, tb_writer=None):
                     if not np.isinf(mloss_list[2]) and not np.isnan(mloss_list[2]):
                         train_loss['cls'] = mloss_list[2]
                     if opt.loss_name == 'TAL':
-                        train_loss['total'] = train_loss['box'] + train_loss['obj'] + train_loss['cls'] #sum(mloss_list)
+                        train_loss['total'] = train_loss['box'] + train_loss['obj'] + train_loss['cls'] # sum(mloss_list)
                     else:
                         train_loss['total'] = mloss_list[3]
                     train_loss['label'] = targets.shape[0]
@@ -983,8 +984,10 @@ def train(proj_info, hyp, opt, data_dict, tb_writer=None):
                                   update_id="train_loss",
                                   update_content=train_loss)
                     ten_percent_cnt = int((i+1)/nb*10+0.5)
-                    bar = '|'+ '🟩'*ten_percent_cnt + ' '*(20-ten_percent_cnt*2)+'|'
-                    content_s = s + (f'{bar}{(i+1)/nb*100:3.0f}% {i+1:4.0f}/{nb:4.0f}')
+                    bar = '|'+ '#'*ten_percent_cnt + ' '*(10-ten_percent_cnt)+'|'
+                    sec = time.time()-t_epoch
+                    elapsed = str(datetime.timedelta(seconds=sec)).split('.')[0]
+                    content_s = s + (f'{bar}{(i+1)/nb*100:3.0f}% {i+1:4.0f}/{nb:4.0f} {elapsed}')
 
                     if (i % 50) == 0:
                         logger.info(title_s)
