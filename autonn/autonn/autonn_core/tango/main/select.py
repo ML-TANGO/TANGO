@@ -622,8 +622,12 @@ def run_autonn(userid, project_id, resume=False, viz2code=False, nas=False, hpo=
         return
 
     stripped_train_final = COMMON_ROOT / userid / project_id / 'bestmodel.pt'
-    shutil.copyfile(str(train_final), str(stripped_train_final))
-    strip_optimizer(stripped_train_final, prefix=colorstr("Model Exporter: "))  # strip optimizers
+    # shutil.copyfile(str(train_final), str(stripped_train_final))
+    strip_optimizer(
+        f=train_final,
+        s=stripped_train_final,
+        prefix=colorstr("Model Exporter: ")
+    )  # strip optimizers
     train_final = stripped_train_final
 
     # save externally ----------------------------------------------------------

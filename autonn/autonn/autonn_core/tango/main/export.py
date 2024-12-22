@@ -1116,8 +1116,8 @@ def convert_yolov9(model_pt, cfg):
         return None
 
     if not os.path.isfile(cfg):
-        logger.warning(f'{colorstr("Model Exporter: ")}not found {cfg}')
-        return ckpt
+        logger.warning(f'{colorstr("Model Exporter: ")}not found {cfg}, can not convert')
+        return model_pt
     
     model = DetectionModel(cfg, ch=3, nc=80, anchors=3).to(device) # create empty model
     _ = model.eval()
@@ -1134,12 +1134,13 @@ def convert_yolov9(model_pt, cfg):
         model = convert_large_model(model, ckpt)
 
     reparamed_model = {
-        'model' : model,
-        'optimizer': ckpt['optimizer'],
-        'best_fitness': ckpt['best_fitness'],
-        'epoch': ckpt['epoch'],
-        'ema': ckpt['ema'],
-        'updates': ckpt['updates'],
+        'model' : model.half(),
+        'optimizer': None, #ckpt['optimizer'],
+        'best_fitness': None, #ckpt['best_fitness'],
+        'epoch': -1, #ckpt['epoch'],
+        'ema': None, #ckpt['ema'],
+        'updates': None, #ckpt['updates'],
+        'training_results': None,
     }
     # f_path = 'shared / common / uid / pid / autonn / weights / best_converted.pt'
     f_path = str(model_pt).replace('.pt', '_converted.pt')

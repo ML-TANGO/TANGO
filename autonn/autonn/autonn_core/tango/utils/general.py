@@ -1141,14 +1141,14 @@ def strip_optimizer(f='best.pt', s='', prefix=''):  # from utils.general import 
     for k in 'optimizer', 'training_results', 'wandb_id', 'ema', 'updates':  # keys
         x[k] = None
     x['epoch'] = -1
-    # [TENACE] modified for TANGO-----------------------------------------------
-    # x['model'].half()  # to FP16
+    x['model'].half()  # to FP16
 
     for p in x['model'].parameters():
         p.requires_grad = False
     torch.save(x, s or f)
     mb = os.path.getsize(s or f) / 1E6  # filesize
     logger.info(f'\n{prefix}Optimizer stripped as {s or f}({mb:.1f}MB)')
+    # return f'{s or f}'
 
 
 def print_mutation(hyp, results, yaml_file='hyp_evolved.yaml', txt_file='evolve.txt', bucket=''):

@@ -56,14 +56,16 @@ def binary_search(uid, pid, low, high, test_func, want_to_get):
             low = next_test
             low_result = judge
             if DEBUG:
-                low_str = str(colorstr("underline", str(low)))
-                logger.info(f'{PREFIX} {low_str:>4s} ⭕ | {str(high):>4s} ❌')
+                low_str  = str(colorstr("underline", str(low)))
+                high_str = str(colorstr("end", str(high)))
+                logger.info(f'{PREFIX}{low_str:>4s} ⭕ | {high_str:>4s} ❌')
         elif judge == high_result:
             high = next_test
             high_result = judge
             if DEBUG:
                 high_str = str(colorstr("underline", str(high)))
-                logger.info(f'{PREFIX}{str(low):>4s} ⭕ |  {high_str:>4s} ❌')
+                low_str  = str(colorstr("end", str(low)))
+                logger.info(f'{PREFIX}{low_str:>4s} ⭕ | {high_str:>4s} ❌')
 
         batchsize_content['low'] = low
         batchsize_content['high'] = high

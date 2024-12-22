@@ -504,7 +504,9 @@ def train(proj_info, hyp, opt, data_dict, tb_writer=None):
                 quad=opt.quad,
                 prefix='train',
                 shuffle=True,
-                min_items=0 #opt.min_items
+                min_items=0, #opt.min_items,
+                uid=userid,
+                pid=project_id,
             )
         else: # v7
             dataloader, dataset = create_dataloader(
@@ -624,7 +626,9 @@ def train(proj_info, hyp, opt, data_dict, tb_writer=None):
                     rank=-1,
                     workers=opt.workers * 2,
                     pad=0.5,
-                    prefix='val'
+                    prefix='val',
+                    uid=userid,
+                    pid=project_id,
                 )[0]
             else:
                 testloader = create_dataloader(
@@ -1003,9 +1007,6 @@ def train(proj_info, hyp, opt, data_dict, tb_writer=None):
                     #     if tb_writer:
                     #         tb_writer.add_image(f, result, dataformats='HWC', global_step=epoch)
                     #         tb_writer.add_graph(torch.jit.trace(model, imgs, strict=False), [])  # add model graph
-                    # elif plots and ni == 10 and wandb_logger.wandb:
-                    #     wandb_logger.log({"Mosaics": [wandb_logger.wandb.Image(str(x), caption=x.name) for x in
-                    #                                   save_dir.glob('train*.jpg') if x.exists()]})
         elif task == 'classification':
             logger.info(('\n' + '%10s' * 6) % ('TrainEpoch', 'GPU_Mem', 'Batch', 'mLoss', 'mAcc', '=curr/all'))
             accumulated_imgs_cnt = 0
@@ -1186,8 +1187,6 @@ def train(proj_info, hyp, opt, data_dict, tb_writer=None):
             for x, tag in zip(zip_list, tags):
                 if tb_writer:
                     tb_writer.add_scalar(tag, x, epoch)  # tensorboard
-            #     if wandb_logger.wandb:
-            #         wandb_logger.log({tag: x})  # W&B
 
             epoch_summary = {}
             epoch_summary['total_epoch'] = epochs
@@ -1222,7 +1221,6 @@ def train(proj_info, hyp, opt, data_dict, tb_writer=None):
             stop = stopper(epoch=epoch, fitness=fi)
             if fi > best_fitness:
                 best_fitness = fi
-            # wandb_logger.end_epoch(best_result=best_fitness == fi)
 
             # Save model
             if (not opt.nosave) or (final_epoch and not opt.evolve):  # if save
@@ -1235,28 +1233,14 @@ def train(proj_info, hyp, opt, data_dict, tb_writer=None):
                         # 'ema': deepcopy(ema.ema),
                         'updates': ema.updates,
                         'optimizer': optimizer.state_dict(),}
-                        # 'wandb_id': wandb_logger.wandb_run.id if wandb_logger.wandb else None}
 
                 # Save last, best and delete
-                # torch.save(ckpt, last)
                 if best_fitness == fi:
                     torch.save(ckpt, best)
                     mb = os.path.getsize(best) / 1E6  # filesize
                     logger.info(f'epoch {epoch} : {best} {mb:.1f} MB')
                 if not opt.nosave:
                     torch.save(ckpt, last)
-                # if (best_fitness == fi) and (epoch >= 200):
-                #     torch.save(ckpt, wdir / 'best_{:03d}.pt'.format(epoch))
-                # if epoch == 0:
-                #     torch.save(ckpt, wdir / 'epoch_{:03d}.pt'.format(epoch))
-                # elif ((epoch+1) % 25) == 0:
-                #     torch.save(ckpt, wdir / 'epoch_{:03d}.pt'.format(epoch))
-                # elif epoch >= (epochs-5):
-                #     torch.save(ckpt, wdir / 'epoch_{:03d}.pt'.format(epoch))
-                # if wandb_logger.wandb:
-                #     if ((epoch + 1) % opt.save_period == 0 and not final_epoch) and opt.save_period != -1:
-                #         wandb_logger.log_model(
-                #             last.parent, opt, epoch, fi, best_model=best_fitness == fi)
                 del ckpt
 
                 # Save epoch internally
@@ -1295,7 +1279,7 @@ def train(proj_info, hyp, opt, data_dict, tb_writer=None):
         if best.exists():
             if task == 'detection':
                 m = os.path.splitext(best)[0] + "_stripped.pt"
-                strip_optimizer(best, m, prefix=colorstr("Test: "))
+                strip_optimizer(deepcopy(best), m, prefix=colorstr("Test: "))
                 results, _, _ = test.test(
                     proj_info,
                     data_dict,
@@ -1306,7 +1290,7 @@ def train(proj_info, hyp, opt, data_dict, tb_writer=None):
                     single_cls=opt.single_cls, # default: False
                     augment=False, # default: False
                     verbose=False, # default: False
-                    model=attempt_load(m, map_location=device, fused=True), #.half(),
+                    model=attempt_load(m, map_location=device, fused=True).half(),
                     dataloader=testloader,
                     save_dir=save_dir,
                     save_txt=False, # default: False

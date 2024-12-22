@@ -168,9 +168,12 @@ def create_dataloader_v9(path,
                       quad=False,
                       min_items=0,
                       prefix='',
-                      shuffle=False):
+                      shuffle=False,
+                      uid=None,
+                      pid=None,
+):
     if rect and shuffle:
-        logger.warning('WARNING ⚠️ --rect is incompatible with DataLoader shuffle, setting shuffle=False')
+        logger.warning(f'{colorstr(f"{prefix}_dataset: ")}WARNING ⚠️ --rect is incompatible with DataLoader shuffle, setting shuffle=False')
         shuffle = False
     with torch_distributed_zero_first(rank):  # init dataset *.cache only once if DDP
         dataset = LoadImagesAndLabels_v9(
@@ -186,7 +189,10 @@ def create_dataloader_v9(path,
             pad=pad,
             image_weights=image_weights,
             min_items=min_items,
-            prefix=prefix)
+            prefix=prefix,
+            uid=uid,
+            pid=pid,
+        )
 
     batch_size = min(batch_size, len(dataset))
     nd = torch.cuda.device_count()  # number of CUDA devices
@@ -196,15 +202,6 @@ def create_dataloader_v9(path,
     loader = torch.utils.data.DataLoader if image_weights or close_mosaic else InfiniteDataLoader
     generator = torch.Generator()
     generator.manual_seed(6148914691236517205 + GLOBAL_RANK)
-    # logger.info(loader)
-    # logger.info(dataset)
-    # logger.info(batch_size)
-    # logger.info(shuffle and sampler is None)
-    # logger.info(nw)
-    # logger.info(sampler)
-    # logger.info(LoadImagesAndLabels_v9.collate_fn4 if quad else LoadImagesAndLabels_v9.collate_fn)
-    # logger.info(seed_worker)
-    # logger.info(generator)
     return loader(dataset,
                   batch_size=batch_size,
                   shuffle=shuffle and sampler is None,
@@ -483,7 +480,7 @@ class LoadStreams:  # multiple IP or RTSP cameras
         s = np.stack([letterbox(x, self.img_size, stride=self.stride)[0].shape for x in self.imgs], 0)  # shapes
         self.rect = np.unique(s, axis=0).shape[0] == 1  # rect inference if all shapes equal
         if not self.rect:
-            print('WARNING: Different stream shapes detected. For optimal performance supply similarly-shaped streams.')
+            print(f'WARNING: Different stream shapes detected. For optimal performance supply similarly-shaped streams.')
 
     def update(self, index, cap):
         # Read next stream frame in a daemon thread
@@ -549,7 +546,12 @@ class LoadImagesAndLabels_v9(Dataset):
                  stride=32,
                  pad=0.0,
                  min_items=0,
-                 prefix=''):
+                 prefix='',
+                 uid=None,
+                 pid=None,
+    ):
+        self.userid = uid
+        self.project_id = pid
         self.img_size = img_size
         self.augment = augment
         self.hyp = hyp
@@ -595,18 +597,36 @@ class LoadImagesAndLabels_v9(Dataset):
         # Display cache
         nf, nm, ne, nc, n = cache.pop('results')  # found, missing, empty, corrupt, total
         if exists: # and LOCAL_RANK in {-1, 0}:
-            d = f"From {cache_path}... {nf} images, {nm + ne} backgrounds, {nc} corrupt"
+            d = f"From {cache_path}..." #{nf} images, {nm + ne} backgrounds, {nc} corrupt"
             # tqdm(None, desc=colorstr(prefix) + d, total=n, initial=n) #, bar_format=TQDM_BAR_FORMAT)  # display cache results
-            logger.info(f'{colorstr(prefix)} {d}')
+            logger.info(f'\n{colorstr(f"{prefix}_dataset: ")}{d}')
+            dataset_info = {}
+            dataset_info['total'] = len(self.im_files)
+            title_s =('%10s' * 4) % ('found', 'missing', 'empty', 'corrupted')
+            logger.info(title_s)
+            ten_percent_cnt = 10
+            bar = '|'+ '#'*ten_percent_cnt + ' '*(10-ten_percent_cnt)+'|'
+            s = f'{nf:10.0f}{nm:10.0f}{ne:10.0f}{nc:10.0f}'
+            s += (f'{bar} {100:3.0f}% {n:6.0f}/{len(self.im_files):6.0f}')
+            logger.info(s)
+            dataset_info['current'] = n
+            dataset_info['found'] = nf
+            dataset_info['missing'] = nm
+            dataset_info['empty'] = ne
+            dataset_info['corrupted'] = nc
+            if self.userid != None and self.project_id != None:
+                status_update(self.userid, self.project_id,
+                            update_id=f"{prefix}_dataset",
+                            update_content=dataset_info)
             if cache['msgs']:
                 logger.info('\n'.join(cache['msgs']))  # display warnings
-        assert nf > 0 or not augment, f'{colorstr(prefix)} No labels found in {cache_path}, can not start training.'
+        assert nf > 0 or not augment, f'{colorstr(f"{prefix}_dataset: ")}No labels found in {cache_path}, can not start training.'
 
         # Read cache
         [cache.pop(k) for k in ('hash', 'version', 'msgs')]  # remove items
         labels, shapes, self.segments = zip(*cache.values())
         nl = len(np.concatenate(labels, 0))  # number of labels
-        assert nl > 0 or not augment, f'{colorstr(prefix)} All labels empty in {cache_path}, can not start training.'
+        assert nl > 0 or not augment, f'{colorstr(f"{prefix}_dataset: ")}All labels empty in {cache_path}, can not start training.'
         self.labels = list(labels)
         self.shapes = np.array(shapes)
         self.im_files = list(cache.keys())  # update
@@ -615,7 +635,7 @@ class LoadImagesAndLabels_v9(Dataset):
         # Filter images
         if min_items:
             include = np.array([len(x) >= min_items for x in self.labels]).nonzero()[0].astype(int)
-            logger.info(f'{prefix}{n - len(include)}/{n} images filtered from dataset')
+            logger.info(f'{colorstr(f"{prefix}_dataset: ")}{n - len(include)}/{n} images filtered from dataset')
             self.im_files = [self.im_files[i] for i in include]
             self.label_files = [self.label_files[i] for i in include]
             self.labels = [self.labels[i] for i in include]
@@ -684,7 +704,7 @@ class LoadImagesAndLabels_v9(Dataset):
                 else:  # 'ram'
                     self.ims[i], self.im_hw0[i], self.im_hw[i] = x  # im, hw_orig, hw_resized = load_image(self, i)
                     b += self.ims[i].nbytes
-                pbar.desc = f'{colorstr(prefix)} Caching images ({b / gb:.1f}GB {cache_images})'
+                pbar.desc = f'{colorstr(f"{prefix}_dataset: ")}Caching images ({b / gb:.1f}GB {cache_images})'
             pbar.close()
 
     def check_cache_ram(self, safety_margin=0.1, prefix=''):
@@ -700,7 +720,7 @@ class LoadImagesAndLabels_v9(Dataset):
         mem = psutil.virtual_memory()
         cache = mem_required * (1 + safety_margin) < mem.available  # to cache or not to cache, that is the question
         if not cache:
-            logger.info(f"{colorstr(prefix)} {mem_required / gb:.1f}GB RAM required, "
+            logger.info(f"{colorstr(f'{prefix}_dataset: ')}{mem_required / gb:.1f}GB RAM required, "
                         f"{mem.available / gb:.1f}/{mem.total / gb:.1f}GB available, "
                         f"{'caching images ✅' if cache else 'not caching images ⚠️'}")
         return cache
@@ -709,13 +729,19 @@ class LoadImagesAndLabels_v9(Dataset):
         # Cache dataset labels, check images and read shapes
         x = {}  # dict
         nm, nf, ne, nc, msgs = 0, 0, 0, 0, []  # number missing, found, empty, corrupt, messages
-        desc = f"{colorstr(prefix)} Scanning {path.parent / path.stem}..."
+        dataset_info = {}
+        dataset_info['total'] = len(self.im_files)
+        desc = f'\n{colorstr(f"{prefix}_dataset: ")}Scanning {path.parent / path.stem}...'
+        logger.info(desc)
+        title_s =('%10s' * 4) % ('found', 'missing', 'empty', 'corrupted')
+        logger.info(f'\n{title_s}')
         with Pool(NUM_THREADS) as pool:
-            pbar = tqdm(pool.imap(verify_image_label, zip(self.im_files, self.label_files, repeat(prefix))),
-                        desc=desc,
-                        total=len(self.im_files),)
-                        # bar_format=TQDM_BAR_FORMAT)
-            for im_file, lb, shape, segments, nm_f, nf_f, ne_f, nc_f, msg in pbar:
+            # pbar = tqdm(pool.imap(verify_image_label, zip(self.im_files, self.label_files, repeat(prefix))),
+            #             desc=desc,
+            #             total=len(self.im_files),
+            #             bar_format=TQDM_BAR_FORMAT)
+            pbar = pool.imap(verify_image_label, zip(self.im_files, self.label_files, repeat(prefix)))
+            for i, (im_file, lb, shape, segments, nm_f, nf_f, ne_f, nc_f, msg) in enumerate(pbar):
                 nm += nm_f
                 nf += nf_f
                 ne += ne_f
@@ -724,13 +750,38 @@ class LoadImagesAndLabels_v9(Dataset):
                     x[im_file] = [lb, shape, segments]
                 if msg:
                     msgs.append(msg)
-                pbar.desc = f"{desc} {nf} images, {nm + ne} backgrounds, {nc} corrupt"
-
-        pbar.close()
+                # pbar.desc = f"{desc} {nf} images, {nm + ne} backgrounds, {nc} corrupt"
+                ten_percent_cnt = int((i+1)/len(self.im_files)*10+0.5)
+                bar = '|'+ '#'*ten_percent_cnt + ' '*(10-ten_percent_cnt)+'|'
+                s = f'{nf:10.0f}{nm:10.0f}{ne:10.0f}{nc:10.0f}'
+                s += (f'{bar} {(i+1)/len(self.im_files)*100:3.0f}% {i+1:6.0f}/{len(self.im_files):6.0f}')
+                if (i+1) % 5000 == 0:
+                    logger.info(s)
+                    dataset_info['current'] = i+1
+                    dataset_info['found'] = nf
+                    dataset_info['missing'] = nm
+                    dataset_info['empty'] = ne
+                    dataset_info['corrupted'] = nc
+                    if self.userid != None and self.project_id != None:
+                        status_update(self.userid, self.project_id,
+                                    update_id=f"{prefix}_dataset",
+                                    update_content=dataset_info)
+        # pbar.close()
+        if (i+1) % 5000 != 0:
+            logger.info(s)
+            dataset_info['current'] = i+1
+            dataset_info['found'] = nf
+            dataset_info['missing'] = nm
+            dataset_info['empty'] = ne
+            dataset_info['corrupted'] = nc
+            if self.userid != None and self.project_id != None:
+                status_update(self.userid, self.project_id,
+                            update_id=f"{prefix}_dataset",
+                            update_content=dataset_info)
         if msgs:
             logger.info('\n'.join(msgs))
         if nf == 0:
-            logger.warning(f'{colorstr(prefix)} WARNING ⚠️ No labels found in {path}.')
+            logger.warning(f'{colorstr(f"{prefix}_dataset: ")}WARNING ⚠️ No labels found in {path}.')
         x['hash'] = get_hash_v9(self.label_files + self.im_files)
         x['results'] = nf, nm, ne, nc, len(self.im_files)
         x['msgs'] = msgs  # warnings
@@ -738,9 +789,9 @@ class LoadImagesAndLabels_v9(Dataset):
         try:
             np.save(path, x)  # save cache for next time
             path.with_suffix('.cache.npy').rename(path)  # remove .npy suffix
-            logger.info(f'{colorstr(prefix)} New cache created: {path}')
+            logger.info(f'{colorstr(f"{prefix}_dataset: ")}New cache created: {path}')
         except Exception as e:
-            logger.warning(f'{colorstr(prefix)} WARNING ⚠️ Cache directory {path.parent} is not writeable: {e}')  # not writeable
+            logger.warning(f'{colorstr(f"{prefix}_dataset: ")}WARNING ⚠️ Cache directory {path.parent} is not writeable: {e}')  # not writeable
         return x
 
     def __len__(self):
@@ -1690,7 +1741,7 @@ def verify_image_label(args):
                 f.seek(-2, 2)
                 if f.read() != b'\xff\xd9':  # corrupt JPEG
                     ImageOps.exif_transpose(Image.open(im_file)).save(im_file, 'JPEG', subsampling=0, quality=100)
-                    msg = f'{prefix}WARNING ⚠️ {im_file}: corrupt JPEG restored and saved'
+                    msg = f'{colorstr(f"{prefix}_dataset: ")}WARNING ⚠️ {im_file}: corrupt JPEG restored and saved'
 
         # verify labels
         if os.path.isfile(lb_file):
@@ -1712,7 +1763,7 @@ def verify_image_label(args):
                     lb = lb[i]  # remove duplicates
                     if segments:
                         segments = [segments[x] for x in i]
-                    msg = f'{prefix}WARNING ⚠️ {im_file}: {nl - len(i)} duplicate labels removed'
+                    msg = f'{colorstr(f"{prefix}_dataset: ")}WARNING ⚠️ {im_file}: {nl - len(i)} duplicate labels removed'
             else:
                 ne = 1  # label empty
                 lb = np.zeros((0, 5), dtype=np.float32)
@@ -1722,7 +1773,7 @@ def verify_image_label(args):
         return im_file, lb, shape, segments, nm, nf, ne, nc, msg
     except Exception as e:
         nc = 1
-        msg = f'{prefix}WARNING ⚠️ {im_file}: ignoring corrupt image/label: {e}'
+        msg = f'{colorstr(f"{prefix}_dataset: ")}WARNING ⚠️ {im_file}: ignoring corrupt image/label: {e}'
         return [None, None, None, None, nm, nf, ne, nc, msg]
 
 
