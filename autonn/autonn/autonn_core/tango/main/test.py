@@ -14,7 +14,7 @@ import datetime
 from . import status_update, Info
 
 from tango.common.models.experimental import attempt_load
-from tango.utils.datasets import create_dataloader
+from tango.utils.datasets import create_dataloader, create_dataloader_v9
 from tango.utils.general import (
     coco80_to_coco91_class,
     check_dataset,
@@ -167,12 +167,11 @@ def test(proj_info,
          save_txt=False,  # for auto-labelling
          save_hybrid=False,  # for hybrid auto-labelling
          save_conf=False,  # save confidence in save_txt file
-         save_json=False, # save json; with it, measuring metrics using pycocotool
+         save_json=False, # save json; with it, measuring metrics using pycocotools
          model=None,
          dataloader=None,
          save_dir=Path(''),  # for saving results
          plots=True,
-         # wandb_logger=None,
          compute_loss=None,
          half_precision=True,
          trace=False,
@@ -223,18 +222,36 @@ def test(proj_info,
     iouv = torch.linspace(0.5, 0.95, 10).to(device)  # iou vector for mAP@0.5:0.95
     niou = iouv.numel()
 
-    # Logging ------------------------------------------------------------------
-    # log_imgs = 0
-    # if wandb_logger and wandb_logger.wandb:
-    #     log_imgs = min(wandb_logger.log_imgs, 100)
-
     # Dataloader ---------------------------------------------------------------
     if not training: # called directly
         if device.type != 'cpu':
             model(torch.zeros(1, 3, imgsz, imgsz).to(device).type_as(next(model.parameters())))  # run once
-        purpose = opt.purpose if opt.purpose in ('train', 'val', 'test') else 'val'  # path to train/val/test images
-        dataloader = create_dataloader(data[purpose], imgsz, batch_size, gs, opt, pad=0.5, rect=True,
-                                       prefix=colorstr(f'{purpose}: '))[0]
+        if metric == 'v9':
+            dataloader = create_dataloader_v9(
+                data['val'],
+                imgsz,
+                batch_size,
+                gs,
+                opt.single_cls,
+                pad=0.5,
+                rect=True,
+                prefix='val',
+                uid=userid,
+                pid=project_id,
+            )[0]
+        else:
+            dataloader = create_dataloader(
+                userid,
+                project_id,
+                data['val'],
+                imgsz,
+                batch_size,
+                gs,
+                opt,
+                pad=0.5,
+                rect=True,
+                prefix='val',
+            )[0]
 
     # Metrics ------------------------------------------------------------------
     # logger.info(f"\n{colorstr('Test: ')}Testing with YOLO{metric} AP metric...")
@@ -569,7 +586,7 @@ def test(proj_info,
         confusion_matrix.plot(save_dir=save_dir, names=list(names.values()))
 
     # Save JSON ----------------------------------------------------------------
-    if save_json and len(jdict):
+    if save_json: # and len(jdict):
         w = Path(weights[0] if isinstance(weights, list) else weights).stem if weights is not None else ''  # weights
         DATASET_ROOT = Path("/shared/datasets")
         anno_json = str(DATASET_ROOT / 'coco' / 'annotations' / 'instances_val2017.json')
@@ -582,7 +599,6 @@ def test(proj_info,
         try:  # https://github.com/cocodataset/cocoapi/blob/master/PythonAPI/pycocoEvalDemo.ipynb
             from pycocotools.coco import COCO
             from pycocotools.cocoeval import COCOeval
-
             anno = COCO(anno_json)  # init annotations api
             pred = anno.loadRes(pred_json)  # init predictions api
             eval = COCOeval(anno, pred, 'bbox')

@@ -445,7 +445,8 @@ def train(proj_info, hyp, opt, data_dict, tb_writer=None):
 
     # EMA (required) -----------------------------------------------------------
     ema = ModelEMA(model) if rank in [-1, 0] else None
-    logger.info(f'\n{colorstr("EMA: ")}Using ModelEMA()')
+    if ema != None:
+        logger.info(f'\n{colorstr("EMA: ")}Using ModelEMA()')
 
     # Resume (option) ----------------------------------------------------------
     # see line 133 - 151, it is connected to the model loading procedure
@@ -886,10 +887,11 @@ def train(proj_info, hyp, opt, data_dict, tb_writer=None):
         # training batches start ===============================================
         if task == 'detection':
             for i, (imgs, targets, paths, _) in pbar:
+                # logger.info(f'step-{i} start')
                 t_batch = time.time() #time_synchronized()
                 ni = i + nb * epoch  # number integrated batches (since train start)
                 imgs = imgs.to(device, non_blocking=True).float() / 255  # uint8 to float32, 0-255 to 0.0-1.0
-
+                
                 # Warmup
                 if ni <= nw:
                     xi = [0, nw]  # x interp
@@ -901,13 +903,16 @@ def train(proj_info, hyp, opt, data_dict, tb_writer=None):
                         x['lr'] = np.interp(ni, xi, [hyp['warmup_bias_lr'] if j == 0 else 0.0, x['initial_lr'] * lf(epoch)])
                         if 'momentum' in x:
                             x['momentum'] = np.interp(ni, xi, [hyp['warmup_momentum'], hyp['momentum']])
-                        #     hyp[f'momentum_group{j}'] = x['momentum']
-                        # else:
-                        #     hyp[f'momentum_group{j}'] = None
-                        # hyp[f'lr_group{j}'] = x['lr']
+                    # hyp['current_momentum'] = x['momentum']
+                    # hyp[f'current_bias_lr'] = optimizer.param_groups[0]['lr']
+                    # hyp[f'current_lr'] = x['lr']
                     # status_update(userid, project_id,
                     #           update_id="hyperparameter",
                     #           update_content=hyp)
+                    logger.info(f'step-{i} warming up... '
+                                f'bias lr = {optimizer.param_groups[0]["lr"]}, '
+                                f'lr = {x["lr"]}, '
+                                f'momentum={x["momentum"]}')
 
                 # Multi-scale
                 if opt.multi_scale:
@@ -916,23 +921,36 @@ def train(proj_info, hyp, opt, data_dict, tb_writer=None):
                     if sf != 1:
                         ns = [math.ceil(x * sf / gs) * gs for x in imgs.shape[2:]]  # new shape (stretched to gs-multiple)
                         imgs = F.interpolate(imgs, size=ns, mode='bilinear', align_corners=False)
+                    # logger.info(f'step-{i} multi-scaling.. size={ns}')
 
                 # Forward
                 # optimizer.zero_grad()
                 with amp.autocast(enabled=amp_enable):
                     pred = model(imgs)  # forward
+                    # logger.info(f'step-{i} forward done')
                     # if 'loss_ota' not in hyp or hyp['loss_ota'] == 1:
                     if 'OTA' in opt.loss_name: #opt.loss_name == 'OTA':
                         loss, loss_items = compute_loss_ota(pred, targets.to(device), imgs)  # loss scaled by batch_size
                     else:
                         loss, loss_items = compute_loss(pred, targets.to(device))  # loss scaled by batch_size
+                    # logger.info(f'step-{i} compute loss done {loss}')
                     if rank != -1:
                         loss *= opt.world_size  # gradient averaged between devices in DDP mode
                     if opt.quad:
                         loss *= 4.
 
                 # Backward
-                scaler.scale(loss).backward()
+                loss_items_na = loss_items.cpu().numpy()
+                is_missing_value = False
+                for l in loss_items_na:
+                    if np.isinf(l) or np.isnan(l):
+                        is_missing_value = True
+                        break
+                if not is_missing_value:
+                    scaler.scale(loss).backward()
+                    # logger.info(f'step-{i} backward done')
+                else:
+                    logger.warning(f'step-{i} can not backward')
 
                 # Optimize
                 # if ni % accumulate == 0:
@@ -946,16 +964,13 @@ def train(proj_info, hyp, opt, data_dict, tb_writer=None):
                     if ema:
                         ema.update(model)
                     last_opt_step = ni
+                    # logger.info(f'step-{i} optimizer update done')
 
                 # Report & Plot(option)
                 if rank in [-1, 0]:
                     mem = '%.3gG' % (torch.cuda.memory_reserved() / 1E9 if torch.cuda.is_available() else 0)  # (GB)
-                    loss_items_na = loss_items.cpu().numpy()
-                    is_missing_value = False
-                    for l in loss_items_na:
-                        if np.isinf(l) or np.isnan(l):
-                            is_missing_value = True
-                            break
+
+
                     if not is_missing_value:
                         mloss = (mloss * i + loss_items) / (i + 1)  # update mean losses
 
@@ -1304,16 +1319,16 @@ def train(proj_info, hyp, opt, data_dict, tb_writer=None):
                     is_coco=is_coco, # default: False
                     metric=opt.metric # default: 'v5', possible: 'v7', 'v9'
                 )
-            # elif task == 'classification':
-            #     results, _ = test.test_cls(proj_info,
-            #                                data_dict,
-            #                                batch_size=batch_size * 2,
-            #                                imgsz=imgsz_test,
-            #                                model=attempt_load(m, device),
-            #                                dataloader=testloader,
-            #                                save_dir=save_dir,
-            #                                plots=False,
-            #                                half_precision=True)
+        #     elif task == 'classification':
+        #         results, _ = test.test_cls(proj_info,
+        #                                    data_dict,
+        #                                    batch_size=batch_size * 2,
+        #                                    imgsz=imgsz_test,
+        #                                    model=attempt_load(m, device),
+        #                                    dataloader=testloader,
+        #                                    save_dir=save_dir,
+        #                                    plots=False,
+        #                                    half_precision=True)
 
         final_model = best if best.exists() else last  # final model file
 

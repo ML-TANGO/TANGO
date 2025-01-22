@@ -1144,6 +1144,7 @@ def convert_yolov9(model_pt, cfg):
     }
     # f_path = 'shared / common / uid / pid / autonn / weights / best_converted.pt'
     f_path = str(model_pt).replace('.pt', '_converted.pt')
-    logger.info(f'{colorstr("Model Exporter: ")}Converted model is saved as {f_path}')
     torch.save(reparamed_model, f_path)
+    mb = os.path.getsize(f_path) / 1E6
+    logger.info(f'{colorstr("Model Exporter: ")}Reparametered as {f_path}({mb:.1f}MB)')
     return f_path

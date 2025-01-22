@@ -4,7 +4,7 @@ import glob
 import math
 import os
 import random
-from copy import copy
+from copy import deepcopy
 from pathlib import Path
 import logging
 
@@ -194,7 +194,7 @@ def plot_images(images, targets, paths=None, fname='images.jpg', names=None, max
 
 def plot_lr_scheduler(optimizer, scheduler, epochs=300, save_dir=''):
     # Plot LR simulating training for full epochs
-    optimizer, scheduler = copy(optimizer), copy(scheduler)  # do not modify originals
+    optimizer, scheduler = deepcopy(optimizer), deepcopy(scheduler)  # do not modify originals
     y = []
     for _ in range(epochs):
         scheduler.step()

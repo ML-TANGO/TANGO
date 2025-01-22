@@ -1138,17 +1138,32 @@ def strip_optimizer(f='best.pt', s='', prefix=''):  # from utils.general import 
     x = torch.load(f, map_location=torch.device('cpu'))
     if x.get('ema'):
         x['model'] = x['ema']  # replace model with ema
-    for k in 'optimizer', 'training_results', 'wandb_id', 'ema', 'updates':  # keys
+    for k in 'optimizer', 'training_results', 'best_fitness', 'ema', 'updates':  # keys
         x[k] = None
     x['epoch'] = -1
     x['model'].half()  # to FP16
-
-    for p in x['model'].parameters():
+    for p in x['model'].parameters(): # to x['model'].eval()
         p.requires_grad = False
+
+    x['model'].info() # model info
     torch.save(x, s or f)
     mb = os.path.getsize(s or f) / 1E6  # filesize
     logger.info(f'\n{prefix}Optimizer stripped as {s or f}({mb:.1f}MB)')
-    # return f'{s or f}'
+
+
+def fuse_layers(f='bestmodel.pt', prefix=''):
+    x = torch.load(f, map_location=torch.device('cpu'))
+    model = x['model'].float() # to FP32
+
+    if not hasattr(model, "fuse"):
+        logger.warning(f'\n{prefix}Not include fuse(): can not fuse layers')
+        return
+
+    x['model'] = model.fuse().eval().half() # fuse -> grad=False -> FP16
+    torch.save(x, f)
+    mb = os.path.getsize(f) / 1E6
+    logger.info(f'\n{prefix}Layers fused as {f}({mb:.1f}MB)')
+
 
 
 def print_mutation(hyp, results, yaml_file='hyp_evolved.yaml', txt_file='evolve.txt', bucket=''):
