@@ -23,7 +23,7 @@ import torch.optim as optim
 import torch.optim.lr_scheduler as lr_scheduler
 
 # from torch.utils.tensorboard import SummaryWriter
-from tensorboardX import SummaryWriter
+# from tensorboardX import SummaryWriter
 
 from . import status_update, Info
 from .train import train
@@ -36,9 +36,9 @@ from tango.utils.general import (   increment_path,
                                     check_file,
                                     set_logging,
                                     strip_optimizer,
+                                    fuse_layers,
                                     colorstr        )
 from tango.utils.plots import plot_evolution
-from tango.utils.wandb_logging.wandb_utils import check_wandb_resume
 
 
 TASK_TO_MODEL_TABLE = {
@@ -586,9 +586,10 @@ def run_autonn(userid, project_id, resume=False, viz2code=False, nas=False, hpo=
     Dual or Triple heads for training -> Single head for inference
     Reparameterization process
         (1) Load model configuration(e.g. yolov9-s-converted.yaml) with single head [model]
-        (2) Load model weights(e.g. yolov9-s.pt) with daul/triple heads from training result [ckpt]
+        (2) Load model weights(e.g. best.pt) with daul/triple heads from training result [ckpt]
         (3) Cherry-pick weight params from [ckpt] to [model] using dedeicated indices
-        (4) Save [model] (e.g. yolov9-s_converted.pt)
+        (4) Other params in [model] like epoch, training_results, etc set to None
+        (4) Save [model] (e.g. best_converted.pt)
     '''
     if 'yolov9' in basemodel['name']:
         inf_cfg = str(CFG_PATH / 'yolov9' / f"{basemodel['name']}-converted.yaml")
@@ -607,7 +608,7 @@ def run_autonn(userid, project_id, resume=False, viz2code=False, nas=False, hpo=
     galaxys22       : tflite
     raspberrypi     : edge-tpu tflite
     '''
-    # Strip optimizers ---------------------------------------------------------
+    # Strip optimizer ----------------------------------------------------------
     # [tenace's note] what strip_optimizer does is ...
     # 1. load cpu model
     # 2. get attribute 'ema' if it exists
@@ -622,20 +623,26 @@ def run_autonn(userid, project_id, resume=False, viz2code=False, nas=False, hpo=
         return
 
     stripped_train_final = COMMON_ROOT / userid / project_id / 'bestmodel.pt'
-    shutil.copyfile(str(train_final), str(stripped_train_final))
-    strip_optimizer(stripped_train_final)  # strip optimizers
+    # shutil.copyfile(str(train_final), str(stripped_train_final))
+    strip_optimizer(
+        f=train_final,
+        s=stripped_train_final,
+        prefix=colorstr("Model Exporter: ")
+    )  # strip optimizers
     train_final = stripped_train_final
+
+    # Fuse layers --------------------------------------------------------------
+    # [tenace's note] we need to save fused model to file as final inference model
+    # 1. conv+bn combination to conv with bias
+    # 2. implicit+conv to conv with bias
+    fuse_layers(train_final, prefix=colorstr("Model Exporter: "))
 
     # save externally ----------------------------------------------------------
     opt.best_acc = float(best_acc)  # numpy.float64 to float
-    # print(type(opt.best_acc))
     opt.weights = str(train_final)
     with open(Path(opt.save_dir) / 'opt.yaml', 'w') as f:
         yaml.dump(vars(opt), f, sort_keys=False)
-    # print('='*30)
-    # for k,v in vars(opt).items():
-    #     print(f"{k}: {v}")
-    # print('='*30)
+
     # save internally ----------------------------------------------------------
     info = Info.objects.get(userid=userid, project_id=project_id)
     info.status = "running"
@@ -644,7 +651,9 @@ def run_autonn(userid, project_id, resume=False, viz2code=False, nas=False, hpo=
     info.best_net = str(train_final)
     info.save()
 
-    logger.info(f'{colorstr("Model Exporter: ")}Converting models for target [{target}({target_acc}):{target_engine}]...')
+    logger.info(f'{colorstr("Model Exporter: ")}'
+                f'Converting models for target '
+                f'[{target}({target_acc}):{target_engine}]...')
     logger.info('='*100)
 
     # export weights -----------------------------------------------------------

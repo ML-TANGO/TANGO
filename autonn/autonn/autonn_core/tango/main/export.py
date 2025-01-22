@@ -29,6 +29,7 @@ from tango.common.models.yolo import    (   Detect,
                                             IDetect,
                                             IAuxDetect,
                                             Model,
+                                            DetectionModel,
                                         )
 # from tango.utils.dataloaders import LoadImages
 from tango.utils.general import (   check_dataset,
@@ -762,6 +763,8 @@ def export_weight(weights, device, include, task='detection', ch=3, imgsz=[640,6
                 m.format = 'tf'
                 if int8 | edgetpu:
                     m.format = 'tf-int8'
+            else:
+                m.format = 'pytorch'
             v9 = True
         if isinstance(m, (Detect, IDetect, IAuxDetect)):
             # it is for v5/v7
@@ -1113,10 +1116,10 @@ def convert_yolov9(model_pt, cfg):
         return None
 
     if not os.path.isfile(cfg):
-        logger.warning(f'{colorstr("Model Exporter: ")}not found {cfg}')
-        return ckpt
+        logger.warning(f'{colorstr("Model Exporter: ")}not found {cfg}, can not convert')
+        return model_pt
     
-    model = Model(cfg, ch=3, nc=80, anchors=3).to(device) # create empty model
+    model = DetectionModel(cfg, ch=3, nc=80, anchors=3).to(device) # create empty model
     _ = model.eval()
 
     ckpt = torch.load(model_pt, map_location='cpu')
@@ -1131,15 +1134,17 @@ def convert_yolov9(model_pt, cfg):
         model = convert_large_model(model, ckpt)
 
     reparamed_model = {
-        'model' : model,
-        'optimizer': ckpt['optimizer'],
-        'best_fitness': ckpt['best_fitness'],
-        'epoch': ckpt['epoch'],
-        'ema': ckpt['ema'],
-        'updates': ckpt['updates'],
+        'model' : model.half(),
+        'optimizer': None, #ckpt['optimizer'],
+        'best_fitness': None, #ckpt['best_fitness'],
+        'epoch': -1, #ckpt['epoch'],
+        'ema': None, #ckpt['ema'],
+        'updates': None, #ckpt['updates'],
+        'training_results': None,
     }
     # f_path = 'shared / common / uid / pid / autonn / weights / best_converted.pt'
     f_path = str(model_pt).replace('.pt', '_converted.pt')
-    logger.info(f'{colorstr("Model Exporter: ")}Converted model is saved as {f_path}')
     torch.save(reparamed_model, f_path)
+    mb = os.path.getsize(f_path) / 1E6
+    logger.info(f'{colorstr("Model Exporter: ")}Reparametered as {f_path}({mb:.1f}MB)')
     return f_path

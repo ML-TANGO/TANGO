@@ -1,6 +1,6 @@
 # Loss functions
 import os
-
+import logging
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
@@ -22,6 +22,7 @@ from tango.utils.torch_utils import is_parallel, de_parallel
 from tango.utils.anchor_generator import dist2bbox, make_anchors, bbox2dist
 from tango.utils.assigner import TaskAlignedAssigner
 
+logger = logging.getLogger(__name__)
 
 def smooth_BCE(eps=0.1):  # https://github.com/ultralytics/yolov3/issues/238#issuecomment-598028441
     # return positive, negative label smoothing BCE targets
@@ -1925,13 +1926,11 @@ class ComputeLossTAL:
                 iou.append(iou_)
         
         loss[0] *= 7.5  # box gain
-        loss[1] *= 1.5  # dlf gain
+        loss[1] *= 1.5  # dfl gain
         loss[2] *= 0.5  # cls gain
-        # loss[3] = loss[0] + loss[1] + loss[2]
         sum_loss = loss.sum()
-        # loss[3] = sum_loss
 
-        return sum_loss * batch_size, loss.detach()  # loss(box, dlf, cls)
+        return sum_loss * batch_size, loss.detach()  # loss(box, dfl, cls)
 
 
 class ComputeLoss_v9:
@@ -1999,6 +1998,7 @@ class ComputeLoss_v9:
         return dist2bbox(pred_dist, anchor_points, xywh=False)
 
     def __call__(self, p, targets, img=None, epoch=0):
+        # logger.info(f'\tcompute loss start')
         loss = torch.zeros(3, device=self.device)  # box, cls, dfl
         feats = p[1][0] if isinstance(p, tuple) else p[0]
         feats2 = p[1][1] if isinstance(p, tuple) else p[1]
@@ -2022,10 +2022,12 @@ class ComputeLoss_v9:
         targets = self.preprocess(targets, batch_size, scale_tensor=imgsz[[1, 0, 1, 0]])
         gt_labels, gt_bboxes = targets.split((1, 4), 2)  # cls, xyxy
         mask_gt = gt_bboxes.sum(2, keepdim=True).gt_(0)
+        # logger.info(f'\tcompute loss target preprocess done')
 
         # pboxes
         pred_bboxes = self.bbox_decode(anchor_points, pred_distri)  # xyxy, (b, h*w, 4)
         pred_bboxes2 = self.bbox_decode(anchor_points, pred_distri2)  # xyxy, (b, h*w, 4)
+        # logger.info(f'\tcompute loss predict bbox decoding done')
 
         target_labels, target_bboxes, target_scores, fg_mask = self.assigner(
             pred_scores.detach().sigmoid(),
@@ -2041,7 +2043,7 @@ class ComputeLoss_v9:
             gt_labels,
             gt_bboxes,
             mask_gt)
-
+        # logger.info(f'\tcompute loss dfl assigner generation done')
         target_bboxes /= stride_tensor
         target_scores_sum = max(target_scores.sum(), 1)
         target_bboxes2 /= stride_tensor
@@ -2052,7 +2054,7 @@ class ComputeLoss_v9:
         loss[1] = self.BCEcls(pred_scores, target_scores.to(dtype)).sum() / target_scores_sum # BCE
         loss[1] *= 0.25
         loss[1] += self.BCEcls(pred_scores2, target_scores2.to(dtype)).sum() / target_scores_sum2 # BCE
-
+        # logger.info(f'\tcompute loss class loss computation done')
         # bbox loss
         if fg_mask.sum():
             loss[0], loss[2], iou = self.bbox_loss(pred_distri,
@@ -2074,7 +2076,7 @@ class ComputeLoss_v9:
                                                    fg_mask2)
             loss[0] += loss0_
             loss[2] += loss2_
-
+        # logger.info(f'\tcompute loss box and dfl loss computation done')
         loss[0] *= 7.5  # box gain
         loss[1] *= 0.5  # cls gain
         loss[2] *= 1.5  # dfl gain

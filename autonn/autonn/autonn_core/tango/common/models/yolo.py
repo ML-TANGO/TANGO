@@ -974,7 +974,7 @@ class BaseModel(nn.Module):
     def _profile_one_layer(self, m, x, dt):
         c = m == self.model[-1]  # is final layer, copy input as inplace fix
         o = thop.profile(m, inputs=(x.copy() if c else x,), verbose=False)[0] / 1E9 * 2 if thop else 0  # FLOPs
-        t = time_sync()
+        t = time_synchronized()
         for _ in range(10):
             m(x.copy() if c else x)
         dt.append((time_synchronized() - t) * 100)
@@ -987,13 +987,13 @@ class BaseModel(nn.Module):
     def fuse(self):  # fuse model Conv2d() + BatchNorm2d() layers
         logger.info('Fusing layers... ')
         for m in self.model.modules():
-            if isinstance(m, (RepConvN)) and hasattr(m, 'fuse_convs'):
+            if isinstance(m, RepConvN) and hasattr(m, 'fuse_convs'):
                 m.fuse_convs()
                 m.forward = m.forward_fuse  # update forward
             if isinstance(m, (Conv, DWConv)) and hasattr(m, 'bn'):
                 m.conv = fuse_conv_and_bn(m.conv, m.bn)  # update conv
                 delattr(m, 'bn')  # remove batchnorm
-                m.forward = m.forward_fuse  # update forward
+                m.forward = m.fuseforward # m.forward_fuse  # update forward
         self.info()
         return self
 

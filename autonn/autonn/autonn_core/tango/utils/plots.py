@@ -4,7 +4,7 @@ import glob
 import math
 import os
 import random
-from copy import copy
+from copy import deepcopy
 from pathlib import Path
 import logging
 
@@ -194,7 +194,7 @@ def plot_images(images, targets, paths=None, fname='images.jpg', names=None, max
 
 def plot_lr_scheduler(optimizer, scheduler, epochs=300, save_dir=''):
     # Plot LR simulating training for full epochs
-    optimizer, scheduler = copy(optimizer), copy(scheduler)  # do not modify originals
+    optimizer, scheduler = deepcopy(optimizer), deepcopy(scheduler)  # do not modify originals
     y = []
     for _ in range(epochs):
         scheduler.step()
@@ -410,11 +410,11 @@ def plot_results(start=0, stop=0, bucket='', id=(), labels=(), save_dir='', use_
         It is used for bounding box regression along with CIOU.
     '''
     if use_dfl:
-        s = ['Box Loss', 'DFL', 'Class Loss', 'Precision', 'Recall',
-            'val Box', 'val DFL', 'val Class', 'mAP@0.5', 'mAP@0.5:0.95']
+        s = ['Box Loss', 'Class Loss', 'DFL', 'Precision', 'Recall',
+             'val Box', 'val Class', 'val DFL', 'mAP@0.5', 'mAP@0.5:0.95']
     else:
         s = ['Box', 'Objectness', 'Classification', 'Precision', 'Recall',
-            'val Box', 'val Objectness', 'val Classification', 'mAP@0.5', 'mAP@0.5:0.95']
+             'val Box', 'val Objectness', 'val Classification', 'mAP@0.5', 'mAP@0.5:0.95']
     if bucket:
         # files = ['https://storage.googleapis.com/%s/results%g.txt' % (bucket, x) for x in id]
         files = ['results%g.txt' % x for x in id]
@@ -425,7 +425,10 @@ def plot_results(start=0, stop=0, bucket='', id=(), labels=(), save_dir='', use_
     assert len(files), 'No results.txt files found in %s, nothing to plot.' % os.path.abspath(save_dir)
     for fi, f in enumerate(files):
         try:
-            results = np.loadtxt(f, usecols=[2, 3, 4, 8, 9, 12, 13, 14, 10, 11], ndmin=2).T
+            if use_dfl:
+                results = np.loadtxt(f, usecols=[2, 3, 4, 7, 8, 9, 12, 13, 10, 11], ndmin=2).T
+            else:
+                results = np.loadtxt(f, usecols=[2, 3, 4, 8, 9, 12, 13, 14, 10, 11], ndmin=2).T
             n = results.shape[1]  # number of rows
             x = range(start, min(stop, n) if stop else n)
             for i in range(10):
@@ -443,6 +446,7 @@ def plot_results(start=0, stop=0, bucket='', id=(), labels=(), save_dir='', use_
 
     ax[1].legend()
     fig.savefig(Path(save_dir) / 'results.png', dpi=200)
+
 
 def plot_cls_results(start=0, stop=0, bucket='', id=(), labels=(), save_dir=''):
     # Plot training 'results*.txt'. from utils.plots import *; plot_results(save_dir='runs/train/exp')
@@ -477,7 +481,8 @@ def plot_cls_results(start=0, stop=0, bucket='', id=(), labels=(), save_dir=''):
 
     ax[1].legend()
     fig.savefig(Path(save_dir) / 'results.png', dpi=200)
-    
+
+
 def output_to_keypoint(output):
     # Convert model output to target format [batch_id, class_id, x, y, w, h, conf]
     targets = []

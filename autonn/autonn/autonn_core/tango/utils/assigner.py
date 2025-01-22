@@ -4,6 +4,10 @@ import torch.nn.functional as F
 
 from tango.utils.general import bboxes_iou
 
+import logging
+
+logger = logging.getLogger(__name__)
+
 
 def select_candidates_in_gts(xy_centers, gt_bboxes, eps=1e-9):
     """select the positive anchor center in gt
@@ -84,13 +88,15 @@ class TaskAlignedAssigner(nn.Module):
                     torch.zeros_like(pd_bboxes).to(device),
                     torch.zeros_like(pd_scores).to(device),
                     torch.zeros_like(pd_scores[..., 0]).to(device))
+        # logger.info(f'\t\tTAL enter')
         mask_pos, align_metric, overlaps = self.get_pos_mask(pd_scores, pd_bboxes, gt_labels, gt_bboxes, anc_points,
                                                              mask_gt)
+        # logger.info(f'\t\tTAL get pos mask done')
         target_gt_idx, fg_mask, mask_pos = select_highest_overlaps(mask_pos, overlaps, self.n_max_boxes)
-
+        # logger.info(f'\t\tTAL select highest overlaps done')
         # assigned target
         target_labels, target_bboxes, target_scores = self.get_targets(gt_labels, gt_bboxes, target_gt_idx, fg_mask)
-
+        # logger.info(f'\t\tTAL get targets done')
         # normalize
         align_metric *= mask_pos
 
@@ -98,7 +104,7 @@ class TaskAlignedAssigner(nn.Module):
         pos_overlaps = (overlaps * mask_pos).amax(axis=-1, keepdim=True)  # b, max_num_obj
         norm_align_metric = (align_metric * pos_overlaps / (pos_align_metrics + self.eps)).amax(-2).unsqueeze(-1)
         target_scores = target_scores * norm_align_metric
-
+        # logger.info(f'\t\tTAL exit')
         return target_labels, target_bboxes, target_scores, fg_mask.bool()
 
     def get_pos_mask(self, pd_scores, pd_bboxes, gt_labels, gt_bboxes, anc_points, mask_gt):

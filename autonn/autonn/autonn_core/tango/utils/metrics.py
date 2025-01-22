@@ -2,6 +2,7 @@
 import warnings
 import contextlib
 from pathlib import Path
+from threading import Thread
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -25,7 +26,7 @@ class TryExcept(contextlib.ContextDecorator):
 def threaded(func):
     # Multi-threads a target function and returns thread. Usage: @threaded decorator
     def wrapper(*args, **kwargs):
-        thread = threading.Thread(target=func, args=args, kwargs=kwargs, daemon=True)
+        thread = Thread(target=func, args=args, kwargs=kwargs, daemon=True)
         thread.start()
         return thread
 
