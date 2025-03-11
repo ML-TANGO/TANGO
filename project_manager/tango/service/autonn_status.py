@@ -1,4 +1,5 @@
 import json
+import math
 
 from django.db.models import Model
 
@@ -149,6 +150,17 @@ def update_autonn_status(body):
         data = json.loads(body['update_content'])
         if 'total_time' in data:
             data['total_time'] = float(data['total_time']) * 3600
+        if 'train_loss_box' in data and math.isinf(data['train_loss_box']):
+            previous_epoch =  int(data['current_epoch'])-1
+            previous_epoch_summary = None
+            try:
+                previous_epoch_summary = EpochSummary.objects.get(project_id = body['project_id'], current_epoch = previous_epoch)
+                data['train_loss_box']  = float(previous_epoch_summary.train_loss_box)
+                data['train_loss_total'] = float(previous_epoch_summary.train_loss_box) + float(previous_epoch_summary.train_loss_obj) + float(previous_epoch_summary.train_loss_cls)
+            except EpochSummary.DoesNotExist:
+                print(f"이전 Epoch_Summary를 찾을 수 없습니다. project_id = {body['project_id']}, 현재 Epoch = {int(data['current_epoch'])}")
+                data['train_loss_box'] = 0
+                data['train_loss_total'] = 0
         create_epoch_summary(json.dumps(data), body['project_id'])
     elif update_id == autonn_update_ids["val_accuracy"]:
         data = json.loads(body['update_content'])
