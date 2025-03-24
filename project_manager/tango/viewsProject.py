@@ -38,6 +38,8 @@ from .enums import ContainerId, ContainerStatus, LearningType
 from datasets.views import copy_train_file_for_version
 from .service.get_common_folder import get_folder_structure
 
+from .service.yaml_editor import get_hyperparameter_file_name, get_arguments_file_name
+
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 root_path = os.path.dirname(os.path.dirname(BASE_DIR))
@@ -790,7 +792,6 @@ def project_type_update(request):
     except Exception as e:
         print(e)
         return Response(status=500)
-
 # Project 생성
 @api_view(['GET', 'POST'])
 @authentication_classes([OAuth2Authentication])   # 토큰 확인
@@ -813,23 +814,40 @@ def project_create(request):
         print(e)
         duplicate_check = None
 
-    # Project 생성 - 중복 Project 이름이 없는 경우
-    if duplicate_check is None:
-        data = Project(
-            project_name=request.data['project_name'],
-            project_description=request.data['project_description'],
-            create_user=request.user,
-            create_date=str(datetime.now())
-        )
-        data.save()
+    try:
+        # Project 생성 - 중복 Project 이름이 없는 경우
+        if duplicate_check is None:
+            data = Project(
+                project_name=request.data['project_name'],
+                project_description=request.data['project_description'],
+                create_user=request.user,
+                create_date=str(datetime.now())
+            )
+            data.save()
 
-        init_autonn_status(data) 
-        return Response({'result': True,
-                         'id': data.id,
-                         'name': data.project_name,
-                         'description': data.project_description})
-    else:
-        return Response({'result': False})
+            common_path = os.path.join(root_path, f"shared/common/{request.user}/{data.id}")
+            config_path = os.path.join(root_path, os.environ.get('CONFIG_YAML_PATH'))
+
+            if os.path.isdir(common_path) is False:
+                os.makedirs(common_path)
+
+            shutil.copyfile(os.path.join(config_path, 'hyp.scratch.cls.yaml'), os.path.join(common_path, 'hyp.scratch.cls.yaml'))
+            shutil.copyfile(os.path.join(config_path, 'hyp.scratch.p5.yaml'), os.path.join(common_path, 'hyp.scratch.p5.yaml'))
+
+            shutil.copyfile(os.path.join(config_path, 'args-classification.yaml'), os.path.join(common_path, 'args-classification.yaml'))
+            shutil.copyfile(os.path.join(config_path, 'args-detection.yaml'), os.path.join(common_path, 'args-detection.yaml'))
+
+            init_autonn_status(data) 
+            return Response({'result': True,
+                            'id': data.id,
+                            'name': data.project_name,
+                            'description': data.project_description})
+        else:
+            return Response({'result': False})
+    except Exception as e:
+        print(e)
+        return HttpResponse(status=500)
+
 
 # Project 삭제
 @api_view(['GET', 'POST'])
@@ -1043,3 +1061,121 @@ def set_workflow(request):
     except Exception as e:
         return Response(status=500)
 
+# 워크플로우 추가
+@api_view(['GET'])
+@permission_classes([AllowAny])   # 토큰 확인
+def get_project_hyperparameter_file(request):
+    """
+    get hyperparameter file for a project
+
+    Args:
+        project_id (string): project_id
+
+    Returns:
+        hyperparameter file
+    """
+    try:
+        project_id = request.GET['project_id']
+        file_name = get_hyperparameter_file_name(project_id)
+
+        file_path = os.path.join(root_path, f"shared/common/{request.user}/{project_id}", file_name)
+        with open(file_path) as f:
+            content = f.read()
+
+        print(content)
+
+        return HttpResponse(json.dumps({'status': 200, 'content': content}))
+
+    except Exception as e:
+        print(e)
+        return Response(status=500)
+
+# 워크플로우 추가
+@api_view(['POST'])
+@permission_classes([AllowAny])   # 토큰 확인
+def update_project_hyperparameter_file(request):
+    """
+    get hyperparameter file for a project
+
+    Args:
+        project_id (string): project_id
+
+    Returns:
+        hyperparameter file
+    """
+    try:
+        project_id = request.data['project_id']
+        content = request.data['content']
+        file_name = get_hyperparameter_file_name(project_id)
+
+        file_path = os.path.join(root_path, f"shared/common/{request.user}/{project_id}", file_name)
+
+        f = open(file_path, 'w+')
+        f.write(content)
+        f.close()
+
+        return HttpResponse(json.dumps({'status': 200}))
+
+    except Exception as e:
+        print(e)
+        return Response(status=500)
+
+    
+# 워크플로우 추가
+@api_view(['GET'])
+@permission_classes([AllowAny])   # 토큰 확인
+def get_project_arguments_file(request):
+    """
+    get arguments file for a project
+
+    Args:
+        project_id (string): project_id
+
+    Returns:
+        arguments file
+    """
+    try:
+        project_id = request.GET['project_id']
+        file_name = get_arguments_file_name(project_id)
+
+        file_path = os.path.join(root_path, f"shared/common/{request.user}/{project_id}", file_name)
+        with open(file_path) as f:
+            content = f.read()
+
+        print(content)
+
+        return HttpResponse(json.dumps({'status': 200, 'content': content}))
+
+    except Exception as e:
+        print(e)
+        return Response(status=500)
+
+# 워크플로우 추가
+@api_view(['POST'])
+@permission_classes([AllowAny])   # 토큰 확인
+def update_project_arguments_file(request):
+    """
+    set arguments file for a project
+
+    Args:
+        project_id (string): project_id
+
+    Returns:
+        arguments file
+    """
+    try:
+        project_id = request.data['project_id']
+        content = request.data['content']
+        file_name = get_arguments_file_name(project_id)
+
+        file_path = os.path.join(root_path, f"shared/common/{request.user}/{project_id}", file_name)
+
+        f = open(file_path, 'w+')
+        f.write(content)
+        f.close()
+
+        return HttpResponse(json.dumps({'status': 200}))
+
+    except Exception as e:
+        print(e)
+        return Response(status=500)

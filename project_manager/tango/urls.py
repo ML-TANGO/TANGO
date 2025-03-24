@@ -55,5 +55,10 @@ urlpatterns = [
 
     re_path(r'^get_common_folder_structure', viewsProject.get_common_folder_structure, name='get_common_folder_structure'),
 
+    re_path(r'^get_project_hyperparameter_file', viewsProject.get_project_hyperparameter_file, name='get_project_hyperparameter_file'),
+    re_path(r'^update_project_hyperparameter_file', viewsProject.update_project_hyperparameter_file, name='update_project_hyperparameter_file'),
+
+    re_path(r'^get_project_arguments_file', viewsProject.get_project_arguments_file, name='get_project_arguments_file'),
+    re_path(r'^update_project_arguments_file', viewsProject.update_project_arguments_file, name='update_project_arguments_file'),
 ]
 

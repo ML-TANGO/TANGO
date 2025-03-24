@@ -24,6 +24,7 @@ services:
     volumes:
       # - ./project_manager:/code
       - shared:/shared
+      - ${configYaml:-./autonn/autonn/autonn_core/tango/common/cfg}:/configYaml
       - ${COCODIR:-./autonn/autonn/autonn_core/datasets/coco}:/shared/datasets/coco
       - ${COCO128DIR:-./autonn/autonn/autonn_core/datasets/coco128}:/shared/datasets/coco128
       - /var/run/docker.sock:/var/run/docker.sock
@@ -34,6 +35,7 @@ services:
       - POSTGRES_NAME=postgres
       - POSTGRES_USER=postgres
       - POSTGRES_PASSWORD=postgres
+      - CONFIG_YAML_PATH=/configYaml
     depends_on:
       - postgresql
 
@@ -115,8 +117,8 @@ services:
       - ${COCO128DIR:-./autonn/autonn/autonn_core/datasets/coco128}:/shared/datasets/coco128
     hostname: autonn
     ports:
-      - "8100:8100"     # visualizer (vision model)
-      - "8101:8101"     # streamlit  (llm)
+      - "8100:8100" # visualizer (vision model)
+      - "8101:8101" # streamlit  (llm)
 
   #---------------------------------
   # Base Model Selector

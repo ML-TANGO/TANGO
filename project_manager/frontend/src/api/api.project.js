@@ -165,3 +165,55 @@ export async function get_common_folder_structure() {
 
   return response.data;
 }
+
+export async function getProjectHyperparameterFile(project_id) {
+  let response = null;
+
+  try {
+    response = await axios.get("/api/get_project_hyperparameter_file", {
+      params: { project_id: project_id }
+    });
+  } catch (error) {
+    throw new Error(error);
+  }
+
+  return response.data;
+}
+
+export async function updateProjectHyperparameterFile(project_id, content) {
+  let response = null;
+
+  try {
+    response = await axios.post("/api/update_project_hyperparameter_file", { project_id, content });
+  } catch (error) {
+    throw new Error(error);
+  }
+
+  return response.data;
+}
+
+export async function getProjectArgumentsFile(project_id) {
+  let response = null;
+
+  try {
+    response = await axios.get("/api/get_project_arguments_file", {
+      params: { project_id: project_id }
+    });
+  } catch (error) {
+    throw new Error(error);
+  }
+
+  return response.data;
+}
+
+export async function updateProjectArgumentsFile(project_id, content) {
+  let response = null;
+
+  try {
+    response = await axios.post("/api/update_project_arguments_file", { project_id, content });
+  } catch (error) {
+    throw new Error(error);
+  }
+
+  return response.data;
+}
