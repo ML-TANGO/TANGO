@@ -11,7 +11,7 @@
         <v-radio-group v-model="taskType" row hide-details class="ma-0 mt-2 ml-3" readonly>
           <v-radio label="Classification" :value="TaskType.CLASSIFICATION"></v-radio>
           <v-radio label="Detection" :value="TaskType.DETECTION"></v-radio>
-          <v-radio label="Chat" :value="TaskType.CHAT"></v-radio>
+          <!-- <v-radio label="Chat" :value="TaskType.CHAT"></v-radio> -->
         </v-radio-group>
       </div>
     </div>
