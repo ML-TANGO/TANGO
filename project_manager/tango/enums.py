@@ -19,6 +19,10 @@ class LearningType(str, Enum):
     TRANSFER = "transfer"
     HPO="HPO"
 
+class TaskType(str, Enum):
+    DETECTION = "detection"
+    CLASSIFICATION = "classification"
+
 autonn_update_ids={
     "project_info":"project_info",
     "hyperparameter":"hyperparameter",
