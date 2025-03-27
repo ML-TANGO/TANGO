@@ -185,7 +185,7 @@ def get_user_requirements(userid, projid, resume=False):
             info.best_net = ''
             info.save()
         else:
-            logger.warn(f'{colorstr("Project Info: ")}Pretrained model {info.best_net} exists.\n'
+            logger.warning(f'{colorstr("Project Info: ")}Pretrained model {info.best_net} exists.\n'
                         f'              But learning type {lt} is unknown, '
                         f'so it will be overwritten by the end of training.')
 
@@ -284,7 +284,7 @@ def get_user_requirements(userid, projid, resume=False):
     proj_info_dict['nas'] = True if basemodel['model_size'] == '-supernet' else False
 
     # --------------------------- hyperparameter -------------------------------
-    hyp_yaml_path = CFG_PATH / f"hyp.scratch.{basemodel_dict['hyp']}.yaml"
+    hyp_yaml_path = PROJ_PATH / f"hyp.scratch.{basemodel_dict['hyp']}.yaml"
     logger.info(f'{colorstr("hyp: ")}hyperparameters from {hyp_yaml_path}')
     with open(hyp_yaml_path) as f:
         hyp_dict = yaml.safe_load(f)
@@ -298,7 +298,7 @@ def get_user_requirements(userid, projid, resume=False):
     # task = proj_info_dict['task_type']
     # trick for nas (temp.)
     _task =  'detection7' if basemodel['model_name'] == 'YOLOV7' or target == 'galaxys22' else task
-    opt_yaml_path = CFG_PATH / f'args-{_task}.yaml'
+    opt_yaml_path = PROJ_PATH / f'args-{_task}.yaml'
 
     if skip_bms:
         opt_yaml_path = str(PROJ_PATH / 'autonn' / 'opt.yaml')
