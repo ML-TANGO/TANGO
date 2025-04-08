@@ -6,66 +6,57 @@ class Info(models.Model):
     '''
     # ID -----------------------------------------------------------------------
     id = models.AutoField(primary_key=True)
-    userid = models.CharField(blank=True, null=True, max_length=50, default='')
-    project_id = models.CharField(blank=True, null=True, max_length=50, default='')
-    process_id = models.CharField(blank=True, null=True, max_length=50)
+    userid = models.CharField(max_length=50, blank=True, null=True, default='')
+    project_id = models.CharField(max_length=50, blank=True, null=True, default='')
+    process_id = models.CharField(max_length=50, blank=True, null=True)
 
     # From user ----------------------------------------------------------------
-    target = models.CharField(blank=True, null=True, max_length=50, default='pc')
-    device = models.CharField(blank=True, null=True, max_length=50, default='cpu')
-    dataset = models.CharField(blank=True, null=True, max_length=50, default='coco')
-    task = models.CharField(blank=True, null=True, max_length=50, default='detection')
+    target = models.CharField(max_length=50, blank=True, null=True, default='pc')
+    device = models.CharField(max_length=50, blank=True, null=True, default='cpu')
+    dataset = models.CharField(max_length=50, blank=True, null=True, default='coco')
+    task = models.CharField(max_length=50, blank=True, null=True, default='detection')
 
     # From autonn --------------------------------------------------------------
-    status = models.CharField(blank=True, null=True, max_length=10, default='ready')
-    progress = models.CharField(blank=True, null=True, max_length=20, default='unknown')
-    model_type = models.CharField(blank=True, null=True, max_length=50, default='not selected')
-    model_size = models.CharField(blank=True, null=True, max_length=50, default=' ')
-    model_viz = models.CharField(blank=True, null=True, max_length=50, default='not ready')
+    status = models.CharField(max_length=10, blank=True, null=True, default='ready')
+    progress = models.CharField(max_length=20, blank=True, null=True, default='unknown')
+    model_type = models.CharField(max_length=50, blank=True, null=True, default='not selected')
+    model_size = models.CharField(max_length=50, blank=True, null=True, default=' ')
+    model_viz = models.CharField(max_length=50, blank=True, null=True, default='not ready')
     batch_size = models.IntegerField(blank=True, null=True, default=16)
 
     # For checkpoint -----------------------------------------------------------
     batch_multiplier = models.FloatField(blank=True, default=1.0)
     epoch = models.IntegerField(blank=True, default=-1)
     best_acc = models.FloatField(blank=True, default=0.0)
-    best_net = models.CharField(blank=True, null=True, max_length=300, default='')
+    best_net = models.CharField(max_length=300, blank=True, null=True, default='')
 
     def __str__(self):
-        uid = str(self.userid)
-        pid = str(self.project_id)
-        return uid + '/' + pid
+        return f"{self.userid}/{self.project_id}"
 
     def print(self):
-        print('-'*50)
-        # print(f'id         : {self.id}')/
+        print('-' * 50)
         print(f'uid        : {self.userid}')
         print(f'pid        : {self.project_id}')
-        # print(f'process id : {self.process_id}')
-        print('-'*50)
+        print('-' * 50)
         print(f'status     : {self.status}')
         print(f'progress   : {self.progress}')
         print(f'model      : {self.model_type}{self.model_size}')
         print(f'visualizer : {self.model_viz}')
-        # print('-'*50)
-        # print(f'target     : {self.target}')
-        # print(f'device     : {self.device}')
-        # print(f'dataset    : {self.dataset}')
-        # print(f'task       : {self.task}')
-        print('-'*50)
+        print('-' * 50)
         print(f'batch_size : {self.batch_size}')
         print(f'bs factor  : {self.batch_multiplier:.1f}')
         print(f'last epoch : {self.epoch}')
         print(f'best mAP   : {self.best_acc:.8f}')
         print(f'best model : {self.best_net}')
-        print('-'*50)
+        print('-' * 50)
 
     def reset(self):
         '''
-        reset all values except ids with default
+        Reset all values except IDs to default
         '''
         print('-- reset with default --')
         self.target = 'pc'
-        self.deivce = 'cpu'
+        self.device = 'cpu'
         self.dataset = 'coco'
         self.task = 'detection'
         self.status = 'ready'
@@ -104,12 +95,9 @@ class Pth(models.Model):
     '''
     PyTorch model generated from Viz
     '''
-    # ID -----------------------------------------------------------------------
-    userid = models.CharField(blank=True, null=True, max_length=50, default='')
-    project_id = models.CharField(blank=True, null=True, max_length=50, default='')
-
-    # from Viz -----------------------------------------------------------------
-    model_pth = models.CharField(blank=True, null=True, max_length=200, default='')
-    model_yml = models.CharField(blank=True, null=True, max_length=200, default='')
+    userid = models.CharField(max_length=50, blank=True, null=True, default='')
+    project_id = models.CharField(max_length=50, blank=True, null=True, default='')
+    model_pth = models.CharField(max_length=200, blank=True, null=True, default='')
+    model_yml = models.CharField(max_length=200, blank=True, null=True, default='')
 
 
