@@ -47,6 +47,7 @@ RUN pip3 install ipython
 RUN pip3 install onnxslim
 RUN pip3 install onnxruntime
 RUN pip3 install tflite_support
+RUN pip3 install cython
 WORKDIR /app
 RUN git init
 ADD https://github.com/llvm/llvm-project/archive/refs/tags/llvmorg-18.1.8.zip /app
