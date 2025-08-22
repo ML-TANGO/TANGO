@@ -192,10 +192,16 @@ def status_request(request):
             info.print()
     except Info.DoesNotExist:
         return Response("ready", status=status.HTTP_204_NO_CONTENT)
-
+    
     try:
-        if not PROCESSES[str(info.process_id)].is_alive():
+        pid = str(info.process_id or "")
+        if pid == "" or pid not in PROCESSES:
+            # 프로세스가 이미 종료 또는 시작 전일 수 있음
             return Response(info.status, status=status.HTTP_208_ALREADY_REPORTED)
+
+        if not PROCESSES[pid].is_alive():
+            return Response(info.status, status=status.HTTP_208_ALREADY_REPORTED)
+
         info.status = "running"
         info.save()
         return Response("running", status=status.HTTP_200_OK)
@@ -238,7 +244,7 @@ def process_autonn(userid, project_id):
     resume = info.progress == 'oom'
 
     try:
-        run_autonn(userid, project_id, resume=resume, viz2code=False, nas=False, hpo=False)
+        run_autonn(userid, project_id, resume=resume, viz2code=False, nas=True, hpo=False)
         info = Info.objects.get(userid=userid, project_id=project_id)
         info.progress = 'autonn ends'
         info.status = "completed"
@@ -246,7 +252,10 @@ def process_autonn(userid, project_id):
         status_report(userid, project_id, "completed")
 
     except Exception as e:
+        import traceback
         print(f"[AutoNN process_autonn] exception: {e}")
+        print(traceback.format_exc())
+
         import torch, gc
         if torch.cuda.is_available():
             torch.cuda.empty_cache()

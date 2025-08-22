@@ -1,0 +1,34 @@
+{
+  "operations": [
+    {
+      "op_name": "/model.10/Resize",
+      "param_target": "mode",
+      "param_val": "nearest"
+    },
+    {
+      "op_name": "/model.10/Resize",
+      "param_target": "coordinate_transformation_mode",
+      "param_val": "asymmetric"
+    },
+    {
+      "op_name": "/model.10/Resize",
+      "param_target": "nearest_mode",
+      "param_val": "floor"
+    },
+    {
+      "op_name": "/model.13/Resize",
+      "param_target": "mode",
+      "param_val": "nearest"
+    },
+    {
+      "op_name": "/model.13/Resize",
+      "param_target": "coordinate_transformation_mode",
+      "param_val": "asymmetric"
+    },
+    {
+      "op_name": "/model.13/Resize",
+      "param_target": "nearest_mode",
+      "param_val": "floor"
+    }
+  ]
+}

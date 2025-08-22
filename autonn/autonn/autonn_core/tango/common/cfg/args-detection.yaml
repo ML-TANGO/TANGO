@@ -5,7 +5,7 @@ weights: ''
 cfg: ''
 data: ''
 hyp: ''
-epochs: 500
+epochs: 2
 batch_size: -1  # it'll be changed by auto-batch
 img_size: [640, 640]
 device: ''

@@ -6,7 +6,7 @@ from copy import deepcopy
 from pathlib import Path
 import os
 # sys.path.append(os.path.dirname(os.path.dirname(__file__)))  # to run '$ python *.py' files in subdirectories
-
+import math
 import torch
 import torch.nn as nn
 from tango.common.models.common import *
@@ -125,7 +125,7 @@ class DDetect(nn.Module):
         self.no = nc + self.reg_max * 4  # number of outputs per anchor
         self.inplace = inplace  # use inplace ops (e.g. slice assignment)
         self.stride = torch.zeros(self.nl)  # strides computed during build
-
+        self.format = ""
         c2, c3 = make_divisible(max((ch[0] // 4, self.reg_max * 4, 16)), 4), max(
             (ch[0], min((self.nc * 2, 128)))
         )  # channels
@@ -142,14 +142,17 @@ class DDetect(nn.Module):
         self.dfl = DFL(self.reg_max) if self.reg_max > 1 else nn.Identity()
 
     def forward(self, x):
-        shape = x[0].shape  # BCHW
         for i in range(self.nl):
-            x[i] = torch.cat((self.cv2[i](x[i]), self.cv3[i](x[i])), 1)
+            x[i] = torch.cat((self.cv2[i](x[i]), self.cv3[i](x[i])), 1)  # [B, self.no, Hi, Wi]
+
         if self.training:
             return x
-        elif self.dynamic or self.shape != shape:
-            self.anchors, self.strides = (x.transpose(0, 1) for x in make_anchors(x, self.stride, 0.5))
-            self.shape = shape
+        
+        shape0 = x[0].shape  # [B, C, H, W]
+        if self.dynamic or self.shape != shape0:
+            self.anchors, self.strides = (t.transpose(0, 1) for t in make_anchors(x, self.stride, 0.5))
+            self.shape = shape0
+        bs = x[0].shape[0]
 
         ''' Credit:  ultralytics/nn/modules/head.py, line 99-125, in def _inference(), class Detect
             [1] TensorFlow conversion takes {Torch.Tensor}.split() complicated operation 'FlexSplitV'
@@ -162,23 +165,23 @@ class DDetect(nn.Module):
                 solution:
                 pre-normalize 'anchor' and 'stride' before using them in dist2bbox()
         '''
-        # box, cls = torch.cat([xi.view(shape[0], self.no, -1) for xi in x], 2).split((self.reg_max * 4, self.nc), 1)
-        # dbox = dist2bbox(self.dfl(box), self.anchors.unsqueeze(0), xywh=True, dim=1) * self.strides
-        x_cat = torch.cat([xi.view(shape[0], self.no, -1) for xi in x], 2)
+        x_cat = torch.cat([xi.flatten(2) for xi in x], dim=2)  # [B, self.no, N]
+        if x_cat.shape[1] != self.no:
+            raise RuntimeError(f"[DDetect] Channel mismatch: got {x_cat.shape[1]}, expected {self.no}")
         if self.export and self.format in {
             "tf",
             "tf-int8",
         }:  # avoid TF FlexSplitV ops
-            box = x_cat[:, : self.reg_max * 4]
-            cls = x_cat[:, self.reg_max * 4 :]
+            box = x_cat[:, : self.reg_max * 4, :]
+            cls = x_cat[:, self.reg_max * 4 :, :]
         else:
-            box, cls = x_cat.split((self.reg_max * 4, self.nc), 1)
+            box, cls = x_cat.split((self.reg_max * 4, self.nc), dim=1)  # [B,64,N], [B,80,N] (reg_max=16 기준)
 
         if self.export and (self.format == "tf-int8"):
             # Precompute normalization factor to increase numerical stability
             # See https://github.com/ultralytics/ultralytics/issues/7371
-            grid_h = shape[2]
-            grid_w = shape[3]
+            grid_h = shape0[2]
+            grid_w = shape0[3]
             grid_size = torch.tensor(
                 [grid_w, grid_h, grid_w, grid_h], device=box.device
             ).reshape(1, 4, 1)
@@ -224,7 +227,7 @@ class DualDDetect(nn.Module):
         self.no = nc + self.reg_max * 4  # number of outputs per anchor
         self.inplace = inplace  # use inplace ops (e.g. slice assignment)
         self.stride = torch.zeros(self.nl)  # strides computed during build
-
+        self.format = ""
         c2, c3 = make_divisible(max((ch[0] // 4, self.reg_max * 4, 16)), 4), max((ch[0], min((self.nc * 2, 128))))  # channels
         c4, c5 = make_divisible(max((ch[self.nl] // 4, self.reg_max * 4, 16)), 4), max((ch[self.nl], min((self.nc * 2, 128))))  # channels
         self.cv2 = nn.ModuleList(
@@ -248,7 +251,7 @@ class DualDDetect(nn.Module):
         if self.training:
             return [d1, d2]
         elif self.dynamic or self.shape != shape:
-            self.anchors, self.strides = (d1.transpose(0, 1) for d1 in make_anchors(d1, self.stride, 0.5))
+            self.anchors, self.strides = (t.transpose(0, 1) for t in make_anchors(d1, self.stride, 0.5))
             self.shape = shape
 
         ''' Credit:  ultralytics/nn/modules/head.py, line 99-125, in def _inference(), class Detect
@@ -262,19 +265,17 @@ class DualDDetect(nn.Module):
         # dbox = dist2bbox(self.dfl(box), self.anchors.unsqueeze(0), xywh=True, dim=1) * self.strides
         # box2, cls2 = torch.cat([di.view(shape[0], self.no, -1) for di in d2], 2).split((self.reg_max * 4, self.nc), 1)
         # dbox2 = dist2bbox(self.dfl2(box2), self.anchors.unsqueeze(0), xywh=True, dim=1) * self.strides
-        x_cat = torch.cat([di.view(shape[0], self.no, -1) for di in d1], 2)
-        x_cat2 = torch.cat([di.view(shape[0], self.no, -1) for di in d2], 2)
-        if self.export and self.format in {
-            "tf",
-            "tf-int8",
-        }:  # avoid TF FlexSplitV ops
-            box = x_cat[:, : self.reg_max * 4]
-            cls = x_cat[:, self.reg_max * 4 :]
-            box2 = x_cat2[:, : self.reg_max * 4]
-            cls2 = x_cat2[:, self.reg_max * 4 :]
+        x_cat  = torch.cat([di.flatten(2) for di in d1], 2)   # [B, self.no, N1]
+        x_cat2 = torch.cat([di.flatten(2) for di in d2], 2)   # [B, self.no, N2]
+
+        if self.export and self.format in {"tf", "tf-int8"}:  # avoid TF FlexSplitV ops
+            box  = x_cat[:,  : self.reg_max * 4, :]
+            cls  = x_cat[:,   self.reg_max * 4 :, :]
+            box2 = x_cat2[:, : self.reg_max * 4, :]
+            cls2 = x_cat2[:,  self.reg_max * 4 :, :]
         else:
-            box, cls = x_cat.split((self.reg_max * 4, self.nc), 1)
-            box2, cls2 = x_cat2.split((self.reg_max * 4, self.nc), 1)
+            box,  cls  = x_cat.split((self.reg_max * 4, self.nc),  dim=1)
+            box2, cls2 = x_cat2.split((self.reg_max * 4, self.nc), dim=1)
 
         if self.export and (self.format == "tf-int8"):
             # Precompute normalization factor to increase numerical stability
@@ -359,7 +360,7 @@ class TripleDDetect(nn.Module):
         self.no = nc + self.reg_max * 4  # number of outputs per anchor
         self.inplace = inplace  # use inplace ops (e.g. slice assignment)
         self.stride = torch.zeros(self.nl)  # strides computed during build
-
+        self.format = ""
         c2, c3 = make_divisible(max((ch[0] // 4, self.reg_max * 4, 16)), 4), \
                                 max((ch[0], min((self.nc * 2, 128))))  # channels
         c4, c5 = make_divisible(max((ch[self.nl] // 4, self.reg_max * 4, 16)), 4), \
@@ -399,12 +400,15 @@ class TripleDDetect(nn.Module):
         elif self.dynamic or self.shape != shape:
             self.anchors, self.strides = (d1.transpose(0, 1) for d1 in make_anchors(d1, self.stride, 0.5))
             self.shape = shape
+        x_cat1 = torch.cat([di.flatten(2) for di in d1], 2)
+        x_cat2 = torch.cat([di.flatten(2) for di in d2], 2)
+        x_cat3 = torch.cat([di.flatten(2) for di in d3], 2)
 
-        box, cls = torch.cat([di.view(shape[0], self.no, -1) for di in d1], 2).split((self.reg_max * 4, self.nc), 1)
+        box,  cls  = x_cat1.split((self.reg_max * 4, self.nc), dim=1)
+        box2, cls2 = x_cat2.split((self.reg_max * 4, self.nc), dim=1)
+        box3, cls3 = x_cat3.split((self.reg_max * 4, self.nc), dim=1)
         dbox = dist2bbox(self.dfl(box), self.anchors.unsqueeze(0), xywh=True, dim=1) * self.strides
-        box2, cls2 = torch.cat([di.view(shape[0], self.no, -1) for di in d2], 2).split((self.reg_max * 4, self.nc), 1)
         dbox2 = dist2bbox(self.dfl2(box2), self.anchors.unsqueeze(0), xywh=True, dim=1) * self.strides
-        box3, cls3 = torch.cat([di.view(shape[0], self.no, -1) for di in d3], 2).split((self.reg_max * 4, self.nc), 1)
         dbox3 = dist2bbox(self.dfl3(box3), self.anchors.unsqueeze(0), xywh=True, dim=1) * self.strides
         #y = [torch.cat((dbox, cls.sigmoid()), 1), torch.cat((dbox2, cls2.sigmoid()), 1), torch.cat((dbox3, cls3.sigmoid()), 1)]
         #return y if self.export else (y, [d1, d2, d3])
@@ -661,6 +665,8 @@ class IAuxDetect(nn.Module):
         box @= convert_matrix                          
         return (box, score)
 
+from pathlib import Path
+import yaml
 
 class Model(nn.Module):
     """ Create YOLO-based Detector NN-Model
@@ -716,13 +722,17 @@ class Model(nn.Module):
     def __init__(self, cfg='basemodel.yaml', ch=3, nc=None, anchors=None):  # model, input channels, number of classes
         super(Model, self).__init__()
         self.traced = False
-        if isinstance(cfg, dict):
-            self.yaml = cfg  # model dict
-        else:  # is *.yaml
-            import yaml  # for torch hub
-            self.yaml_file = Path(cfg).name
-            with open(cfg) as f:
-                self.yaml = yaml.load(f, Loader=yaml.SafeLoader)  # model dict
+        if isinstance(cfg, (str, Path)):
+            self.yaml_file = str(cfg)
+            with open(cfg, 'r') as f:
+                self.yaml = yaml.safe_load(f)
+        elif isinstance(cfg, dict):
+            self.yaml_file = '<dict>'
+            self.yaml = cfg
+        else:
+            raise TypeError("cfg must be a path str/Path or a dict")
+
+        logger.info(f'{colorstr("Models: ")}Creating a model from {self.yaml_file}')
 
         # Define model
         ch = self.yaml['ch'] = self.yaml.get('ch', ch)  # input channels
@@ -739,50 +749,31 @@ class Model(nn.Module):
         self.inplace = self.yaml.get('inplace', True)
 
         # Build strides, anchors
-        logger.info(f'{colorstr("Models: ")}Building strides and anchors')
-        m = self.model[-1]  # Detect()
-        if isinstance(m, Detect):
-            s = 256  # 2x min stride
-            m.inplace = self.inplace
-            m.stride = torch.tensor([s / x.shape[-2] for x in self.forward(torch.zeros(1, ch, s, s))])  # forward
-            check_anchor_order(m)
-            m.anchors /= m.stride.view(-1, 1, 1)
-            self.stride = m.stride
-            self._initialize_biases()  # only run once
-            # print('Strides: %s' % m.stride.tolist())
-        if isinstance(m, IDetect):
-            s = 256  # 2x min stride
-            m.inplace = self.inplace
-            m.stride = torch.tensor([s / x.shape[-2] for x in self.forward(torch.zeros(1, ch, s, s))])  # forward
-            check_anchor_order(m)
-            m.anchors /= m.stride.view(-1, 1, 1)
-            self.stride = m.stride
-            self._initialize_biases()  # only run once
-        if isinstance(m, IAuxDetect):
-            s = 256  # 2x min stride
-            m.inplace = self.inplace
-            m.stride = torch.tensor([s / x.shape[-2] for x in self.forward(torch.zeros(1, ch, s, s))[:4]])  # forward
-            check_anchor_order(m)
-            m.anchors /= m.stride.view(-1, 1, 1)
-            self.stride = m.stride
-            self._initialize_aux_biases()  # only run once
-        if isinstance(m, DDetect):
-            s = 256  # 2x min stride
-            m.inplace = self.inplace
-            m.stride = torch.tensor([s / x.shape[-2] for x in forward(torch.zeros(1, ch, s, s))])  # forward
-            self.stride = m.stride
-            m.bias_init()  # only run once
-        if isinstance(m, (DualDDetect, TripleDDetect)):
-            s = 256  # 2x min stride
-            m.inplace = self.inplace
-            forward = lambda x: self.forward(x)[0]
-            m.stride = torch.tensor([s / x.shape[-2] for x in forward(torch.zeros(1, ch, s, s))])  # forward
-            self.stride = m.stride
-            m.bias_init()  # only run once
-
-        # Init weights, biases
         logger.info(f'{colorstr("Models: ")}Initializing weights')
         initialize_weights(self)
+        logger.info(f'{colorstr("Models: ")}Building strides and anchors')
+        m = self.model[-1]
+        s = 256
+        m.inplace = self.inplace
+        was_training = self.training
+        self.eval()
+        with torch.no_grad():
+            out = self.forward(torch.zeros(1, ch, s, s))
+        if was_training:
+            self.train()
+        feats = out[1] if isinstance(out, tuple) else out
+        if not isinstance(feats, (list, tuple)):
+            feats = [feats]
+        m.stride = torch.tensor([s / f.shape[-2] for f in feats])
+        self.stride = m.stride
+        if isinstance(m, (Detect, IDetect, IAuxDetect)):
+            check_anchor_order(m)
+            m.anchors /= m.stride.view(-1, 1, 1)
+            (self._initialize_biases() if isinstance(m, (Detect, IDetect))
+             else self._initialize_aux_biases())
+        elif isinstance(m, (DDetect, DualDDetect, TripleDDetect)):
+            m.bias_init()
+        logger.info(f'{colorstr("Models: ")}Initializing weights')
         self.briefs = self.summary()
         # self.info()
         # logger.info('')
@@ -819,7 +810,7 @@ class Model(nn.Module):
         y = []  # outputs
         for si, fi in zip(s, f):
             xi = scale_img(x.flip(fi) if fi else x, si, gs=int(self.stride.max()))
-            yi = self.forward_once(xi)[0]  # forward
+            yi = self._forward_once(xi)[0]  # forward
             # cv2.imwrite(f'img_{si}.jpg', 255 * xi[0].cpu().numpy().transpose((1, 2, 0))[:, :, ::-1])  # save
             yi = self._descale_pred(yi, fi, si, img_size)
             y.append(yi)
@@ -1039,26 +1030,21 @@ class DetectionModel(BaseModel):
 
         # Build strides, anchors
         m = self.model[-1]  # Detect()
-        if isinstance(m, (Detect, DDetect)):
-            s = 256  # 2x min stride
-            m.inplace = self.inplace
-            forward = lambda x: self.forward(x)
-            m.stride = torch.tensor([s / x.shape[-2] for x in forward(torch.zeros(1, ch, s, s))])  # forward
-            # check_anchor_order(m)
-            # m.anchors /= m.stride.view(-1, 1, 1)
-            self.stride = m.stride
-            m.bias_init()  # only run once
-        elif isinstance(m, (DualDDetect, TripleDDetect)):
-            s = 256  # 2x min stride
-            m.inplace = self.inplace
-            forward = lambda x: self.forward(x)[0]
-            m.stride = torch.tensor([s / x.shape[-2] for x in forward(torch.zeros(1, ch, s, s))])  # forward
-            # check_anchor_order(m)
-            # m.anchors /= m.stride.view(-1, 1, 1)
-            self.stride = m.stride
-            m.bias_init()  # only run once
-        else:
-            self.stride = torch.tensor([8., 16., 32.])
+        s = 256
+        m.inplace = self.inplace
+        was_training = self.training
+        self.eval()
+        with torch.no_grad():
+            out = self.forward(torch.zeros(1, ch, s, s))
+        if was_training:
+            self.train()
+        feats = out[1] if isinstance(out, tuple) else out
+        if not isinstance(feats, (list, tuple)):
+            feats = [feats]
+        m.stride = torch.tensor([s / f.shape[-2] for f in feats])
+        self.stride = m.stride
+        if isinstance(m, (DDetect, DualDDetect, TripleDDetect)):
+            m.bias_init()
         # Init weights, biases
         initialize_weights(self)
         self.briefs = self.summary()

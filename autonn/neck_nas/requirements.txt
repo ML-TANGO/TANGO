@@ -14,6 +14,7 @@ opencv-python
 pandas==1.4.2
 Pillow>=8.4.0
 psycopg2-binary==2.9.3
+torch
 pytorch_lightning
 pytz==2022.1
 PyYAML==6.0
@@ -22,7 +23,6 @@ seaborn==0.11.2
 setuptools==59.5.0
 sqlparse==0.4.2
 tensorboardX
-torch
 torchvision
 tqdm==4.62.3
 typing_extensions==4.1.1

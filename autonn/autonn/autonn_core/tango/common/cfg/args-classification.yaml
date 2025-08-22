@@ -5,7 +5,7 @@ weights: '' # checkpoint (pt/file/path)
 cfg: '' # model config (yaml/file/path)
 data: '' # dataset config (dataset.yaml)
 hyp: '' # hyperparameter config (hyp.yaml)
-epochs: 500
+epochs: 2
 batch_size: -1  # it'll be changed by auto-batch
 img_size: [256, 256]
 device: '' # '0' or '0, 1' or 'cpu' (it'll be changed by select-device if '') 

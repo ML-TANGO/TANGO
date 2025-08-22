@@ -42,22 +42,42 @@ class LatencyPredictor:
         return latency_b + latency_h
     
 def arch_to_feat(arch, device):
-    # This function converts a backbone arch_encoding to a feature vector (20-D).
+    import copy
     d_list = copy.deepcopy(arch['d'])
+    L = len(d_list)
 
-    # convert to onehot, 5*4 = 20-D feature vector
-    b_onehot = [0 for _ in range(20)]
-    h_onehot = [0 for _ in range(28)]
+    if L == 7:
+        b_slots, h_slots = 3, 4   # YOLOv9 supernet
+    elif L >= 8:
+        b_slots, h_slots = 4, 4
+    else:
+        b_slots = max(L - 4, 0)
+        h_slots = L - b_slots
 
-    for i in range(4):
-        tidx = int(d_list[i]) - 1
-        b_onehot[i*5 + tidx] = 1
-    
-    for i in range(4):
-        tidx = int(d_list[i+4]) - 1
-        b_onehot[i*5 + tidx] = 1
+    B_CHOICES = 5   # backbone per-slot choices
+    H_CHOICES = 7   # head per-slot choices
+    B_MAX_SLOTS = 4
+    H_MAX_SLOTS = 4
 
-    return torch.Tensor(b_onehot).to(device).float(), torch.Tensor(h_onehot).to(device).float()
+    b_onehot = [0 for _ in range(B_MAX_SLOTS * B_CHOICES)]  # 20
+    h_onehot = [0 for _ in range(H_MAX_SLOTS * H_CHOICES)]  # 28
+
+    use_b = min(b_slots, B_MAX_SLOTS)
+    for i in range(use_b):
+        depth = int(d_list[i])
+        idx = max(0, min(B_CHOICES - 1, depth - 1))
+        b_onehot[i * B_CHOICES + idx] = 1
+
+    HEAD_OFFSET = b_slots
+    use_h = min(h_slots, H_MAX_SLOTS)
+    for j in range(use_h):
+        depth = int(d_list[HEAD_OFFSET + j])
+        idx = max(0, min(H_CHOICES - 1, depth - 1))
+        h_onehot[j * H_CHOICES + idx] = 1
+
+    b_feat = torch.tensor(b_onehot, device=device, dtype=torch.float32)
+    h_feat = torch.tensor(h_onehot, device=device, dtype=torch.float32)
+    return b_feat, h_feat
 
 
 class Net(nn.Module):

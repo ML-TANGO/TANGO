@@ -40,6 +40,26 @@ from typing import List, Tuple, Union, Optional, Callable, Any
 ## search_block.py
 # from .search_block import ELAN, ELANBlock
 
+_DEPTH_BLOCK_PREFIXES = (
+    "RepNCSPELAN",   # RepNCSPELAN, RepNCSPELAN4 ...
+    "BBoneELAN",
+    "HeadELAN",
+)
+
+def _is_depth_block_yaml(m):
+    name = m if isinstance(m, str) else getattr(m, "__name__", str(m))
+    return any(name.startswith(p) for p in _DEPTH_BLOCK_PREFIXES)
+
+def _is_depth_block_module(mod):
+    name = mod.__class__.__name__
+    return any(name.startswith(p) for p in _DEPTH_BLOCK_PREFIXES)
+
+def _depth_arg_index(module_name: str, args: list) -> int:
+    if module_name.startswith("BBoneELAN") or module_name.startswith("HeadELAN"):
+        return 2
+    if module_name.startswith("RepNCSPELAN"):
+        return -1
+    return None
 
 class NASModel(Model):
     """ Create YOLOv7-based SuperNet 
@@ -81,23 +101,22 @@ class NASModel(Model):
         self.set_max_net()
         
     def forward_once(self, x, profile=False):
-        # assert isinstance(self.runtime_depth, list)
-        y, dt = [], []  # outputs
-        elan_idx = 0
+        y, dt = [], []
+        depth_idx = 0
+
         for m in self.model:
-            if m.f != -1:  # if not from previous layer
-                x = y[m.f] if isinstance(m.f, int) else [x if j == -1 else y[j] for j in m.f]  # from earlier layers
+            if m.f != -1:
+                x = y[m.f] if isinstance(m.f, int) else [x if j == -1 else y[j] for j in m.f]
 
             if not hasattr(self, 'traced'):
-                self.traced=False
+                self.traced = False
 
-            if self.traced:
-                if isinstance(m, Detect) or isinstance(m, IDetect) or isinstance(m, IAuxDetect):
-                    break
+            if self.traced and isinstance(m, _DEPTH_BLOCK_PREFIXES):
+                break
 
             if profile:
-                c = isinstance(m, (Detect, IDetect, IAuxDetect))
-                o = thop.profile(m, inputs=(x.copy() if c else x,), verbose=False)[0] / 1E9 * 2 if thop else 0  # FLOPS
+                c = isinstance(m, _DEPTH_BLOCK_PREFIXES)
+                o = thop.profile(m, inputs=(x.copy() if c else x,), verbose=False)[0] / 1E9 * 2 if thop else 0
                 for _ in range(10):
                     m(x.copy() if c else x)
                 t = time_synchronized()
@@ -106,14 +125,24 @@ class NASModel(Model):
                 dt.append((time_synchronized() - t) * 100)
                 logger.info('%10.1f%10.0f%10.1fms %-40s' % (o, m.np, dt[-1], m.type))
 
-            if isinstance(m, ELAN) and isinstance(self.runtime_depth, list): # subnetwork run
-                depth = self.runtime_depth[elan_idx]
-                elan_idx += 1
-                x = m(x, d=depth)
+            if isinstance(self.runtime_depth, list) and _is_depth_block_module(m):
+                depth = self.runtime_depth[depth_idx]
+                depth_idx += 1
+                if hasattr(m, 'forward_depth'):
+                    x = m.forward_depth(x, depth)
+                else:
+                    try:
+                        x = m(x, d=depth)
+                    except TypeError:
+                        if hasattr(m, 'set_active_depth'):
+                            m.set_active_depth(depth)
+                            x = m(x)
+                        else:
+                            x = m(x)
             else:
-                x = m(x)  # fullnetwork run
-            
-            y.append(x if m.i in self.save else None)  # save output
+                x = m(x)
+
+            y.append(x if m.i in self.save else None)
 
         if profile:
             logger.info('%.1fms total' % sum(dt))
@@ -125,8 +154,38 @@ class NASModel(Model):
         self.set_active_subnet(d=max_list(self.depth_list))
         
     def set_active_subnet(self, d=None, **kwargs):
-        logger.info(f"... 2 ... set ELANBlocks' depth {d}")
-        self.runtime_depth = d   
+        yaml_blocks = self.yaml.get('backbone', []) + self.yaml.get('head', [])
+        expected = sum(1 for (_, _, m, args) in yaml_blocks if _is_depth_block_yaml(m))
+
+        if expected == 0:
+            import warnings
+            warnings.warn("[NAS] No depth-configurable blocks found in YAML; skipping depth injection.")
+            self.runtime_depth = [] if not isinstance(d, list) else d[:0]
+            return
+
+        if d is None:
+            if isinstance(self.depth_list, list) and all(isinstance(x, list) and x for x in self.depth_list):
+                d = [max(x) for x in self.depth_list]
+            else:
+                raise ValueError("[NAS] Depth vector is None and depth_list is not a list-of-lists")
+
+        if len(d) != expected:
+            import warnings
+            warnings.warn(f"[NAS] Depth vector length mismatch: got {len(d)} but model needs {expected}. "
+                        f"Will auto-fix by padding/trimming.")
+            if len(d) < expected:
+                pad = []
+                if isinstance(self.depth_list, list) and all(isinstance(x, list) and x for x in self.depth_list):
+                    for i in range(len(d), expected):
+                        pad.append(max(self.depth_list[i]))
+                else:
+                    pad = [d[-1] if d else 1] * (expected - len(d))
+                d = d + pad
+            else:
+                d = d[:expected]
+
+        self.runtime_depth = [int(x) for x in d]
+        logger.info(f"... 2 ... set ELANBlocks' depth {self.runtime_depth}")
         
     def sample_active_subnet(self):       
         # sample depth
@@ -139,92 +198,61 @@ class NASModel(Model):
         
         return {"d": depth_setting}
     
-    def get_active_net_config(self): # self
+    def get_active_net_config(self):
         idx = 0
         d = deepcopy(self.yaml)
-        
-        # ch = 0
+
         for i, (f, n, m, args) in enumerate(d['backbone'] + d['head']):
-            if 'ELAN' in m: # ELAN, ELANBlock, BBoneELAN, HeadELAN, ELAN2, TinyELAN
-                args[-1] = self.runtime_depth[idx]
-                idx += 1
-            #     if 'BBone' in m:
-            #         ch = int( args[0]*(args[-1]+1) )
-            #     elif 'Head' in m:
-            #         ch = int( (args[0]*2) + (args[0]/2*(args[-1]-1)) )
-            # elif m == 'DyConv':
-            #     if ch != 0:
-            #         args = [ch, *args]
-            #         ch = 0
+            if _is_depth_block_yaml(m):
+                name = m if isinstance(m, str) else getattr(m, "__name__", str(m))
+                di = _depth_arg_index(name, args)
+                if di is None or abs(di) > len(args):
+                    logger.warning(f"[NAS] Cannot locate depth arg for {name}; skip depth injection.")
+                else:
+                    args[di] = int(self.runtime_depth[idx])
+                    idx += 1
 
-        # [TENACE] inform depth of current subnet
         d['depth_list'] = self.runtime_depth
-        # no more need depth_list(search space)
-        # del d['depth_list']
-
-        logger.info(f"......... done.") # f" subnet config = {d}")
+        logger.info("......... done.")
         return d
     
     def get_active_subnet(self, preserve_weight=True):
-        # create subnet
         config = self.get_active_net_config()
+        logger.info("... 3 ... create this subnet model")
+        ch_val = config.get('ch', self.yaml.get('ch', 3))
+        subnet = Model(
+            cfg=config,
+            ch=ch_val,
+            nc=config.get('nc', None),
+            anchors=config.get('anchors', None),
+        )
 
-        logger.info(f"... 3 ... create this subnet model")
-        #=======================================================================
-        ch = config['ch']
-        # subnet = YOLOModel(cfg=config, ch=[ch])
-        subnet = Model(cfg=config, ch=[ch])
-        #=======================================================================
-        logger.info(f"......... done.")
+        logger.info("......... done.")
 
-        # subnet.info(verbose=True)
-
-        logger.info(f"... 4 ... load pre-trained weights from supernet")
-        dict_cfg = config['backbone'] + config['head']
         if preserve_weight:
-            # extract ELANBlock & DyConv
-            elan_idx = 0
-            out_ch = 0
-            model = deepcopy(self.model) # pre-trained supernet
-            model.eval()
+            logger.info("... 4 ... load pre-trained weights from supernet")
+            model = deepcopy(self.model).eval()
+            depth_idx = 0
+
             for i, m in enumerate(model):
-                if isinstance(m, ELAN): # ELAN, BBoneELAN, HeadELAN
-                    logger.info(f"......... extract ELANblock {m.i} {m.f} {m.type} {m.np}")
-                    depth = self.runtime_depth[elan_idx]
-                    act_idx = m.act_idx[depth]
-                    model[i] = ELANBlock(m.mode, deepcopy(m.layers[:act_idx+1]), depth)
-                    np = sum([x.numel() for x in model[i].parameters()])  # re-calculate number params
-                    model[i].i, model[i].f, model[i].type, model[i].np = m.i, m.f, m.type, np
-                    logger.info(f"......... replace ELANblock {m.i} {m.f} {m.type} {np}")
-                    # logger.info(f"......... and fill in weights from supernet")
-                    elan_idx += 1
-                    in_ch = dict_cfg[i][-1][0]
-                    if m.mode == 'BBone':
-                        elan_out_ch = int( in_ch * (depth+1) )
-                    elif m.mode == 'Head':
-                        elan_out_ch = int( in_ch*2 + (in_ch/2 * (depth-1)) )
-                elif isinstance(m, DyConv):
-                    logger.info(f"......... extract DyConv {m.i} {m.f} {m.type} {m.np}")
-                    if elan_out_ch != 0:
-                        model[i] = DyConvBlock(m.conv, m.bn, m.act, elan_out_ch)
-                        elan_out_ch = 0
-                    np = sum([x.numel() for x in model[i].parameters()])  # re-calculate number params
-                    model[i].i, model[i].f, model[i].type, model[i].np = m.i, m.f, m.type, np
-                    logger.info(f"......... replace DyConv {m.i} {m.f} {m.type} {np}")
-                    # logger.info(f"......... and fill in weights from supernet")
+                if _is_depth_block_yaml(m):  # RepNCSPELAN*
+                    depth = self.runtime_depth[depth_idx]
+                    depth_idx += 1
+                    if hasattr(m, 'truncate_to_depth'):
+                        model[i] = m.truncate_to_depth(depth)
+                    elif hasattr(m, 'export_subblock'):
+                        model[i] = m.export_subblock(depth)
+                    else:
+                        if hasattr(m, 'set_active_depth'):
+                            m.set_active_depth(depth)
 
-            # for param_tensor in model.state_dict():
-            #     print(param_tensor, "\t", model.state_dict()[param_tensor].size())
-
-            # subnet.model.load_state_dict( model.state_dict() )
             subnet.model = model
             subnet.yaml = config
             del model
 
-        logger.info(f"......... done.") #f" subnet model = {subnet.model}")
+        logger.info("......... done.")
         return subnet
     
-
 if __name__ == "__main__":
     profile=False
     device = select_device('0')

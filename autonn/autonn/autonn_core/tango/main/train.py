@@ -10,7 +10,8 @@ from copy import deepcopy
 from pathlib import Path
 from threading import Thread
 import json
-
+# train.py
+from tango.common.models.yolo import DDetect, DualDDetect, TripleDDetect  # 헤드 타입 확인용
 import numpy as np
 import torch
 import torch.distributed as dist
@@ -79,10 +80,55 @@ from tango.utils.torch_utils import (   ModelEMA,
                                         time_synchronized
                                     )
 # from tango.utils.wandb_logging.wandb_utils import WandbLogger
-
+def safe_status_update(*args, **kwargs):
+    try:
+        status_update(*args, **kwargs)
+    except Exception as e:
+        logger.exception(f"status_update({kwargs.get('update_id')}) failed: {e}")
 
 logger = logging.getLogger(__name__)
 
+def _pack_for_dfl_if_needed(model, pred, nc):
+    if isinstance(pred, (tuple, list)) and len(pred) == 2 and isinstance(pred[1], (list, tuple)):
+        return pred
+
+    head = de_parallel(model).model[-1]
+    reg_max = int(getattr(head, 'reg_max', 16))
+    reg_ch = 4 * reg_max
+
+    preds = list(pred) if isinstance(pred, (list, tuple)) else [pred]
+
+    full_lists = []
+    for p in preds:
+        C = p.shape[1]
+        if C < reg_ch + nc and C < 4 * (reg_max + 1) + nc:
+            full_lists.append(p)
+        else:
+            full_lists.append(p)
+
+    name = head.__class__.__name__.lower()
+    if 'triple' in name:
+        n_heads = 3
+    elif 'dual' in name:
+        n_heads = 2
+    else:
+        n_heads = 2
+
+    feats_heads = [full_lists for _ in range(n_heads)]
+    return (preds, feats_heads)
+
+def _is_anchor_free_head(head) -> bool:
+    n = head.__class__.__name__.lower()
+    # 이름 힌트
+    if any(k in n for k in ('ddetect', 'dualddetect', 'tripleddetect', 'decoupled', 'anchorfree')):
+        return True
+    # DFL/anchor-free에서 흔한 속성
+    if hasattr(head, 'reg_max') or hasattr(head, 'dfl') or getattr(head, 'use_dfl', False):
+        return True
+    # 앵커 기반 힌트가 보이면 anchor-based
+    if hasattr(head, 'na') or hasattr(head, 'anchors') or hasattr(head, 'anchor_grid'):
+        return False
+    return False  # 기본값
 
 def get_optimizer(model, is_adam=False, lr=0.001, momentum=0.9, decay=1e-5):
     # YOLOv5 3-param group optimizer: 0) weights with decay, 1) weights no decay, 2) biases no decay
@@ -244,7 +290,7 @@ def train(proj_info, hyp, opt, data_dict, tb_writer=None):
         server_gpu_mem = round(float(d[2]))
         system[f'{i}'] = system_info
     # system_content = json.dumps(system)
-    status_update(userid, project_id,
+    safe_status_update(userid, project_id,
                   update_id="system",
                   update_content=system)
 
@@ -252,7 +298,7 @@ def train(proj_info, hyp, opt, data_dict, tb_writer=None):
     plots = not opt.evolve # create plots
     cuda = device.type != 'cpu'
     seed = opt.seed if opt.seed else 0
-    if opt.loss_name == 'TAL':
+    if opt.loss_name in ('TAL', 'DFL'):
         init_seeds_v9(seed + 1 + rank, deterministic=True) # from yolov9
     else:
         init_seeds(2 + rank)
@@ -285,9 +331,9 @@ def train(proj_info, hyp, opt, data_dict, tb_writer=None):
                     nc=nc, 
                     anchors=hyp.get('anchors')
                 ).to(device)  # create
-            elif opt.loss_name == 'TAL':
+            elif opt.loss_name in ('TAL', 'DFL'):
                 model = DetectionModel(
-                    opt.cfg or ckpt['model'].yaml,
+                    opt.cfg,
                     ch=ch,
                     nc=nc,
                     anchors=hyp.get('anchors')
@@ -328,9 +374,9 @@ def train(proj_info, hyp, opt, data_dict, tb_writer=None):
                     nc=nc, 
                     anchors=hyp.get('anchors')
                 ).to(device)  # create
-            elif opt.loss_name == 'TAL':
+            elif opt.loss_name in ('TAL', 'DFL'):
                 model = DetectionModel(
-                    opt.cfg or ckpt['model'].yaml,
+                    opt.cfg,
                     ch=ch,
                     nc=nc,
                     anchors=hyp.get('anchors')
@@ -343,11 +389,14 @@ def train(proj_info, hyp, opt, data_dict, tb_writer=None):
                     anchors=hyp.get('anchors')
                 ).to(device)  # create
     amp_enable = check_amp(model)
-
+    head = de_parallel(model).model[-1]
+    IS_ANCHOR_FREE = _is_anchor_free_head(head)
+    USE_DFL = IS_ANCHOR_FREE or (opt.loss_name == 'TAL')
+    logger.info(f"[HEAD] {head.__class__.__name__}, anchor_free={IS_ANCHOR_FREE}, use_dfl={USE_DFL}")
     # status_update(userid, project_id,
     #               update_id="model",
     #               update_content=model.nodes_info)
-    status_update(userid, project_id,
+    safe_status_update(userid, project_id,
                   update_id="model_summary",
                   update_content=model.briefs)
 
@@ -414,7 +463,7 @@ def train(proj_info, hyp, opt, data_dict, tb_writer=None):
     info.save()
     # print('batch size determined')
     # info.print()
-    status_update(userid, project_id,
+    safe_status_update(userid, project_id,
                   update_id="arguments",
                   update_content=vars(opt))
 
@@ -487,7 +536,7 @@ def train(proj_info, hyp, opt, data_dict, tb_writer=None):
 
     # TrainDataloader ----------------------------------------------------------
     if task == 'detection':
-        if opt.loss_name == 'TAL': # v9
+        if opt.loss_name in ('TAL', 'DFL'): # v9
             dataloader, dataset = create_dataloader_v9(
                 train_path,
                 imgsz,
@@ -593,7 +642,7 @@ def train(proj_info, hyp, opt, data_dict, tb_writer=None):
             # dataset_info['empty'] = ne
             # dataset_info['corrupted'] = nc
 
-            status_update(userid, project_id,
+            safe_status_update(userid, project_id,
                           update_id=f"train_dataset",
                           update_content=dataset_info)
             mlc = len( list(set(dataset.classes)) ) - 1 # label indices start from 0, 1, ..
@@ -699,7 +748,7 @@ def train(proj_info, hyp, opt, data_dict, tb_writer=None):
                 # dataset_info['empty'] = ne
                 # dataset_info['corrupted'] = nc
 
-                status_update(userid, project_id,
+                safe_status_update(userid, project_id,
                               update_id=f"val_dataset",
                               update_content=dataset_info)
             except Exception as e:
@@ -718,7 +767,7 @@ def train(proj_info, hyp, opt, data_dict, tb_writer=None):
             aat, bpr = 0., 0.
             anchor_summary['anchor2target_ratio'] = f"{aat:.2f}"
             anchor_summary['best_possible_recall'] = f"{bpr:.4f}"
-            status_update(userid, project_id,
+            safe_status_update(userid, project_id,
                           update_id="anchors",
                           update_content=anchor_summary)
 
@@ -733,14 +782,15 @@ def train(proj_info, hyp, opt, data_dict, tb_writer=None):
     if task == 'detection':
         # nl = model.module.model[-1].nl if is_parallel(model) else model.model[-1].nl
         nl = de_parallel(model).model[-1].nl # number of detection layers (to scale hyps)
-        if opt.loss_name != 'TAL': # v7
-            hyp['box'] *= 3. / nl  # scale to layers
-            hyp['cls'] *= nc / 80. * 3. / nl  # scale to classes and layers
-            hyp['obj'] *= (imgsz / 640) ** 2 * 3. / nl  # scale to image size and layers
-            model.gr = 1.0  # iou loss ratio (obj_loss = 1.0 or iou)
-            model.class_weights = labels_to_class_weights(dataset.labels, nc).to(device) * nc  # attach class weights
-        else:
-            model.class_weights = labels_to_class_weights_v9(dataset.labels, nc).to(device) * nc  # attach class weights
+        if task == 'detection':
+            if opt.loss_name in ('TAL','DFL'):
+                model.class_weights = labels_to_class_weights_v9(dataset.labels, nc).to(device) * nc
+            else:
+                hyp['box'] *= 3. / nl
+                hyp['cls'] *= nc / 80. * 3. / nl
+                hyp['obj'] *= (imgsz / 640) ** 2 * 3. / nl
+                model.gr = 1.0
+                model.class_weights = labels_to_class_weights(dataset.labels, nc).to(device) * nc
         hyp['label_smoothing'] = opt.label_smoothing
     model.nc = nc  # attach number of classes to model
     model.hyp = hyp  # attach hyperparameters to model
@@ -751,7 +801,7 @@ def train(proj_info, hyp, opt, data_dict, tb_writer=None):
         yaml.dump(hyp, f, sort_keys=False)
     with open(save_dir / 'opt.yaml', 'w') as f:
         yaml.dump(vars(opt), f, sort_keys=False)
-    status_update(userid, project_id,
+    safe_status_update(userid, project_id,
               update_id="hyperparameter",
               update_content=hyp)
 
@@ -767,17 +817,24 @@ def train(proj_info, hyp, opt, data_dict, tb_writer=None):
             compute_loss = FocalLossCE()
         else:
             logger.warning(f'not supported loss function {opt.loss_name}')
-    else: # if task == 'detection':
-        if opt.loss_name == 'TAL':
-            compute_loss = ComputeLoss_v9(model) #ComputeLossTAL(model)
+    else:  # detection
+        if USE_DFL:
+            compute_loss = ComputeLoss_v9(model)
+            compute_loss_ota = None
+            if opt.loss_name != 'TAL':
+                opt.loss_name = 'DFL'
         else:
-            if opt.loss_name == 'OTA':
-                compute_loss_ota = ComputeLossOTA(model)  # init loss class
-            elif opt.loss_name == 'AuxOTA':
-                compute_loss_ota = ComputeLossAuxOTA(model)  # init loss class
-            else:
+            if opt.loss_name == 'TAL':
+                compute_loss = ComputeLoss_v9(model)
                 compute_loss_ota = None
-            compute_loss = ComputeLoss(model)  # init loss class
+            else:
+                if opt.loss_name == 'OTA':
+                    compute_loss_ota = ComputeLossOTA(model)
+                elif opt.loss_name == 'AuxOTA':
+                    compute_loss_ota = ComputeLossAuxOTA(model)
+                else:
+                    compute_loss_ota = None
+                compute_loss = ComputeLoss(model)
     
     # Ealry Stopper ------------------------------------------------------------
     # how many epochs could you be waiting for patiently 
@@ -807,7 +864,7 @@ def train(proj_info, hyp, opt, data_dict, tb_writer=None):
     train_start = {}
     train_start['status'] = 'start'
     train_start['epochs'] = epochs
-    status_update(userid, project_id,
+    safe_status_update(userid, project_id,
               update_id="train_start",
               update_content=train_start)
     info = Info.objects.get(userid=userid, project_id=project_id)
@@ -848,7 +905,7 @@ def train(proj_info, hyp, opt, data_dict, tb_writer=None):
 
         # mean losses
         if task == 'detection':
-            if opt.loss_name == 'TAL':
+            if opt.loss_name in ('TAL', 'DFL'):
                 mloss = torch.zeros(3, device=device)
             else:
                 mloss = torch.zeros(4, device=device)
@@ -864,14 +921,10 @@ def train(proj_info, hyp, opt, data_dict, tb_writer=None):
         pbar = enumerate(dataloader)
         # pbar = tqdm(pbar, total=nb, bar_format=TQDM_BAR_FORMAT)
 
-        if opt.loss_name == 'TAL': # v9
-            title_s = ('\n' + '%11s' * 7) % (
-                'Epoch', 'GPU_Mem', 'box', 'cls', 'dfl', 'Labels', 'Img_Size'
-            )
-        else: # v7
-            title_s = ('\n' + '%11s' * 8) % (
-                'Epoch', 'GPU_Mem', 'Box', 'Obj', 'Cls', 'Total', 'Labels', 'Img_Size'
-            )
+        if opt.loss_name in ('TAL', 'DFL'):
+            title_s = ('\n' + '%11s' * 7) % ('Epoch', 'GPU_Mem', 'box', 'cls', 'dfl', 'Labels', 'Img_Size')
+        else:
+            title_s = ('\n' + '%11s' * 8) % ('Epoch', 'GPU_Mem', 'Box', 'Obj', 'Cls', 'Total', 'Labels', 'Img_Size')
 
         # if rank in [-1, 0]:
         #     pbar = tqdm(
@@ -897,10 +950,8 @@ def train(proj_info, hyp, opt, data_dict, tb_writer=None):
                     xi = [0, nw]  # x interp
                     # model.gr = np.interp(ni, xi, [0.0, 1.0])  # iou loss ratio (obj_loss = 1.0 or iou)
                     accumulate = max(1, np.interp(ni, xi, [1, nbs / opt.total_batch_size]).round())
-                    for j, x in enumerate(optimizer.param_groups):
-                        # bias lr falls from 0.1 to lr0, all other lrs rise from 0.0 to lr0
-                        # x['lr'] = np.interp(ni, xi, [hyp['warmup_bias_lr'] if j == 2 else 0.0, x['initial_lr'] * lf(epoch)])
-                        x['lr'] = np.interp(ni, xi, [hyp['warmup_bias_lr'] if j == 0 else 0.0, x['initial_lr'] * lf(epoch)])
+                    for x in optimizer.param_groups:
+                        x['lr'] = np.interp(ni, xi, [0.0, x['initial_lr'] * lf(epoch)])
                         if 'momentum' in x:
                             x['momentum'] = np.interp(ni, xi, [hyp['warmup_momentum'], hyp['momentum']])
                     # hyp['current_momentum'] = x['momentum']
@@ -927,12 +978,20 @@ def train(proj_info, hyp, opt, data_dict, tb_writer=None):
                 # optimizer.zero_grad()
                 with amp.autocast(enabled=amp_enable):
                     pred = model(imgs)  # forward
+                    pred_for_loss = _pack_for_dfl_if_needed(model, pred, nc) if USE_DFL else pred
+                    if i == 0:
+                        head = de_parallel(model).model[-1]
+                        print(f"[DEBUG] head={head.__class__.__name__}, nl={getattr(head,'nl',None)}, reg_max={getattr(head,'reg_max',None)}")
+                        if isinstance(pred, list):
+                            print("[DEBUG] pred shapes:", [tuple(p.shape) for p in pred])
+                        else:
+                            print("[DEBUG] pred type:", type(pred))
                     # logger.info(f'step-{i} forward done')
                     # if 'loss_ota' not in hyp or hyp['loss_ota'] == 1:
                     if 'OTA' in opt.loss_name: #opt.loss_name == 'OTA':
-                        loss, loss_items = compute_loss_ota(pred, targets.to(device), imgs)  # loss scaled by batch_size
+                        loss, loss_items = compute_loss_ota(pred_for_loss, targets.to(device), imgs)
                     else:
-                        loss, loss_items = compute_loss(pred, targets.to(device))  # loss scaled by batch_size
+                        loss, loss_items = compute_loss(pred_for_loss, targets.to(device))
                     # logger.info(f'step-{i} compute loss done {loss}')
                     if rank != -1:
                         loss *= opt.world_size  # gradient averaged between devices in DDP mode
@@ -994,16 +1053,22 @@ def train(proj_info, hyp, opt, data_dict, tb_writer=None):
                     train_loss['box'] = mloss_list[0]
                     train_loss['obj'] = mloss_list[1]
                     train_loss['cls'] = mloss_list[2]
-                    if opt.loss_name == 'TAL':
-                        train_loss['total'] = train_loss['box'] + train_loss['obj'] + train_loss['cls'] # sum(mloss_list)
+                    if opt.loss_name in ('TAL', 'DFL'):
+                        train_loss['total'] = float(sum(mloss_list))
                     else:
                         train_loss['total'] = mloss_list[3]
                     train_loss['label'] = targets.shape[0]
                     train_loss['step'] = i + 1
                     train_loss['total_step'] = nb
                     train_loss['time'] = f"{(time.time() - t_batch):.1f} s"
+                    if opt.loss_name in ('TAL', 'DFL'):
+                        train_loss['components'] = ['box', 'dfl', 'cls']
+                        train_loss['dfl'] = mloss_list[1]
+                    else:
+                        train_loss['components'] = ['box', 'obj', 'cls', 'total']
 
-                    status_update(userid, project_id,
+                    train_loss['loss_list'] = mloss_list
+                    safe_status_update(userid, project_id,
                                   update_id="train_loss",
                                   update_content=train_loss)
                     ten_percent_cnt = int((i+1)/nb*10+0.5)
@@ -1036,11 +1101,15 @@ def train(proj_info, hyp, opt, data_dict, tb_writer=None):
                 if ni <= nw:
                     xi = [0, nw]  # x interp
                     accumulate = max(1, np.interp(ni, xi, [1, nbs / opt.total_batch_size]).round())
-                    for j, x in enumerate(optimizer.param_groups):
-                        # bias lr falls from 0.1 to lr0, all other lrs rise from 0.0 to lr0
-                        x['lr'] = np.interp(ni, xi, [hyp['warmup_bias_lr'] if j == 2 else 0.0, x['initial_lr'] * lf(epoch)])
-                        if 'momentum' in x:
-                            x['momentum'] = np.interp(ni, xi, [hyp['warmup_momentum'], hyp['momentum']])
+                    pg0 = optimizer.param_groups[0]
+                    pg0['lr'] = np.interp(ni, xi, [hyp['warmup_bias_lr'], pg0['initial_lr'] * lf(epoch)])
+                    if 'momentum' in pg0:
+                        pg0['momentum'] = np.interp(ni, xi, [hyp['warmup_momentum'], hyp['momentum']])
+                    
+                    for pg in optimizer.param_groups[1:]:
+                        pg['lr'] = np.interp(ni, xi, [0.0, pg['initial_lr'] * lf(epoch)])
+                        if 'momentum' in pg:
+                            pg['momentum'] = np.interp(ni, xi, [hyp['warmup_momentum'], hyp['momentum']])
                             hyp[f'momentum_group{j}'] = x['momentum']
                         else:
                             hyp[f'momentum_group{j}'] = None
@@ -1103,7 +1172,7 @@ def train(proj_info, hyp, opt, data_dict, tb_writer=None):
                     train_loss['total_step'] = nb
                     train_loss['time'] = f"{(time.time() - t_batch):.1f} s"
 
-                    status_update(userid, project_id,
+                    safe_status_update(userid, project_id,
                                   update_id="train_loss",
                                   update_content=train_loss)
                     if len(dataloader) -1 == i:
@@ -1123,13 +1192,18 @@ def train(proj_info, hyp, opt, data_dict, tb_writer=None):
         if rank in [-1, 0]:
             # mAP
             if task == 'detection':
-                if opt.loss_name == 'TAL':
+                if opt.loss_name in ('TAL', 'DFL'):
                     ema.update_attr(model, include=['yaml', 'nc', 'hyp', 'names', 'stride', 'class_weights'])
                 else:
                     ema.update_attr(model, include=['yaml', 'nc', 'hyp', 'gr', 'names', 'stride', 'class_weights'])
             elif task == 'classification':
                 ema.update_attr(model, include=['yaml', 'nc', 'hyp', 'names', 'class_weights'])
             final_epoch = (epoch + 1 == epochs) or stopper.possible_stop
+            if USE_DFL:
+                def _val_compute_loss(p, t):
+                    return compute_loss(_pack_for_dfl_if_needed(ema.ema, p, nc), t)
+            else:
+                _val_compute_loss = compute_loss
             if not opt.notest or final_epoch:  # Calculate mAP
                 # wandb_logger.current_epoch = epoch + 1
                 if task == 'detection':
@@ -1149,7 +1223,7 @@ def train(proj_info, hyp, opt, data_dict, tb_writer=None):
                         plots=plots and final_epoch,
                         # wandb_logger=wandb_logger,
                         half_precision=True,
-                        compute_loss=compute_loss,
+                        compute_loss=_val_compute_loss,
                         is_coco=is_coco,
                         metric=opt.metric
                     )
@@ -1181,17 +1255,17 @@ def train(proj_info, hyp, opt, data_dict, tb_writer=None):
 
             # Log
             if task == 'detection':
-                if opt.loss_name == 'TAL': # v9
-                    tags = ['train/box_loss', 'train/dfl_loss', 'train/cls_loss',  # train loss
-                            'metrics/precision', 'metrics/recall', 'metrics/mAP_0.5', 'metrics/mAP_0.5_0.95',
-                            'val/box_loss', 'val/obj_loss', 'val/cls_loss',  # val loss
-                            'x/lr0', 'x/lr1', 'x/lr2']  # params
-                else: # v7
-                    tags = ['train/box_loss', 'train/obj_loss', 'train/cls_loss',  # train loss
-                            'metrics/precision', 'metrics/recall', 'metrics/mAP_0.5', 'metrics/mAP_0.5_0.95',
-                            'val/box_loss', 'val/obj_loss', 'val/cls_loss',  # val loss
-                            'x/lr0', 'x/lr1', 'x/lr2']  # params
-                zip_list = list(mloss[:-1]) + list(results) + lr
+                if task == 'detection':
+                    if opt.loss_name in ('TAL', 'DFL'):
+                        tags = ['train/box_loss','train/dfl_loss','train/cls_loss',
+                                'metrics/precision','metrics/recall','metrics/mAP_0.5','metrics/mAP_0.5_0.95',
+                                'val/box_loss','val/dfl_loss','val/cls_loss','x/lr0','x/lr1','x/lr2']
+                        zip_list = list(mloss) + list(results) + lr
+                    else:
+                        tags = ['train/box_loss','train/obj_loss','train/cls_loss',
+                                'metrics/precision','metrics/recall','metrics/mAP_0.5','metrics/mAP_0.5_0.95',
+                                'val/box_loss','val/obj_loss','val/cls_loss','x/lr0','x/lr1','x/lr2']
+                        zip_list = list(mloss) + list(results) + lr
             elif task == 'classification':
                 tags = ['train/acc', 'train/loss', # train accurarcy and loss
                         'val/acc', 'val/loss', # val accurarcy and loss
@@ -1208,25 +1282,34 @@ def train(proj_info, hyp, opt, data_dict, tb_writer=None):
             epoch_summary['current_epoch'] = epoch + 1
             if task == 'detection':
                 epoch_summary['train_loss_box'] = mloss_list[0]
-                epoch_summary['train_loss_obj'] = mloss_list[1]
-                epoch_summary['train_loss_cls'] = mloss_list[2]
-                if opt.loss_name == 'TAL':
-                    epoch_summary['train_loss_total'] = sum(mloss_list)
+
+                if opt.loss_name in ('TAL', 'DFL'):
+                    epoch_summary['train_loss_dfl'] = mloss_list[1]
+                    epoch_summary['train_loss_cls'] = mloss_list[2]
+                    epoch_summary['train_loss_total'] = float(sum(mloss_list))
+
+                    epoch_summary['train_loss_obj'] = mloss_list[1]
+                    epoch_summary['components'] = ['box', 'dfl', 'cls']
+                    epoch_summary['loss_list']  = mloss_list
                 else:
+                    epoch_summary['train_loss_obj'] = mloss_list[1]
+                    epoch_summary['train_loss_cls'] = mloss_list[2]
                     epoch_summary['train_loss_total'] = mloss_list[3]
+                    epoch_summary['components'] = ['box', 'obj', 'cls', 'total']
+                    epoch_summary['loss_list']  = mloss_list
+
                 epoch_summary['val_acc_P'] = results[0]
                 epoch_summary['val_acc_R'] = results[1]
                 epoch_summary['val_acc_map50'] = results[2]
                 epoch_summary['val_acc_map'] = results[3]
             elif task == 'classification':
                 epoch_summary['train_loss_total'] = mloss_item
-                epoch_summary['val_acc_map50'] = macc_item # results[1]
+                epoch_summary['val_acc_map50'] = macc_item
                 epoch_summary['val_acc_map'] = results[0]
-            epoch_summary['epoch_time'] = (time.time() - t_epoch) # unit: sec
-            epoch_summary['total_time'] = (time.time() - t0) / 3600 # unit: hour
-            status_update(userid, project_id,
-                          update_id="epoch_summary",
-                          update_content=epoch_summary)
+
+            epoch_summary['epoch_time'] = (time.time() - t_epoch)
+            epoch_summary['total_time'] = (time.time() - t0) / 3600
+            safe_status_update(userid, project_id, update_id="epoch_summary", update_content=epoch_summary)
 
             # Update best mAP
             if task == 'detection':
@@ -1280,10 +1363,7 @@ def train(proj_info, hyp, opt, data_dict, tb_writer=None):
         # Plots ----------------------------------------------------------------
         if plots:
             if task == 'detection':
-                plot_results(
-                    save_dir=save_dir,
-                    use_dfl=True if opt.loss_name == 'TAL' else False
-                )
+                plot_results(save_dir=save_dir, use_dfl=True if opt.loss_name in ('TAL','DFL') else False)
             elif task == 'classification':
                 plot_cls_results(save_dir=save_dir)
 
@@ -1348,7 +1428,7 @@ def train(proj_info, hyp, opt, data_dict, tb_writer=None):
     train_end['bestmodel'] = str(final_model)
     train_end['bestmodel_size'] = f'{mb:.1f} MB'
     train_end['time'] = f'{(time.time() - t0) / 3600:.3f} hours'
-    status_update(userid, project_id,
+    safe_status_update(userid, project_id,
                   update_id="train_end",
                   update_content=train_end)
     

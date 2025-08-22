@@ -1,0 +1,9 @@
+{
+  "operations": [
+    {
+      "op_name": "/model.10/Resize",
+      "param_target": "mode",
+      "param_val": "nearest"
+    }
+  ]
+}

@@ -835,6 +835,7 @@ def project_create(request):
             shutil.copyfile(os.path.join(config_path, 'hyp.scratch.p5.yaml'), os.path.join(common_path, 'hyp.scratch.p5.yaml'))
 
             shutil.copyfile(os.path.join(config_path, 'args-classification.yaml'), os.path.join(common_path, 'args-classification.yaml'))
+            shutil.copyfile(os.path.join(config_path, 'args-detection.yaml'), os.path.join(common_path, 'args-detection7.yaml'))
             shutil.copyfile(os.path.join(config_path, 'args-detection.yaml'), os.path.join(common_path, 'args-detection.yaml'))
 
             init_autonn_status(data) 

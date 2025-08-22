@@ -71,7 +71,7 @@ class SigmoidBin(nn.Module):
         self.step = step
         #print(f" start = {start}, end = {end}, step = {step} ")
 
-        bins = torch.range(start, end + 0.0001, step).float() 
+        bins = torch.arange(start, end + step/2, step, dtype=torch.float32)
         self.register_buffer('bins', bins) 
                
 
@@ -191,10 +191,9 @@ class QFocalLoss(nn.Module):
 
 
 class FocalLossCE(nn.Module):
-    """Focal Loss Custom Module"""
     def __init__(self, loss_fcn, gamma=2, alpha=0.25, logits=False):
-        super(FocalLoss, self).__init__()
-        self.loss_fcn = loss_fcn # nn.CrossEntropyLoss()
+        super(FocalLossCE, self).__init__()
+        self.loss_fcn = loss_fcn
         self.alpha = alpha
         self.gamma = gamma
         self.logits = logits
@@ -205,10 +204,9 @@ class FocalLossCE(nn.Module):
         loss = self.loss_fcn(inputs, targets)
         pt = torch.exp(-loss)
         loss *= self.alpha * (1.000001 - pt) ** self.gamma
-
-        if self.reduce == 'mean':
+        if self.reduction == 'mean':
             return loss.mean()
-        elif self.reduce == 'sum':
+        elif self.reduction == 'sum':
             return loss.sum()
         else:
             return loss
@@ -533,56 +531,104 @@ class ComputeLoss:
         self.BCEcls, self.BCEobj, self.gr, self.hyp, self.autobalance = BCEcls, BCEobj, model.gr, h, autobalance
         for k in 'na', 'nc', 'nl', 'anchors':
             setattr(self, k, getattr(det, k))
+            
+    def _gather_level_tensors(self, p):
+        leaves = []
 
-    def __call__(self, p, targets):  # predictions, targets, model
-        device = targets.device
-        lcls, lbox, lobj = torch.zeros(1, device=device), torch.zeros(1, device=device), torch.zeros(1, device=device)
-        tcls, tbox, indices, anchors = self.build_targets(p, targets)  # targets
+        def walk(x):
+            if torch.is_tensor(x):
+                leaves.append(x)
+            elif isinstance(x, (list, tuple)):
+                for y in x:
+                    walk(y)
+            else:
+                raise TypeError(f"[loss] unsupported type in prediction tree: {type(x)}")
 
-        # Losses
-        for i, pi in enumerate(p):  # layer index, layer predictions
-            b, a, gj, gi = indices[i]  # image, anchor, gridy, gridx
-            tobj = torch.zeros_like(pi[..., 0], device=device)  # target obj
+        walk(p)
 
-            n = b.shape[0]  # number of targets
-            if n:
-                ps = pi[b, a, gj, gi]  # prediction subset corresponding to targets
+        if len(leaves) == 0:
+            raise ValueError("[loss] empty prediction list")
 
-                # Regression
-                pxy = ps[:, :2].sigmoid() * 2. - 0.5
-                pwh = (ps[:, 2:4].sigmoid() * 2) ** 2 * anchors[i]
-                pbox = torch.cat((pxy, pwh), 1)  # predicted box
-                iou = bbox_iou(pbox.T, tbox[i], x1y1x2y2=False, CIoU=True)  # iou(prediction, target)
-                lbox += (1.0 - iou).mean()  # iou loss
+        if len(leaves) % self.nl != 0:
+            raise ValueError(
+                f"[loss] tensor count {len(leaves)} is not a multiple of nl={self.nl} "
+                f"(cannot split into heads cleanly)"
+            )
 
-                # Objectness
-                tobj[b, a, gj, gi] = (1.0 - self.gr) + self.gr * iou.detach().clamp(0).type(tobj.dtype)  # iou ratio
+        num_heads = len(leaves) // self.nl
+        heads = [leaves[i*self.nl:(i+1)*self.nl] for i in range(num_heads)]
+        return heads
+    
+    def __call__(self, p, targets, img=None, epoch=0):
+        loss = torch.zeros(3, device=self.device)
 
-                # Classification
-                if self.nc > 1:  # cls loss (only if multiple classes)
-                    t = torch.full_like(ps[:, 5:], self.cn, device=device)  # targets
-                    t[range(n), tcls[i]] = self.cp
-                    #t[t==self.cp] = iou.detach().clamp(0).type(t.dtype)
-                    lcls += self.BCEcls(ps[:, 5:], t)  # BCE
+        heads = self._gather_level_tensors(p)         # list[ list[tensor x self.nl] ]
+        first_head_feats = heads[0]
+        dtype = first_head_feats[0].dtype
+        batch_size = first_head_feats[0].shape[0]
 
-                # Append targets to text file
-                # with open('targets.txt', 'a') as file:
-                #     [file.write('%11.5g ' * 4 % tuple(x) + '\n') for x in torch.cat((txy[i], twh[i]), 1)]
+        anchor_points, stride_tensor = make_anchors(first_head_feats, self.stride, 0.5)
+        imgsz = torch.tensor(first_head_feats[0].shape[2:], device=self.device, dtype=dtype) * self.stride[0]
 
-            obji = self.BCEobj(pi[..., 4], tobj)
-            lobj += obji * self.balance[i]  # obj loss
-            if self.autobalance:
-                self.balance[i] = self.balance[i] * 0.9999 + 0.0001 / obji.detach().item()
+        targets = self.preprocess(targets, batch_size=batch_size, scale_tensor=imgsz[[1, 0, 1, 0]])
+        gt_labels, gt_bboxes = targets.split((1, 4), 2)  # (B, n, 1), (B, n, 4)
+        mask_gt = gt_bboxes.sum(2, keepdim=True).gt_(0)
 
-        if self.autobalance:
-            self.balance = [x / self.balance[self.ssi] for x in self.balance]
-        lbox *= self.hyp['box']
-        lobj *= self.hyp['obj']
-        lcls *= self.hyp['cls']
-        bs = tobj.shape[0]  # batch size
+        num_heads = len(heads)
+        head_weight = 1.0 if num_heads == 1 else (1.0 / num_heads)
 
-        loss = lbox + lobj + lcls
-        return loss * bs, torch.cat((lbox, lobj, lcls, loss)).detach()
+        for hidx, feats in enumerate(heads):
+            scores_list, distri_list = [], []
+            for x in feats:
+                # x: (B, C, H, W), C = reg_max*4 + nc
+                d, s = x.split((self.reg_max * 4, self.nc), dim=1)
+                # (B, C, H, W) → (B, H, W, C) → (B, HW, C)
+                s = s.permute(0, 2, 3, 1).reshape(s.size(0), -1, s.size(1)).contiguous()
+                d = d.permute(0, 2, 3, 1).reshape(d.size(0), -1, d.size(1)).contiguous()
+                scores_list.append(s)
+                distri_list.append(d)
+
+            pred_scores = torch.cat(scores_list, dim=1)   # (B, sum(HW), nc)
+            pred_distri = torch.cat(distri_list, dim=1)   # (B, sum(HW), reg_max*4)
+            dtype = pred_scores.dtype
+
+            pred_bboxes = self.bbox_decode(anchor_points, pred_distri)  # (B, sum(HW), 4)
+
+            assigner     = self.assigner  if hidx == 0 else getattr(self, 'assigner2',  self.assigner)
+            bbox_loss_fn = self.bbox_loss if hidx == 0 else getattr(self, 'bbox_loss2', self.bbox_loss)
+
+            target_labels, target_bboxes, target_scores, fg_mask = assigner(
+                pred_scores.detach().sigmoid(),
+                (pred_bboxes.detach() * stride_tensor).type(gt_bboxes.dtype),
+                anchor_points * stride_tensor,
+                gt_labels,
+                gt_bboxes,
+                mask_gt
+            )
+            target_bboxes /= stride_tensor
+            target_scores_sum = max(target_scores.sum(), 1)
+
+            cls_loss = self.BCEcls(pred_scores, target_scores.to(dtype)).sum() / target_scores_sum
+
+            if fg_mask.sum():
+                box_loss, dfl_loss, _ = bbox_loss_fn(
+                    pred_distri, pred_bboxes, anchor_points,
+                    target_bboxes, target_scores, target_scores_sum, fg_mask
+                )
+            else:
+                # zero-grad safe zeros
+                z = pred_scores.sum() * 0.0
+                box_loss, dfl_loss = z, z
+
+            loss[0] += head_weight * box_loss
+            loss[1] += head_weight * cls_loss
+            loss[2] += head_weight * dfl_loss
+
+        loss[0] *= 7.5   # box gain
+        loss[1] *= 0.5   # cls gain
+        loss[2] *= 1.5   # dfl gain
+
+        return loss.sum() * batch_size, loss.detach()
 
     def build_targets(self, p, targets):
         # Build targets for compute_loss(), input targets(image,class,x,y,w,h)
@@ -1857,14 +1903,22 @@ class ComputeLossTAL:
 
         # feats = p[1] if isinstance(p, tuple) else p
         feats, pred_distri, pred_scores = [], [], []
+        if isinstance(p, tuple):
+            feats_heads = p[1]
+        else:
+            feats_heads = p
+
+        if self.nh == 1 and isinstance(feats_heads, list) and isinstance(feats_heads[0], torch.Tensor):
+            feats_heads = [feats_heads]
+
         for i in range(self.nh):
-            _feats = p[1][i] if isinstance(p, tuple) else p[i]
-            _pred_distri, _pred_scores = torch.cat([xi.view(_feats[0].shape[0], self.no, -1) for xi in _feats], 2).split((self.reg_max * 4, self.nc), 1)
+            _feats = feats_heads[i]
+            _xcat = torch.cat([xi.flatten(2) for xi in _feats], dim=2)
+            if _xcat.shape[1] != (self.reg_max * 4 + self.nc):
+                raise RuntimeError(f"[ComputeLossTAL] Channel mismatch: got {_xcat.shape[1]}, expected {self.reg_max*4 + self.nc}")
+            _pred_distri, _pred_scores = _xcat.split((self.reg_max * 4, self.nc), dim=1)
             _pred_scores = _pred_scores.permute(0, 2, 1).contiguous()
             _pred_distri = _pred_distri.permute(0, 2, 1).contiguous()
-            feats.append(_feats)
-            pred_distri.append(_pred_distri)
-            pred_scores.append(_pred_scores)
 
         dtype = pred_scores[0].dtype
         batch_size, grid_size = pred_scores[0].shape[:2]
@@ -1996,89 +2050,90 @@ class ComputeLoss_v9:
             # pred_dist = pred_dist.view(b, a, c // 4, 4).transpose(2,3).softmax(3).matmul(self.proj.type(pred_dist.dtype))
             # pred_dist = (pred_dist.view(b, a, c // 4, 4).softmax(2) * self.proj.type(pred_dist.dtype).view(1, 1, -1, 1)).sum(2)
         return dist2bbox(pred_dist, anchor_points, xywh=False)
+    def _flatten_tensor_leaves(self, x, out):
+        if torch.is_tensor(x):
+            out.append(x)
+        elif isinstance(x, (list, tuple)):
+            for y in x:
+                self._flatten_tensor_leaves(y, out)
+        else:
+            raise TypeError(f"[loss] unsupported type in prediction tree: {type(x)}")
 
+    def _normalize_heads(self, p):
+        leaves = []
+        self._flatten_tensor_leaves(p, leaves)
+        if not leaves:
+            raise ValueError("[loss] empty prediction list")
+
+        if len(leaves) % self.nl != 0:
+            raise ValueError(f"[loss] tensor count {len(leaves)} is not a multiple of nl={self.nl}")
+
+        num_heads = len(leaves) // self.nl
+        heads = [leaves[i*self.nl:(i+1)*self.nl] for i in range(num_heads)]
+        return heads
+    
     def __call__(self, p, targets, img=None, epoch=0):
-        # logger.info(f'\tcompute loss start')
-        loss = torch.zeros(3, device=self.device)  # box, cls, dfl
-        feats = p[1][0] if isinstance(p, tuple) else p[0]
-        feats2 = p[1][1] if isinstance(p, tuple) else p[1]
+        loss = torch.zeros(3, device=self.device)
 
-        pred_distri, pred_scores = torch.cat([xi.view(feats[0].shape[0], self.no, -1) for xi in feats], 2).split(
-            (self.reg_max * 4, self.nc), 1)
-        pred_scores = pred_scores.permute(0, 2, 1).contiguous()
-        pred_distri = pred_distri.permute(0, 2, 1).contiguous()
+        heads = self._normalize_heads(p)          # [ [lvl1,lvl2,lvl3],  [lvl1,lvl2,lvl3], ... ]
+        first = heads[0]
+        dtype = first[0].dtype
+        batch_size = first[0].shape[0]
 
-        pred_distri2, pred_scores2 = torch.cat([xi.view(feats2[0].shape[0], self.no, -1) for xi in feats2], 2).split(
-            (self.reg_max * 4, self.nc), 1)
-        pred_scores2 = pred_scores2.permute(0, 2, 1).contiguous()
-        pred_distri2 = pred_distri2.permute(0, 2, 1).contiguous()
+        anchor_points, stride_tensor = make_anchors(first, self.stride, 0.5)
+        imgsz = torch.tensor(first[0].shape[2:], device=self.device, dtype=dtype) * self.stride[0]
 
-        dtype = pred_scores.dtype
-        batch_size, grid_size = pred_scores.shape[:2]
-        imgsz = torch.tensor(feats[0].shape[2:], device=self.device, dtype=dtype) * self.stride[0]  # image size (h,w)
-        anchor_points, stride_tensor = make_anchors(feats, self.stride, 0.5)
-
-        # targets
-        targets = self.preprocess(targets, batch_size, scale_tensor=imgsz[[1, 0, 1, 0]])
-        gt_labels, gt_bboxes = targets.split((1, 4), 2)  # cls, xyxy
+        targets = self.preprocess(targets, batch_size=batch_size, scale_tensor=imgsz[[1, 0, 1, 0]])
+        gt_labels, gt_bboxes = targets.split((1, 4), 2)
         mask_gt = gt_bboxes.sum(2, keepdim=True).gt_(0)
-        # logger.info(f'\tcompute loss target preprocess done')
 
-        # pboxes
-        pred_bboxes = self.bbox_decode(anchor_points, pred_distri)  # xyxy, (b, h*w, 4)
-        pred_bboxes2 = self.bbox_decode(anchor_points, pred_distri2)  # xyxy, (b, h*w, 4)
-        # logger.info(f'\tcompute loss predict bbox decoding done')
+        num_heads = len(heads)
+        head_weight = 1.0 if num_heads == 1 else (1.0 / num_heads)
 
-        target_labels, target_bboxes, target_scores, fg_mask = self.assigner(
-            pred_scores.detach().sigmoid(),
-            (pred_bboxes.detach() * stride_tensor).type(gt_bboxes.dtype),
-            anchor_points * stride_tensor,
-            gt_labels,
-            gt_bboxes,
-            mask_gt)
-        target_labels2, target_bboxes2, target_scores2, fg_mask2 = self.assigner2(
-            pred_scores2.detach().sigmoid(),
-            (pred_bboxes2.detach() * stride_tensor).type(gt_bboxes.dtype),
-            anchor_points * stride_tensor,
-            gt_labels,
-            gt_bboxes,
-            mask_gt)
-        # logger.info(f'\tcompute loss dfl assigner generation done')
-        target_bboxes /= stride_tensor
-        target_scores_sum = max(target_scores.sum(), 1)
-        target_bboxes2 /= stride_tensor
-        target_scores_sum2 = max(target_scores2.sum(), 1)
+        for hidx, feats in enumerate(heads):
+            scores_list, distri_list = [], []
+            for x in feats:  # x: (B, C, H, W), C = reg_max*4 + nc
+                d, s = x.split((self.reg_max * 4, self.nc), dim=1)
+                s = s.permute(0, 2, 3, 1).reshape(s.size(0), -1, s.size(1)).contiguous()
+                d = d.permute(0, 2, 3, 1).reshape(d.size(0), -1, d.size(1)).contiguous()
+                scores_list.append(s)
+                distri_list.append(d)
 
-        # cls loss
-        # loss[1] = self.varifocal_loss(pred_scores, target_scores, target_labels) / target_scores_sum  # VFL way
-        loss[1] = self.BCEcls(pred_scores, target_scores.to(dtype)).sum() / target_scores_sum # BCE
-        loss[1] *= 0.25
-        loss[1] += self.BCEcls(pred_scores2, target_scores2.to(dtype)).sum() / target_scores_sum2 # BCE
-        # logger.info(f'\tcompute loss class loss computation done')
-        # bbox loss
-        if fg_mask.sum():
-            loss[0], loss[2], iou = self.bbox_loss(pred_distri,
-                                                   pred_bboxes,
-                                                   anchor_points,
-                                                   target_bboxes,
-                                                   target_scores,
-                                                   target_scores_sum,
-                                                   fg_mask)
-            loss[0] *= 0.25
-            loss[2] *= 0.25
-        if fg_mask2.sum():
-            loss0_, loss2_, iou2 = self.bbox_loss2(pred_distri2,
-                                                   pred_bboxes2,
-                                                   anchor_points,
-                                                   target_bboxes2,
-                                                   target_scores2,
-                                                   target_scores_sum2,
-                                                   fg_mask2)
-            loss[0] += loss0_
-            loss[2] += loss2_
-        # logger.info(f'\tcompute loss box and dfl loss computation done')
-        loss[0] *= 7.5  # box gain
-        loss[1] *= 0.5  # cls gain
-        loss[2] *= 1.5  # dfl gain
+            pred_scores = torch.cat(scores_list, dim=1)           # (B, N, nc)
+            pred_distri = torch.cat(distri_list, dim=1)           # (B, N, reg_max*4)
+            dtype = pred_scores.dtype
 
-        return loss.sum() * batch_size, loss.detach()  # loss(box, cls, dfl)
+            pred_bboxes = self.bbox_decode(anchor_points, pred_distri)  # (B, N, 4)
+
+            assigner     = self.assigner  if hidx == 0 else getattr(self, 'assigner2',  self.assigner)
+            bbox_loss_fn = self.bbox_loss if hidx == 0 else getattr(self, 'bbox_loss2', self.bbox_loss)
+
+            target_labels, target_bboxes, target_scores, fg_mask = assigner(
+                pred_scores.detach().sigmoid(),
+                (pred_bboxes.detach() * stride_tensor).type(gt_bboxes.dtype),
+                anchor_points * stride_tensor,
+                gt_labels, gt_bboxes, mask_gt
+            )
+            target_bboxes /= stride_tensor
+            target_scores_sum = max(target_scores.sum(), 1)
+
+            cls_loss = self.BCEcls(pred_scores, target_scores.to(dtype)).sum() / target_scores_sum
+
+            if fg_mask.sum():
+                box_loss, dfl_loss, _ = bbox_loss_fn(
+                    pred_distri, pred_bboxes, anchor_points,
+                    target_bboxes, target_scores, target_scores_sum, fg_mask
+                )
+            else:
+                z = pred_scores.sum() * 0.0
+                box_loss, dfl_loss = z, z
+
+            loss[0] += head_weight * box_loss
+            loss[1] += head_weight * cls_loss
+            loss[2] += head_weight * dfl_loss
+
+        loss[0] *= 7.5
+        loss[1] *= 0.5
+        loss[2] *= 1.5
+
+        return loss.sum() * batch_size, loss.detach()

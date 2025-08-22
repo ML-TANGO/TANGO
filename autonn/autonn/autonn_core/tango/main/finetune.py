@@ -73,6 +73,7 @@ from tango.utils.datasets import create_dataloader
 from tango.utils.general import (   labels_to_class_weights,
                                     labels_to_image_weights,
                                     init_seeds,
+                                    init_seeds_v9,
                                     fitness,
                                     strip_optimizer,
                                     check_dataset,
@@ -97,10 +98,23 @@ from tango.utils.torch_utils import (   ModelEMA,
                                         torch_distributed_zero_first,
                                         is_parallel
                                     )
-
+from tango.utils.datasets import create_dataloader_v9
+from tango.utils.loss import ComputeLoss_v9, ComputeLossAuxOTA
+from tango.utils.torch_utils import de_parallel
 
 logger = logging.getLogger(__name__)
 
+
+
+def _is_anchor_free_head(head) -> bool:
+    n = head.__class__.__name__.lower()
+    if any(k in n for k in ('ddetect', 'dualddetect', 'tripleddetect', 'decoupled', 'anchorfree')):
+        return True
+    if hasattr(head, 'reg_max') or hasattr(head, 'dfl') or getattr(head, 'use_dfl', False):
+        return True
+    if hasattr(head, 'na') or hasattr(head, 'anchors') or hasattr(head, 'anchor_grid'):
+        return False
+    return False
 
 def finetune(proj_info, subnet, hyp, opt, data_dict, tb_writer=None):
     # Options ------------------------------------------------------------------
@@ -129,7 +143,10 @@ def finetune(proj_info, subnet, hyp, opt, data_dict, tb_writer=None):
     plots = False  # create plots
     cuda = device.type != 'cpu'
     # init_seeds(2 + rank)
-    init_seeds(opt.seed + 1 + rank, deterministric=True) # from yolov9
+    if getattr(opt, 'loss_name', None) in ('TAL', 'DFL'):
+        init_seeds_v9(opt.seed + 1 + rank, deterministic=True)
+    else:
+        init_seeds(opt.seed + 1 + rank)
 
     nc = 1 if opt.single_cls else int(data_dict['nc'])  # number of classes
     ch = int(data_dict.get('ch', 3))
@@ -248,9 +265,13 @@ def finetune(proj_info, subnet, hyp, opt, data_dict, tb_writer=None):
     # https://arxiv.org/pdf/1812.01187.pdf
     # https://pytorch.org/docs/stable/_modules/torch/optim/lr_scheduler.html#OneCycleLR
     if opt.linear_lr:
-        lf = lambda x: (1 - x / (epochs - 1)) * (1.0 - hyp['lrf']) + hyp['lrf']  # linear
+        if epochs <= 1:
+            lf = lambda x: 1.0
+        else:
+            lf = lambda x: (1 - x / (epochs - 1)) * (1.0 - hyp['lrf']) + hyp['lrf']  # linear
     else:
-        lf = one_cycle(1, hyp['lrf'], epochs)  # cosine 1->hyp['lrf']
+        lf = one_cycle(1, hyp['lrf'], max(epochs, 1))
+
     scheduler = lr_scheduler.LambdaLR(optimizer, lr_lambda=lf)
     # plot_lr_scheduler(optimizer, scheduler, epochs)
 
@@ -268,8 +289,34 @@ def finetune(proj_info, subnet, hyp, opt, data_dict, tb_writer=None):
         subnet = torch.nn.SyncBatchNorm.convert_sync_batchnorm(subnet).to(device)
         logger.info('Using SyncBatchNorm()')
         
+    head = de_parallel(subnet).model[-1]
+    IS_ANCHOR_FREE = _is_anchor_free_head(head)
+    
     # Trainloader --------------------------------------------------------------
-    dataloader, dataset = create_dataloader(
+    if IS_ANCHOR_FREE or opt.loss_name in ('TAL', 'DFL'):
+                            dataloader, dataset = create_dataloader_v9(
+                                        train_path,
+                                        imgsz,
+                                        batch_size // opt.world_size,
+                                        gs,
+                                        opt.single_cls,
+                                        hyp=hyp,
+                                        augment=True,
+                                        cache=opt.cache_images,
+                                        rect=opt.rect,
+                                        rank=getattr(opt, 'local_rank', -1),
+                                        workers=opt.workers,
+                                        image_weights=opt.image_weights,
+                                        close_mosaic=(opt.close_mosaic != 0),
+                                        quad=opt.quad,
+                                        prefix='train',
+                                        shuffle=True,
+                                        min_items=0,
+                                        uid=proj_info['userid'],
+                                        pid=proj_info['project_id'],
+                                    )
+    else:
+            dataloader, dataset = create_dataloader(
                                         userid,
                                         project_id,
                                         train_path,
@@ -293,22 +340,40 @@ def finetune(proj_info, subnet, hyp, opt, data_dict, tb_writer=None):
 
     # Process 0 (TestDataLoader) -----------------------------------------------
     if rank in [-1, 0]:
-        testloader = create_dataloader(
-                                    userid,
-                                    project_id,
-                                    test_path,
-                                    imgsz_test,
-                                    batch_size, # * 2,
-                                    gs,
-                                    opt,
-                                    hyp=hyp,
-                                    cache=opt.cache_images and not opt.notest,
-                                    rect=True,
-                                    rank=-1,
-                                    world_size=opt.world_size,
-                                    workers=opt.workers,
-                                    pad=0.5,
-                                    prefix='val')[0]
+        if IS_ANCHOR_FREE or opt.loss_name in ('TAL', 'DFL'):
+            testloader = create_dataloader_v9(
+                                        test_path,
+                                        imgsz,
+                                        batch_size // opt.world_size * 2,
+                                        gs,
+                                        opt.single_cls,
+                                        hyp=hyp,
+                                        cache=opt.cache_images and not opt.notest,
+                                        rect=True,
+                                        rank=-1,
+                                        workers=opt.workers * 2,
+                                        pad=0.5,
+                                        prefix='val',
+                                        uid=proj_info['userid'],
+                                        pid=proj_info['project_id'],
+                                    )[0]
+        else:
+            testloader = create_dataloader(
+                                        userid,
+                                        project_id,
+                                        test_path,
+                                        imgsz_test,
+                                        batch_size, # * 2,
+                                        gs,
+                                        opt,
+                                        hyp=hyp,
+                                        cache=opt.cache_images and not opt.notest,
+                                        rect=True,
+                                        rank=-1,
+                                        world_size=opt.world_size,
+                                        workers=opt.workers,
+                                        pad=0.5,
+                                        prefix='val')[0]
 
         labels = np.concatenate(dataset.labels, 0)
         c = torch.tensor(labels[:, 0])  # classes
@@ -341,11 +406,27 @@ def finetune(proj_info, subnet, hyp, opt, data_dict, tb_writer=None):
     subnet.gr = 1.0  # iou loss ratio (obj_loss = 1.0 or iou)
     subnet.class_weights = labels_to_class_weights(dataset.labels, nc).to(device) * nc  # attach class weights
     subnet.names = names
-    
+    head = de_parallel(subnet).model[-1]
+    IS_ANCHOR_FREE = _is_anchor_free_head(head)
+    USE_DFL = IS_ANCHOR_FREE or (opt.loss_name in ('TAL', 'DFL'))
     # loss function ------------------------------------------------------------
-    compute_loss_ota = ComputeLossOTA(subnet)  # init loss class
-    compute_loss = ComputeLoss(subnet)  # init loss class
-
+    
+    if USE_DFL:
+        compute_loss = ComputeLoss_v9(subnet)
+        compute_loss_ota = None
+    else:
+        if opt.loss_name == 'OTA':
+            compute_loss_ota = ComputeLossOTA(subnet)
+        elif opt.loss_name == 'AuxOTA':
+            compute_loss_ota = ComputeLossAuxOTA(subnet)
+        else:
+            compute_loss_ota = None
+        compute_loss = ComputeLoss(subnet)
+    if USE_DFL:
+        LOG_HDR = ('\n' + '%11s' * 7) % ('Epoch', 'GPU_Mem', 'box', 'cls', 'dfl', 'Labels', 'Img_Size')
+    else:
+        LOG_HDR = ('\n' + '%11s' * 8) % ('Epoch', 'GPU_Mem', 'Box', 'Obj', 'Cls', 'Total', 'Labels', 'Img_Size')
+    logger.info(LOG_HDR)
     # Start fine tuning --------------------------------------------------------
 
     start_epoch, best_fitness = 0, 0.0
@@ -385,7 +466,7 @@ def finetune(proj_info, subnet, hyp, opt, data_dict, tb_writer=None):
         # dataset.mosaic_border = [b - imgsz, -b]  # height, width borders
     
         # mean loss
-        mloss = torch.zeros(4, device=device)  # mean losses
+        mloss = torch.zeros(3 if USE_DFL else 4, device=device)  # mean losses
 
         # distribute data
         if rank != -1:
@@ -425,7 +506,7 @@ def finetune(proj_info, subnet, hyp, opt, data_dict, tb_writer=None):
             # Forward
             # with amp.autocast(enabled=cuda):
             pred = subnet(imgs)  # forward
-            if 'loss_ota' not in hyp or hyp['loss_ota'] == 1:
+            if compute_loss_ota is not None:
                 loss, loss_items = compute_loss_ota(pred, targets.to(device), imgs)  # loss scaled by batch_size
             else:
                 loss, loss_items = compute_loss(pred, targets.to(device))  # loss scaled by batch_size
@@ -450,10 +531,28 @@ def finetune(proj_info, subnet, hyp, opt, data_dict, tb_writer=None):
                     
             # Print
             if rank in [-1, 0]:
-                mloss = (mloss * i + loss_items) / (i + 1)  # update mean losses
-                mem = '%.3gG' % (torch.cuda.memory_reserved() / 1E9 if torch.cuda.is_available() else 0)  # (GB)
-                s = ('%10s' * 2 + '%10.4g' * 6) % (
-                    '%g/%g' % (epoch, epochs - 1), mem, *mloss, targets.shape[0], imgs.shape[-1])
+                if mloss.numel() != loss_items.numel():
+                    mloss = torch.zeros_like(loss_items, device=device)
+
+                mloss = (mloss * i + loss_items.detach()) / (i + 1)  # update mean losses
+                mem = '%.3gG' % (torch.cuda.memory_reserved() / 1E9 if torch.cuda.is_available() else 0)
+
+                if USE_DFL:
+                    # box, cls, dfl
+                    s = ('%11s' * 2 + '%11.4g' * 5) % (
+                        f'{epoch}/{epochs - 1}', mem,
+                        mloss[0], mloss[1], mloss[2],
+                        targets.shape[0], imgs.shape[-1]
+                    )
+                else:
+                    # box, obj, cls, total
+                    s = ('%10s' * 2 + '%10.4g' * 6) % (
+                        f'{epoch}/{epochs - 1}', mem,
+                        mloss[0], mloss[1], mloss[2], mloss[3],
+                        targets.shape[0], imgs.shape[-1]
+                    )
+                # pbar.set_description(s)  # 필요하면 주석 해제
+                # pbar.set_description(s)
                 # pbar.set_description(s)
         # finetuning batches end ===============================================
         
@@ -492,8 +591,8 @@ def finetune(proj_info, subnet, hyp, opt, data_dict, tb_writer=None):
                 ckpt = {'epoch': epoch,
                         'best_fitness': best_fitness,
                         # 'training_results': results_file.read_text(),
-                        'model': deepcopy(subnet.module if is_parallel(subnet) else subnet).half(),
-                        'ema': deepcopy(ema.ema).half(),
+                        'model': deepcopy(subnet.module if is_parallel(subnet) else subnet).float(),
+                        'ema': deepcopy(ema.ema).float(),
                         'updates': ema.updates,
                         'optimizer': optimizer.state_dict()}
                 torch.save(ckpt, search_best)
@@ -549,7 +648,11 @@ def finetune_hyp(proj_info, basemodel, hyp, opt, data_dict, tb_writer=None):
     plots = False  # create plots
     cuda = device.type != 'cpu'
     # init_seeds(2 + rank)
-    init_seeds(opt.seed + 1 + rank, deterministric=True) # from yolov9
+    if getattr(opt, 'loss_name', None) in ('TAL', 'DFL'):
+        init_seeds_v9(opt.seed + 1 + rank, deterministic=True)
+    else:
+        init_seeds(opt.seed + 1 + rank)
+
 
     nc = 1 if opt.single_cls else int(data_dict['nc'])  # number of classes
     ch = int(data_dict.get('ch', 3))
@@ -920,6 +1023,7 @@ def finetune_hyp(proj_info, basemodel, hyp, opt, data_dict, tb_writer=None):
                 s = ('%10s' * 2 + '%10.4g' * 6) % (
                     '%g/%g' % (epoch, epochs - 1), mem, *mloss, targets.shape[0], imgs.shape[-1])
                 # pbar.set_description(s)
+                # pbar.set_description(s)
         # finetuning batches end ===============================================
         
         # Scheduler
@@ -957,8 +1061,8 @@ def finetune_hyp(proj_info, basemodel, hyp, opt, data_dict, tb_writer=None):
                 ckpt = {'epoch': epoch,
                         'best_fitness': best_fitness,
                         # 'training_results': results_file.read_text(),
-                        'model': deepcopy(net.module if is_parallel(net) else net).half(),
-                        'ema': deepcopy(ema.ema).half(),
+                        'model': deepcopy(net.module if is_parallel(net) else net).float(),
+                        'ema': deepcopy(ema.ema).float(),
                         'updates': ema.updates,
                         'optimizer': optimizer.state_dict()}
                 torch.save(ckpt, search_best)

@@ -2,9 +2,13 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from torch import Tensor
-
+import random
 import logging
 logger = logging.getLogger(__name__)
+try:
+    import thop  # type: ignore
+except Exception:
+    thop = None
 
 # ======================== basic modules =======================================
 # 1. Conv: nn.Conv2d, nn.BatchNorm2d, nn.SiLU, nn.Identity
@@ -1513,7 +1517,8 @@ class DDetect(nn.Module):
             self.anchors, self.strides = (x.transpose(0, 1) for x in make_anchors(x, self.stride, 0.5))
             self.shape = shape
 
-        box, cls = torch.cat([xi.view(shape[0], self.no, -1) for xi in x], 2).split((self.reg_max * 4, self.nc), 1)
+        x_cat = torch.cat([xi.flatten(2) for xi in x], 2)
+        box, cls = x_cat.split((self.reg_max * 4, self.nc), dim=1)
         dbox = dist2bbox(self.dfl(box), self.anchors.unsqueeze(0), xywh=True, dim=1) * self.strides
         y = torch.cat((dbox, cls.sigmoid()), 1)
         return y if self.export else (y, x)
@@ -1720,7 +1725,7 @@ class ClassifyModel(nn.Module):
         self.initialize_weights()
 
         # model info
-        self.info(imgsz, verbose=False)
+        self.info(img_size=imgsz, verbose=False)
 
     def forward(self, x, augment=False, profile=False):
         if augment:
@@ -1752,7 +1757,7 @@ class ClassifyModel(nn.Module):
                 self.traced=False
 
             if profile:
-                o = thop.profile(m, inputs=x, verbose=False)[0] / 1E9 * 2 if thop else 0  # FLOPS
+                o = thop.profile(m, inputs=(x,), verbose=False)[0] / 1E9 * 2 if thop else 0  # FLOPS
                 for _ in range(10):
                     m(x)
                 t = time_synchronized()
@@ -1793,8 +1798,7 @@ class ClassifyModel(nn.Module):
             if isinstance(m, RepConv):
                 #print(f" fuse_repvgg_block")
                 m.fuse_repvgg_block() # update conv, remove bn-modules, and update forward
-            elif isinstance(m, RepConv_OREPA):
-                #print(f" switch_to_deploy")
+            elif hasattr(m, "switch_to_deploy"):
                 m.switch_to_deploy()  # update conv, remove bn-modules, and update forward
             elif type(m) is Conv and hasattr(m, 'bn'):
                 m.conv = fuse_conv_and_bn(m.conv, m.bn)  # update conv
@@ -1802,7 +1806,7 @@ class ClassifyModel(nn.Module):
                 m.forward = m.fuseforward  # update forward
         # self.info()
         imgsz = self.yaml['imgsz']
-        self.summary(imgsz, verbose=False)
+        self.info(img_size=imgsz, verbose=False)
         return self
 
     def info(self, verbose=False, img_size=640):  # print model information
@@ -1907,7 +1911,30 @@ class DetectModel(nn.Module):
         y = []  # outputs
         for m in self.model:
             if m.f != -1:  # if not from previous layer
-                x = y[m.f] if isinstance(m.f, int) else [x if j == -1 else y[j] for j in m.f]  # from earlier layers
+                try:
+                    if isinstance(m.f, int):
+                        if m.f >= len(y):
+                            raise IndexError(f"from={m.f} but y has len={len(y)}")
+                        if y[m.f] is None:
+                            raise RuntimeError(f"from={m.f} exists but y[{m.f}] is None (layer {m.i}, type={m.type})")
+                        x = y[m.f]
+                    else:
+                        xs = []
+                        for j in m.f:
+                            if j == -1:
+                                xs.append(x)
+                            else:
+                                if j >= len(y):
+                                    raise IndexError(f"from={m.f} includes {j} but y has len={len(y)}")
+                                if y[j] is None:
+                                    raise RuntimeError(f"from={m.f} includes {j} but y[{j}] is None (layer {m.i}, type={m.type})")
+                                xs.append(y[j])
+                        x = xs
+                except Exception as e:
+                    raise RuntimeError(
+                        f"[ForwardIndexError] layer={m.i}, type={m.type}, from={m.f}, "
+                        f"len(y)={len(y)}, save={self.save}"
+                    ) from e
             x = m(x)  # run
             y.append(x if m.i in self.save else None)  # save output
         return x
@@ -1976,8 +2003,10 @@ class NASModel(DetectModel):
         
         super(NASModel, self).__init__(cfg, ch, nc, anchors)
         
-        self.depth_list = self.yaml['depth_list']
-        self.set_max_net()
+        # depth_list may be absent in some base models; default to empty.
+        self.depth_list = self.yaml.get('depth_list', [])
+        if self.depth_list:
+            self.set_max_net()
         
     def forward_once(self, x, profile=False):
         # assert isinstance(self.runtime_depth, list)
@@ -2045,7 +2074,7 @@ class NASModel(DetectModel):
         
         # ch = 0
         for i, (f, n, m, args) in enumerate(d['backbone'] + d['head']):
-            if 'ELAN' in m: # ELAN, ELANBlock, BBoneELAN, HeadELAN, ELAN2, TinyELAN
+            if m in ('ELAN', 'ELANBlock', 'BBoneELAN', 'HeadELAN', 'ELAN2', 'TinyELAN'):
                 args[-1] = self.runtime_depth[idx]
                 idx += 1
             #     if 'BBone' in m:
@@ -2214,8 +2243,13 @@ class ModelLoader(nn.Module):
     def _model_type(p='path/to/model.pt'):
         # Return model type from model path, i.e. path='path/to/model.onnx' -> type=onnx
         # types = [pt, jit, onnx, xml, engine, coreml, saved_model, pb, tflite, edgetpu, tfjs, paddle]
-        from tango.main.export import export_formats
-        sf = list(export_formats().Suffix)  # export suffixes
+        try:
+            from tango.main.export import export_formats  # project-local
+            sf = list(export_formats().Suffix)  # export suffixes
+        except Exception:
+            # Fallback to a minimal set of known suffixes if project util is unavailable
+            sf = [".pt", ".torchscript", ".onnx", ".xml", ".engine", ".mlmodel",
+                  ".saved_model", ".pb", ".tflite", ".edgetpu", ".tfjs", ".pdparams"]
         check_suffix(p, sf)  # checks
         types = [s in Path(p).name for s in sf]
         types[8] &= not types[9]  # tflite &= not edgetpu
@@ -2238,6 +2272,7 @@ from copy import deepcopy
 
 def parse_cls_model(d, ch):  # model_dict, input_channels(1 or 3)
     nc = d['nc']
+    gd = d.get('depth_multiple', 1.0)
 
     layers, save, c2 = [], [], ch[-1]  # layers, savelist, ch out
     for i, (f, n, m, args) in enumerate(d['backbone'] + d['head']):  # from, number, module, args
