@@ -1,5 +1,5 @@
 #FROM python:3.8
-FROM python:3.9
+FROM python:3.9-bullseye
 
 ENV CMAKE_ARGS="-DONNX_USE_PROTOBUF_SHARED_LIBS=ON"
 
@@ -83,7 +83,7 @@ RUN pip3 install -e $TVM_HOME/python
 
 # for android
 WORKDIR /app
-ENV DEBIAN_FRONTEND noninteractive
+ENV DEBIAN_FRONTEND=noninteractive
 
 RUN apt-get update && apt-get install -y  \
     wget \
