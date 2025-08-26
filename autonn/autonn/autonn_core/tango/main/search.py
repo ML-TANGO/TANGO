@@ -31,7 +31,7 @@ def search(proj_info, hyp, opt, data_dict, model):
     acc = proj_info['acc'] # cuda, opencl, cpu
 
     if not 'Galaxy' in target:
-        logger.warn(f'not supported target: {target}')
+        logger.warning(f'not supported target: {target}')
         return model
 
     # options ------------------------------------------------------------------

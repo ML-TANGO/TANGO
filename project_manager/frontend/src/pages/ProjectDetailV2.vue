@@ -83,7 +83,13 @@ export default {
     try {
       await this.getProjectInfo();
       get_autonn_status(this.project.id).then(res => {
-        this.SET_AUTO_NN_STATUS(res.autonn);
+        if (res) {
+          let response = null;
+
+          if (typeof res.replace === typeof "") response = JSON.parse(res.replace(/Infinity/g, '"Infinity"'));
+          else response = res;
+          if (response) this.SET_AUTO_NN_STATUS(response.autonn);
+        }
       });
 
       const intervalTimes = await getUserIntervalTime();

@@ -26,6 +26,8 @@ class Target(models.Model):
     target_host_service_port = models.CharField(blank=True, null=True, max_length=30)   # 타겟 정보 - host_service_port
     target_image = models.CharField(blank=True, null=True, max_length=10485760)         # 타겟 이미지
 
+    order = models.IntegerField(default=0, blank=False, null=False)         # 타겟 이미지
+
     class Meta:
         """Target Meta class
         Note:

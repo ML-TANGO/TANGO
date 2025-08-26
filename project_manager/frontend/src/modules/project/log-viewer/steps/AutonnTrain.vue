@@ -313,11 +313,12 @@ export default {
       const _epochTimeDatasets = [];
 
       this.epochSummary.forEach(element => {
-        _map50Datasets.push(element.val_acc_map50);
-        _mapDatasets.push(element.val_acc_map);
-        _trainDatasets.push(element.train_loss_total);
-        _totalTimeDatasets.push(element.total_time);
-        _epochTimeDatasets.push(element.epoch_time);
+        if (element.train_loss_total === "Infinity") console.log("element", element);
+        _map50Datasets.push(Number(element.val_acc_map50));
+        _mapDatasets.push(Number(element.val_acc_map));
+        _trainDatasets.push(Number(element.train_loss_total));
+        _totalTimeDatasets.push(Number(element.total_time));
+        _epochTimeDatasets.push(Number(element.epoch_time));
       });
 
       this.map50Datasets = _map50Datasets;

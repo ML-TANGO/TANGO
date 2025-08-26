@@ -157,6 +157,11 @@ def switch_ollama_model():
     if model_name is None:
         return
     st.session_state.brain['local_gen_obj'] = model_name
+    if st.session_state.rag['active']:
+        st.session_state.rag = {"active": False,
+                        "url": None,
+                        "embed": None,
+                        "retreiver": None,}
     st.balloons()
     
     st.session_state['messages'] = start_state
@@ -298,8 +303,8 @@ with tab2:
             st.session_state.brain['local_gen_obj'] = None
             st.session_state.rag = {
                 "active": False,
-                "url": "",
-                "embed": "",
+                "url": None,
+                "embed": None,
                 "retreiver": None,}
             st.rerun()
 
@@ -341,10 +346,11 @@ with tab4:
                 ollama.pull(embed_model)
                 elapsed_time = time.time()-start
                 st.write(f"Done({elapsed_time:.2f} sec).")
-            st.session_state.rag['active'] = True
+            # st.session_state.rag['active'] = True
             st.session_state.rag['embed'] = embed_model
             sts1.update(label=f"{embed_model} is successfully applied.", state="complete")
-        if st.session_state.rag['active'] == True:
+        # if st.session_state.rag['active'] == True:
+        if st.session_state.rag['embed'] is not None:
             st.text(f"TangoChat is now using {embed_model}.")
     with right:
         st.subheader("Retrieve Source")
@@ -355,18 +361,28 @@ with tab4:
         st.session_state.rag['url'] = _url
         rt_btn = st.button("Retrieve", type='primary')
         if rt_btn:
-            with st.status("Retrieving... ", expanded=False) as sts2:
-                start = time.time()
-                _emb_model = st.session_state.rag['embed']
-                _retriever = load_and_retrieve_docs(_url, _emb_model)
-                elapsed_time = time.time()-start
-                st.write(f"Done({elapsed_time:.2f} sec).")
-                st.session_state.rag['retriever'] = _retriever
-                # st.session_state['messages'] = start_state
-                switch_ollama_model()
-            sts2.update(label=f"successfully retrieved.", state="complete")
-        st.text(f"TangoChat retrieves from")
-        st.markdown(f"***{_url}***")
+            if not st.session_state.rag['active'] and _url is not None:
+                logger.info(f'Retreive button clicked!!!')
+                with st.status("Retrieving... ", expanded=False) as sts2:
+                    start = time.time()
+                    # import chromadb
+                    # chromadb.api.client.SharedSystemClient.clear_system_cache()
+                    _emb_model = st.session_state.rag['embed']
+                    logger.info(f'embeddign model: {_emb_model}')
+                    logger.info(f'url: {_url}')
+                    _retriever = load_and_retrieve_docs(_url, _emb_model)
+                    elapsed_time = time.time()-start
+                    st.write(f"Done({elapsed_time:.2f} sec).")
+                    st.session_state.rag['retriever'] = _retriever
+                    # st.session_state['messages'] = start_state
+                    st.session_state.rag['active'] = True
+                    # switch_ollama_model()
+                sts2.update(label=f"successfully retrieved.", state="complete")
+            else:
+                logger.warning(f'Failed to retreive URL: rag active? {st.session_state.rag["active"]}, url? {_url}')
+        if st.session_state.rag['active'] and _url is not None:
+            st.text(f"TangoChat retrieves from")
+            st.markdown(f"***{_url}***")
 
 # with tab5:
 #     finetune_list = st.radio("What would you finetune?", local_lists)

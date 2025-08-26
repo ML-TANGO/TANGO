@@ -15,6 +15,7 @@ from autonn_core.serializers import EdgeSerializer
 
 from tango.viz.graph import CGraph, CEdge, CNode, CShow2
 from tango.viz.binder import CPyBinder
+from tango.utils.general import colorstr
 
 logger = logging.getLogger(__name__)
 
@@ -80,6 +81,7 @@ class BasemodelViewer:
         self.base_dict = {}
         self.layers = []
         self.lines = []
+        logger.info(f'{colorstr("Visualizer: ")}Init nodes and edges')
 
     def parse_yaml(self, basemodel_yaml, data_dict):
         # load basemode.yaml
@@ -87,7 +89,7 @@ class BasemodelViewer:
             with open(basemodel_yaml) as f:
                 basemodel = yaml.safe_load(f)
         else:
-            logger.warn(f"not found {basemodel_yaml}")
+            logger.warning(f'{colorstr("Visualizer: ")}not found {basemodel_yaml}')
             return
 
         self.base_yaml = basemodel_yaml
@@ -100,7 +102,7 @@ class BasemodelViewer:
             data_dict.get("ch", 3)
         ]  # TODO: it doesn't matter whether input is 1 channel or 3 channels for now
         layers, lines, c2, edgeid = [], [], ch[-1], 0
-        logger.info(f"\nVisualizer: Reading basemodel.yaml...")
+        logger.info(f'{colorstr("Visualizer: ")}Reading basemodel.yaml...')
         logger.info("-" * 100)
         for i, (f, n, m, args) in enumerate(
                 basemodel["backbone"] + basemodel["head"]
@@ -125,7 +127,7 @@ class BasemodelViewer:
                         # list of upsampling mode
                         args[j] = a
                     else:
-                        logger.warn(f"unsupported arguements: {a}...ignored.")
+                        logger.warning(f'{colorstr("Visualizer: ")}unsupported arguements: {a}...ignored.')
 
             if m == "nn.Conv2d":
                 c1 = ch[f]
@@ -148,8 +150,8 @@ class BasemodelViewer:
                 if len(args) > 0:
                     c2 = args[0]
                 if c1 != c2:
-                    logger.warn(
-                        f"Error! BatchNorm2d has to be the same features in {c1} & out {c2} of it"
+                    logger.warning(
+                        f'{colorstr("Visualizer: ")}Error! BatchNorm2d has to be the same features in {c1} & out {c2} of it'
                     )
                     c2 = c1
                 params = f"'num_features': {c2}"
@@ -429,7 +431,7 @@ class BasemodelViewer:
                     if d == 1:  # (N, C, H, W); channel-wise concatentation
                         c2 = sum(c1)
                     else:
-                        logger.warn("warning! only channel-wise concat is supported.")
+                        logger.warning(f'{colorstr("Visualizer: ")}warning! only channel-wise concat is supported.')
                         c2 = max(c1)  # TODO: should be treated more elegantly..
                 params = f"'dim': {d}"
             elif m in ("ADown", "AConv"):
@@ -445,8 +447,8 @@ class BasemodelViewer:
                     c1 = ch[f[0]]
                     for x in f:
                         if ch[x] != c1:
-                            logger.warn(
-                                "warning! all input must have the same dimension"
+                            logger.warning(
+                                f'{colorstr("Visualizer: ")}warning! all input must have the same dimension'
                             )
                     c2 = c1
                 params = f"'dim': {d}"
@@ -534,9 +536,9 @@ class BasemodelViewer:
                     if isinstance(args[1], list):
                         # anchors = len(args[1])
                         if len(args[1]) != nl:
-                            logger.warn(
-                                f"warning! the number of detection layer is {nl},"
-                                f" but anchors is for {len(args[1])} layers."
+                            logger.warning(
+                                f'{colorstr("Visualizer: ")}warning! the number of detection layer is {nl},'
+                                f' but anchors is for {len(args[1])} layers.'
                             )
                         anchors = args[1]
                     else:
@@ -553,7 +555,7 @@ class BasemodelViewer:
                     nl = len(f)  # number of detection layers
                     c1 = [ch[x] for x in f]
                 else:
-                    logger.warn("warning! detection module needs two or more inputs")
+                    logger.warning(f'{colorstr("Visualizer: ")}warning! detection module needs two or more inputs')
                     nl = 1
                     c1 = [ch[f]]
                 # anchors = [] # anchor-free heads
@@ -694,7 +696,7 @@ class BasemodelViewer:
                 c2 = c1
                 params = ()
             else:
-                logger.warn(f"unsupported module... {m}")
+                logger.warning(f'{colorstr("Visualizer: ")}unsupported module... {m}')
                 c1 = ch[f]
                 c2 = c1
                 params = ()
@@ -740,7 +742,7 @@ class BasemodelViewer:
         self.layers = layers
         self.lines = lines
         logger.info("-" * 100)
-        logger.info("Visualizer: Parsing basemodel.yaml complete")
+        # logger.info(f'{colorstr("Visualizer: ")}Parsing basemodel.yaml complete')
 
     def update(self):
 
@@ -758,16 +760,16 @@ class BasemodelViewer:
             info.progress = "viz_update"
             info.save()
         except Info.DoesNotExist:
-            logger.warn(f"not found {self.userid}/{self.project_id} information")
+            logger.warning(f'{colorstr("Visualizer: ")}not found {self.userid}/{self.project_id} information')
 
-        logger.info(f"Visualizer: Updating nodes and edges complete\n")
+        # logger.info(f'{colorstr("Visualizer: ")}Updating nodes and edges complete\n')
 
     def update_classification(self):
+        self.initialize()
+
         json_data = OrderedDict()
         json_data["node"] = self.layers
         json_data["edge"] = self.lines
-
-        self.initialize()
 
         for i in json_data.get("node"):
             serializerN = NodeSerializer(data=i)
@@ -778,15 +780,16 @@ class BasemodelViewer:
             serializerE = EdgeSerializer(data=j)
             if serializerE.is_valid():
                 serializerE.save()
+        logger.info(f'{colorstr("Visualizer: ")}Update nodes and edges')
 
     def update_detection(self):
+        self.initialize()
+
         yolov9_json_path = "/source/autonn_core/tango/common/cfg/yolov9/Yolov9.json"
 
         with open(yolov9_json_path, 'r') as j:
             json_data = json.load(j)
 
-        self.initialize()
-
         for i in json_data.get("node"):
             serializerN = NodeSerializer(data=i)
             if serializerN.is_valid():
@@ -796,6 +799,7 @@ class BasemodelViewer:
             serializerE = EdgeSerializer(data=j)
             if serializerE.is_valid():
                 serializerE.save()
+        logger.info(f'{colorstr("Visualizer: ")}Update nodes and edges')
 
 
 def export_pth(file_path):
@@ -860,7 +864,7 @@ def export_pth(file_path):
             CEdge("{prior}".format(**edge.__dict__), "{next}".format(**edge.__dict__))
         )
     net = CPyBinder.exportmodel(self_binder, graph)
-    logger.info("PyTorch model export success, saved as %s" % file_path)
+    logger.info(f'{colorstr("Visualizer: ")}PyTorch model export success, saved as {file_path}')
     logger.info(net)
     torch.save(net, file_path)
     return net
@@ -915,7 +919,7 @@ def export_yml(name, yaml_path):
             }
         )
 
-    logger.info("json gen success")
+    logger.info(f'{colorstr("Visualizer: ")}json gen success')
     logger.debug(json.dumps(json_data, ensure_ascii=False, indent="\t"))
 
     # yolo-style yaml_data generation ------------------------------------------
@@ -1025,7 +1029,7 @@ def export_yml(name, yaml_path):
             b_ = params_["bias"]
             args_ = [o_, b_]
         elif module_ == "Dropout":
-            p_ = param_["p"]
+            p_ = params_["p"]
             args_ = [p_]
         elif module_ in ("BCELoss", "CrossEntropyLoss", "MESLoss"):
             r_ = params_["reduction"]

@@ -4,6 +4,7 @@ import torch
 import torch.nn as nn
 
 from tango.common.models.common import Conv
+# from tango.common.models.yolo   import Detect, Model
 from tango.utils.google_utils import attempt_download
 
 
@@ -309,29 +310,41 @@ def attempt_load(weights, map_location=None, fused=True):
     for w in weights if isinstance(weights, list) else [weights]:
         attempt_download(w)
         ckpt = torch.load(w, map_location=map_location)  # load
+        model_fr_ckpt = (ckpt.get("ema") or ckpt["model"]).to(map_location).float() # FP32 model
 
-        # Model compatibility updates
-        # if not hasattr(ckpt, 'stride'):
-        #     ckpt.stride = torch.tensor([32.])
+        # Model compatibility to Ultralytics
+        if not hasattr(model_fr_ckpt, 'stride'):
+            model_fr_ckpt.stride = torch.tensor([32.])
+        if not hasattr(model_fr_ckpt, "args"):
+            model_fr_ckpt.args = None
+        if not hasattr(model_fr_ckpt, "pt_path"):
+            model_fr_ckpt.pt_path = w
+        if not hasattr(model_fr_ckpt, "task"):
+            model_fr_ckpt.task = 'detect'
 
-        if fused:
-            model.append(ckpt['ema' if ckpt.get('ema') else 'model'].float().fuse().eval())  # FP32 fused model
+        if fused and hasattr(model_fr_ckpt, "fuse"):
+            # model.append(ckpt['ema' if ckpt.get('ema') else 'model'].float().fuse().eval())  # FP32 fused model
+            model.append(model_fr_ckpt.fuse().eval())
         else:
-            model.append(ckpt['ema' if ckpt.get('ema') else 'model'].float().eval())  # FP32 original model
+            # model.append(ckpt['ema' if ckpt.get('ema') else 'model'].float().eval())  # FP32 original model
+            model.append(model_fr_ckpt.eval())
 
     # Compatibility updates
     for m in model.modules():
-        if type(m) in [nn.Hardswish, nn.LeakyReLU, nn.ReLU, nn.ReLU6, nn.SiLU]:
+        # if type(m) in [nn.Hardswish, nn.LeakyReLU, nn.ReLU, nn.ReLU6, nn.SiLU, Detect, Model]:
+        if hasattr(m, "inplace"):
             m.inplace = True  # pytorch 1.7.0 compatibility
         elif type(m) is nn.Upsample:
             m.recompute_scale_factor = None  # torch 1.11.0 compatibility
         elif type(m) is Conv:
             m._non_persistent_buffers_set = set()  # pytorch 1.6.0 compatibility
 
+    # Return (single) model
     if len(model) == 1:
-        return model[-1]  # return model
-    else:
-        print('Ensemble created with %s\n' % weights)
-        for k in ['names', 'stride', 'nc', 'yaml']:
-            setattr(model, k, getattr(model[-1], k))
-        return model  # return ensemble
+        return model[-1]
+
+    # Return ensemble of multiple models
+    print('Ensemble created with %s\n' % weights)
+    for k in ['names', 'stride', 'nc', 'yaml']:
+        setattr(model, k, getattr(model[-1], k))
+    return model
