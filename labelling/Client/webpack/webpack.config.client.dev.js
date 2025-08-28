@@ -146,7 +146,7 @@ module.exports = env => {
       rules: [
         {
           test: /\.js$/,
-          exclude: /node_modules/,
+	  exclude: /node_modules\/node_modules\/(?!(react-draggable|react-resizable))/,
           use: "babel-loader"
         },
         // Modular Styles

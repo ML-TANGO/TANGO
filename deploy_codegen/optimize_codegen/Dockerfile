@@ -1,6 +1,10 @@
-#FROM python:3.8
-FROM python:3.9
+FROM openjdk:17-jdk-slim
 
+RUN apt-get update && \
+    apt-get install -y python3 python3-pip git && \
+    rm -rf /var/lib/apt/lists/*
+
+RUN apt-get update && apt-get install -y openjdk-17-jdk
 ENV CMAKE_ARGS="-DONNX_USE_PROTOBUF_SHARED_LIBS=ON"
 
 RUN apt-get update
@@ -17,8 +21,7 @@ RUN pip3 install sng4onnx numpy
 RUN pip3 install tvm
 RUN pip3 install decorator
 RUN pip3 install ninja
-RUN apt-get install -y libtinfo-dev libncurses5
-
+RUN apt-get install -y libtinfo-dev libncurses-dev
 WORKDIR /app
 COPY . /app
 COPY db/. /app/db
@@ -30,6 +33,8 @@ COPY db/odroid-n2-manual.txt /app/db
 COPY db/yolov3/. /app/db/yolov3
 # ADD  https://s3.ap-northeast-2.amazonaws.com/backend.ai/offline-installers/yolov3.pt /app/db/yolov3
 RUN apt-get install -y zlib1g-dev libedit-dev libxml2-dev libusb-1.0-0
+
+
 RUN pip3 install pyyaml requests
 # RUN pip3 install torch==1.7.0
 RUN pip3 install torch
@@ -37,7 +42,7 @@ RUN pip3 install torch
 # RUN pip3 install tensorflow==2.13.1
 RUN pip3 install seaborn pandas torchvision
 RUN pip3 install --upgrade attrs psutil
-RUN apt-get install -y libgl1-mesa-glx 
+RUN apt-get update && apt-get install -y libgl1
 RUN apt-get install -y vim sed 
 RUN apt-get install -y clang 
 RUN apt-get install -y unzip 
@@ -133,11 +138,12 @@ RUN pip3 install opencv-python
 RUN pip3 install defusedxml
 RUN pip3 install matplotlib
 
-RUN apt-get install software-properties-common -y
+#RUN apt-get update && apt-get install -y python-software-properties
+#RUN apt-get update && apt-get install -y software-properties-common
+RUN apt-get update && apt-get install -y gnupg2 lsb-release
 # added by khlee to fix build error
 RUN apt-get install python3-launchpadlib -y
-RUN add-apt-repository ppa:openjdk-r/ppa
-RUN apt-get install -y openjdk-17-jdk
+
 WORKDIR /app
 RUN mkdir android_sdk
 WORKDIR /app/android_sdk
