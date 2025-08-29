@@ -1,11 +1,11 @@
-FROM node:18-alpine AS builder
+FROM node:16-alpine AS builder
 
 WORKDIR /frontend
 
 COPY ./frontend .
 RUN npm install
 # Node.js 메모리 제한 증가
-RUN NODE_OPTIONS="--max-old-space-size=4096" npm run build
+RUN npm run build
 # ============================================================
 
 FROM python:3.7
