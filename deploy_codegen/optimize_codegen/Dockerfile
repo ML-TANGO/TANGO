@@ -5,6 +5,7 @@ ENV CMAKE_ARGS="-DONNX_USE_PROTOBUF_SHARED_LIBS=ON"
 
 RUN apt-get update
 RUN pip3 install --upgrade pip
+
 # RUN apt-get install -y build-essential cmake git libprotoc-dev protobuf-compiler 
 # RUN apt-get install -y build-essential git libprotoc-dev protobuf-compiler 
 RUN git init
@@ -28,7 +29,7 @@ COPY db/yolo_v3_tiny_darknet_fp32.tflite /app/db
 COPY db/odroid-m1-manual.txt /app/db
 COPY db/odroid-n2-manual.txt /app/db
 COPY db/yolov3/. /app/db/yolov3
-# ADD  https://s3.ap-northeast-2.amazonaws.com/backend.ai/offline-installers/yolov3.pt /app/db/yolov3
+
 RUN apt-get install -y zlib1g-dev libedit-dev libxml2-dev libusb-1.0-0
 RUN pip3 install pyyaml requests
 # RUN pip3 install torch==1.7.0
@@ -59,7 +60,13 @@ RUN cmake -S llvm -B build -G Ninja -DCMAKE_BUILD_TYPE=Release
 RUN ninja -C build install
 
 WORKDIR /app
-RUN git clone --recursive https://github.com/apache/tvm tvm
+# khlee 250828 RUN git clone --recursive https://github.com/apache/tvm tvm
+ADD https://dlcdn.apache.org/tvm/tvm-v0.19.0/apache-tvm-src-v0.19.0.tar.gz /app
+RUN gunzip apache-tvm-src-v0.19.0.tar.gz 
+RUN tar xvf apache-tvm-src-v0.19.0.tar 
+RUN mv apache-tvm-src-v0.19.0 tvm
+RUN rm apache-tvm-src-v0.19.0.tar 
+
 WORKDIR /app/tvm
 RUN rm -rf build && mkdir build 
 WORKDIR /app/tvm/build
