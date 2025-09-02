@@ -11,9 +11,10 @@ RUN pip3 install --upgrade pip
 RUN git init
 RUN git update-ref -d HEAD
 RUN pip3 install "pybind11[golbal]"
-RUN pip3 install tensorflow tf_keras  tensorflow-datasets
+RUN pip3 install tensorflow==2.18.0  tf_keras==2.18.0  tensorflow-datasets
 RUN pip3 install onnx2tf==1.20
-RUN pip3 install onnx onnx-simplifier  onnx_graphsurgeon
+#RUN pip3 install onnx==1.14.1 onnx-simplifier  onnx_graphsurgeon
+RUN pip3 install onnx==1.15.0 onnx-simplifier  onnx_graphsurgeon
 RUN pip3 install sng4onnx numpy
 RUN pip3 install tvm
 RUN pip3 install decorator
