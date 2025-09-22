@@ -175,21 +175,59 @@ export default {
     navigation() {
       let status = true;
       const info = this.projectInfo;
-      if (info.task_type !== TaskType.CHAT && (!info?.dataset || info?.dataset === "")) status = false;
-      else if (!info?.target_id || !info?.target_info) status = false;
-      else if (!info?.target_id || info?.target_id === "") status = false;
-      else if (!info?.task_type || info?.task_type === "") status = false;
-      else if (!info?.nas_type || info?.nas_type === "") status = false;
-      else if (!info?.deploy_weight_level || info?.deploy_weight_level === "") status = false;
-      else if (!info?.deploy_precision_level || info?.deploy_precision_level === "") status = false;
-      else if (!info?.deploy_user_edit || info?.deploy_user_edit === "") status = false;
-      else if (!info?.deploy_output_method || info?.deploy_output_method === "") status = false;
+      // Segmentation 프로젝트는 별도의 검증 규칙 적용
+      if (info.task_type === TaskType.SEGMENTATION) {
+        status = this.validateSegmentationProject(info);
+      } else {
+        // 기존 검증 로직 (Detection, Classification, Chat)
+        if (info.task_type !== TaskType.CHAT && (!info?.dataset || info?.dataset === "")) status = false;
+        else if (!info?.target_id || !info?.target_info) status = false;
+        else if (!info?.target_id || info?.target_id === "") status = false;
+        else if (!info?.task_type || info?.task_type === "") status = false;
+        else if (!info?.nas_type || info?.nas_type === "") status = false;
+        else if (!info?.deploy_weight_level || info?.deploy_weight_level === "") status = false;
+        else if (!info?.deploy_precision_level || info?.deploy_precision_level === "") status = false;
+        else if (!info?.deploy_user_edit || info?.deploy_user_edit === "") status = false;
+        else if (!info?.deploy_output_method || info?.deploy_output_method === "") status = false;
+      }
 
       if (status) {
         this.$router.push(`/project/${this.projectInfo.id}`);
       } else {
         Swal.fire("project를 완성해 주세요.");
       }
+    },
+
+    /**
+     * Segmentation 프로젝트 전용 검증 로직
+     * Dataset과 Target이 없어도 유효함
+     */
+    validateSegmentationProject(info) {
+      console.log("Validating Segmentation project:", info);
+      // Segmentation 프로젝트에 필수인 필드들만 검증
+      if (!info?.task_type || info?.task_type === "") {
+        console.log("Segmentation validation failed: task_type missing");
+        return false;
+      }
+      if (!info?.deploy_weight_level || info?.deploy_weight_level === "") {
+        console.log("Segmentation validation failed: deploy_weight_level missing");
+        return false;
+      }
+      if (!info?.deploy_precision_level || info?.deploy_precision_level === "") {
+        console.log("Segmentation validation failed: deploy_precision_level missing");
+        return false;
+      }
+      if (!info?.deploy_user_edit || info?.deploy_user_edit === "") {
+        console.log("Segmentation validation failed: deploy_user_edit missing");
+        return false;
+      }
+      if (!info?.deploy_output_method || info?.deploy_output_method === "") {
+        console.log("Segmentation validation failed: deploy_output_method missing");
+        return false;
+      }
+
+      console.log("Segmentation project validation passed");
+      return true;
     },
 
     onDelete() {

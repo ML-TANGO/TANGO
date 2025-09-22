@@ -1,7 +1,8 @@
 export const TaskType = Object.freeze({
   DETECTION: "detection",
   CLASSIFICATION: "classification",
-  CHAT: "chat"
+  CHAT: "chat",
+  SEGMENTATION: "segmentation" // Segmentation 기능을 위한 Task Type 추가
 });
 
 // 사용안함
@@ -240,5 +241,6 @@ export const LearningType = Object.freeze({
   NORMAL: "normal",
   INCREMENTAL: "incremental",
   TRANSFER: "transfer",
-  HPO: "HPO"
+  HPO: "HPO",
+  CONTINUAL_LEARNING: "continual_learning" // Segmentation을 위한 Continual Learning Type 추가
 });

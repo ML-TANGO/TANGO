@@ -70,7 +70,7 @@ import EditHyperparameterFile from "./stepper/EditHyperparameterFile.vue";
 import EditArgumentsFile from "./stepper/EditArgumentsFile.vue";
 import ProjectConfigurationSetting from "./stepper/ProjectConfigurationSettingV2.vue";
 
-import { ContainerName, TaskType } from "@/shared/enums";
+import { ContainerName, TaskType, LearningType } from "@/shared/enums";
 
 import { updateProjectInfo, setWorkflow } from "@/api";
 
@@ -93,6 +93,7 @@ export default {
   data() {
     return {
       TaskType,
+      LearningType,
       dialog: false
     };
   },
@@ -121,6 +122,17 @@ export default {
 
     async next(data) {
       this.SET_PROJECT(data);
+
+      // Segmentation + Continual Learning 선택 시 단계 스킵 로직
+      if (
+        this.step === 2 &&
+        this.project.task_type === TaskType.SEGMENTATION &&
+        this.project.learning_type === LearningType.CONTINUAL_LEARNING
+      ) {
+        // Dataset, Target, Hyperparameter, Option 단계를 스킵하고 바로 프로젝트 생성
+        await this.createSegmentationProject();
+        return;
+      }
 
       if (this.step !== 6) {
         const nextStep = 1;
@@ -201,6 +213,63 @@ export default {
         this.$router.push(`project/${this.project.id}`);
       }
       this.close();
+    },
+
+    async createSegmentationProject() {
+      /**
+       * Segmentation + Continual Learning 프로젝트 생성
+       * Dataset, Target, Hyperparameter, Option 단계를 스킵하고 기본값으로 프로젝트 생성
+       */
+      try {
+        const projectData = {
+          ...this.project,
+          task_type: TaskType.SEGMENTATION,
+          learning_type: LearningType.CONTINUAL_LEARNING,
+          // 기본값들로 설정 (필요시 조정 가능)
+          target_id: null, // 추후 AutoNN_CL에서 처리
+          dataset: "", // Segmentation은 dataset 단계 스킵
+          autonn_dataset_file: "dataset.yaml", // 기본 설정
+          autonn_basemodel: "basemodel.yaml", // 기본 설정
+          nas_type: "nas" // 기본 설정
+        };
+
+        const param = {
+          project_id: projectData.id,
+          project_target: projectData.target_id || "",
+          project_dataset: projectData.dataset || "",
+          task_type: projectData.task_type,
+          learning_type: projectData.learning_type,
+          weight_file: projectData.weight_file || "",
+          autonn_dataset_file: projectData.autonn_dataset_file,
+          autonn_base_model: projectData.autonn_basemodel,
+          nas_type: projectData.nas_type,
+          // Segmentation 프로젝트에 필수인 배포 설정값들 - Configuration에서 입력받은 값 또는 기본값
+          deploy_weight_level: projectData.deploy_weight_level || "5",
+          deploy_precision_level: projectData.deploy_precision_level || "5",
+          deploy_processing_lib: projectData.deploy_processing_lib || "cv2",
+          deploy_user_edit: projectData.deploy_user_edit || "no",
+          deploy_input_method: projectData.deploy_input_method || "0",
+          deploy_input_data_path: projectData.deploy_input_data_path || "",
+          deploy_output_method: projectData.deploy_output_method || "0",
+          deploy_input_source: projectData.deploy_input_source || "0"
+        };
+
+        await updateProjectInfo(param);
+
+        // Segmentation 전용 워크플로우 설정 (추후 AutoNN_CL 컨테이너 추가)
+        const workflow = ["autonn_cl"]; // AutoNN_CL 컨테이너만 사용
+        await setWorkflow(this.project.id, workflow);
+
+        if (this.$route.params?.id) {
+          this.$router.go();
+        } else {
+          this.$router.push(`project/${this.project.id}`);
+        }
+        this.close();
+      } catch (error) {
+        console.error("Segmentation 프로젝트 생성 실패:", error);
+        // 에러 처리 로직 추가 (추후 토스트 메시지 등으로 사용자에게 알림)
+      }
     },
 
     close() {

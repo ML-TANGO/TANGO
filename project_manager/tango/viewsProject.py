@@ -33,7 +33,7 @@ from targets.views import target_to_response
 
 from .service.autonn_status import update_autonn_status
 
-from .enums import ContainerId, ContainerStatus, LearningType
+from .enums import ContainerId, ContainerStatus, LearningType, TaskType
 
 from datasets.views import copy_train_file_for_version
 from .service.get_common_folder import get_folder_structure
@@ -177,9 +177,24 @@ def delete_autonn_status(project_info):
     ).delete()   
 
 def start_container(user_id, project_id, project_info, container_id):
-    # autonn을 시작할때 setting
-    # 1. 이전에 진행했던 이력 제거 
-    # 2. retry count 초기화
+    """
+    컨테이너 시작 함수
+    
+    Args:
+        user_id (str): 사용자 ID
+        project_id (str): 프로젝트 ID
+        project_info (Project): 프로젝트 정보 객체
+        container_id (str): 시작할 컨테이너 ID
+    
+    Returns:
+        str: 컨테이너 시작 로그 메시지
+    """
+    
+    # AutoNN_CL 컨테이너 시작 로직 (더미 구현)
+    if container_id == ContainerId.autonn_cl:
+        return start_autonn_cl_container(user_id, project_id, project_info)
+    
+    # 기존 autonn 컨테이너 시작 로직
     if container_id == ContainerId.autonn:
         delete_autonn_status(project_info) # 이전에 진행했던 이력 제거 
         project_info.autonn_retry_count = 0 # retry count 초기화
@@ -195,6 +210,68 @@ def start_container(user_id, project_id, project_info, container_id):
     to_json = json.loads(response)
 
     return to_json['request_info']
+
+def start_autonn_cl_container(user_id, project_id, project_info):
+    """
+    AutoNN_CL 컨테이너 시작 함수 (더미 구현)
+    
+    Args:
+        user_id (str): 사용자 ID
+        project_id (str): 프로젝트 ID
+        project_info (Project): 프로젝트 정보 객체
+    
+    Returns:
+        str: 시작 로그 메시지
+    
+    Description:
+        현재 AutoNN_CL 컨테이너가 중앙대에서 개발 중이므로
+        기본적인 구조만 제공하는 더미 구현입니다.
+        추후 실제 컨테이너 구현 후 이 함수를 수정하여 사용합니다.
+    """
+    try:
+        print(f"=== AutoNN_CL Container Start Request ===")
+        print(f"User ID: {user_id}")
+        print(f"Project ID: {project_id}")
+        print(f"Task Type: {project_info.task_type}")
+        print(f"Learning Type: {project_info.learning_type}")
+        
+        # 프로젝트 상태 업데이트
+        project_info.container = ContainerId.autonn_cl
+        project_info.container_status = ContainerStatus.STARTED
+        project_info.save()
+        
+        # TODO: 중앙대 AutoNN_CL 컨테이너 개발 완료 후 실제 구현 예정
+        # 실제 구현 시 추가해야 할 내용:
+        # 1. Docker Compose를 통한 autonn_cl 컨테이너 시작
+        # 2. 컨테이너 상태 확인
+        # 3. 에러 처리
+        # 
+        # 예상 코드:
+        # import subprocess
+        # result = subprocess.run([
+        #     'docker-compose', 'up', '-d', 'autonn_cl'
+        # ], capture_output=True, text=True, cwd='/home/tesla/TANGO')
+        # 
+        # if result.returncode != 0:
+        #     raise Exception(f"AutoNN_CL 컨테이너 시작 실패: {result.stderr}")
+        
+        # 더미 성공 로그 반환
+        log_message = (
+            f"AutoNN_CL container start request completed\n"
+            f"Project ID: {project_id}\n"
+            f"Task Type: Segmentation\n"
+            f"Learning Type: Continual Learning\n"
+            f"Status: STARTED (DUMMY)\n"
+            f"Note: 실제 AutoNN_CL 컨테이너는 중앙대 개발 완료 후 연동 예정"
+        )
+        
+        return log_message
+        
+    except Exception as error:
+        print(f"AutoNN_CL 컨테이너 시작 오류: {error}")
+        project_info.container_status = ContainerStatus.FAILED
+        project_info.save()
+        return f"AutoNN_CL container start failed: {str(error)}"
 
 def project_info_to_dict(project_info):
     try:
@@ -405,7 +482,13 @@ def container_start(request):
         project_info.container = container_id
         project_info.container_status = ContainerStatus.STARTED
         project_info.save()
-        return HttpResponse(json.dumps({'status': 200, 'message': str(container_id) + ' 시작 요청\n', 'response' : log}))
+        
+        # Segmentation 프로젝트인 경우 추가 로그 메시지
+        additional_message = ""
+        if container_id == ContainerId.autonn_cl:
+            additional_message = "\n=== Segmentation + Continual Learning 프로젝트 시작 ==="
+        
+        return HttpResponse(json.dumps({'status': 200, 'message': str(container_id) + ' 시작 요청\n' + additional_message, 'response' : log}))
     except Project.DoesNotExist:
         print(f"project_id : {project_id}를 찾을 수 없음.")
         return HttpResponse(error)
@@ -1013,22 +1096,89 @@ def project_update(request):
             f"user_editing : {str(deploy_user_edit)}\n"
         )
 
-        # project_info.yaml 파일 생성
-        common_path = os.path.join(root_path, f"shared/common/{request.user}/{request.data['project_id']}")
+        # Segmentation 프로젝트인 경우 전용 YAML 생성
+        if task_type == TaskType.SEGMENTATION:
+            create_segmentation_project_yaml(request.user, request.data['project_id'], request.data)
+        else:
+            # 기존 project_info.yaml 파일 생성
+            common_path = os.path.join(root_path, f"shared/common/{request.user}/{request.data['project_id']}")
 
-        # 디렉토리 유무 확인
-        if os.path.isdir(common_path) is False:
-            os.makedirs(common_path)
+            # 디렉토리 유무 확인
+            if os.path.isdir(common_path) is False:
+                os.makedirs(common_path)
 
-        f = open(os.path.join(common_path, 'project_info.yaml'), 'w+')
-        f.write(project_info_content)
-        f.close()
+            f = open(os.path.join(common_path, 'project_info.yaml'), 'w+')
+            f.write(project_info_content)
+            f.close()
 
         return Response(status=200)
 
     except Exception as e:
         print('error')
         print(e)
+
+def create_segmentation_project_yaml(user_id, project_id, project_data):
+    """
+    Segmentation 프로젝트용 project_info.yaml 생성 함수
+    
+    Args:
+        user_id (str): 사용자 ID
+        project_id (str): 프로젝트 ID
+        project_data (dict): 프로젝트 데이터
+    
+    Description:
+        Segmentation + Continual Learning 프로젝트를 위한 특별한 YAML 파일 생성
+        중앙대에서 개발할 AutoNN_CL 컨테이너에서 사용할 설정 정보 포함
+    """
+    try:
+        import yaml
+        
+        # 공통 경로 설정 및 디렉토리 생성
+        common_path = os.path.join(root_path, f"shared/common/{user_id}/{project_id}")
+        if os.path.isdir(common_path) is False:
+            os.makedirs(common_path)
+
+        # Segmentation 전용 YAML 구조 정의
+        yaml_content = {
+            'project_info': {
+                'project_id': int(project_id),
+                'task_type': 'segmentation',
+                'learning_type': 'continual_learning',
+                'user_id': user_id,
+                'create_date': datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
+                'version': 1
+            },
+            'model_config': {
+                # Configuration 단계에서 입력받은 배포 설정값들
+                'input_source': project_data.get('deploy_input_source', '0'),
+                'output_method': project_data.get('deploy_output_method', '0'),
+                'precision_level': int(project_data.get('deploy_precision_level', 5)),
+                'weight_level': int(project_data.get('deploy_weight_level', 5)),
+                'user_editing': project_data.get('deploy_user_edit', 'no')
+            },
+            'segmentation_config': {
+                # Segmentation 특화 설정 (중앙대 요구사항에 따라 조정 가능)
+                'continual_learning_method': 'default',  # 기본 continual learning 방식
+                'memory_buffer_size': 1000,  # 메모리 버퍼 크기 (예시)
+                'learning_rate': 0.001,  # 학습률 (예시)
+                'batch_size': 16  # 배치 크기 (예시)
+            },
+            'container_info': {
+                'container_id': ContainerId.autonn_cl,
+                'container_port': 8102,  # AutoNN_CL 컨테이너 포트 (가안)
+                'status': ContainerStatus.READY
+            }
+        }
+
+        # YAML 파일로 저장
+        with open(os.path.join(common_path, 'project_info.yaml'), 'w') as f:
+            yaml.dump(yaml_content, f, default_flow_style=False, allow_unicode=True, indent=2)
+        
+        print(f"Segmentation project YAML created successfully for project {project_id}")
+        
+    except Exception as error:
+        print(f"Error creating segmentation project YAML: {error}")
+        raise error
 
 # 워크플로우 추가
 @api_view(['POST'])

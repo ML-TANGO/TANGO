@@ -120,6 +120,41 @@ services:
       - "8100:8100" # visualizer (vision model)
       - "8101:8101" # streamlit  (llm)
 
+
+  #---------------------------------
+  # AutoNN_CL: AutoNN_CL (중앙대 개발 완료 시까지 비활성화)
+  #---------------------------------
+  # autonn_cl:
+  #     build:
+  #       context: ./autonn_cl/autonn_cl  # 중앙대에서 제공할 컨테이너 경로
+  #     shm_size: "256M"
+  #     ipc: host
+  #     # command: >
+  #     #   sh -c "python manage.py makemigrations &&
+  #     #         python manage.py migrate &&
+  #     #         python manage.py runserver 0.0.0.0:8102"
+  #     deploy:
+  #       resources:
+  #         reservations:
+  #           devices:
+  #             - driver: nvidia
+  #               count: all
+  #               capabilities:
+  #                 - gpu
+  #                 - utility
+  #                 - compute
+  #                 - video
+  #     environment:
+  #       - NVIDIA_VISIBLE_DEVICES=${GPU_NUM:-all}
+  #     volumes:
+  #       - ./autonn_cl/autonn_cl:/source  # 실제 경로는 중앙대 제공 후 수정
+  #       - shared:/shared
+  #       # - ${COCODIR:-./autonn/autonn/autonn_core/datasets/coco}:/shared/datasets/coco
+  #       # - ${COCO128DIR:-./autonn/autonn/autonn_core/datasets/coco128}:/shared/datasets/coco128
+  #     hostname: autonn-cl
+  #     ports:
+  #       - "8102:8102"
+
   #---------------------------------
   # Base Model Selector
   #---------------------------------

@@ -2,6 +2,7 @@ from enum import Enum
 
 class ContainerId(str, Enum):
     autonn = "autonn"
+    autonn_cl = "autonn_cl"  # Continual Learning을 위한 AutoNN_CL 컨테이너 추가
     codeGen = "code_gen"
     imagedeploy = "imagedeploy"
 
@@ -18,10 +19,12 @@ class LearningType(str, Enum):
     INCREMENTAL = "incremental"
     TRANSFER = "transfer"
     HPO="HPO"
+    CONTINUAL_LEARNING = "continual_learning"  # Segmentation을 위한 Continual Learning Type 추가
 
 class TaskType(str, Enum):
     DETECTION = "detection"
     CLASSIFICATION = "classification"
+    SEGMENTATION = "segmentation"  # Segmentation 기능을 위한 Task Type 추가
 
 autonn_update_ids={
     "project_info":"project_info",

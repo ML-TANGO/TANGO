@@ -50,7 +50,7 @@ import DatasetSelector from "./stepper/DatasetSelector.vue";
 import TargetSelector from "./stepper/TargetSelector.vue";
 import ProjectConfigurationSetting from "./stepper/ProjectConfigurationSetting.vue";
 
-import { /*TaskType,*/ ContainerName } from "@/shared/enums";
+import { TaskType, LearningType, ContainerName } from "@/shared/enums";
 
 import { updateProjectInfo, setWorkflow } from "@/api";
 
@@ -65,6 +65,8 @@ export default {
 
   data() {
     return {
+      TaskType,
+      LearningType,
       dialog: false
     };
   },

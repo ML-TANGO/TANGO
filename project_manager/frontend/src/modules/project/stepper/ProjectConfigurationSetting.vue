@@ -9,6 +9,7 @@
         <v-radio-group v-model="taskType" row hide-details="" class="ma-0" :disabled="isEmpty(this.selectedImage)">
           <v-radio label="Classification" :value="TaskType.CLASSIFICATION"></v-radio>
           <v-radio label="Detection" :value="TaskType.DETECTION"></v-radio>
+          <v-radio label="Segmentation" :value="TaskType.SEGMENTATION"></v-radio>
           <!-- <v-radio label="Chat" :value="TaskType.CHAT"></v-radio> -->
         </v-radio-group>
       </div>
@@ -17,11 +18,12 @@
 
       <div class="d-flex align-center" style="gap: 25px">
         <div style="width: 150px">Learning Type</div>
-        <v-radio-group v-model="learningType" row hide-details="" class="ma-0" :disabled="isEmpty(this.selectedImage)">
+        <v-radio-group v-model="learningType" row hide-details="" class="ma-0" :disabled="isEmpty(this.selectedImage) || taskType === TaskType.SEGMENTATION">
           <v-radio label="Normal" :value="LearningType.NORMAL"></v-radio>
           <v-radio label="Incremental" :value="LearningType.INCREMENTAL" v-if="isIncremental"></v-radio>
           <v-radio label="Transfer" :value="LearningType.TRANSFER"></v-radio>
           <v-radio label="HPO" :value="LearningType.HPO"></v-radio>
+          <v-radio label="Continual Learning" :value="LearningType.CONTINUAL_LEARNING"></v-radio>
         </v-radio-group>
       </div>
 
@@ -320,6 +322,17 @@ export default {
     isIncremental() {
       if (!this.isIncremental && this.learningType === LearningType.INCREMENTAL) {
         this.learningType = LearningType.NORMAL;
+      }
+    },
+
+    taskType() {
+      // CHAT 선택 시 Learning Type을 Normal로 자동 설정
+      if (this.taskType === TaskType.CHAT) {
+        this.learningType = LearningType.NORMAL;
+      }
+      // SEGMENTATION 선택 시 Learning Type을 Continual Learning으로 자동 설정
+      if (this.taskType === TaskType.SEGMENTATION) {
+        this.learningType = LearningType.CONTINUAL_LEARNING;
       }
     }
   },
