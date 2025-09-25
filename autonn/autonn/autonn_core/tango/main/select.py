@@ -238,7 +238,7 @@ def get_user_requirements(userid, projid, resume=False):
     # Load arguments
     # _task =  'detection7' if basemodel['model_name'] == 'YOLOV7' or target == 'galaxys22' else task
     # opt_yaml_path = PROJ_PATH / f'args-{_task}.yaml'
-    if basemodel['model_name'] == 'YOLOV7' or target == 'galaxys22':
+    if basemodel['model_name'] == 'YOLOV7' or (task == 'detection' and target == 'galaxys22'):
         opt_yaml_path = CFG_PATH / f'args-detection7.yaml'
     else:
         opt_yaml_path = PROJ_PATH / f'args-{task}.yaml'

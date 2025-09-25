@@ -1303,21 +1303,32 @@ def parse_model_v9(d, ch):  # model_dict, input_channels(3)
         elif m is Expand:
             c2 = ch[f] // args[0] ** 2
         elif m is nn.Flatten:
-            # For channel-only propagation, Flatten looks like pass-through,
-            # but the actual feature count must be tracked in shapes
-            c2 = ch[f]
+            # Normalize args to PyTorch signature: (start_dim=1, end_dim=-1)
+            # Many YAMLs mistakenly put tuples/dicts here; ignore them.
+            if len(args) == 0:
+                args = []  # use defaults
+            elif len(args) == 1:
+                logger.info('1'*100)
+                # If someone put a tuple or dict, ignore and use defaults
+                if isinstance(args[0], (tuple, list, dict)) or args[0] is None:
+                    logger.warning("Ignoring invalid Flatten arg; using defaults (start_dim=1, end_dim=-1)")
+                    args = []
+                else:
+                    # keep single int as start_dim
+                    args = [int(args[0])]
+            else:
+                logger.info('2'*100)
+                # keep first two as ints (start_dim, end_dim), drop the rest
+                args = [int(args[0]), int(args[1])]
+
+            c2 = ch[f]  # channels unchanged
         elif m is nn.Linear:
             if len(in_shapes) != 1:
                 logger.warning("Linear expects a single input tensor")
             C, H, W = in_shapes[0]
             in_features = C * H * W
-            # [in_features, out_features] or [out_features]
-            if len(args) == 1:
-                out_features = args[0]
-                args = [in_features, out_features]
-            else:
-                out_features = args[1]
-                args = [in_features, out_features, *args[2:]]
+            out_features = int(args[0])
+            args = [in_features, out_features, *args[1:]]
             c2 = out_features
         else:
             c2 = ch[f]

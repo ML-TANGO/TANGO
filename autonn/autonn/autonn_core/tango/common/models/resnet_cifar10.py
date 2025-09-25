@@ -634,21 +634,32 @@ def parse_model(d, ch):  # model_dict, input_channels(1 or 3)
         elif m is Expand:
             c2 = ch[f] // args[0] ** 2
         elif m is nn.Flatten:
-            # For channel-only propagation, Flatten looks like pass-through,
-            # but the actual feature count must be tracked in shapes
-            c2 = ch[f]
+            # Normalize args to PyTorch signature: (start_dim=1, end_dim=-1)
+            # Many YAMLs mistakenly put tuples/dicts here; ignore them.
+            if len(args) == 0:
+                args = []  # use defaults
+            elif len(args) == 1:
+                logger.info('1'*100)
+                # If someone put a tuple or dict, ignore and use defaults
+                if isinstance(args[0], (tuple, list, dict)) or args[0] is None:
+                    logger.warning("Ignoring invalid Flatten arg; using defaults (start_dim=1, end_dim=-1)")
+                    args = []
+                else:
+                    # keep single int as start_dim
+                    args = [int(args[0])]
+            else:
+                logger.info('2'*100)
+                # keep first two as ints (start_dim, end_dim), drop the rest
+                args = [int(args[0]), int(args[1])]
+
+            c2 = ch[f]  # channels unchanged
         elif m is nn.Linear:
             if len(in_shapes) != 1:
                 logger.warning("Linear expects a single input tensor")
             C, H, W = in_shapes[0]
             in_features = C * H * W
-            # [in_features, out_features] or [out_features]
-            if len(args) == 1:
-                out_features = args[0]
-                args = [in_features, out_features]
-            else:
-                out_features = args[1]
-                args = [in_features, out_features, *args[2:]]
+            out_features = int(args[0])
+            args = [in_features, out_features, *args[1:]]
             c2 = out_features
         else:
             c2 = ch[f]
@@ -669,7 +680,6 @@ def parse_model(d, ch):  # model_dict, input_channels(1 or 3)
             "module": t,
             "arguments": str(args),
         }
-
         save.extend(x % i for x in ([f] if isinstance(f, int) else f) if x != -1)  # append to savelist
         layers.append(m_)
 
@@ -707,7 +717,6 @@ def propagate_shape(m, args, in_shapes):
       - For Linear, args are normalized to [in_features, out_features, ...]
       - For Flatten, no args needed.
     """
-
     # ---- helpers ----
     def _conv_out_len(l_in, k, s, p, d=1):
         return ((l_in + 2*p - d*(k-1) - 1) // s + 1)
@@ -768,20 +777,20 @@ def propagate_shape(m, args, in_shapes):
         return (C_in // (s**2), H_in * s, W_in * s)
 
     # Flatten
-    if m is torch.nn.Flatten:
+    if m is nn.Flatten:
         return (C_in * H_in * W_in, 1, 1)
 
     # Linear (args already normalized)
-    if m is torch.nn.Linear:
+    if m is nn.Linear:
         out_features = args[1] if len(args) > 1 else args[0]
         return (int(out_features), 1, 1)
 
     # BatchNorm2d
-    if m is torch.nn.BatchNorm2d:
+    if m is nn.BatchNorm2d:
         return (C_in, H_in, W_in)
 
     # MaxPool2d / AvgPool2d  (args: k, s=None, p=0, ...)
-    if m in (torch.nn.MaxPool2d, torch.nn.AvgPool2d):
+    if m in (nn.MaxPool2d, nn.AvgPool2d):
         k = args[0] if len(args) > 0 else 2
         s = args[1] if len(args) > 1 and args[1] is not None else k
         p = args[2] if len(args) > 2 else 0
@@ -793,14 +802,14 @@ def propagate_shape(m, args, in_shapes):
         return (C_in, H_out, W_out)
 
     # AdaptiveAvgPool2d (args[0] can be int or (H_out, W_out))
-    if m is torch.nn.AdaptiveAvgPool2d:
+    if m is nn.AdaptiveAvgPool2d:
         out_sz = args[0] if len(args) > 0 else 1
         if isinstance(out_sz, int):
             return (C_in, int(out_sz), int(out_sz))
         return (C_in, int(out_sz[0]), int(out_sz[1]))
 
     # Upsample (constructor may pass size= or scale_factor=. Here we read from args if present.)
-    if m is torch.nn.Upsample:
+    if m is nn.Upsample:
         # best-effort: accept either kw-style dict or positional list
         # common: kwargs dict as last arg or only arg
         size = None
@@ -829,7 +838,7 @@ def propagate_shape(m, args, in_shapes):
         return (C_in, int(round(H_in * sh)), int(round(W_in * sw)))
 
     # ConvTranspose2d (args: inC, outC, k, s, p, out_pad, groups, bias, d)
-    if m is torch.nn.ConvTranspose2d:
+    if m is nn.ConvTranspose2d:
         k = args[2] if len(args) > 2 else 2
         s = args[3] if len(args) > 3 else 2
         p = args[4] if len(args) > 4 else 0

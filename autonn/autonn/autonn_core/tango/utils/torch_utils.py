@@ -347,12 +347,12 @@ class EarlyStopping:
         if fitness >= self.best_fitness:
             self.best_epoch = epoch
             self.best_fitness = fitness
-        delta = epoch - self.best_eopch
+        delta = epoch - self.best_epoch
         self.possible_stop = delta >= (self.patience - 1)
         stop = delta >= self.patience
         if stop:
             logger.info(f"stopping training early as no improvment observed in last {self.patience} epochs."
-                        f"best results at epoch {self.best_eopch}, best model saved as best.pt")
+                        f"best results at epoch {self.best_epoch}, best model saved as best.pt")
         return stop
 
 
