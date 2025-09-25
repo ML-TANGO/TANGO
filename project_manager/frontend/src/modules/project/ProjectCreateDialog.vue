@@ -50,7 +50,7 @@ import DatasetSelector from "./stepper/DatasetSelector.vue";
 import TargetSelector from "./stepper/TargetSelector.vue";
 import ProjectConfigurationSetting from "./stepper/ProjectConfigurationSetting.vue";
 
-import { /*TaskType,*/ ContainerName } from "@/shared/enums";
+import { TaskType, LearningType, ContainerName } from "@/shared/enums";
 
 import { updateProjectInfo, setWorkflow } from "@/api";
 
@@ -65,6 +65,8 @@ export default {
 
   data() {
     return {
+      TaskType,
+      LearningType,
       dialog: false
     };
   },
@@ -183,12 +185,29 @@ export default {
       }
 
       await setWorkflow(this.project.id, workflow);
-      if (this.$route.params?.id) {
-        this.$router.go();
-      } else {
-        this.$router.push(`project/${this.project.id}`);
-      }
+      
+      // 프로젝트 생성 완료 이벤트 발생
+      this.$EventBus.$emit("projectCreated");
+      
+      // 다이얼로그 닫기
       this.close();
+      
+        // 프로젝트 ID 안전하게 보존
+        const createdProjectId = this.project.id;
+        console.log("일반 프로젝트 ID 보존:", createdProjectId);
+        
+        // 약간의 지연 후 페이지 이동 (목록 업데이트 완료 후)
+        setTimeout(() => {
+          if (this.$route.params?.id) {
+            this.$router.go();
+          } else {
+            if (createdProjectId) {
+              this.$router.push(`/project/${createdProjectId}`);
+            } else {
+              console.error("일반 프로젝트 ID가 없어 페이지 이동 불가");
+            }
+          }
+        }, 200);
     },
 
     close() {

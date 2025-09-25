@@ -4,8 +4,11 @@ export async function getProjectList() {
   let response = null;
 
   try {
+    console.log("🌐 API 호출: /api/project_list_get");
     response = await axios.get("/api/project_list_get");
+    console.log("📡 API 응답 받음:", response.status, response.data);
   } catch (error) {
+    console.error("❌ API 호출 실패:", error);
     throw new Error(error);
   }
 
@@ -28,8 +31,11 @@ export async function createProject(name, description = "") {
   let response = null;
 
   try {
+    console.log("🚀 프로젝트 생성 API 호출:", { name, description });
     response = await axios.post("/api/project_create", { project_name: name, project_description: description });
+    console.log("✅ 프로젝트 생성 성공:", response.data);
   } catch (error) {
+    console.error("❌ 프로젝트 생성 실패:", error);
     throw new Error(error);
   }
 

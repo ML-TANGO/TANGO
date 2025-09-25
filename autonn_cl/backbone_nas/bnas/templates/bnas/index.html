@@ -1,0 +1,140 @@
+<!DOCTYPE html>
+{% load static %}
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>TANGO</title>
+    <link rel="stylesheet" href="{% static 'css/style.css' %}">
+</head>
+<body>
+    <div id="margin1"></div>
+
+
+    <div class="Title">
+        BackboneNAS
+    </div>
+
+    <div class="container" id="Info">
+        <div class="Sub_title">
+            <p>Target Device</p>
+        </div>
+        <div id="margin2"></div>
+        <img src="{% static 'images/tar_phone.jpg' %}">
+
+        <!-- <form action="{% url 'bnas:InfoList' %}" method="POST" enctype="multipart/form-data">
+            <input type="file" name="target_yaml" accept=".yaml">
+            {% csrf_token %}
+            <input type="submit" value="UPLOAD">
+        </form> -->
+
+        <div id="margin2"></div>
+
+        <div class="Sub_title">
+            <p>Dataset</p>
+        </div>
+        <div id="margin2"></div>
+        <img src="{% static 'images/data_det.PNG' %}">
+
+        <div id="margin2"></div>
+
+        <!-- <form action="{% url 'bnas:InfoList' %}" method="POST" enctype="multipart/form-data">
+            <input type="file" name="data_yaml" accept=".yaml">
+            {% csrf_token %}
+            <input type="submit" value="Upload">
+        </form>  -->
+        
+    </div>
+
+    <div class="Title2">
+        <p>Parameter Setting</p>
+    </div>
+
+    <div class="reports">
+
+        <form action="{% url 'bnas:RunBNAS' %}" method="GET" enctype="multipart/form-data">
+            <table width="100%" >
+                <tr>
+                    <td width="25%">
+                        <div class="Sub_title">
+                            GPUs
+                        </div>
+                    </td>
+                    <td width="15%">
+                        <div class="Sub_title">
+                            Image Size
+                        </div>
+                    </td>
+                    <td width="40%">
+                        <div class="Sub_title">
+                            ENAS Setting
+                        </div>
+                    </td>
+                </tr>
+                <tr>
+                    <td width="20%">
+                        <div class="param_back">
+                            <div class = 'user-text'>
+                                <p>
+                                    <label><input type='radio' name='GPUs' value='0' checked/> Single GPU </label>
+                                    <label><input type='radio' name='GPUs' value='1' />Multi-GPUs</label>
+                            </div>
+                            <div class = 'user-text2'>
+                                    <label>Node 수: <input type="number"value=" " ></label><br>
+                                    <label>Node당 GPU 수: <input type="number"value=" "></label><br>
+                                </p>   
+                            </div>
+                        </div>
+                    </td>
+                    <td width="15%">
+                        <div class="param_back">
+                            <div class = 'user-text3'>
+                                <p>
+                                    <label><input type='radio' name='Image size' value='1280' /> 1280*1280</label>
+                                    <br><label><input type='radio' name='Image size' value='640' checked/> 640*640</label>
+                                </p>   
+                            </div>
+                        </div>
+                    </td>
+                    <td width="40%">
+                        <div class="param_back">
+                            <table width="90%" >
+                                <td width="10%">
+                                    <div class = 'user-text4'>
+                                        <p>
+                                            <label><input type="radio" name="NASset" value="auto" checked> Automatic</label>
+                                            <br><label><input type="radio" name="NASset" value=None> Manual</label>
+                                            <br>        
+                                        </p>  
+                                </td>
+                                <td width="30%"> 
+                                    </div>
+                                    <div class = 'user-text5'>
+                                            <label>Batch size: <input type="number" name="bs"  value=" "></label><br>
+                                            <label>Maximum Latency: <input type="number" name="mlatency" value=" "></label><br>
+                                            <label>Population size: <input type="number" name="popsize" value=" "></label><br>
+                                            <label>Iteration: <input type="number" name = "niter" value=" "></label><br>
+                                    </div>
+                                </td>
+                            </table>
+                        </div>
+                    </td>
+                </tr>
+            </table>
+    </div>
+            {% csrf_token %}
+            <input type="submit" style="margin-left: 33%; margin-top: 15px;" value = "Backbone Search">
+            <!-- <input type = 'submit' value = '전송'> -->
+        </form>
+    
+
+    <!-- <div id="margin3"></div> -->
+    <div id="margin2"></div>
+
+    <div class="net2viz">
+        <p>{{ path }}</p>
+    </div>
+    
+
+</body>
+</html>

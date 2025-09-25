@@ -1,0 +1,8 @@
+# ResNet/sample_yaml/neural_net_info.yaml
+# meta file from auto_nn
+# NN Model
+
+base_dir_autonn: 'resnet_core/resnet_utils'
+class_file: ['models/resnet_cifar10.py', 'inference.py']
+class_name: ResNet.load_config('basemodel.yaml')
+weight_file: resnet.pt

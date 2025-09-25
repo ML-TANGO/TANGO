@@ -1,0 +1,25 @@
+# BasicBlock, [2, 2, 2, 2]
+name: resnet18
+hyp: tiny
+imgsz: 640
+nc: 1000
+
+backbone:
+  [[-1, 1, nn.Conv2d, [64, 7, 2, 3, 1, 1, False]], #0
+   [-1, 1, nn.BatchNorm2d, [64]],
+   [-1, 1, nn.ReLU, [True]],
+   [-1, 1, nn.MaxPool2d, [3, 2, 1, 1, False, False]],
+   [-1, 1, BasicBlock, [64, 1, False, 1, 64, 1, None]], #4 - 1
+   [-1, 1, BasicBlock, [64, 1, False, 1, 64, 1, None]], #5 - 2
+   [-1, 1, BasicBlock, [128, 2, True,  1, 64, 1, None]], #6 - 1
+   [-1, 1, BasicBlock, [128, 1, False, 1, 64, 1, None]], #7 - 2
+   [-1, 1, BasicBlock, [256, 2, True,  1, 64, 1, None]], #8 - 1
+   [-1, 1, BasicBlock, [256, 1, False, 1, 64, 1, None]], #9 - 2
+   [-1, 1, BasicBlock, [512, 2, True,  1, 64, 1, None]], #10 - 1
+   [-1, 1, BasicBlock, [512, 1, False, 1, 64, 1, None]], #11 - 2
+  ]
+
+head:
+  [[-1, 1, nn.AdaptiveAvgPool2d, [1]], #12
+   [-1, 1, nn.Linear, [nc, True]], #13
+  ]

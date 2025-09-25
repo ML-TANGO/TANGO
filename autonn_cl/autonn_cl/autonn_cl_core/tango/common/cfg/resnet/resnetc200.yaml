@@ -1,0 +1,22 @@
+# BasicBlock_cifar, [33, 33, 33]
+name: resnetc200
+hyp: tiny
+imgsz: 256
+nc: 2 # NORMAL / PNEUMONIA
+
+backbone:
+  [[-1, 1, nn.Conv2d, [16, 3, 1, 1, 1, 1, False]], #0
+   [-1, 1, nn.BatchNorm2d, [16]],
+   [-1, 1, nn.ReLU, [True]],
+   [-1, 33, cBasicBlock, [16, 1]], #3 - 1-33  : layer0
+   [-1, 1, cBasicBlock, [32, 2]],  #4 - 1     : layer1
+   [-1, 32, cBasicBlock, [32, 1]], #5 - 2-33  : layer1
+   [-1, 1, cBasicBlock, [64, 2]],  #6 - 1     : layer2
+   [-1, 32, cBasicBlock, [64, 1]], #7 - 2-33  : layer2
+  ]
+
+head:
+  [[-1, 1, nn.AdaptiveAvgPool2d, [1]],  #8
+   [-1, 1, nn.Flatten, []],             #9
+   [-1, 1, nn.Linear, [nc, True]],      #10
+  ]

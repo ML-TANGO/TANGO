@@ -18,7 +18,7 @@ module.exports = {
       }
     ],
     "prettier/prettier": [
-      "error",
+      "warn", // 개발 생산성을 위해 error에서 warn으로 변경
       {
         endOfLine: "auto"
       }

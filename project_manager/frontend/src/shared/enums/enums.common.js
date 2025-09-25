@@ -1,7 +1,8 @@
 export const TaskType = Object.freeze({
   DETECTION: "detection",
   CLASSIFICATION: "classification",
-  CHAT: "chat"
+  CHAT: "chat",
+  SEGMENTATION: "segmentation" // Segmentation 기능을 위한 Task Type 추가
 });
 
 // 사용안함
@@ -44,6 +45,7 @@ export const ProjectRequiredColumn = [
 export const ContainerName = {
   BMS: "bms",
   AUTO_NN: "autonn",
+  AUTO_NN_CL: "autonn_cl",  // AutoNN_CL 추가
   AUTO_NN_YOLOE: "yoloe",
   AUTO_NN_RESNET: "autonn-resnet",
   CODE_GEN: "code_gen",
@@ -55,6 +57,7 @@ export const ContainerName = {
 export const DisplayName = {
   [ContainerName.BMS]: "BMS",
   [ContainerName.AUTO_NN]: "Auto NN",
+  [ContainerName.AUTO_NN_CL]: "AutoNN CL",  // AutoNN_CL 표시명 추가
   [ContainerName.AUTO_NN_YOLOE]: "Auto NN",
   [ContainerName.AUTO_NN_RESNET]: "Auto NN",
   [ContainerName.CODE_GEN]: "Code Gen",
@@ -240,5 +243,6 @@ export const LearningType = Object.freeze({
   NORMAL: "normal",
   INCREMENTAL: "incremental",
   TRANSFER: "transfer",
-  HPO: "HPO"
+  HPO: "HPO",
+  CONTINUAL_LEARNING: "continual_learning" // Segmentation을 위한 Continual Learning Type 추가
 });

@@ -1,0 +1,105 @@
+.label {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  transition: background 0.2s ease;
+  min-height: 28px;
+}
+
+.label:hover {
+  cursor: pointer;
+  background: rgba(220, 220, 220, 0.4);
+}
+
+.textareaView {
+  overflow-y: auto;
+  transition: background 0.2s ease;
+}
+
+/* Width */
+.textareaView::-webkit-scrollbar {
+  width: 8px;
+}
+/* Track */
+.textareaView::-webkit-scrollbar-track {
+  background: #f1f1f1;
+}
+/* Handle */
+.textareaView::-webkit-scrollbar-thumb {
+  background: #ccc;
+}
+/* Handle on hover */
+.textareaView::-webkit-scrollbar-thumb:hover {
+  background: #aaa;
+}
+/* Handle on drag */
+.textareaView::-webkit-scrollbar-thumb:active {
+  background: #666;
+}
+
+.textareaView:hover {
+  cursor: pointer;
+  background: rgba(220, 220, 220, 0.4);
+}
+
+.shared {
+  width: 100%;
+  padding: 5px;
+  display: block;
+  margin: 3px 0;
+  scrollbar-width: thin;
+}
+
+/* Width */
+.shared::-webkit-scrollbar {
+  width: 8px;
+}
+/* Track */
+.shared::-webkit-scrollbar-track {
+  background: #f1f1f1;
+}
+/* Handle */
+.shared::-webkit-scrollbar-thumb {
+  background: #ccc;
+}
+/* Handle on hover */
+.shared::-webkit-scrollbar-thumb:hover {
+  background: #aaa;
+}
+/* Handle on drag */
+.shared::-webkit-scrollbar-thumb:active {
+  background: #666;
+}
+
+.placeholder {
+  color: #999;
+}
+
+.inline {
+  display: inline !important;
+}
+
+.readonly {
+  cursor: auto !important;
+}
+
+.readonly:hover {
+  cursor: auto !important;
+}
+
+.displayContainer {
+  display: flex;
+}
+
+.editButton {
+  background-color: #fff;
+  color: black;
+  border: 0;
+  outline: none;
+  min-width: 28px;
+}
+
+.editButton:focus {
+  border: 0;
+  outline: none;
+}

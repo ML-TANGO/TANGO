@@ -1,0 +1,27 @@
+# BasicBlock_cifar, [3, 3, 3]
+name: resnetc20
+hyp: tiny
+imgsz: 256
+nc: 2 # NORMAL / PNEUMONIA # it may be changed according to dataset
+ch: 1 # grey  # it may be changed according to dataset
+
+backbone:
+  [[-1, 1, nn.Conv2d, [16, 3, 1, 1, 1, 1, False]], #0
+   [-1, 1, nn.BatchNorm2d, [16]],
+   [-1, 1, nn.ReLU, [True]],
+   [-1, 1, cBasicBlock, [16, 1]], #3 - 1 : layer0
+   [-1, 1, cBasicBlock, [16, 1]], #4 - 2 : layer0
+   [-1, 1, cBasicBlock, [16, 1]], #5 - 3 : layer0
+   [-1, 1, cBasicBlock, [32, 2]], #6 - 1 : layer1
+   [-1, 1, cBasicBlock, [32, 1]], #7 - 2 : layer1
+   [-1, 1, cBasicBlock, [32, 1]], #8 - 3 : layer1
+   [-1, 1, cBasicBlock, [64, 2]], #9 - 1 : layer2
+   [-1, 1, cBasicBlock, [64, 1]], #10- 2 : layer2
+   [-1, 1, cBasicBlock, [64, 1]], #11- 3 : layer2
+  ]
+
+head:
+  [[-1, 1, nn.AdaptiveAvgPool2d, [1]],  #12
+   [-1, 1, nn.Flatten, []],             #13
+   [-1, 1, nn.Linear, [nc, True]],      #14
+  ]

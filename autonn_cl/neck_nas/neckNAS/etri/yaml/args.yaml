@@ -1,0 +1,44 @@
+# YAML for 'search'
+cfg: 'neckNAS/etri/yaml/basemodel.yaml'       # backbone
+neck_cfg: 'neckNAS/etri/yaml/superneck.yaml'  # neck
+target: 'neckNAS/etri/yaml/target.yaml'       # target
+dataset: 'neckNAS/etri/yaml/coco128.yaml'     # dataset
+train_mode: 'search'                          # ['search', 'retrain']
+nas_type: 'ConcatEntirePath'                  # ['ConcatBasedNet', 'ConcatEntirePath', 'Yolov5Trainer']
+search_type: 'one_stage'                      # ['one_stage', 'two_stage']
+weights: ''                                   # pre-trained weights
+hyp: 'neckNAS/etri/yaml/hyp.scratch-low.yaml' # hyper-parameter
+epochs: 300                                   # total epochs
+batch_size: 16                                # batch size
+imgsz: 640                                    # input image size
+rect: False                                   # rectangular training if True
+resume: False                                 # resume training if True
+nosave: False                                 # only save final ckpt if True
+noval: False                                  # only validate at final epoch if True
+noautoanchor: False                           # disable autoanchor if True
+noplots: False                                # do not save plot files if True
+evolve: 300                                   # total epochs for hpo
+cache: 'ram'                                  # ['ram', 'disk'] cache images
+image_weights: False                          # use weighted image selection for training
+device: 0                                     # cuda device (ex. 0 or 0,1,2,3 or cpu)
+multi_scale: False                            # vary img-size +/-50% 
+single_cls: False                             # train multi-class data as single-class
+optimizer: 'SGD'                              # ['SGD', 'Adam', 'AdamW']
+sync_bn: False                                # use sync batch norm, available in ddp mode if True
+workers: 8                                    # max dataloader workers
+project: 'neckNAS/etri/run/train'             # root directory to save this project 
+name: 'exp'                                   # save to project/name
+exist-ok: False                               # overwrite existing project/name if True
+quad: False                                   # quad dataloader
+cos_lr: False                                 # learning rate scheduler
+label_smoothing: 0.0                          # epsilon for label smoothing
+patience: 100                                 # early stopping epochs w/o improvment
+freeze: [0]                                   # freeze layers (ex. [0 1 2] for first-3)
+save_period: -1                               # save ckpt every x epochs (disable if < 1)
+local_rank: -1                                # ddp parameter
+checkpoint_path: ''                           # path to save ckpt (.pt)
+arch_path: ''                                 # path to save network architecture (.yaml)
+no_warmup: False                              # train without warmup at the begining
+log_freq: 10                                  # save logs every x epochs
+arch_lr: 0.001                                # learning rate for architecture parameters
+exported_arch_path: ''                        # path to the best architecture

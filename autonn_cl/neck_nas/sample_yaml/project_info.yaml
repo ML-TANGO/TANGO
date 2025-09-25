@@ -1,0 +1,25 @@
+# common
+task_type : detection          # classification/detection
+target_info : T4               # /pc/on_device/cloud
+cpu : x86                      # arm/x86
+acc : cpu                      # cuda/opencl/cpu
+memory: 32                     # GByte unit
+os : ubuntu                    # windows/ubuntu/android
+engine : pytorch               # acl/rknn/pytorch
+target_hostip : 1.2.3.4        # optional, (only applicable for target_info == [pc|cloud] ) requested by Lablup on Oct. 17, 2022
+target_hostport : 8080         # optional, (only applicable for target_info == [pc|cloud] ) requested by Lablup on Oct. 17, 2022
+target_serviceport : 5051      # optional, (only applicable for target_info == [pc|cloud] ) requested by Lablup on Oct. 17, 2022
+
+# for autonn
+nas_type : neck_nas            # possible enums are 'bb_nas' | 'neck_nas', default 'neck_nas'
+dataset : dataset.yaml         # dataset path info for this project
+basemodel: basemodel.yaml      # base model
+
+# for deploy  (optional)
+# lightweight_level : 5          # 0 .. 10
+# precision_level : 5            # 0 .. 10
+# preprocessing_lib : cv2        # cv2
+# input_method : mp4             # camera/mp4/picture/folder
+# input_data_location : /data
+# output_method : graphic        # console/graphic/mp4
+# user_editing : no              # allow users to modify code
