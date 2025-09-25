@@ -315,6 +315,7 @@ def train(proj_info, hyp, opt, data_dict, tb_writer=None):
     else:
         ''' learning from scratch '''
         if task == 'classification':
+            logger.info("creating classification model")
             model = ClassifyModel(
                 opt.cfg, 
                 ch=ch, 
@@ -838,7 +839,7 @@ def train(proj_info, hyp, opt, data_dict, tb_writer=None):
                 logger.warning(f"taks = {task}: only detection task supports image weight")
 
         # Stop mosaic augmentation
-        if epoch == (epochs - opt.close_mosaic):
+        if opt.loss_name == 'TAL' and epoch == (epochs - opt.close_mosaic):
             logger.info("Closing dataloader mosaic")
             dataset.mosaic = False
 
@@ -909,10 +910,10 @@ def train(proj_info, hyp, opt, data_dict, tb_writer=None):
                     # status_update(userid, project_id,
                     #           update_id="hyperparameter",
                     #           update_content=hyp)
-                    logger.info(f'step-{i} warming up... '
-                                f'bias lr = {optimizer.param_groups[0]["lr"]}, '
-                                f'lr = {x["lr"]}, '
-                                f'momentum={x["momentum"]}')
+                    # logger.info(f'step-{i} warming up... '
+                    #             f'bias lr = {optimizer.param_groups[0]["lr"]}, '
+                    #             f'lr = {x["lr"]}, '
+                    #             f'momentum={x["momentum"]}')
 
                 # Multi-scale
                 if opt.multi_scale:
@@ -1023,7 +1024,7 @@ def train(proj_info, hyp, opt, data_dict, tb_writer=None):
                     #         tb_writer.add_image(f, result, dataformats='HWC', global_step=epoch)
                     #         tb_writer.add_graph(torch.jit.trace(model, imgs, strict=False), [])  # add model graph
         elif task == 'classification':
-            logger.info(('\n' + '%10s' * 6) % ('TrainEpoch', 'GPU_Mem', 'Batch', 'mLoss', 'mAcc', '=curr/all'))
+            logger.info(('\n' + '%10s' * 6) % ('TrainEpoch', 'GPU_Mem', 'Batch', 'mLoss', 'mAcc', '=correct/all'))
             accumulated_imgs_cnt = 0
             tacc = 0
             for i, (imgs, targets) in pbar:
@@ -1106,8 +1107,8 @@ def train(proj_info, hyp, opt, data_dict, tb_writer=None):
                     status_update(userid, project_id,
                                   update_id="train_loss",
                                   update_content=train_loss)
-                    if len(dataloader) -1 == i:
-                        logger.info(f'{s}')
+                    # if len(dataloader) -1 == i:
+                    logger.info(f'{s}')
         # training batches end =================================================
 
         # Scheduler

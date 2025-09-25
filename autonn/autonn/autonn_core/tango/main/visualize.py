@@ -748,15 +748,7 @@ class BasemodelViewer:
 
         try:
             info = Info.objects.get(userid=self.userid, project_id=self.projid)
-            task_type = info.task  # task_type이 classification인지 detection인지 확인
-
-            if task_type == "detection":
-                # Yolov9.json 파일 업데이트 수행
-                self.update_detection()
-            elif task_type == "classification":
-                # 기존 방식으로 업데이트 수행
-                self.update_classification()
-
+            self.update_legacy()
             info.progress = "viz_update"
             info.save()
         except Info.DoesNotExist:
@@ -764,8 +756,8 @@ class BasemodelViewer:
 
         # logger.info(f'{colorstr("Visualizer: ")}Updating nodes and edges complete\n')
 
-    def update_classification(self):
-        self.initialize()
+    def update_legacy(self):
+        # self.initialize()
 
         json_data = OrderedDict()
         json_data["node"] = self.layers
@@ -782,7 +774,7 @@ class BasemodelViewer:
                 serializerE.save()
         logger.info(f'{colorstr("Visualizer: ")}Update nodes and edges')
 
-    def update_detection(self):
+    def update_yolov9m(self):
         self.initialize()
 
         yolov9_json_path = "/source/autonn_core/tango/common/cfg/yolov9/Yolov9.json"
@@ -801,6 +793,24 @@ class BasemodelViewer:
                 serializerE.save()
         logger.info(f'{colorstr("Visualizer: ")}Update nodes and edges')
 
+    def update_vgg16(self):
+        self.initialize()
+
+        yolov9_json_path = "/source/autonn_core/tango/common/cfg/vgg/VGG16.json"
+
+        with open(yolov9_json_path, 'r', encoding='utf-8-sig') as j:
+            json_data = json.load(j)
+
+        for i in json_data.get("node"):
+            serializerN = NodeSerializer(data=i)
+            if serializerN.is_valid():
+                serializerN.save()
+
+        for j in json_data.get("edge"):
+            serializerE = EdgeSerializer(data=j)
+            if serializerE.is_valid():
+                serializerE.save()
+        logger.info(f'{colorstr("Visualizer: ")}Update nodes and edges')
 
 def export_pth(file_path):
     """

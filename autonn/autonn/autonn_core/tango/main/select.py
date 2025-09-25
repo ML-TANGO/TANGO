@@ -56,6 +56,7 @@ TASK_TO_MODEL_TABLE = {
     "detection": "yolov9",
     "classification": "resnet",
     "classification-c": "resnetc",
+    "classification-v": "vgg",
 }
 
 # Model size mapping by target
@@ -97,6 +98,15 @@ MODEL_TO_SIZE_TABLE = {
         "MS" : "44",
         "S"  : "32",
         "T"  : "20",
+    },
+    "vgg": {
+        "XXL": "19",
+        "XL" : "19",
+        "L"  : "19",
+        "M"  : "16",
+        "MS" : "16",
+        "S"  : "11",
+        "T"  : "11",
     }
 }
 
@@ -226,8 +236,12 @@ def get_user_requirements(userid, projid, resume=False):
     )
 
     # Load arguments
-    _task =  'detection7' if basemodel['model_name'] == 'YOLOV7' or target == 'galaxys22' else task
-    opt_yaml_path = PROJ_PATH / f'args-{_task}.yaml'
+    # _task =  'detection7' if basemodel['model_name'] == 'YOLOV7' or target == 'galaxys22' else task
+    # opt_yaml_path = PROJ_PATH / f'args-{_task}.yaml'
+    if basemodel['model_name'] == 'YOLOV7' or target == 'galaxys22':
+        opt_yaml_path = CFG_PATH / f'args-detection7.yaml'
+    else:
+        opt_yaml_path = PROJ_PATH / f'args-{task}.yaml'
 
     if skip_bms:
         opt_yaml_path = str(PROJ_PATH / 'autonn' / 'opt.yaml')
@@ -450,10 +464,14 @@ def base_model_select(userid, project_id, proj_info, data, manual_select=False):
     else:
         logger.warning(f"\nBMS: Not supported task: {task}")
 
-    # Special case for Galaxy S22 with detection task
-    if target == 'galaxys22' and task == 'detection':
-        task_ = 'detection7'
-        model_size = 'NAS'
+    # Special case for Galaxy S22
+    if target == 'galaxys22':
+        if task == 'detection':
+            task_ = 'detection7'
+            model_size = 'NAS'
+        else: # taks == 'classification'
+            task_ = 'classification-v'
+            model_size = 'M' # = vgg16
 
     # Look up appropriate model
     if not manual_select:
@@ -477,7 +495,9 @@ def base_model_select(userid, project_id, proj_info, data, manual_select=False):
     # construct visualization
     viewer = BasemodelViewer(userid, project_id)
     if model.upper() == 'YOLOV9': # and size.upper() == '-M':
-        viewer.update_detection()
+        viewer.update_yolov9m()
+    elif model.upper() == 'VGG':
+        viewer.update_vgg16()
     else:
         viewer.parse_yaml(target_path, data)
         viewer.update()
