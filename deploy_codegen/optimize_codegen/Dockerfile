@@ -1,18 +1,20 @@
 #FROM python:3.8
-FROM python:3.9
+FROM python:3.9-bullseye
 
 ENV CMAKE_ARGS="-DONNX_USE_PROTOBUF_SHARED_LIBS=ON"
 
 RUN apt-get update
 RUN pip3 install --upgrade pip
+
 # RUN apt-get install -y build-essential cmake git libprotoc-dev protobuf-compiler 
 # RUN apt-get install -y build-essential git libprotoc-dev protobuf-compiler 
 RUN git init
 RUN git update-ref -d HEAD
 RUN pip3 install "pybind11[golbal]"
-RUN pip3 install tensorflow tf_keras  tensorflow-datasets
+RUN pip3 install tensorflow==2.18.0  tf_keras==2.18.0  tensorflow-datasets
 RUN pip3 install onnx2tf==1.20
-RUN pip3 install onnx onnx-simplifier  onnx_graphsurgeon
+#RUN pip3 install onnx==1.14.1 onnx-simplifier  onnx_graphsurgeon
+RUN pip3 install onnx==1.15.0 onnx-simplifier  onnx_graphsurgeon
 RUN pip3 install sng4onnx numpy
 RUN pip3 install tvm
 RUN pip3 install decorator
@@ -28,7 +30,7 @@ COPY db/yolo_v3_tiny_darknet_fp32.tflite /app/db
 COPY db/odroid-m1-manual.txt /app/db
 COPY db/odroid-n2-manual.txt /app/db
 COPY db/yolov3/. /app/db/yolov3
-# ADD  https://s3.ap-northeast-2.amazonaws.com/backend.ai/offline-installers/yolov3.pt /app/db/yolov3
+
 RUN apt-get install -y zlib1g-dev libedit-dev libxml2-dev libusb-1.0-0
 RUN pip3 install pyyaml requests
 # RUN pip3 install torch==1.7.0
@@ -47,6 +49,7 @@ RUN pip3 install ipython
 RUN pip3 install onnxslim
 RUN pip3 install onnxruntime
 RUN pip3 install tflite_support
+RUN pip3 install cython
 WORKDIR /app
 RUN git init
 ADD https://github.com/llvm/llvm-project/archive/refs/tags/llvmorg-18.1.8.zip /app
@@ -58,7 +61,13 @@ RUN cmake -S llvm -B build -G Ninja -DCMAKE_BUILD_TYPE=Release
 RUN ninja -C build install
 
 WORKDIR /app
-RUN git clone --recursive https://github.com/apache/tvm tvm
+# khlee 250828 RUN git clone --recursive https://github.com/apache/tvm tvm
+ADD https://dlcdn.apache.org/tvm/tvm-v0.19.0/apache-tvm-src-v0.19.0.tar.gz /app
+RUN gunzip apache-tvm-src-v0.19.0.tar.gz 
+RUN tar xvf apache-tvm-src-v0.19.0.tar 
+RUN mv apache-tvm-src-v0.19.0 tvm
+RUN rm apache-tvm-src-v0.19.0.tar 
+
 WORKDIR /app/tvm
 RUN rm -rf build && mkdir build 
 WORKDIR /app/tvm/build
@@ -82,7 +91,7 @@ RUN pip3 install -e $TVM_HOME/python
 
 # for android
 WORKDIR /app
-ENV DEBIAN_FRONTEND noninteractive
+ENV DEBIAN_FRONTEND=noninteractive
 
 RUN apt-get update && apt-get install -y  \
     wget \
