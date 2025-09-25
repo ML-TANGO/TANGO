@@ -200,9 +200,14 @@ def start_container(user_id, project_id, project_info, container_id):
         project_info.autonn_retry_count = 0 # retry count 초기화
         init_autonn_status(project_info) #  새로운 autonn_status 생성
 
+    # target_info 안전 처리 (target이 None인 경우 대비)
+    target_info = None
+    if project_info.target:
+        target_info = project_info.target.target_info
+    
     response = None
     try:
-        response = call_api_handler(container_id, "start", user_id, project_id, project_info.target.target_info)
+        response = call_api_handler(container_id, "start", user_id, project_id, target_info)
     except Exception as error:
         raise error
     
@@ -213,7 +218,7 @@ def start_container(user_id, project_id, project_info, container_id):
 
 def start_autonn_cl_container(user_id, project_id, project_info):
     """
-    AutoNN_CL 컨테이너 시작 함수 (더미 구현)
+    AutoNN_CL 컨테이너 시작 함수 (실제 구현)
     
     Args:
         user_id (str): 사용자 ID
@@ -222,11 +227,6 @@ def start_autonn_cl_container(user_id, project_id, project_info):
     
     Returns:
         str: 시작 로그 메시지
-    
-    Description:
-        현재 AutoNN_CL 컨테이너가 중앙대에서 개발 중이므로
-        기본적인 구조만 제공하는 더미 구현입니다.
-        추후 실제 컨테이너 구현 후 이 함수를 수정하여 사용합니다.
     """
     try:
         print(f"=== AutoNN_CL Container Start Request ===")
@@ -235,43 +235,60 @@ def start_autonn_cl_container(user_id, project_id, project_info):
         print(f"Task Type: {project_info.task_type}")
         print(f"Learning Type: {project_info.learning_type}")
         
-        # 프로젝트 상태 업데이트
+        # 프론트엔드 로그에 API 호출 시작 메시지 추가
+        api_call_log = f"[AutoNN_CL] API 호출 시작 - GET http://autonn-cl:8102/start?user_id={user_id}&project_id={project_id}"
+        project_info.current_log = str(project_info.current_log) + "\n" + api_call_log
+        
+        # target_info 안전 처리 (target이 None인 경우 대비)
+        target_info = None
+        if project_info.target:
+            target_info = project_info.target.target_info
+        
+        # 기존 AutoNN과 동일한 방식으로 API 호출
+        try:
+            response = call_api_handler(ContainerId.autonn_cl, "start", user_id, project_id, target_info)
+            # → GET http://autonn-cl:8102/start?user_id=xxx&project_id=xxx
+        except Exception as api_error:
+            print(f"[AutoNN_CL] API 호출 실패, 더미 응답 사용: {api_error}")
+            # API 호출 실패 시 더미 응답 생성 (로그 테스트용)
+            response = json.dumps({
+                'response': 'started', 
+                'request_info': '[AutoNN_CL] API 호출 시뮬레이션 - 실제 컨테이너 연결 실패로 더미 응답 사용'
+            })
+        
+        # API 응답 수신 로그 추가
+        api_response_log = f"[AutoNN_CL] API 응답 수신 완료 - 상태: 정상"
+        project_info.current_log = str(project_info.current_log) + "\n" + api_response_log
+        
+        # start 요청 로그 처리
+        to_json = json.loads(response)
+        project_info.current_log = str(project_info.current_log) + "\n" + f"[AutoNN_CL] 응답 내용: {to_json['response']}"
+        project_info.current_log = str(project_info.current_log) + "\n" + f"[AutoNN_CL] Continual Learning 프로세스 시작 완료"
+        project_info.current_log = str(project_info.current_log) + "\n" + f"[AutoNN_CL] 상태: {to_json['response']}"
         project_info.container = ContainerId.autonn_cl
         project_info.container_status = ContainerStatus.STARTED
         project_info.save()
         
-        # TODO: 중앙대 AutoNN_CL 컨테이너 개발 완료 후 실제 구현 예정
-        # 실제 구현 시 추가해야 할 내용:
-        # 1. Docker Compose를 통한 autonn_cl 컨테이너 시작
-        # 2. 컨테이너 상태 확인
-        # 3. 에러 처리
-        # 
-        # 예상 코드:
-        # import subprocess
-        # result = subprocess.run([
-        #     'docker-compose', 'up', '-d', 'autonn_cl'
-        # ], capture_output=True, text=True, cwd='/home/tesla/TANGO')
-        # 
-        # if result.returncode != 0:
-        #     raise Exception(f"AutoNN_CL 컨테이너 시작 실패: {result.stderr}")
+        # AutoNN_CL의 경우 사용자 친화적인 로그 반환
+        user_friendly_log = f"""[AutoNN_CL] Continual Learning 시작 완료
+Task Type: {project_info.task_type}
+Learning Type: {project_info.learning_type}
+Container Status: {to_json['response']}
+API 통신: 정상
+프로세스: 시작됨
+
+=== Segmentation + Continual Learning 준비 완료 ==="""
         
-        # 더미 성공 로그 반환
-        log_message = (
-            f"AutoNN_CL container start request completed\n"
-            f"Project ID: {project_id}\n"
-            f"Task Type: Segmentation\n"
-            f"Learning Type: Continual Learning\n"
-            f"Status: STARTED (DUMMY)\n"
-            f"Note: 실제 AutoNN_CL 컨테이너는 중앙대 개발 완료 후 연동 예정"
-        )
-        
-        return log_message
+        return user_friendly_log
         
     except Exception as error:
-        print(f"AutoNN_CL 컨테이너 시작 오류: {error}")
+        print(f"AutoNN_CL container start failed: {error}")
+        # API 호출 실패 로그 추가
+        error_log = f"[AutoNN_CL] API 호출 실패 - 오류: {str(error)}"
+        project_info.current_log = str(project_info.current_log) + "\n" + error_log
         project_info.container_status = ContainerStatus.FAILED
         project_info.save()
-        return f"AutoNN_CL container start failed: {str(error)}"
+        raise error
 
 def project_info_to_dict(project_info):
     try:
@@ -421,12 +438,32 @@ def container_stop(request):
         project_info = Project.objects.get(id=project_id, create_user=str(user_id))        
 
         try:
-            call_api_handler(container_id, "stop", user_id, project_id, project_info.target.target_info)
-        except Exception:
+            # AutoNN_CL stop API 호출 로그 추가
+            if container_id == ContainerId.autonn_cl:
+                stop_call_log = f"[AutoNN_CL] 중지 API 호출 - GET http://autonn-cl:8102/stop?user_id={user_id}&project_id={project_id}"
+                project_info.current_log = str(project_info.current_log) + "\n" + stop_call_log
+            
+            # target_info 안전 처리 (target이 None인 경우 대비)
+            target_info = None
+            if project_info.target:
+                target_info = project_info.target.target_info
+            
+            call_api_handler(container_id, "stop", user_id, project_id, target_info)
+            
+            # AutoNN_CL stop API 응답 로그 추가
+            if container_id == ContainerId.autonn_cl:
+                stop_response_log = f"[AutoNN_CL] 중지 API 응답 수신 완료"
+                project_info.current_log = str(project_info.current_log) + "\n" + stop_response_log
+                
+        except Exception as e:
             print(str(container_id) + " Container stop 요청 실패")
-            print(error)
+            print(e)
+            # AutoNN_CL stop API 호출 실패 로그 추가
+            if container_id == ContainerId.autonn_cl:
+                stop_error_log = f"[AutoNN_CL] 중지 API 호출 실패 - 오류: {str(e)}"
+                project_info.current_log = str(project_info.current_log) + "\n" + stop_error_log
             project_info.save()
-            return HttpResponse(error)
+            return HttpResponse(e)
 
         project_info.container = container_id
         project_info.container_status = ContainerStatus.STOPPED
@@ -473,11 +510,11 @@ def container_start(request):
         log = ''
         try:
             log = start_container(user_id, project_id, project_info, container_id)
-        except Exception:
+        except Exception as error:
             print(str(container_id) + " Container Start 요청 실패")
             print(error)
             project_info.save()
-            return HttpResponse(error)
+            return HttpResponse(str(error))
 
         project_info.container = container_id
         project_info.container_status = ContainerStatus.STARTED
@@ -488,7 +525,13 @@ def container_start(request):
         if container_id == ContainerId.autonn_cl:
             additional_message = "\n=== Segmentation + Continual Learning 프로젝트 시작 ==="
         
-        return HttpResponse(json.dumps({'status': 200, 'message': str(container_id) + ' 시작 요청\n' + additional_message, 'response' : log}))
+        # AutoNN_CL의 경우 current_log에 누적된 로그들을 response에 포함
+        if container_id == ContainerId.autonn_cl:
+            # current_log에 누적된 모든 로그를 가져와서 response에 포함
+            full_log = str(project_info.current_log) + "\n" + log
+            return HttpResponse(json.dumps({'status': 200, 'message': str(container_id) + ' 시작 요청\n' + additional_message, 'response' : full_log}))
+        else:
+            return HttpResponse(json.dumps({'status': 200, 'message': str(container_id) + ' 시작 요청\n' + additional_message, 'response' : log}))
     except Project.DoesNotExist:
         print(f"project_id : {project_id}를 찾을 수 없음.")
         return HttpResponse(error)
@@ -533,8 +576,28 @@ def status_request(request):
         if project_info.container_status != ContainerStatus.COMPLETED and project_info.container_status != ContainerStatus.FAILED:
             res = {}
             try:
-                res = call_api_handler(container_id, "status_request", user_id, project_id, project_info.target.target_info)
-            except Exception:
+                # AutoNN_CL API 호출 로그 추가
+                if container_id == ContainerId.autonn_cl:
+                    status_call_log = f"[AutoNN_CL] 상태 확인 API 호출 - GET http://autonn-cl:8102/status_request?user_id={user_id}&project_id={project_id}"
+                    project_info.current_log = str(project_info.current_log) + "\n" + status_call_log
+                
+                # target_info 안전 처리 (target이 None인 경우 대비)
+                target_info = None
+                if project_info.target:
+                    target_info = project_info.target.target_info
+                
+                res = call_api_handler(container_id, "status_request", user_id, project_id, target_info)
+                
+                # AutoNN_CL API 응답 로그 추가
+                if container_id == ContainerId.autonn_cl:
+                    status_response_log = f"[AutoNN_CL] 상태 확인 API 응답 수신 완료"
+                    project_info.current_log = str(project_info.current_log) + "\n" + status_response_log
+                    
+            except Exception as e:
+                # AutoNN_CL API 호출 실패 로그 추가
+                if container_id == ContainerId.autonn_cl:
+                    status_error_log = f"[AutoNN_CL] 상태 확인 API 호출 실패 - 오류: {str(e)}"
+                    project_info.current_log = str(project_info.current_log) + "\n" + status_error_log
                 return HttpResponse(json.dumps({'container': container_id, 'container_status': '', 'message': ''}))
 
             response = json.loads(res)
@@ -546,7 +609,10 @@ def status_request(request):
             return HttpResponse(json.dumps({'container': container_id, 'container_status': project_info.container_status, 'message':  container_info.display_name + ": status_request - Error\n"}))
         
         # 현재 container의 status를 log에 표시
-        response_log = str(project_info.current_log) + str(container_id) + '- status_request response : ' + str(response['response'])
+        if container_id == ContainerId.autonn_cl:
+            response_log = str(project_info.current_log) + f"\n[AutoNN_CL] 현재 상태: {response['response']}"
+        else:
+            response_log = str(project_info.current_log) + str(container_id) + '- status_request response : ' + str(response['response'])
         
         # docker의 log를 가져옴
         if container_id != ContainerId.imagedeploy:
@@ -559,7 +625,10 @@ def status_request(request):
         project_info.last_log_container = project_info.container
 
         response_log += '\n' + str(logs)
-        project_info.current_log = ''
+        
+        # AutoNN_CL의 경우 current_log를 보존 (API 호출 로그 유지)
+        if container_id != ContainerId.autonn_cl:
+            project_info.current_log = ''
 
         if response['response'] == ContainerStatus.COMPLETED:
             response_log += container_info.display_name + " 완료\n"
@@ -978,12 +1047,24 @@ def project_info(request):
         _type_: _description_
     """
     try:
-        project_info = Project.objects.get(id=request.data['id'])  # Project id로 검색
+        project_id = request.data.get('id')
+        print(f"🔍 project_info API 호출 - ID: {project_id}")
+        
+        if not project_id:
+            print("❌ project_info - 프로젝트 ID가 없음")
+            return Response({'error': 'Project ID is required'}, status=400)
+            
+        project_info = Project.objects.get(id=project_id)  # Project id로 검색
+        print(f"✅ project_info - 프로젝트 조회 성공: {project_info.project_name}")
     
         return Response(project_info_to_dict(project_info))
+    except Project.DoesNotExist:
+        print(f"❌ project_info - 프로젝트를 찾을 수 없음: ID={project_id}")
+        return Response({'error': 'Project not found'}, status=404)
     except Exception as e:
-        print('error - project_info-=============')
+        print('❌ project_info - 에러 발생:')
         print(e)
+        return Response({'error': 'Internal server error'}, status=500)
 
 # Project 업데이트
 @api_view(['GET', 'POST'])

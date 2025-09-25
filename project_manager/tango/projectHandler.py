@@ -22,6 +22,7 @@ class DockerContainerInfo:
 
 CONTAINER_INFO = {
     "autonn" : DockerContainerInfo("autonn", 8100, "autonn", "autonn", "Auto NN"),
+    "autonn_cl" : DockerContainerInfo("autonn_cl", 8102, "autonn-cl", "autonn_cl", "Auto NN CL"),
     "code_gen": DockerContainerInfo("code_gen", 8888, "codeGen", "code_gen", "Code Gen"),
     "cloud_deploy": DockerContainerInfo("imagedeploy", 8890, "cloud-deploy", "cloud_deploy", "Image Deploy"),
     "kube_deploy": DockerContainerInfo("imagedeploy", 8901, "kube-deploy", "kube_deploy", "Image Deploy"),

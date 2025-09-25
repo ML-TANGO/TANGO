@@ -114,8 +114,12 @@ export default {
       //   await this.nextPipeline();
       // }
     } catch (err) {
-      this.denyAccess();
-
+      console.error("❌ 프로젝트 상세 페이지 로딩 실패:", err);
+      console.error("- 프로젝트 ID:", this.$route.params.id);
+      console.error("- 에러 메시지:", err.message);
+      console.error("- 스택 트레이스:", err.stack);
+      
+      this.denyAccess("프로젝트 로딩 중 오류가 발생했습니다.");
       return;
     }
 
@@ -173,13 +177,17 @@ export default {
     },
 
     async setProjectInfo(data) {
+      console.log("📋 프로젝트 정보 설정:", data);
       const projectInfo = new Project(data);
 
+      console.log("🔍 프로젝트 검증 시작...");
       if (!projectInfo.validation()) {
-        this.denyAccess();
+        console.error("❌ 프로젝트 검증 실패");
+        this.denyAccess("프로젝트 설정이 완료되지 않았습니다.");
         return;
       }
 
+      console.log("📦 프로젝트 데이터 로딩 시작...");
       await projectInfo.load();
 
       this.checkDataset(projectInfo);

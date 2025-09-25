@@ -175,8 +175,11 @@ export default {
     navigation() {
       let status = true;
       const info = this.projectInfo;
+      console.log("프로젝트 네비게이션 시작:", info);
+      
       // Segmentation 프로젝트는 별도의 검증 규칙 적용
       if (info.task_type === TaskType.SEGMENTATION) {
+        console.log("Segmentation 프로젝트 검증 시작");
         status = this.validateSegmentationProject(info);
       } else {
         // 기존 검증 로직 (Detection, Classification, Chat)
@@ -203,30 +206,33 @@ export default {
      * Dataset과 Target이 없어도 유효함
      */
     validateSegmentationProject(info) {
-      console.log("Validating Segmentation project:", info);
-      // Segmentation 프로젝트에 필수인 필드들만 검증
+      console.log("Segmentation 프로젝트 검증:", info);
+      console.log("필드별 값 확인:");
+      console.log("- task_type:", info?.task_type);
+      console.log("- deploy_weight_level:", info?.deploy_weight_level);
+      console.log("- deploy_precision_level:", info?.deploy_precision_level);
+      console.log("- deploy_user_edit:", info?.deploy_user_edit);
+      console.log("- deploy_output_method:", info?.deploy_output_method);
+      
+      // Segmentation 프로젝트에 필수인 필드들만 검증 (더 안전한 체크)
       if (!info?.task_type || info?.task_type === "") {
-        console.log("Segmentation validation failed: task_type missing");
+        console.log("task_type 누락");
         return false;
       }
-      if (!info?.deploy_weight_level || info?.deploy_weight_level === "") {
-        console.log("Segmentation validation failed: deploy_weight_level missing");
-        return false;
-      }
-      if (!info?.deploy_precision_level || info?.deploy_precision_level === "") {
-        console.log("Segmentation validation failed: deploy_precision_level missing");
-        return false;
-      }
-      if (!info?.deploy_user_edit || info?.deploy_user_edit === "") {
-        console.log("Segmentation validation failed: deploy_user_edit missing");
-        return false;
-      }
-      if (!info?.deploy_output_method || info?.deploy_output_method === "") {
-        console.log("Segmentation validation failed: deploy_output_method missing");
-        return false;
-      }
+      
+      // 기본값으로 검증 통과 (값이 없으면 기본값 적용)
+      const weightLevel = info?.deploy_weight_level || "5";
+      const precisionLevel = info?.deploy_precision_level || "5";
+      const userEdit = info?.deploy_user_edit || "no";
+      const outputMethod = info?.deploy_output_method || "0";
+      
+      console.log("기본값 적용 후:");
+      console.log("- deploy_weight_level:", weightLevel);
+      console.log("- deploy_precision_level:", precisionLevel);
+      console.log("- deploy_user_edit:", userEdit);
+      console.log("- deploy_output_method:", outputMethod);
 
-      console.log("Segmentation project validation passed");
+      console.log("Segmentation 프로젝트 검증 통과");
       return true;
     },
 

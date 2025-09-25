@@ -45,6 +45,7 @@ export const ProjectRequiredColumn = [
 export const ContainerName = {
   BMS: "bms",
   AUTO_NN: "autonn",
+  AUTO_NN_CL: "autonn_cl",  // AutoNN_CL 추가
   AUTO_NN_YOLOE: "yoloe",
   AUTO_NN_RESNET: "autonn-resnet",
   CODE_GEN: "code_gen",
@@ -56,6 +57,7 @@ export const ContainerName = {
 export const DisplayName = {
   [ContainerName.BMS]: "BMS",
   [ContainerName.AUTO_NN]: "Auto NN",
+  [ContainerName.AUTO_NN_CL]: "AutoNN CL",  // AutoNN_CL 표시명 추가
   [ContainerName.AUTO_NN_YOLOE]: "Auto NN",
   [ContainerName.AUTO_NN_RESNET]: "Auto NN",
   [ContainerName.CODE_GEN]: "Code Gen",

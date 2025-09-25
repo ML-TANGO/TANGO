@@ -70,27 +70,46 @@ export class Project {
    */
   validateSegmentationProject() {
     try {
-      // Segmentation 프로젝트에 필수인 필드들만 검증
-      const segmentationRequiredFields = [
-        "task_type",
-        "deploy_weight_level",
-        "deploy_precision_level",
-        "deploy_user_edit",
-        "deploy_output_method"
-      ];
+      console.log("🔍 Segmentation 프로젝트 검증 시작:", {
+        task_type: this.task_type,
+        deploy_weight_level: this.deploy_weight_level,
+        deploy_precision_level: this.deploy_precision_level,
+        deploy_user_edit: this.deploy_user_edit,
+        deploy_output_method: this.deploy_output_method
+      });
 
-      for (const field of segmentationRequiredFields) {
-        if (!this[field]) {
-          console.log(`Segmentation validation failed: ${field} is missing`);
-          return false;
-        }
+      // task_type은 필수이므로 반드시 있어야 함
+      if (!this.task_type || this.task_type === "") {
+        console.log("❌ Segmentation validation failed: task_type is missing");
+        return false;
+      }
+
+      // 나머지 필드들은 기본값 적용
+      if (!this.deploy_weight_level) {
+        console.log("🔧 deploy_weight_level 기본값 적용: 5");
+        this.deploy_weight_level = "5";
+      }
+      
+      if (!this.deploy_precision_level) {
+        console.log("🔧 deploy_precision_level 기본값 적용: 5");
+        this.deploy_precision_level = "5";
+      }
+      
+      if (!this.deploy_user_edit) {
+        console.log("🔧 deploy_user_edit 기본값 적용: no");
+        this.deploy_user_edit = "no";
+      }
+      
+      if (!this.deploy_output_method) {
+        console.log("🔧 deploy_output_method 기본값 적용: 0");
+        this.deploy_output_method = "0";
       }
 
       // Segmentation은 target_id와 dataset이 없어도 유효함
-      console.log("Segmentation project validation passed");
+      console.log("✅ Segmentation project validation passed");
       return true;
     } catch (err) {
-      console.error("Segmentation validation error:", err);
+      console.error("❌ Segmentation validation error:", err);
       return false;
     }
   }
