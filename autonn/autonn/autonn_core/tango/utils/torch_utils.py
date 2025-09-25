@@ -345,7 +345,7 @@ class EarlyStopping:
     
     def __call__(self, epoch, fitness):
         if fitness >= self.best_fitness:
-            self.best_eopch = epoch
+            self.best_epoch = epoch
             self.best_fitness = fitness
         delta = epoch - self.best_eopch
         self.possible_stop = delta >= (self.patience - 1)
