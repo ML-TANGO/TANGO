@@ -126,7 +126,18 @@ class Bottleneck(nn.Module):
         self.conv3 = conv1x1(width, planes * self.expansion)
         self.bn3 = norm_layer(planes * self.expansion)
         self.relu = nn.ReLU(inplace=True)
-        self.downsample = downsample
+        if isinstance(downsample, bool):
+            self.downsample = (nn.Sequential(
+                conv1x1(inplanes, planes * self.expansion, stride),
+                norm_layer(planes * self.expansion),
+            ) if downsample else None)
+        elif downsample is None:
+            self.downsample = (nn.Sequential(
+                conv1x1(inplanes, planes * self.expansion, stride),
+                norm_layer(planes * self.expansion),
+            ) if (stride != 1 or inplanes != planes * self.expansion) else None)
+        else:
+            self.downsample = downsample
         self.stride = stride
 
     def forward(self, x: Tensor) -> Tensor:
@@ -493,6 +504,14 @@ class ClassifyModel(nn.Module):
             if not hasattr(self, 'traced'):
                 self.traced=False
 
+            # try:
+            #     x = m(x)  # run
+            # except Exception as e:
+            #     typ = getattr(m, 'type', type(m).__name__)
+            #     idx = getattr(m, 'i', '?')
+            #     logger.exception(f"[forward_once] failed at layer idx={idx}, type={typ}: {e}")
+            #     raise
+
             if profile:
                 import thop
                 o = thop.profile(m, inputs=x, verbose=False)[0] / 1E9 * 2 if thop else 0  # FLOPS
@@ -577,6 +596,14 @@ def parse_model(d, ch):  # model_dict, input_channels(1 or 3)
             except:
                 pass
 
+        # ---- helpers ----
+        def _decorate_module(mod_:nn.Module, iter_:int, from_:int):
+            mod_.i = iter_
+            mod_.f = from_
+            mod_.type = mod_.__class__.__name__
+            mod_.np = sum(p.numel() for p in mod_.parameters())
+            return mod_
+
         # ----------------------------------------------------------------------
         # Input shape
         # ----------------------------------------------------------------------
@@ -585,40 +612,32 @@ def parse_model(d, ch):  # model_dict, input_channels(1 or 3)
         # ----------------------------------------------------------------------
         # Channel propagation (determine c2 and ajust agrs)
         # ----------------------------------------------------------------------
-        if m in [
-            nn.Conv2d, Conv, RobustConv, RobustConv2, DWConv, GhostConv,
-            RepConv, RepConv_OREPA, DownC, SPP, SPPF, SPPCSPC, GhostSPPCSPC,
-            MixConv2d, Focus, Stem, GhostStem, CrossConv, cBasicBlock,
-            Bottleneck, BottleneckCSPA, BottleneckCSPB, BottleneckCSPC,
-            RepBottleneck, RepBottleneckCSPA, RepBottleneckCSPB, RepBottleneckCSPC,
-            Res, ResCSPA, ResCSPB, ResCSPC,
-            RepRes, RepResCSPA, RepResCSPB, RepResCSPC,
-            ResX, ResXCSPA, ResXCSPB, ResXCSPC,
-            RepResX, RepResXCSPA, RepResXCSPB, RepResXCSPC,
-            Ghost, GhostCSPA, GhostCSPB, GhostCSPC,
-            SwinTransformerBlock, STCSPA, STCSPB, STCSPC,
-            SwinTransformer2Block, ST2CSPA, ST2CSPB, ST2CSPC,
-        ]:
+        if m is nn.Conv2d:
             c1, c2 = ch[f], make_divisible(args[0], 8)
-
             args = [c1, c2, *args[1:]]
-            if m in [
-                DownC, SPPCSPC, GhostSPPCSPC,
-                BottleneckCSPA, BottleneckCSPB, BottleneckCSPC,
-                RepBottleneckCSPA, RepBottleneckCSPB, RepBottleneckCSPC,
-                ResCSPA, ResCSPB, ResCSPC,
-                RepResCSPA, RepResCSPB, RepResCSPC,
-                ResXCSPA, ResXCSPB, ResXCSPC,
-                RepResXCSPA, RepResXCSPB, RepResXCSPC,
-                GhostCSPA, GhostCSPB, GhostCSPC,
-                STCSPA, STCSPB, STCSPC,
-                ST2CSPA, ST2CSPB, ST2CSPC
-            ]:
-                args.insert(2, n)  # number of repeats
-                n = 1
         elif m is nn.BatchNorm2d:
             args = [ch[f]]
             c2 = ch[f]
+        elif m is Bottleneck: # ResNet-style Bottleneck (not YOLO Bottleneck)
+            c1 = ch[f]
+            planes = int(args[0])
+            exp = getattr(Bottleneck, 'expansion', 4)
+            c2 = planes * exp
+            args = [c1, planes, *args[1:]]
+        elif m is BasicBlock:
+            c1 = ch[f]
+            planes = int(args[0])
+            exp = getattr(BasicBlock, 'expansion', 1)
+            c2 = planes * exp
+            args = [c1, planes, *args[1:]]
+        elif m is cBasicBlock:
+            c1 = ch[f]
+            c2 = int(args[0])
+            args = [c1, c2, *args[1:]]
+        elif m is IdentityPadding:
+            c1 = ch[f]
+            c2 = int(args[0])
+            args = [c1, c2, *args[1:]]
         elif m is Concat:
             c2 = sum([ch[x] for x in f])
         elif m is Chuncat:
@@ -656,8 +675,21 @@ def parse_model(d, ch):  # model_dict, input_channels(1 or 3)
         elif m is nn.Linear:
             if len(in_shapes) != 1:
                 logger.warning("Linear expects a single input tensor")
-            C, H, W = in_shapes[0]
-            in_features = C * H * W
+            in_shape = in_shapes[0]
+            if isinstance(in_shape, (list, tuple)) and len(in_shape) == 3:
+                C, H, W = in_shape
+                in_features = C * H * W
+
+                flat = nn.Flatten()
+                flat = _decorate_module(flat, i, f)
+                layers.append(flat)
+                i += 1
+                f = -1
+                in_shape = (in_features,)
+            elif isinstance(in_shape, (list, tuple)) and len(in_shape) == 1:
+                (in_features, ) = in_shape
+            else:
+                logger.warning(f'Linear expects 1D or 3D shape, got {in_shape}')
             out_features = int(args[0])
             args = [in_features, out_features, *args[1:]]
             c2 = out_features
@@ -733,6 +765,10 @@ def propagate_shape(m, args, in_shapes):
             if h != h0 or w != w0:
                 raise ValueError(f"Multi-input H,W mismatch: {hws}")
         return h0, w0
+    
+    def _ceil_div(a, b): 
+        b = max(1, int(b))
+        return (int(a) + b - 1) // b
 
     single = (len(in_shapes) == 1)
     first = in_shapes[0]
@@ -854,17 +890,44 @@ def propagate_shape(m, args, in_shapes):
         # C_out은 outC(= args[1])이지만, 여기서는 외부에서 채널 관리 가능
         C_out = int(args[1]) if len(args) > 1 else C_in
         return (C_out, H_out, W_out)
+    
+    # Redefined Bottleneck (ResNet-style, not YOLO Bottleneck)
+    if m is Bottleneck:
+        # args normalized earlier as [inplanes, planes, stride, ...]
+        planes = int(args[1]) if len(args) > 1 else C_in
+        stride = max(1, int(args[2])) if len(args) > 2 else 1
+        exp = getattr(Bottleneck, 'expansion', 4)
+
+        C_out = planes * exp
+        H_out = _ceil_div(H_in, stride)
+        W_out = _ceil_div(W_in, stride)
+        return (C_out, H_out, W_out)
+
+    # BasicBlock for ResNet
+    if m is BasicBlock:
+        planes = int(args[1]) if len(args) > 1 else C_in
+        stride = max(1, int(args[2])) if len(args) > 2 else 1
+        exp = getattr(BasicBlock, 'expansion', 1)
+
+        C_out = planes * exp  # == planes
+        H_out = _ceil_div(H_in, stride)
+        W_out = _ceil_div(W_in, stride)
+        return (C_out, H_out, W_out)
+
+    # cBasicBlock for ResNet-CIFAR
+    if m is cBasicBlock:
+        planes = int(args[1]) if len(args) > 1 else C_in
+        stride = max(1, int(args[2])) if len(args) > 2 else 1
+        exp = 1  # cBasicBlock has no widening
+
+        C_out = planes  # or planes * exp
+        H_out = _ceil_div(H_in, stride)
+        W_out = _ceil_div(W_in, stride)
+        return (C_out, H_out, W_out)
 
     # Conv-like / composite blocks (treat as single conv step):
     # Expect args like [inC, outC, k, s, p, d, ...] after your channel-prop normalization.
-    if m in (nn.Conv2d, Conv, AConv, DWConv, Bottleneck, SPP, SPPF, SPPCSPC, ADown, ELAN1, RepNCSPELAN4, SPPELAN,
-             DownC, Stem, CrossConv, GhostConv, RobustConv, RobustConv2, MixConv2d,
-             RepConv, RepConv_OREPA, GhostStem,
-             cBasicBlock, Bottleneck, BottleneckCSPA, BottleneckCSPB, BottleneckCSPC,
-             RepBottleneck, RepBottleneckCSPA, RepBottleneckCSPB, RepBottleneckCSPC,
-             Res, ResCSPA, ResCSPB, ResCSPC, RepRes, RepResCSPA, RepResCSPB, RepResCSPC,
-             ResX, ResXCSPA, ResXCSPB, ResXCSPC, RepResX, RepResXCSPA, RepResXCSPB, RepResXCSPC,
-             Ghost, GhostCSPA, GhostCSPB, GhostCSPC):
+    if m in (nn.Conv2d, Conv):
         C_out = int(args[1]) if len(args) > 1 else C_in
         k = args[2] if len(args) > 2 else 1
         s = args[3] if len(args) > 3 else 1
