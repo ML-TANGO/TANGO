@@ -583,8 +583,14 @@ def parse_model(d, ch):  # model_dict, input_channels(1 or 3)
     # Shape tracking initialization
     # ==========================================================================
     imgsz = d.get('imgsz', 640)
-    shapes = [(ch[0], imgsz, imgsz)]
+    input_shape = (ch[0], imgsz, imgsz)
+    shapes = [] # output shapes
 
+    def _shape_at(idx):
+        if idx == -1:
+            return shapes[-1] if shapes else input_shape
+        return shapes[idx]
+    
     # ==========================================================================
     # Layer parsing loop
     # ==========================================================================
@@ -607,7 +613,7 @@ def parse_model(d, ch):  # model_dict, input_channels(1 or 3)
         # ----------------------------------------------------------------------
         # Input shape
         # ----------------------------------------------------------------------
-        in_shapes = [shapes[x] for x in (f if isinstance(f, list) else [f])] # [(C,H,W), ...]
+        in_shapes = [_shape_at(x) for x in (f if isinstance(f, list) else [f])] # [(C,H,W), ...]
 
         # ----------------------------------------------------------------------
         # Channel propagation (determine c2 and ajust agrs)
@@ -631,10 +637,6 @@ def parse_model(d, ch):  # model_dict, input_channels(1 or 3)
             c2 = planes * exp
             args = [c1, planes, *args[1:]]
         elif m is cBasicBlock:
-            c1 = ch[f]
-            c2 = int(args[0])
-            args = [c1, c2, *args[1:]]
-        elif m is IdentityPadding:
             c1 = ch[f]
             c2 = int(args[0])
             args = [c1, c2, *args[1:]]
@@ -726,7 +728,6 @@ def parse_model(d, ch):  # model_dict, input_channels(1 or 3)
             n_eff = n if isinstance(n, int) else 1
             for _ in range(n_eff):
                 cur_shape = propagate_shape(m, args, [cur_shape])
-
         shapes.append(cur_shape)
 
         # ----------------------------------------------------------------------

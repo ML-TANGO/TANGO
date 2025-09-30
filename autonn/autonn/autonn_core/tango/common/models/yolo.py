@@ -1245,7 +1245,13 @@ def parse_model_v9(d, ch):  # model_dict, input_channels(3)
     # Shape tracking initialization
     # ==========================================================================
     imgsz = d.get('imgsz', 640)
-    shapes = [(ch[0], imgsz, imgsz)] # (C, H, W)
+    input_shape = (ch[0], imgsz, imgsz) # (C, H, W)
+    shapes = [] # output shapes
+
+    def _shape_at(idx):
+        if idx == -1:
+            return shapes[-1] if shapes else input_shape
+        return shapes[idx]
 
     # ==========================================================================
     # Layer parsing loop
@@ -1261,7 +1267,7 @@ def parse_model_v9(d, ch):  # model_dict, input_channels(3)
         # ----------------------------------------------------------------------
         # Input shape
         # ----------------------------------------------------------------------
-        in_shapes = [shapes[x] for x in (f if isinstance(f, list) else [f])] # [(C,H,W), ...]
+        in_shapes = [_shape_at(x) for x in (f if isinstance(f, list) else [f])] # [(C,H,W), ...]
 
         # ----------------------------------------------------------------------
         # Channel propagation (determine c2 and ajust agrs)
@@ -1355,7 +1361,6 @@ def parse_model_v9(d, ch):  # model_dict, input_channels(3)
             n_eff = n if isinstance(n, int) else 1
             for _ in range(n_eff):
                 cur_shape = propagate_shape(m, args, [cur_shape])
-
         shapes.append(cur_shape)
 
         # ----------------------------------------------------------------------
@@ -1395,6 +1400,9 @@ def propagate_shape(m, args, in_shapes):
             if h != h0 or w != w0:
                 raise ValueError(f"Multi-input H,W mismatch: {hws}")
         return h0, w0
+    
+    def _ceil_div(a, b): 
+        return (a + b - 1) // b
 
     single = (len(in_shapes) == 1)
     first = in_shapes[0]
@@ -1515,7 +1523,7 @@ def propagate_shape(m, args, in_shapes):
 
     # Conv-like / composite blocks (treat as single conv step):
     # Expect args like [inC, outC, k, s, p, d, ...] after your channel-prop normalization.
-    if m in (Conv, AConv, DWConv, Bottleneck, SPP, SPPF, SPPCSPC, ADown, ELAN1, RepNCSPELAN4, SPPELAN):
+    if m in (nn.Conv2d, Conv, DWConv):
         C_out = int(args[1]) if len(args) > 1 else C_in
         k = args[2] if len(args) > 2 else 1
         s = args[3] if len(args) > 3 else 1
@@ -1528,6 +1536,38 @@ def propagate_shape(m, args, in_shapes):
         H_out = _conv_out_len(H_in, kh, sh, ph, dh)
         W_out = _conv_out_len(W_in, kw, sw, pw, dw)
         return (C_out, H_out, W_out)
+
+    # Spatially preserved blocks
+    if m in (RepNCSPELAN4, ELAN1, SPPELAN, Bottleneck, SPP, SPPF, SPPCSPC):
+        C_out = int(args[1]) if len(args) > 1 else C_in
+        if m in (RepNCSPELAN4, ELAN1) and len(args) > 2 and (int(args[2]) % 2):
+            logger.warning(f"{m.__name__}: c3 must be divisible by 2 for chunk(2,1)")
+        return (C_out, H_in, W_in)
+    
+    # AConv / ADown: avg_pool2d(k=2,s=1) → H-1,W-1 → stride-2
+    if m in (AConv, ADown):
+        C_out = int(args[1]) if len(args) > 1 else C_in
+        H_mid = H_in - 1  # avg_pool2d(k=2, s=1)
+        W_mid = W_in - 1
+        H_out = _ceil_div(H_mid, 2)
+        W_out = _ceil_div(W_mid, 2)
+        return (C_out, H_out, W_out)
+    
+    # CBLinear: conv → split; track as sum of splits
+    if m is CBLinear:
+        c2s = args[1] if len(args) > 1 else []
+        if not isinstance(c2s, (list, tuple)) or len(c2s) == 0:
+            logger.warning("CBLinear: c2s must be a non-empty list/tuple.")
+            return (C_in, H_in, W_in)
+        try:
+            out_ch = int(sum(int(x) for x in c2s))
+        except Exception:
+            logger.warning(f"CBLinear: invalid c2s={c2s!r}, falling back to C_in")
+            out_ch = C_in
+        return (out_ch, H_in, W_in)
+
+    if m is CBFuse:
+        return in_shapes[-1]
 
     # Detect-family heads: keep passthrough for backbone feature tracking
     if m in (Detect, DDetect, DualDDetect, TripleDDetect):
