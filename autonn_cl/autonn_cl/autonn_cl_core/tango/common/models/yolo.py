@@ -1434,14 +1434,3 @@ class SegmentationHead(nn.Module):
             b[-1].bias.data[:self.nc] = math.log(5 / self.nc / (640 / 16) ** 2)  # cls
             c[-1].bias.data[:] = 0.0  # mask coefficients
 
-
-def dist2bbox(distance, anchor_points, xywh=True, dim=-1):
-    """Decode distance predictions to boxes"""
-    lt, rb = distance.chunk(2, dim)
-    x1y1 = anchor_points - lt
-    x2y2 = anchor_points + rb
-    if xywh:
-        c_xy = (x1y1 + x2y2) / 2
-        wh = x2y2 - x1y1
-        return torch.cat([c_xy, wh], dim)
-    return torch.cat([x1y1, x2y2], dim)
