@@ -2082,3 +2082,103 @@ class ComputeLoss_v9:
         loss[2] *= 1.5  # dfl gain
 
         return loss.sum() * batch_size, loss.detach()  # loss(box, cls, dfl)
+
+class ComputeLoss_Segmentation:
+    """
+    Segmentation Loss (Detection + Mask)
+    YOLOv9-based segmentation loss combining:
+    - Detection loss (boxes + classes) from ComputeLoss_v9
+    - Mask loss (will be implemented later)
+    """
+    def __init__(self, model, use_dfl=True):
+        device = next(model.parameters()).device
+        self.device = device
+        h = model.hyp
+        self.hyp = h
+        
+        # Reuse detection loss from v9
+        self.det_loss = ComputeLoss_v9(model, use_dfl=use_dfl)
+        
+        # Mask loss components (to be implemented)
+        self.bce_mask = nn.BCEWithLogitsLoss(reduction='none')
+        self.nm = 32  # number of mask prototypes (default from SegmentationHead)
+        
+        logger.info('ComputeLoss_Segmentation initialized (Detection loss only, Mask loss TODO)')
+    
+    def __call__(self, predictions, targets, img=None, epoch=0):
+        """
+        Args:
+            predictions: from SegmentationHead
+                if training: ([box_outputs], [cls_outputs], [mask_outputs], proto_out)
+                if inference: (y, proto_out) where y = [boxes, classes, mask_coeffs]
+            targets: ground truth boxes [image_id, class, x, y, w, h]
+            img: input images (optional)
+            epoch: current epoch (optional)
+        
+        Returns:
+            loss: total loss
+            loss_items: detached loss components
+        """
+        device = self.device
+        
+        # Check if model is in training mode
+        # In training: predictions is a list/tuple of outputs
+        # In inference: predictions is (y, proto_out) tuple
+        
+        if isinstance(predictions, tuple) and len(predictions) == 2:
+            # Could be inference mode: (y, proto_out)
+            # Or training mode with dual heads: ([outputs], [outputs])
+            if isinstance(predictions[0], list):
+                # Training mode with dual/triple heads
+                return self._compute_training_loss(predictions, targets, img, epoch)
+            else:
+                # Inference mode or single prediction
+                # Just compute detection loss
+                y, proto_out = predictions
+                return self.det_loss(y, targets, img, epoch)
+        else:
+            # Training mode
+            return self._compute_training_loss(predictions, targets, img, epoch)
+    
+    def _compute_training_loss(self, predictions, targets, img=None, epoch=0):
+        """
+        Compute loss during training
+        
+        Args:
+            predictions: ([d1_outputs], [d2_outputs]) from DualDDetect
+                         or similar structure from SegmentationHead
+        """
+        # For now, just use detection loss
+        # Mask loss will be added later
+        
+        # Extract detection predictions (ignore mask outputs for now)
+        # Assume predictions structure matches DualDDetect output
+        det_loss, det_loss_items = self.det_loss(predictions, targets, img, epoch)
+        
+        # TODO: Add mask loss computation
+        # mask_loss = self._compute_mask_loss(predictions, targets, masks)
+        # total_loss = det_loss + mask_loss
+        
+        return det_loss, det_loss_items
+    
+    def _compute_mask_loss(self, mask_outputs, proto_out, targets, gt_masks=None):
+        """
+        Compute mask loss (to be implemented)
+        
+        Args:
+            mask_outputs: mask coefficient predictions from each head
+            proto_out: prototype masks from SegmentationHead
+            targets: ground truth boxes
+            gt_masks: ground truth masks (if available)
+        
+        Returns:
+            mask_loss: computed mask loss
+        """
+        # TODO: Implement mask loss
+        # This will involve:
+        # 1. Match predictions to ground truth using targets
+        # 2. Compute mask coefficients for matched predictions
+        # 3. Generate final masks by combining coefficients with prototypes
+        # 4. Compute BCE loss between predicted and ground truth masks
+        
+        return torch.tensor(0.0, device=self.device)
