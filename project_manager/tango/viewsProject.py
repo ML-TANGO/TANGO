@@ -1104,6 +1104,13 @@ def project_update(request):
 
         learning_type = str(request.data['learning_type'])
 
+        # AutoNN_CL (Segmentation + Continual Learning) projects use fixed target ID 9
+        if (
+            task_type == TaskType.SEGMENTATION
+            and learning_type == LearningType.CONTINUAL_LEARNING
+        ):
+            target = 9
+
         project_info = Project.objects.get(id=request.data['project_id'])
 
         project_info.dataset = dataset
@@ -1245,9 +1252,9 @@ def create_segmentation_project_yaml(user_id, project_id, project_data):
                 'batch_size': 16  # 배치 크기 (예시)
             },
             'container_info': {
-                'container_id': ContainerId.autonn_cl,
+                'container_id': str(ContainerId.autonn_cl),
                 'container_port': 8102,  # AutoNN_CL 컨테이너 포트 (가안)
-                'status': ContainerStatus.READY
+                'status': str(ContainerStatus.READY)
             }
         }
 
