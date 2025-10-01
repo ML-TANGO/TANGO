@@ -60,6 +60,31 @@ def pth_list(request):
             return Response(serializer.data, status=status.HTTP_201_CREATED)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
+# 돌아가는 중으로 간주할 상태들(원하는 대로 조정)
+ACTIVE_STATUSES = ["started", "running", "resumed"]
+
+@api_view(['GET'])
+def active_info(request):
+    # 1) 우선 '돌아가는 중' 상태 중에서 가장 최근(updated_at 우선, 그다음 id) 하나
+    qs = Info.objects.filter(status__in=ACTIVE_STATUSES).order_by('-updated_at', '-id')
+    info = qs.first()
+
+    # 2) 그런 게 없으면 전체 중에서 가장 최근 하나
+    if not info:
+        info = Info.objects.order_by('-updated_at', '-id').first()
+
+    if not info:
+        return Response({"exists": False}, status=status.HTTP_200_OK)
+
+    return Response({
+        "exists": True,
+        "userid": info.userid,
+        "project_id": info.project_id,
+        "status": info.status,
+        "progress": info.progress,
+        "model_type": info.model_type,
+        "is_yolo": (info.model_type == "yolov9"),
+    }, status=status.HTTP_200_OK)
 
 @api_view(['GET'])
 def start(request):

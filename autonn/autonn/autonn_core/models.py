@@ -1,4 +1,5 @@
 from django.db import models
+from django.utils import timezone
 
 class Info(models.Model):
     '''
@@ -29,6 +30,17 @@ class Info(models.Model):
     epoch = models.IntegerField(blank=True, default=-1)
     best_acc = models.FloatField(blank=True, default=0.0)
     best_net = models.CharField(max_length=300, blank=True, null=True, default='')
+
+    # Timestamps ---------------------------------------------------------------
+    created_at = models.DateTimeField(default=timezone.now, editable=False)  # 생성 시점
+    updated_at = models.DateTimeField(auto_now=True)                         # 매 저장시점
+
+    class Meta:
+        indexes = [
+            models.Index(fields=['status', '-updated_at']),
+            models.Index(fields=['-updated_at']),
+        ]
+        ordering = ['-updated_at', '-id']  # 기본 정렬
 
     def __str__(self):
         return f"{self.userid}/{self.project_id}"
