@@ -508,6 +508,7 @@ def train(proj_info, hyp, opt, data_dict, tb_writer=None):
                 min_items=0, #opt.min_items,
                 uid=userid,
                 pid=project_id,
+                task=task,
             )
         else: # v7
             dataloader, dataset = create_dataloader(
@@ -630,6 +631,7 @@ def train(proj_info, hyp, opt, data_dict, tb_writer=None):
                     prefix='val',
                     uid=userid,
                     pid=project_id,
+                    task=task,
                 )[0]
             else:
                 testloader = create_dataloader(
@@ -767,24 +769,20 @@ def train(proj_info, hyp, opt, data_dict, tb_writer=None):
             compute_loss = FocalLossCE()
         else:
             logger.warning(f'not supported loss function {opt.loss_name}')
-    else:  # detection or segmentation
-        head = model.model[-1]
-        from tango.common.models.yolo import SegmentationHead
-        
-        if isinstance(head, SegmentationHead):
-            from tango.utils.loss import ComputeLoss_Segmentation
-            compute_loss = ComputeLoss_Segmentation(model)
-            logger.info('Using segmentation loss function')
+    elif task in ['detection', 'segmentation']:  # 수정됨
+        if opt.loss_name == 'TAL':
+            compute_loss = ComputeLoss_v9(model)
         else:
-            if opt.loss_name == 'TAL':
-                compute_loss = ComputeLoss_v9(model)
+            if opt.loss_name == 'OTA':
+                compute_loss_ota = ComputeLossOTA(model)
+            elif opt.loss_name == 'AuxOTA':
+                compute_loss_ota = ComputeLossAuxOTA(model)
             else:
-                if opt.loss_name == 'OTA':
-                    compute_loss_ota = ComputeLossOTA(model)
-                elif opt.loss_name == 'AuxOTA':
-                    compute_loss_ota = ComputeLossAuxOTA(model)
-                else:
-                    compute_loss_ota = None
+                compute_loss_ota = None
+            if task == 'segmentation':
+                from tango.utils.loss import ComputeLoss_Segmentation
+                compute_loss = ComputeLoss_Segmentation(model)
+            else:
                 compute_loss = ComputeLoss(model)
     
     # Ealry Stopper ------------------------------------------------------------
@@ -894,7 +892,12 @@ def train(proj_info, hyp, opt, data_dict, tb_writer=None):
         optimizer.zero_grad()
         # training batches start ===============================================
         if task in ['detection', 'segmentation']:
-            for i, (imgs, targets, paths, _) in pbar:
+            for i, batch in pbar:
+                # Unpack batch based on task
+                if task == 'segmentation':
+                    imgs, targets, masks, paths, _ = batch
+                else:  # detection
+                    imgs, targets, paths, _ = batch
                 # logger.info(f'step-{i} start')
                 t_batch = time.time() #time_synchronized()
                 ni = i + nb * epoch  # number integrated batches (since train start)
@@ -937,15 +940,14 @@ def train(proj_info, hyp, opt, data_dict, tb_writer=None):
                     pred = model(imgs)  # forward
                     # logger.info(f'step-{i} forward done')
                     # if 'loss_ota' not in hyp or hyp['loss_ota'] == 1:
-                    if 'OTA' in opt.loss_name: #opt.loss_name == 'OTA':
-                        loss, loss_items = compute_loss_ota(pred, targets.to(device), imgs)  # loss scaled by batch_size
-                    else:
-                        loss, loss_items = compute_loss(pred, targets.to(device))  # loss scaled by batch_size
-                    # logger.info(f'step-{i} compute loss done {loss}')
-                    if rank != -1:
-                        loss *= opt.world_size  # gradient averaged between devices in DDP mode
-                    if opt.quad:
-                        loss *= 4.
+                if 'OTA' in opt.loss_name:
+                    loss, loss_items = compute_loss_ota(pred, targets.to(device), imgs)
+                else:
+                    # Segmentation task requires masks
+                    if task == 'segmentation':
+                        loss, loss_items = compute_loss(pred, targets.to(device), masks.to(device))
+                    else:  # detection
+                        loss, loss_items = compute_loss(pred, targets.to(device))
 
                 # Backward
                 loss_items_na = loss_items.cpu().numpy()
