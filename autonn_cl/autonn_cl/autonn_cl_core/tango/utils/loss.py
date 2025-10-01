@@ -2085,100 +2085,219 @@ class ComputeLoss_v9:
 
 class ComputeLoss_Segmentation:
     """
-    Segmentation Loss (Detection + Mask)
-    YOLOv9-based segmentation loss combining:
-    - Detection loss (boxes + classes) from ComputeLoss_v9
-    - Mask loss (will be implemented later)
+    YOLOv9 Segmentation Loss (Detection + Mask)
     """
-    def __init__(self, model, use_dfl=True):
+    sort_obj_iou = False
+
+    def __init__(self, model, autobalance=False):
         device = next(model.parameters()).device
+        h = model.hyp  # hyperparameters
+
+        # Define criteria
+        BCEcls = nn.BCEWithLogitsLoss(pos_weight=torch.tensor([h['cls_pw']], device=device))
+        BCEobj = nn.BCEWithLogitsLoss(pos_weight=torch.tensor([h['obj_pw']], device=device))
+
+        # Class label smoothing
+        self.cp, self.cn = smooth_BCE(eps=h.get('label_smoothing', 0.0))
+
+        # Focal loss
+        g = h['fl_gamma']
+        if g > 0:
+            BCEcls, BCEobj = FocalLoss(BCEcls, g), FocalLoss(BCEobj, g)
+
+        # Get model info
+        det = de_parallel(model).model[-1]  # SegmentationHead
+        
+        self.balance = {3: [4.0, 1.0, 0.4]}.get(det.nl, [4.0, 1.0, 0.25, 0.06, 0.02])
+        self.ssi = list(det.stride).index(16) if autobalance else 0
+        self.BCEcls, self.BCEobj, self.gr, self.hyp, self.autobalance = BCEcls, BCEobj, 1.0, h, autobalance
+        
+        self.na = det.na  # number of anchors
+        self.nc = det.nc  # number of classes
+        self.nl = det.nl  # number of layers
+        self.nm = det.nm  # number of masks
+        self.anchors = det.anchors
         self.device = device
-        h = model.hyp
-        self.hyp = h
-        
-        # Reuse detection loss from v9
-        self.det_loss = ComputeLoss_v9(model, use_dfl=use_dfl)
-        
-        # Mask loss components (to be implemented)
-        self.bce_mask = nn.BCEWithLogitsLoss(reduction='none')
-        self.nm = 32  # number of mask prototypes (default from SegmentationHead)
-        
-        logger.info('ComputeLoss_Segmentation initialized (Detection loss only, Mask loss TODO)')
-    
-    def __call__(self, predictions, targets, img=None, epoch=0):
+
+    def __call__(self, preds, targets, masks):
         """
         Args:
-            predictions: from SegmentationHead
-                if training: ([box_outputs], [cls_outputs], [mask_outputs], proto_out)
-                if inference: (y, proto_out) where y = [boxes, classes, mask_coeffs]
-            targets: ground truth boxes [image_id, class, x, y, w, h]
-            img: input images (optional)
-            epoch: current epoch (optional)
-        
-        Returns:
-            loss: total loss
-            loss_items: detached loss components
+            preds: tuple of (p, mc, proto)
+                - p: detection predictions list [bs, na, h, w, no]
+                - mc: mask coefficients [bs, na*h*w, nm]  
+                - proto: prototypes [bs, nm, mask_h, mask_w]
+            targets: [num_targets, 6] - (image_idx, class, x, y, w, h)
+            masks: [bs, max_objs, mask_h, mask_w] - ground truth masks
         """
-        device = self.device
+        p, mc, proto = preds
+        device = targets.device
+        bs, nm, mask_h, mask_w = proto.shape
         
-        # Check if model is in training mode
-        # In training: predictions is a list/tuple of outputs
-        # In inference: predictions is (y, proto_out) tuple
+        # Initialize losses
+        lcls = torch.zeros(1, device=device)
+        lbox = torch.zeros(1, device=device)
+        lobj = torch.zeros(1, device=device)
+        lseg = torch.zeros(1, device=device)
         
-        if isinstance(predictions, tuple) and len(predictions) == 2:
-            # Could be inference mode: (y, proto_out)
-            # Or training mode with dual heads: ([outputs], [outputs])
-            if isinstance(predictions[0], list):
-                # Training mode with dual/triple heads
-                return self._compute_training_loss(predictions, targets, img, epoch)
+        # Build targets (anchor matching)
+        tcls, tbox, indices, anchors, tidxs, xywhn = self.build_targets(p, targets)
+        
+        # ========================================
+        # 1. Detection Loss (Box + Obj + Cls)
+        # ========================================
+        for i, pi in enumerate(p):  # layer index
+            b, a, gj, gi = indices[i]  # matched indices
+            tobj = torch.zeros(pi.shape[:4], dtype=pi.dtype, device=device)
+            
+            n = b.shape[0]  # number of targets
+            if n:
+                # Predictions for matched anchors
+                pxy, pwh, _, pcls, pmask = pi[b, a, gj, gi].split((2, 2, 1, self.nc, nm), 1)
+                
+                # Box regression
+                pxy = pxy.sigmoid() * 2 - 0.5
+                pwh = (pwh.sigmoid() * 2) ** 2 * anchors[i]
+                pbox = torch.cat((pxy, pwh), 1)
+                iou = bbox_iou(pbox.T, tbox[i], x1y1x2y2=False, CIoU=True).squeeze()
+                lbox += (1.0 - iou).mean()
+                
+                # Objectness
+                iou = iou.detach().clamp(0).type(tobj.dtype)
+                if self.sort_obj_iou:
+                    j = iou.argsort()
+                    b, a, gj, gi, iou = b[j], a[j], gj[j], gi[j], iou[j]
+                if self.gr < 1:
+                    iou = (1.0 - self.gr) + self.gr * iou
+                tobj[b, a, gj, gi] = iou
+                
+                # Classification
+                if self.nc > 1:
+                    t = torch.full_like(pcls, self.cn, device=device)
+                    t[range(n), tcls[i]] = self.cp
+                    lcls += self.BCEcls(pcls, t)
+                
+                # ========================================
+                # 2. Mask Loss
+                # ========================================
+                if masks is not None and tuple(masks.shape[-2:]) != (mask_h, mask_w):
+                    masks = F.interpolate(masks.float(), (mask_h, mask_w), mode='nearest')
+                
+                # Compute mask area and bbox in pixel coordinates
+                marea = xywhn[i][:, 2:].prod(1)  # normalized area
+                mxyxy = xywh2xyxy(xywhn[i]) * torch.tensor(
+                    [mask_w, mask_h, mask_w, mask_h], device=device
+                )
+                
+                # Process each image
+                for bi in b.unique():
+                    j = b == bi  # indices for this image
+                    
+                    # Get GT masks for this image's objects
+                    if tidxs is not None and len(tidxs[i]) > 0:
+                        # Use tidxs for indexing if available
+                        mask_idx = tidxs[i][j] - 1  # tidx starts from 1
+                        mask_idx = mask_idx.long()
+                        gt_mask = masks[bi, mask_idx]
+                    else:
+                        # Fallback to using order
+                        obj_count = (targets[:, 0] == bi).sum()
+                        gt_mask = masks[bi, :obj_count][j]
+                    
+                    # Get predicted mask coefficients for matched anchors
+                    pred_coef = pmask[j]  # [n_matched, nm]
+                    
+                    # Generate predicted masks: coef @ proto
+                    pred_masks = (pred_coef @ proto[bi].view(nm, -1)).view(-1, mask_h, mask_w)
+                    
+                    # Compute loss for each object
+                    for obj_idx in range(pred_coef.shape[0]):
+                        # BCE loss
+                        loss = F.binary_cross_entropy_with_logits(
+                            pred_masks[obj_idx], 
+                            gt_mask[obj_idx], 
+                            reduction='none'
+                        )
+                        
+                        # Crop to bbox and normalize by area
+                        xyxy = mxyxy[j][obj_idx]
+                        x1, y1, x2, y2 = xyxy.int().clamp(0, mask_w-1, 0, mask_h-1)
+                        cropped = loss[y1:y2+1, x1:x2+1]
+                        
+                        if cropped.numel() > 0:
+                            lseg += cropped.mean() / marea[j][obj_idx].clamp(min=1e-6)
+            
+            obji = self.BCEobj(pi[..., 4], tobj)
+            lobj += obji * self.balance[i]
+            
+            if self.autobalance:
+                self.balance[i] = self.balance[i] * 0.9999 + 0.0001 / obji.detach().item()
+        
+        # ========================================
+        # 3. Weighted Total Loss
+        # ========================================
+        if self.autobalance:
+            self.balance = [x / self.balance[self.ssi] for x in self.balance]
+        
+        lbox *= self.hyp['box']
+        lobj *= self.hyp['obj']
+        lcls *= self.hyp['cls']
+        lseg *= self.hyp.get('box', 0.05) / bs
+        
+        loss = lbox + lobj + lcls + lseg
+        
+        return loss * bs, torch.cat((lbox, lseg, lobj, lcls)).detach()
+
+    def build_targets(self, p, targets):
+        """
+        Build targets for compute_loss() - same as ComputeLoss
+        """
+        na, nt = self.na, targets.shape[0]
+        tcls, tbox, indices, anch, tidxs, xywhn = [], [], [], [], [], []
+        gain = torch.ones(8, device=targets.device)
+        
+        ai = torch.arange(na, device=targets.device).float().view(na, 1).repeat(1, nt)
+        ti = torch.arange(nt, device=targets.device).float().view(1, nt).repeat(na, 1)
+        targets = torch.cat((targets.repeat(na, 1, 1), ai[..., None], ti[..., None]), 2)
+        
+        g = 0.5
+        off = torch.tensor([
+            [0, 0],
+            [1, 0], [0, 1], [-1, 0], [0, -1],
+        ], device=targets.device).float() * g
+        
+        for i in range(self.nl):
+            anchors_i = self.anchors[i]
+            gain[2:6] = torch.tensor(p[i].shape)[[3, 2, 3, 2]]
+            
+            t = targets * gain
+            if nt:
+                r = t[..., 4:6] / anchors_i[:, None]
+                j = torch.max(r, 1 / r).max(2)[0] < self.hyp['anchor_t']
+                t = t[j]
+                
+                gxy = t[:, 2:4]
+                gxi = gain[[2, 3]] - gxy
+                j, k = ((gxy % 1 < g) & (gxy > 1)).T
+                l, m = ((gxi % 1 < g) & (gxi > 1)).T
+                j = torch.stack((torch.ones_like(j), j, k, l, m))
+                t = t.repeat((5, 1, 1))[j]
+                offsets = (torch.zeros_like(gxy)[None] + off[:, None])[j]
             else:
-                # Inference mode or single prediction
-                # Just compute detection loss
-                y, proto_out = predictions
-                return self.det_loss(y, targets, img, epoch)
-        else:
-            # Training mode
-            return self._compute_training_loss(predictions, targets, img, epoch)
-    
-    def _compute_training_loss(self, predictions, targets, img=None, epoch=0):
-        """
-        Compute loss during training
+                t = targets[0]
+                offsets = 0
+            
+            bc, gxy, gwh, a, tid = t.chunk(5, 1)
+            a, tid = a.long().view(-1), tid.long().view(-1)
+            b, c = bc.long().T
+            
+            gij = (gxy - offsets).long()
+            gi, gj = gij.T
+            
+            indices.append((b, a, gj.clamp_(0, p[i].shape[2]-1), gi.clamp_(0, p[i].shape[3]-1)))
+            tbox.append(torch.cat((gxy - gij, gwh), 1))
+            anch.append(anchors_i[a])
+            tcls.append(c)
+            tidxs.append(tid)
+            xywhn.append(torch.cat((gxy, gwh), 1) / gain[2:6])
         
-        Args:
-            predictions: ([d1_outputs], [d2_outputs]) from DualDDetect
-                         or similar structure from SegmentationHead
-        """
-        # For now, just use detection loss
-        # Mask loss will be added later
-        
-        # Extract detection predictions (ignore mask outputs for now)
-        # Assume predictions structure matches DualDDetect output
-        det_loss, det_loss_items = self.det_loss(predictions, targets, img, epoch)
-        
-        # TODO: Add mask loss computation
-        # mask_loss = self._compute_mask_loss(predictions, targets, masks)
-        # total_loss = det_loss + mask_loss
-        
-        return det_loss, det_loss_items
-    
-    def _compute_mask_loss(self, mask_outputs, proto_out, targets, gt_masks=None):
-        """
-        Compute mask loss (to be implemented)
-        
-        Args:
-            mask_outputs: mask coefficient predictions from each head
-            proto_out: prototype masks from SegmentationHead
-            targets: ground truth boxes
-            gt_masks: ground truth masks (if available)
-        
-        Returns:
-            mask_loss: computed mask loss
-        """
-        # TODO: Implement mask loss
-        # This will involve:
-        # 1. Match predictions to ground truth using targets
-        # 2. Compute mask coefficients for matched predictions
-        # 3. Generate final masks by combining coefficients with prototypes
-        # 4. Compute BCE loss between predicted and ground truth masks
-        
-        return torch.tensor(0.0, device=self.device)
+        return tcls, tbox, indices, anch, tidxs, xywhn

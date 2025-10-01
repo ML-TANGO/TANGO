@@ -43,6 +43,14 @@ noautoanchor: False # check/recompute anchors if True, [note] useless for 'v9'
 metric: 'v9' # mAP metirc 'v5' / 'v7' / 'v9'
 loss_name: 'TAL' # anchor-free: TAL, anchor: OTA
 label_smoothing: 0.0
+mask_ratio: 4
+
+# hyp (하이퍼파라미터 섹션에 추가)
+box: 7.5      # 박스 손실 가중치 (기존 hyp 참조)
+cls: 0.5      # 클래스 손실 가중치 (기존 hyp 참조)
+dfl: 1.5      # DFL 손실 가중치 (기존 hyp 참조)
+mask: 7.5     
+overlap: True 
 
 # ddp
 sync_bn: False
