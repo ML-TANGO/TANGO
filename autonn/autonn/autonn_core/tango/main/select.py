@@ -48,11 +48,13 @@ DATASET_ROOT = Path("/shared/datasets")
 MODEL_ROOT = Path("/shared/models")
 CORE_DIR = Path(__file__).resolve().parent.parent.parent # /source/autonn_core
 CFG_PATH = CORE_DIR / 'tango' / 'common' / 'cfg'
+REPO_ROOT = CORE_DIR.parent
+PROJECT_DATA_ROOT = REPO_ROOT / 'project_manager' / 'data' / 'datasets'
 os.environ['OLLAMA_MODELS'] = str(MODEL_ROOT)
 
 # Tasks to model mapping
 TASK_TO_MODEL_TABLE = {
-    "detection7": "yolov7",
+    "detection7": "yolov9",
     "detection": "yolov9",
     "classification": "resnet",
     "classification-c": "resnetc",
@@ -60,16 +62,6 @@ TASK_TO_MODEL_TABLE = {
 
 # Model size mapping by target
 MODEL_TO_SIZE_TABLE = {
-    "yolov7": {
-        "XXL": "-e6e",      # >  20.0G
-        "XL" : "-d6",       # <= 20.0G
-        "L"  : "-e6",       # <= 16.0G
-        "M"  : "-w6",       # <= 12.0G
-        "MS" : "x",         # <=  8.0G
-        "S"  : "",          # <=  6.0G
-        "T"  : "-tiny",     # <=  4.0G
-        "NAS": "-supernet"
-    },
     "yolov9": {
         "XXL": "-e",        # >  20.0G
         "XL" : "-e",        # <= 20.0G
@@ -226,7 +218,7 @@ def get_user_requirements(userid, projid, resume=False):
     )
 
     # Load arguments
-    _task =  'detection7' if basemodel['model_name'] == 'YOLOV7' or target == 'galaxys22' else task
+    _task =  'detection' if basemodel['model_name'].lower().startswith('yolo') else task
     opt_yaml_path = PROJ_PATH / f'args-{_task}.yaml'
 
     if skip_bms:
@@ -357,7 +349,7 @@ def get_dataset_info(dataset_name, task):
     else:
         logger.warning(f"There is no {DATASET_ROOT}/{dataset_name}.")
         if task == 'detection':
-            logger.info(f"Instead embedded COCO128 dataset will be used.")
+            logger.info("Instead embedded COCO128 dataset will be used.")
             dataset_name = 'coco128'
             dataset_yaml_path = CORE_DIR / 'datasets' / 'coco128' / 'dataset.yaml'
     
@@ -369,8 +361,49 @@ def get_dataset_info(dataset_name, task):
     
     with open(dataset_yaml_path) as f:
         data_dict = yaml.load(f, Loader=yaml.SafeLoader)
-    
+
+    _ensure_dataset_links(dataset_name)
+
     return data_dict, dataset_yaml_path
+
+
+def _ensure_dataset_links(dataset_name: str) -> None:
+    embedded_root = CORE_DIR / 'datasets' / dataset_name
+    target_root = DATASET_ROOT / dataset_name
+    if embedded_root.exists():
+        _symlink_directory(target_root, embedded_root)
+
+    # Provide COCO annotation fallback for evaluation metrics
+    if 'coco' in dataset_name.lower():
+        _ensure_coco_annotations()
+
+
+def _symlink_directory(target: Path, source: Path) -> None:
+    try:
+        if target.exists() or target.is_symlink():
+            return
+        target.parent.mkdir(parents=True, exist_ok=True)
+        os.symlink(source, target)
+        logger.info(f"Linked embedded dataset {source} -> {target}")
+    except OSError as err:
+        logger.debug(f"Failed to create symlink {target} -> {source}: {err}")
+
+
+def _ensure_coco_annotations() -> None:
+    src_ann = PROJECT_DATA_ROOT / 'MS-COCO' / 'annotations' / 'instances_val2017.json'
+    if not src_ann.exists():
+        return
+
+    for dataset_name in ('coco', 'coco128'):
+        dest = DATASET_ROOT / dataset_name / 'annotations' / src_ann.name
+        try:
+            if dest.exists():
+                continue
+            dest.parent.mkdir(parents=True, exist_ok=True)
+            os.symlink(src_ann, dest)
+            logger.info(f"Linked COCO annotation {src_ann} -> {dest}")
+        except OSError as err:
+            logger.debug(f"Failed to link annotation {src_ann} -> {dest}: {err}")
 
 
 def create_classification_dataset_yaml(dataset_name, yaml_path):
@@ -638,6 +671,8 @@ def run_autonn(userid, project_id, resume=False, viz2code=False, nas=False, hpo=
     #         logger.warn(f'{prefix}Fail to load tensorbord because {e}')
 
     # Train model
+    yaml_file = None
+
     results, train_final = train(proj_info, hyp, opt, data, tb_writer)
 
     # Log training results
@@ -696,7 +731,17 @@ def run_autonn(userid, project_id, resume=False, viz2code=False, nas=False, hpo=
 
     # Convert YOLOv9 model for inference
     if 'yolov9' in basemodel['name']:
-        inf_cfg = str(CFG_PATH / 'yolov9' / f"{basemodel['name']}-converted.yaml")
+        inf_cfg = Path(CFG_PATH / 'yolov9' / f"{basemodel['name']}-converted.yaml")
+        if 'supernet' in basemodel['name']:
+            if yaml_file and Path(yaml_file).exists():
+                inf_cfg = Path(opt.save_dir) / 'best_search_converted.yaml'
+                shutil.copy2(yaml_file, inf_cfg)
+                logger.info(f"{colorstr('Model Exporter:')} Using NAS-derived config {inf_cfg}")
+            else:
+                logger.warning(
+                    f"{colorstr('Model Exporter:')}No NAS config found; falling back to default converted template"
+                )
+        inf_cfg = str(inf_cfg)
         train_final = convert_yolov9(train_final, inf_cfg)
 
     # Model Export -------------------------------------------------------------

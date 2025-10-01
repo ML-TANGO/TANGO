@@ -121,7 +121,10 @@ from .yolo import (
     TripleDDetect,
 )
 from .supernet_yolov7 import (
-    NASModel,
+    NASModel as NASModelV7,
+)
+from .supernet_yolov9 import (
+    NASModel as NASModelV9,
 )
 from .dynamic_op import (
     DynamicSeparableConv2d,
@@ -253,7 +256,8 @@ __all__ = (
     "DDetect",
     "DualDDetect",
     "TripleDDetect",
-    "NASModel",
+    "NASModelV7",
+    "NASModelV9",
     "DynamicSeparableConv2d",
     "DynamicConv2d",
     "DynamicGroupConv2d",

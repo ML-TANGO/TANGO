@@ -718,6 +718,7 @@ class Model(nn.Module):
         self.traced = False
         if isinstance(cfg, dict):
             self.yaml = cfg  # model dict
+            self.yaml_file = self.yaml.get('name', 'config_dict')
         else:  # is *.yaml
             import yaml  # for torch hub
             self.yaml_file = Path(cfg).name
@@ -729,9 +730,17 @@ class Model(nn.Module):
         if nc and nc != self.yaml['nc']:
             logger.info(f'{colorstr("Models: ")}Overriding nc={self.yaml["nc"]} in {self.yaml_file} with nc={nc}')
             self.yaml['nc'] = nc  # override yaml value
-        if anchors:
+        def _normalize_anchors(value):
+            if value is None:
+                return None
+            if isinstance(value, str) and value.lower() == 'none':
+                return None
+            return value
+
+        anchors = _normalize_anchors(anchors)
+        if anchors is not None:
             logger.info(f'{colorstr("Models: ")}Overriding anchors in {self.yaml_file} with anchors={anchors}')
-            self.yaml['anchors'] = round(anchors)  # override yaml value
+            self.yaml['anchors'] = anchors  # override yaml value
 
         logger.info(f'{colorstr("Models: ")}Creating a model from {self.yaml_file}')
         self.model, self.save, self.nodes_info = parse_model(deepcopy(self.yaml), ch=[ch])  # model, savelist
@@ -767,16 +776,24 @@ class Model(nn.Module):
             self.stride = m.stride
             self._initialize_aux_biases()  # only run once
         if isinstance(m, DDetect):
-            s = 256  # 2x min stride
+            s = 256
             m.inplace = self.inplace
-            m.stride = torch.tensor([s / x.shape[-2] for x in forward(torch.zeros(1, ch, s, s))])  # forward
+            with torch.no_grad():
+                dummy = torch.zeros(1, ch, s, s)
+                out = self.forward(dummy)               # DDetect.forward -> (y, x)
+                feats = out[1] if isinstance(out, tuple) else out   # x: list of feature maps per scale
+            m.stride = torch.tensor([s / f.shape[-2] for f in feats], dtype=torch.float)
             self.stride = m.stride
             m.bias_init()  # only run once
+
         if isinstance(m, (DualDDetect, TripleDDetect)):
-            s = 256  # 2x min stride
+            s = 256
             m.inplace = self.inplace
-            forward = lambda x: self.forward(x)[0]
-            m.stride = torch.tensor([s / x.shape[-2] for x in forward(torch.zeros(1, ch, s, s))])  # forward
+            with torch.no_grad():
+                dummy = torch.zeros(1, ch, s, s)
+                out = self.forward(dummy)               # DualDDetect.forward -> (y, [d1, d2])
+                feats = out[1][0] if (isinstance(out, tuple) and isinstance(out[1], list)) else out[0]
+            m.stride = torch.tensor([s / f.shape[-2] for f in feats], dtype=torch.float)
             self.stride = m.stride
             m.bias_init()  # only run once
 

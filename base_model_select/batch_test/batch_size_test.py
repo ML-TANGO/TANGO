@@ -7,8 +7,8 @@ import os
 from copy import deepcopy
 from pathlib import Path
 
-from .yolo.models.yolo import Model as yolo_model
-from .yolo.nas.supernet.supernet_yolov7 import YOLOSuperNet
+from autonn.autonn.autonn_core.tango.common.models.yolo import Model as yolo_model
+from autonn.autonn.autonn_core.tango.common.models.supernet_yolov9 import NASModel as YOLOSuperNet
 from .resnet.resnet_cifar10 import ResNet as resnet_model
 from .resnet.resnet_cifar10 import BasicBlock
 
@@ -25,7 +25,8 @@ def run_batch_test(basemodel_yaml, task, imgsz, hyp_yaml=None, nas=None):
         with open(hyp_yaml, 'r') as f:
             hyp = yaml.load(f, Loader=yaml.SafeLoader)  # load hyps
         if nas:
-            model = YOLOSuperNet(str(Path(os.path.dirname(__file__))/'yolo'/'nas'/'supernet'/'yolov7_supernet.yml'), ch=3, nc=80, anchors=hyp.get('anchors'))
+            cfg_path = Path(__file__).resolve().parents[3] / 'autonn' / 'autonn' / 'autonn_core' / 'tango' / 'common' / 'cfg' / 'yolov9' / 'yolov9-supernet.yml'
+            model = YOLOSuperNet(str(cfg_path), ch=3, nc=80, anchors=hyp.get('anchors'))
             model.set_max_net()
             if DEBUG: print(f'{PREFIX} YOLOSuperNet is used for AutoBatch.')
         else:
@@ -46,7 +47,7 @@ def run_batch_test(basemodel_yaml, task, imgsz, hyp_yaml=None, nas=None):
 
     batch_size = int(get_batch_size_for_gpu(model, 3 if task=='detection' else 1, imgsz, amp=True) * 0.9)
     # It assumes that the memory sizes of all gpus in a machine are same.
-    # 0.8 is multiplied by batch size to prevent cuda memory error due to a memory leak of yolov7
+    # 0.8 safety factor keeps headroom to avoid CUDA OOM during training
 
     del model
     torch.cuda.empty_cache()

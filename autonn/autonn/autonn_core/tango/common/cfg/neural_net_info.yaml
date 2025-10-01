@@ -73,6 +73,6 @@ class_file:
 - common/models/dynamic_op.py
 - common/models/resnet_cifar10.py
 - common/models/search_block.py
-- common/models/supernet_yolov7.py
+- common/models/supernet_yolov9.py
 - common/models/my_modules.py
 class_name: Model(cfg='basemodel.yaml') 

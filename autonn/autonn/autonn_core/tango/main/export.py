@@ -661,7 +661,7 @@ def export_config(src, dst, data, base, device, engine, task='detection'):
                              'common/models/dynamic_op.py',
                              'common/models/resnet_cifar10.py',
                              'common/models/search_block.py',
-                             'common/models/supernet_yolov7.py',
+                             'common/models/supernet_yolov9.py',
                              'common/models/my_modules.py',
                             ]
     if task == 'detection':
@@ -1118,7 +1118,16 @@ def convert_yolov9(model_pt, cfg):
     if not os.path.isfile(cfg):
         logger.warning(f'{colorstr("Model Exporter: ")}not found {cfg}, can not convert')
         return model_pt
-    
+
+    with open(cfg, 'r') as f:
+        cfg_dict = yaml.safe_load(f)
+    head_layers = [layer[2] for layer in cfg_dict.get('head', []) if isinstance(layer, list) and len(layer) > 2]
+    if any(module in ('DualDDetect', 'TripleDDetect') for module in head_layers):
+        logger.info(
+            f"{colorstr('Model Exporter:')} Conversion template uses {head_layers[-1]} — skipping reparameterization"
+        )
+        return model_pt
+
     model = DetectionModel(cfg, ch=3, nc=80, anchors=3).to(device) # create empty model
     _ = model.eval()
 
