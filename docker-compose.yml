@@ -149,6 +149,7 @@ services:
       volumes:
         - ./autonn_cl/autonn_cl:/source
         - shared:/shared
+        - ./autonn_cl/autonn_cl/autonn_cl_core/datasets/dummy:/shared/datasets/dummy
         - ${COCODIR:-./autonn/autonn/autonn_core/datasets/coco}:/shared/datasets/coco
         - ${COCO128DIR:-./autonn/autonn/autonn_core/datasets/coco128}:/shared/datasets/coco128
       hostname: autonn-cl

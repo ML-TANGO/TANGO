@@ -171,6 +171,7 @@ def create_dataloader_v9(path,
                       shuffle=False,
                       uid=None,
                       pid=None,
+                      task='detection',
 ):
     if rect and shuffle:
         logger.warning(f'{colorstr(f"{prefix}_dataset: ")}WARNING ⚠️ --rect is incompatible with DataLoader shuffle, setting shuffle=False')
@@ -192,6 +193,7 @@ def create_dataloader_v9(path,
             prefix=prefix,
             uid=uid,
             pid=pid,
+            task=task,
         )
 
     batch_size = min(batch_size, len(dataset))
