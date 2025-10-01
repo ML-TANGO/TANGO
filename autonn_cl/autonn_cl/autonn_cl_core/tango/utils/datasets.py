@@ -230,7 +230,8 @@ def create_dataloader(uid, pid, path, imgsz, batch_size, stride, opt, hyp=None,
             stride=int(stride),
             pad=pad,
             image_weights=image_weights,
-            prefix=prefix
+            prefix=prefix,
+            task='detection'
         )
 
     batch_size = min(batch_size, len(dataset))
@@ -877,15 +878,11 @@ class LoadImagesAndLabels_v9(Dataset):
         img = img[:, :, ::-1].transpose(2, 0, 1)  # BGR to RGB, to 3x416x416
         img = np.ascontiguousarray(img)
 
-        # Convert
-        img = img.transpose((2, 0, 1))[::-1]  # HWC to CHW, BGR to RGB
-        img = np.ascontiguousarray(img)
-
         if self.load_masks:
             masks = self.load_masks_from_segments(index, labels_out.numpy(), img.shape[1:])
-            return torch.from_numpy(img), labels_out, masks, self.img_files[index], shapes
+            return torch.from_numpy(img), labels_out, masks, self.im_files[index], shapes
         
-        return torch.from_numpy(img), labels_out, self.img_files[index], shapes
+        return torch.from_numpy(img), labels_out, self.im_files[index], shapes
 
     def load_image(self, i):
         # Loads 1 image from dataset index 'i', returns (im, original hw, resized hw)
@@ -1117,6 +1114,7 @@ class LoadImagesAndLabels_v9(Dataset):
         
         return mask
 
+    @staticmethod
     def collate_fn(batch):
         if len(batch[0]) == 4:  # (img, label, path, shapes)
             im, label, path, shapes = zip(*batch)
