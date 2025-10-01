@@ -56,6 +56,7 @@ TASK_TO_MODEL_TABLE = {
     "detection": "yolov9",
     "classification": "resnet",
     "classification-c": "resnetc",
+    "segmentation": "yolov9"
 }
 
 # Model size mapping by target
@@ -204,6 +205,8 @@ def get_user_requirements(userid, projid, resume=False):
     # Adjust hyperparameter based on task
     if task == 'detection':
         basemodel_dict['hyp'] = 'p5' if basemodel_dict['hyp'] == 'tiny' else basemodel_dict['hyp']
+    elif task == 'segmentation':
+        basemodel_dict['hyp'] = 'seg'
     else:  # classification
         basemodel_dict['hyp'] = 'cls'
 
@@ -226,7 +229,11 @@ def get_user_requirements(userid, projid, resume=False):
     )
 
     # Load arguments
-    _task =  'detection7' if basemodel['model_name'] == 'YOLOV7' or target == 'galaxys22' else task
+    if (basemodel['model_name'] == 'YOLOV7' or target == 'galaxys22') and task == 'detection':
+        _task = 'detection7'
+    else:
+        _task = task
+    
     opt_yaml_path = PROJ_PATH / f'args-{_task}.yaml'
 
     if skip_bms:
@@ -447,6 +454,8 @@ def base_model_select(userid, project_id, proj_info, data, manual_select=False):
         task_ = 'classification-c' if data['nc'] <= 10 else task
     elif task == 'detection':
         task_ = 'detection7' if data['nc'] <= 50 else task
+    elif task == 'segmentation':
+        task_ = 'segmentation'
     else:
         logger.warning(f"\nBMS: Not supported task: {task}")
 
@@ -465,7 +474,10 @@ def base_model_select(userid, project_id, proj_info, data, manual_select=False):
 
     # Handle resnet naming convention
     dirname = model if task_ != 'classification-c' else model[:-1] # remove 'c' from 'resnetc'
-    filename = f'{model}{size}.yaml'
+    if task == 'segmentation':
+        filename = f'{model}{size}-seg.yaml'
+    else:
+        filename = f'{model}{size}.yaml'
 
     # Store basemodel.yaml
     PROJ_PATH = COMMON_ROOT / userid / project_id
@@ -541,7 +553,7 @@ def backup_previous_work(model):
     return bak_dir
 
 
-def run_autonn(userid, project_id, resume=False, viz2code=False, nas=False, hpo=False):
+def run_autonn_cl(userid, project_id, resume=False, viz2code=False, nas=False, hpo=False):
     """
     Main function to run the AutoNN workflow.
     
@@ -641,7 +653,7 @@ def run_autonn(userid, project_id, resume=False, viz2code=False, nas=False, hpo=
     results, train_final = train(proj_info, hyp, opt, data, tb_writer)
 
     # Log training results
-    best_acc = results[3] if task == 'detection' else results[0]
+    best_acc = results[3] if task in ['detection', 'segmentation'] else results[0]
     logger.info(
         f'{colorstr("Train: ")}Training complete. Best results: {best_acc:.2f},'
         f' Best model saved as: {train_final}\n'
@@ -796,7 +808,7 @@ def export_model(userid, project_id, train_final, opt, data, basemodel,
     channel = data.get('ch')
     convert = ['torchscript', 'onnx']
 
-    if task == 'detection':
+    if task in ['detection', 'segmentation']:
         if target_engine == 'tensorrt':
             convert.append('onnx_end2end')
         if target_engine == 'tflite':
@@ -848,7 +860,7 @@ def print_export_summary(train_final, results, convert, task, dst_nninfo_path):
     """
     # Print source model information
     mb = os.path.getsize(train_final) / 1E6  # filesize
-    if task == 'detection':
+    if task in ['detection', 'segmentation']:
         logger.info(f'Source Model = {train_final}({mb:.1f} MB), {results[3]} mAP')
     elif task == 'classification':
         logger.info(f'Source Model = {train_final}({mb:.1f} MB), val-accuracy = {results[0]}')
