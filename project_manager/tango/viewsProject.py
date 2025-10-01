@@ -1104,6 +1104,13 @@ def project_update(request):
 
         learning_type = str(request.data['learning_type'])
 
+        # AutoNN_CL (Segmentation + Continual Learning) projects use fixed target ID 9
+        if (
+            task_type == TaskType.SEGMENTATION
+            and learning_type == LearningType.CONTINUAL_LEARNING
+        ):
+            target = 9
+
         project_info = Project.objects.get(id=request.data['project_id'])
 
         project_info.dataset = dataset
@@ -1179,7 +1186,7 @@ def project_update(request):
 
         # Segmentation 프로젝트인 경우 전용 YAML 생성
         if task_type == TaskType.SEGMENTATION:
-            create_segmentation_project_yaml(request.user, request.data['project_id'], request.data)
+            create_segmentation_project_yaml(str(request.user), request.data['project_id'], request.data)
         else:
             # 기존 project_info.yaml 파일 생성
             common_path = os.path.join(root_path, f"shared/common/{request.user}/{request.data['project_id']}")
@@ -1213,6 +1220,7 @@ def create_segmentation_project_yaml(user_id, project_id, project_data):
     """
     try:
         import yaml
+        user_id = str(user_id)
         
         # 공통 경로 설정 및 디렉토리 생성
         common_path = os.path.join(root_path, f"shared/common/{user_id}/{project_id}")
@@ -1245,15 +1253,15 @@ def create_segmentation_project_yaml(user_id, project_id, project_data):
                 'batch_size': 16  # 배치 크기 (예시)
             },
             'container_info': {
-                'container_id': ContainerId.autonn_cl,
+                'container_id': str(ContainerId.autonn_cl),
                 'container_port': 8102,  # AutoNN_CL 컨테이너 포트 (가안)
-                'status': ContainerStatus.READY
+                'status': str(ContainerStatus.READY)
             }
         }
 
         # YAML 파일로 저장
         with open(os.path.join(common_path, 'project_info.yaml'), 'w') as f:
-            yaml.dump(yaml_content, f, default_flow_style=False, allow_unicode=True, indent=2)
+            yaml.safe_dump(yaml_content, f, default_flow_style=False, allow_unicode=True, indent=2)
         
         print(f"Segmentation project YAML created successfully for project {project_id}")
         
