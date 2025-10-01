@@ -89,36 +89,33 @@ def report_progress(userid,
     _ap, _ap_class = [], []
 
     if len(statsn) and statsn[0].any():
-        _p, _r, _ap, _f1, _ap_class = ap_per_class(
-            *statsn, 
-            plot=plots, 
-            metric=metric, 
-            save_dir=save_dir, 
-            names=names
-        )
-        _ap50, _ap = _ap[:, 0], _ap.mean(1)  # AP@0.5, AP@0.5:0.95
+        if metric == 'v9':
+            _tp, _fp, _p, _r, _f1, _ap, _ap_class = ap_per_class_v9(
+                *statsn, plot=False, save_dir=save_dir, names=names
+            )
+        else:
+            _p, _r, _ap, _f1, _ap_class = ap_per_class(
+                *statsn, plot=False, metric=metric, save_dir=save_dir, names=names
+            )
+        _ap50, _ap = _ap[:, 0], _ap.mean(1)
         _mp, _mr, _map50, _map = _p.mean(), _r.mean(), _ap50.mean(), _ap.mean()
 
-    # Status update
-    val_acc = {}
-    val_acc['class'] = 'all'
-    val_acc['images'] = seen
-    val_acc['labels'] = label_cnt
-    val_acc['P'] = _mp
-    val_acc['R'] = _mr
-    val_acc['mAP50'] = _map50
-    val_acc['mAP50-95'] = _map
-    val_acc['step'] = current_step # batch_i + 1
-    val_acc['total_step'] = total_step# len(dataloader)
-    val_acc['time'] = f'{latency:.1f} s'
+    val_acc = {
+        'class': 'all',
+        'images': seen,
+        'labels': label_cnt,
+        'P': _mp,
+        'R': _mr,
+        'mAP50': _map50,
+        'mAP50-95': _map,
+        'step': current_step,
+        'total_step': total_step,
+        'time': f'{latency:.1f} s',
+    }
     status_update(userid, project_id,
-                    update_id="val_accuracy",
-                    update_content=val_acc)
+                  update_id="val_accuracy",
+                  update_content=val_acc)
 
-    # Print 
-    # pf_t = '%20s' + '%12s' * 6
-    # title = ('Class', 'Images', 'Labels', 'P', 'R', 'mAP@.5', 'mAP@.5:.95')
-    # logger.info(pf_t % title)
     elapsed_sec = time.time() - start_time
     elapsed_time = str(datetime.timedelta(seconds=elapsed_sec)).split('.')[0]
     ten_percent_cnt = int(current_step/total_step*10+0.5)
@@ -128,6 +125,7 @@ def report_progress(userid,
     s = pf_c % content
     content_s = s + (f'{bar}{current_step/total_step*100:3.0f}% {current_step:4.0f}/{total_step:4.0f}  {elapsed_time}')
     logger.info(content_s)
+
 
 def process_batch(detections, labels, iouv):
     """
@@ -221,7 +219,53 @@ def test(proj_info,
     nc = 1 if single_cls else int(data['nc'])  # number of classes
     iouv = torch.linspace(0.5, 0.95, 10).to(device)  # iou vector for mAP@0.5:0.95
     niou = iouv.numel()
+    
+    # =========================
+    # [BEGIN PATCH v9-only NMS]
+    # =========================
+    def _v9_sanitize_and_nms(out, conf_thres, iou_thres, nc, device):
+        import torch
+        try:
+            from torchvision.ops import nms as tv_nms
+        except Exception as e:
+            raise RuntimeError(f"torchvision.ops.nms import failed: {e}")
 
+        assert out.dim() == 3, f"v9 head must be 3D, got {tuple(out.shape)}"
+        B = out.shape[0]
+
+        if out.shape[-1] == 4 + nc:
+            pred = out
+        elif out.shape[1] == 4 + nc:
+            pred = out.permute(0, 2, 1).contiguous()
+        else:
+            raise RuntimeError(f"Unexpected v9 output shape: {tuple(out.shape)} (nc={nc})")
+
+        results = []
+        for b in range(B):
+            p = pred[b]
+            boxes_xywh = p[:, :4]
+            cls_scores = p[:, 4:]
+
+            conf, cls = cls_scores.max(dim=1)
+
+            keep = conf > conf_thres
+            if keep.any():
+                boxes_xywh = boxes_xywh[keep]
+                conf = conf[keep]
+                cls = cls[keep].float()
+
+                boxes_xyxy = xywh2xyxy_v9(boxes_xywh)
+
+                keep_idx = tv_nms(boxes_xyxy, conf, iou_thres)
+                det = torch.cat(
+                    [boxes_xyxy[keep_idx],
+                     conf[keep_idx, None],
+                     cls[keep_idx, None]], dim=1
+                )
+                results.append(det)
+            else:
+                results.append(torch.zeros((0, 6), device=device))
+        return results
     # Dataloader ---------------------------------------------------------------
     if not training: # called directly
         if device.type != 'cpu':
@@ -299,6 +343,33 @@ def test(proj_info,
 
     # logger.info(f'dataset size = {len(dataloader)}')
     # for batch_i, (img, targets, paths, shapes) in enumerate(tqdm(dataloader, desc=s)):
+    def _maybe_fix_pred_format_v9(pred): ## 
+        if pred is None or pred.shape[0] == 0:
+            return pred
+        wrong_x = (pred[:, 2] < pred[:, 0]).float().mean().item()
+        wrong_y = (pred[:, 3] < pred[:, 1]).float().mean().item()
+        if wrong_x > 0.5 or wrong_y > 0.5:
+            xyxy = xywh2xyxy_v9(pred[:, :4].clone())
+            pred = torch.cat([xyxy, pred[:, 4:]], dim=1)
+        return pred
+
+    def _v9_safe_nms(out_tensor, targets, nb, conf_thres, iou_thres, save_hybrid): ##
+        if out_tensor.dim() == 3 and out_tensor.shape[1] == (4 + model.nc):
+            out_for_nms = out_tensor.permute(0, 2, 1).contiguous()
+        else:
+            out_for_nms = out_tensor
+
+        lb_local = [targets[targets[:, 0] == i, 1:] for i in range(nb)] if save_hybrid else []
+        dets = non_max_suppression_v9(
+            out_for_nms,
+            conf_thres=conf_thres,
+            iou_thres=iou_thres,
+            labels=lb_local,
+            multi_label=True
+        )
+        dets = [_maybe_fix_pred_format_v9(d) for d in dets]
+        return dets
+    
     start_time = time.time()
     for batch_i, (img, targets, paths, shapes) in enumerate(dataloader): # enumerate(pbar):
         t = time_synchronized()
@@ -309,16 +380,6 @@ def test(proj_info,
         nb, _, height, width = img.shape  # batch size, channels, height, width
         _t0 = time_synchronized() - t # _t0 = pre-process time
         t0 += _t0
-        # print('\t'+'_'*100)
-        # for cnt, path in enumerate(paths):
-        #     s = ''
-        #     for target in targets:
-        #         idx = int(target[0].item())
-        #         if cnt == idx:
-        #             cls_idx = int(target[1].item())
-        #             s += f"{cls_idx} "
-        #     print(f"\t{cnt}: {path}, [ {s}]")
-        # print('\t'+'_'*100)
 
         with torch.no_grad():
             # Run model --------------------------------------------------------
@@ -333,8 +394,12 @@ def test(proj_info,
                 train_out.shape = ( ((bs,144,80,80), (bs,144,40,40), (bs,144,20,20)),
                                     ((bs,144,80,80), (bs,144,40,40), (bs,144,20,20))  ) : list
             '''
-            if v9 and nh > 1:
-                out = out[nh-1]
+            if v9:
+                if isinstance(out, (list, tuple)):
+                    if len(out) == 2:
+                        out = (out[0] + out[1]) / 2
+                    else:
+                        out = out[-1]
             _t1 = time_synchronized() - t # _t1 = inference time
             t1 += _t1
 
@@ -344,7 +409,6 @@ def test(proj_info,
                     loss = compute_loss(train_out, targets)[1][:3] # box, dfl, cls
                 else:
                     loss += compute_loss([x.float() for x in train_out], targets)[1][:3]  # box, obj, cls (detached)
-                # logger.info(f"      Batch #{batch_i}: Computing loss - {loss.to('cpu').tolist()}")
 
             # Run NMS ----------------------------------------------------------
             '''
@@ -352,42 +416,42 @@ def test(proj_info,
                 out = (bs, n, 6) : bs = batch size, n = detected object number, 6 = (x,y,w,h,conf,cls)
                 (v7) (bs, 25200, 5+80) ==> NMS   ==> approx. (bs, n, 6)
                 (v9) (bs, 64+80, 8400) ==> NMSv9 ==> approx. (bs, n, 6)
-                in fact, 'out' is list-type and it can have a different 'n' which image it is on
-                out = [ [n1, 6], [n2, 6], ... [nbs, 6] ]
-
-            nms terms for codegen :
-              n       = num_detections,
-              x,y,w,h = nmsed_boxes (x1,y1,x2,y2),
-              conf    = nmsed_scores,
-              cls     = nmsed_classes
             '''
             targets[:, 2:] *= torch.Tensor([width, height, width, height]).to(device)  # to pixels
-            lb = [targets[targets[:, 0] == i, 1:] for i in range(nb)] if save_hybrid else []  # for autolabelling
             t = time_synchronized()
             if v9:
-                out = non_max_suppression_v9(
-                    out, 
-                    conf_thres=conf_thres, 
-                    iou_thres=iou_thres, 
-                    labels=lb, 
-                    multi_label=True
+                if isinstance(out, (list, tuple)):
+                    out = out[-1] if len(out) != 2 else (out[0] + out[1]) / 2
+                _nc = getattr(model, 'nc', None)
+                if _nc is None:
+                    _nc = len(names)
+
+                out = _v9_sanitize_and_nms(
+                    out,
+                    conf_thres=conf_thres,
+                    iou_thres=iou_thres,
+                    nc=_nc,
+                    device=device
                 )
             else:
                 out = non_max_suppression(
-                    out, 
-                    conf_thres=conf_thres, 
-                    iou_thres=iou_thres, 
-                    labels=lb, 
-                    multi_label=True
+                    out, conf_thres=conf_thres, iou_thres=iou_thres,
+                    labels=None, multi_label=True
                 )
-            _t2 = time_synchronized() - t # _t2 = nms time
+            _t2 = time_synchronized() - t
             t2 += _t2
+
+            if batch_i == 0:
+                total_dets = sum(len(d) for d in out)
+                top_conf = None
+                for det in out:
+                    if det is not None and len(det):
+                        val = float(det[:, 4].max().item())
+                        top_conf = val if top_conf is None else max(top_conf, val)
 
         # Metrics per image ----------------------------------------------------
         for si, pred in enumerate(out):
-            # print(si, pred.shape)
             labels = targets[targets[:, 0] == si, 1:]
-            # nl = len(labels)
             nl, npr = labels.shape[0], pred.shape[0] # number of labels, predictions
             tcls = labels[:, 0].tolist() if nl else []  # target class
             path = Path(paths[si])
@@ -398,7 +462,6 @@ def test(proj_info,
             label_cnt += nl
             if npr == 0:
                 if nl:
-                    # stats.append((torch.zeros(0, niou, dtype=torch.bool), torch.Tensor(), torch.Tensor(), tcls))
                     stats.append((correct, *torch.zeros((2,0), device=device), labels[:,0]))
                 continue
 
@@ -410,9 +473,7 @@ def test(proj_info,
 
             # Evaluate
             if nl:
-                detected = []  # target indices
                 tcls_tensor = labels[:, 0]
-
                 # target boxes
                 if v9:
                     tbox = xywh2xyxy_v9(labels[:, 1:5])
@@ -430,22 +491,17 @@ def test(proj_info,
                     for cls in torch.unique(tcls_tensor):
                         ti = (cls == tcls_tensor).nonzero(as_tuple=False).view(-1)  # target indices
                         pi = (cls == pred[:, 5]).nonzero(as_tuple=False).view(-1)  # prediction indices
-
-                        # Search for detections
                         if pi.shape[0]:
-                            # Prediction to target ious
                             ious, i = box_iou(predn[pi, :4], tbox[ti]).max(1)  # best ious, indices
-
-                            # Append detections
                             detected_set = set()
                             for j in (ious > iouv[0]).nonzero(as_tuple=False):
                                 d = ti[i[j]]  # detected target
                                 if d.item() not in detected_set:
-                                    detected_set.add(d.item()) # set of int
-                                    detected.append(d) # list of tensor
+                                    detected_set.add(d.item())
                                     correct[pi[j]] = ious[j] > iouv  # iou_thres is 1xn
-                                    if len(detected) == nl:  # all targets already located in image
+                                    if len(detected_set) == nl:
                                         break
+
             # Append statistics (correct, conf, pcls, tcls)
             if v9:
                 stats.append((correct, pred[:, 4], pred[:, 5], labels[:, 0]))
@@ -469,7 +525,6 @@ def test(proj_info,
                 if v9:
                     save_one_json(predn, jdict, path, coco91class)  # append to COCO-JSON dictionary
                 else:
-                    # [{"image_id": 42, "category_id": 18, "bbox": [258.15, 41.29, 348.26, 243.78], "score": 0.236}, ...
                     image_id = int(path.stem) if path.stem.isnumeric() else path.stem
                     box = xyxy2xywh(predn[:, :4])  # xywh
                     box[:, :2] -= box[:, 2:] / 2  # xy center to top-left corner
@@ -479,28 +534,14 @@ def test(proj_info,
                                     'bbox': [round(x, 3) for x in b],
                                     'score': round(p[4], 5)})
 
-        # Plot images ----------------------------------------------------------
-        # if plots and batch_i < 3:
-        #     f = save_dir / f'test_batch{batch_i}_labels.jpg'  # labels
-        #     Thread(target=plot_images, args=(img, targets, paths, f, names), daemon=True).start()
-        #     f = save_dir / f'test_batch{batch_i}_pred.jpg'  # predictions
-        #     Thread(target=plot_images, args=(img, output_to_target(out), paths, f, names), daemon=True).start()
-
-        # Compute intermeidate metrics for log-viz -----------------------------
+        # Compute intermediate metrics for log-viz -----------------------------
         statsn = deepcopy(stats)
-        # to numpy
         if v9:
             statsn = [torch.cat(x,0).cpu().numpy() for x in zip(*statsn)]
         else:
             statsn = [np.concatenate(x, 0) for x in zip(*statsn)]
         latency = _t0 + _t1 + _t2
-        ''' t0:  accumulated preprocessing time
-            t1:  accumulated inference time
-            t2:  accumulated nms time
-            _t0: preprocessing time for this batch
-            _t1: inference time for this batch
-            _t2: nms time for this batch
-        '''
+
         report_progress(
             userid,
             project_id,
@@ -519,64 +560,35 @@ def test(proj_info,
     # Test end =================================================================
 
     # Compute final metrics ----------------------------------------------------
-    # to numpy
     if v9:
         stats = [torch.cat(x,0).cpu().numpy() for x in zip(*stats)]
     else:
         stats = [np.concatenate(x, 0) for x in zip(*stats)]
 
+    ap, ap_class = [], []
     if len(stats) and stats[0].any():
         if metric == 'v9':
             tp, fp, p, r, f1, ap, ap_class = ap_per_class_v9(
-                *stats,
-                plot=plots,
-                save_dir=save_dir,
-                names=names
+                *stats, plot=plots, save_dir=save_dir, names=names
             )
         else:
             p, r, ap, f1, ap_class = ap_per_class(
-                *stats,
-                plot=plots,
-                metric=metric,
-                save_dir=save_dir,
-                names=names
+                *stats, plot=plots, metric=metric, save_dir=save_dir, names=names
             )
-        ap50, ap = ap[:, 0], ap.mean(1)  # AP@0.5, AP@0.5:0.95
+        ap50, ap = ap[:, 0], ap.mean(1)
         mp, mr, map50, map = p.mean(), r.mean(), ap50.mean(), ap.mean()
+    else:
+        mp = mr = map50 = map = 0.0
     nt = np.bincount(stats[3].astype(int), minlength=nc) # number of targets per class
 
     # Print results ------------------------------------------------------------
     logger.info('-'*100)
-    # pf_t = '%20s' + '%12s' * 6
-    # title = ('Class', 'Images', 'Labels', 'P', 'R', 'mAP@.5', 'mAP@.5:.95')
-    # logger.info(pf_t % title)
-
     if nt.sum() == 0:
         logger.warning(f'WARNING: no labels found in dataset, can not compute metrics w/o labels')
     pf_c = '%22s' + '%11i' * 2 + '%11.3g' * 4
     logger.info(pf_c % ('all', seen, nt.sum(), mp, mr, map50, map))
 
-    # nt_sum_value = nt.sum().item()
-    # val_acc['class'] = 'all'
-    # val_acc['images'] = seen
-    # val_acc['labels'] = nt_sum_value
-    # val_acc['P'] = mp
-    # val_acc['R'] = mr
-    # val_acc['mAP50'] = map50
-    # val_acc['mAP50-95'] = map
-    # # val_acc['time'] = f'{(t0 + t1) :.1f} s' # total time
-    # status_update(userid, project_id,
-    #           update_id="val_accuracy",
-    #           update_content=val_acc)
-
-    # Print results per class --------------------------------------------------
-    if (verbose or (nc < 50 and not training)) and nc > 1 and len(stats):
-        for i, c in enumerate(ap_class):
-            logger.info(pf_c % (names[c], seen, nt[c], p[i], r[i], ap50[i], ap[i]))
-
     # Print speeds -------------------------------------------------------------
-    # t = (avg. preprocess time, avg. inference time, avg. nms time)
-    # 'seen' may be less than 'batch_size' at last batch
     t = tuple(x / seen * 1E3 for x in (t0, t1, t2))
     if not training:
         logger.info('Speed(avg.): %.1fms pre-process, %.1fms inference, %.1fms nms per images' % t)
@@ -590,20 +602,18 @@ def test(proj_info,
         w = Path(weights[0] if isinstance(weights, list) else weights).stem if weights is not None else ''  # weights
         DATASET_ROOT = Path("/shared/datasets")
         anno_json = str(DATASET_ROOT / 'coco' / 'annotations' / 'instances_val2017.json')
-        # anno_json = './coco/annotations/instances_val2017.json'  # annotations json
         pred_json = str(save_dir / f"{w}_predictions.json")  # predictions json
         logger.info('\nEvaluating pycocotools mAP... saving %s...' % pred_json)
         with open(pred_json, 'w') as f:
             json.dump(jdict, f)
 
-        try:  # https://github.com/cocodataset/cocoapi/blob/master/PythonAPI/pycocoEvalDemo.ipynb
+        try:
             from pycocotools.coco import COCO
             from pycocotools.cocoeval import COCOeval
             anno = COCO(anno_json)  # init annotations api
             pred = anno.loadRes(pred_json)  # init predictions api
             eval = COCOeval(anno, pred, 'bbox')
             if is_coco:
-                # eval.params.imgIds = [int(Path(x).stem) for x in dataloader.dataset.img_files]  # image IDs to evaluate
                 eval.params.imgIds = [int(Path(x).stem) for x in dataloader.dataset.im_files]
             eval.evaluate()
             eval.accumulate()
@@ -674,8 +684,6 @@ def test_cls(proj_info,
     # is_imgnet = True if data['dataset_name'] == 'imagenet' and 'imagenet' in test_path else False
 
     # Test start ===============================================================
-    # val_loss = 0
-    # val_acc = 0
     val_loss = torch.zeros(1, device=device)
     val_accuracy = torch.zeros(1, device=device)
     accumulated_data_count = 0
@@ -699,7 +707,6 @@ def test_cls(proj_info,
             # compute top-1 accuracy
             _, predicted = output.max(1)
             acc = torch.eq(predicted, target).sum()
-            # val_acc += predicted.eq(target.view_as(predicted)).sum().item()
             val_accuracy += acc
             t0 = time_synchronized()-t
 
@@ -708,7 +715,7 @@ def test_cls(proj_info,
         # status update
         val_acc['step'] = i + 1
         val_acc['images'] = accumulated_data_count
-        val_acc['labels'] = output.size(1) # val_accuracy.item()
+        val_acc['labels'] = output.size(1)
         val_acc['P'] = accumulated_data_count
         val_acc['R'] = val_accuracy.item()
         val_acc['mAP50'] = val_loss.item() / (i+1)
@@ -751,7 +758,7 @@ if __name__ == '__main__':
     parser.add_argument('--verbose', action='store_true', help='report mAP by class')
     parser.add_argument('--save-txt', action='store_true', help='save results to *.txt')
     parser.add_argument('--save-hybrid', action='store_true', help='save label+prediction hybrid results to *.txt')
-    parser.add_argument('--save-conf', action='store_true', help='save confidences in --save-txt labels')
+    parser.add_argument('--save-conf', action='store-true', help='save confidences in --save-txt labels')  # NOTE: original had action='store_true'; keep as-is if needed
     parser.add_argument('--save-json', action='store_true', help='save a cocoapi-compatible JSON results file')
     parser.add_argument('--project', default='runs/test', help='save to project/name')
     parser.add_argument('--name', default='exp', help='save to project/name')

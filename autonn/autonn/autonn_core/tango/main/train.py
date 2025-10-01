@@ -29,7 +29,7 @@ from . import test  # import test.py to get mAP or val_accuracy after each epoch
 from tango.common.models.experimental import attempt_load
 from tango.common.models.yolo               import Model, DetectionModel
 from tango.common.models.resnet_cifar10     import ClassifyModel
-from tango.common.models.supernet_yolov7    import NASModel
+from tango.common.models.supernet_yolov9    import NASModel as NASModelV9
 # from tango.common.models import *
 from tango.utils.autoanchor import check_anchors
 from tango.utils.autobatch import get_batch_size_for_gpu
@@ -279,7 +279,7 @@ def train(proj_info, hyp, opt, data_dict, tb_writer=None):
             ).to(device)
         elif task == 'detection':
             if nas or target == 'Galaxy_S22':
-                model = NASModel(
+                model = NASModelV9(
                     opt.cfg or ckpt['model'].yaml, 
                     ch=ch, 
                     nc=nc, 
@@ -322,7 +322,7 @@ def train(proj_info, hyp, opt, data_dict, tb_writer=None):
             ).to(device)
         elif task == 'detection':
             if nas or target == 'Galaxy_S22':
-                model = NASModel(
+                model = NASModelV9(
                     opt.cfg, 
                     ch=ch, 
                     nc=nc, 
@@ -390,11 +390,14 @@ def train(proj_info, hyp, opt, data_dict, tb_writer=None):
             amp_enabled=amp_enable,
             max_search=True 
         )
-        batch_size = int(autobatch_rst) # autobatch_rst = result * bs_factor * gpu_number
+        batch_size = max(int(autobatch_rst), 1) # autobatch_rst = result * bs_factor * gpu_number
     
-    batch_size = min(batch_size, server_gpu_mem*2)
-    logger.info(f'{colorstr("AutoBatch: ")}'
-                f'Limit batch size {batch_size} (up to 2 x GPU memory {server_gpu_mem}G)')
+    if server_gpu_mem > 0:
+        batch_size = min(batch_size, server_gpu_mem * 2)
+        logger.info(f'{colorstr("AutoBatch: ")}'
+                    f'Limit batch size {batch_size} (up to 2 x GPU memory {server_gpu_mem}G)')
+    else:
+        logger.info(f'{colorstr("AutoBatch: ")}GPU memory info unavailable; using batch size {batch_size}')
 
     if opt.local_rank != -1: # DDP mode
         logger.info(f'LOCAL RANK is not -1; Multi-GPU training')
@@ -427,8 +430,9 @@ def train(proj_info, hyp, opt, data_dict, tb_writer=None):
 
     # Optimizer ----------------------------------------------------------------
     nbs = 64  # nominal batch size
-    accumulate = max(round(nbs / opt.total_batch_size), 1)  # accumulate loss before optimizing
-    hyp['weight_decay'] *= opt.total_batch_size * accumulate / nbs  # scale weight_decay
+    denom_total_bs = max(opt.total_batch_size, 1)
+    accumulate = max(round(nbs / denom_total_bs), 1)  # accumulate loss before optimizing
+    hyp['weight_decay'] *= denom_total_bs * accumulate / nbs  # scale weight_decay
     weight_decay_, momentum_, lr0_ = hyp['weight_decay'], hyp['momentum'], hyp['lr0']
     optimizer = get_optimizer(model, opt.adam, lr0_, momentum_, weight_decay_)
 
@@ -891,29 +895,34 @@ def train(proj_info, hyp, opt, data_dict, tb_writer=None):
                 t_batch = time.time() #time_synchronized()
                 ni = i + nb * epoch  # number integrated batches (since train start)
                 imgs = imgs.to(device, non_blocking=True).float() / 255  # uint8 to float32, 0-255 to 0.0-1.0
-                
+
                 # Warmup
                 if ni <= nw:
                     xi = [0, nw]  # x interp
                     # model.gr = np.interp(ni, xi, [0.0, 1.0])  # iou loss ratio (obj_loss = 1.0 or iou)
-                    accumulate = max(1, np.interp(ni, xi, [1, nbs / opt.total_batch_size]).round())
-                    for j, x in enumerate(optimizer.param_groups):
+                    accumulate = max(1, np.interp(ni, xi, [1, nbs / max(opt.total_batch_size, 1)]).round())
+                    for j, param_group in enumerate(optimizer.param_groups):
                         # bias lr falls from 0.1 to lr0, all other lrs rise from 0.0 to lr0
-                        # x['lr'] = np.interp(ni, xi, [hyp['warmup_bias_lr'] if j == 2 else 0.0, x['initial_lr'] * lf(epoch)])
-                        x['lr'] = np.interp(ni, xi, [hyp['warmup_bias_lr'] if j == 0 else 0.0, x['initial_lr'] * lf(epoch)])
-                        if 'momentum' in x:
-                            x['momentum'] = np.interp(ni, xi, [hyp['warmup_momentum'], hyp['momentum']])
-                    # hyp['current_momentum'] = x['momentum']
-                    # hyp[f'current_bias_lr'] = optimizer.param_groups[0]['lr']
-                    # hyp[f'current_lr'] = x['lr']
-                    # status_update(userid, project_id,
-                    #           update_id="hyperparameter",
-                    #           update_content=hyp)
-                    logger.info(f'step-{i} warming up... '
-                                f'bias lr = {optimizer.param_groups[0]["lr"]}, '
-                                f'lr = {x["lr"]}, '
-                                f'momentum={x["momentum"]}')
-
+                        param_group['lr'] = np.interp(
+                            ni,
+                            xi,
+                            [hyp['warmup_bias_lr'] if j == 0 else 0.0, param_group['initial_lr'] * lf(epoch)],
+                        )
+                        if 'momentum' in param_group:
+                            param_group['momentum'] = np.interp(
+                                ni,
+                                xi,
+                                [hyp['warmup_momentum'], hyp['momentum']],
+                            )
+                    logger.info(
+                        f'step-{i} warming up... '
+                        f'bias lr = {optimizer.param_groups[0]["lr"]}, '
+                        f'lr = {optimizer.param_groups[0]["lr"]}, '
+                        f'momentum={optimizer.param_groups[0].get("momentum")}'
+                    )
+                else:
+                    accumulate = max(1, np.interp(ni, [0, nb], [1, nbs / max(opt.total_batch_size, 1)]).round())
+                
                 # Multi-scale
                 if opt.multi_scale:
                     sz = random.randrange(imgsz * 0.5, imgsz * 1.5 + gs) // gs * gs  # size
@@ -1035,19 +1044,25 @@ def train(proj_info, hyp, opt, data_dict, tb_writer=None):
                 # Warmup
                 if ni <= nw:
                     xi = [0, nw]  # x interp
-                    accumulate = max(1, np.interp(ni, xi, [1, nbs / opt.total_batch_size]).round())
-                    for j, x in enumerate(optimizer.param_groups):
+                    accumulate = max(1, np.interp(ni, xi, [1, nbs / max(opt.total_batch_size, 1)]).round())
+                    for j, param_group in enumerate(optimizer.param_groups):
                         # bias lr falls from 0.1 to lr0, all other lrs rise from 0.0 to lr0
-                        x['lr'] = np.interp(ni, xi, [hyp['warmup_bias_lr'] if j == 2 else 0.0, x['initial_lr'] * lf(epoch)])
-                        if 'momentum' in x:
-                            x['momentum'] = np.interp(ni, xi, [hyp['warmup_momentum'], hyp['momentum']])
-                            hyp[f'momentum_group{j}'] = x['momentum']
+                        param_group['lr'] = np.interp(
+                            ni,
+                            xi,
+                            [hyp['warmup_bias_lr'] if j == 2 else 0.0, param_group['initial_lr'] * lf(epoch)],
+                        )
+                        if 'momentum' in param_group:
+                            param_group['momentum'] = np.interp(ni, xi, [hyp['warmup_momentum'], hyp['momentum']])
+                            hyp[f'momentum_group{j}'] = param_group['momentum']
                         else:
                             hyp[f'momentum_group{j}'] = None
-                        hyp[f'lr_group{j}'] = x['lr']
+                        hyp[f'lr_group{j}'] = param_group['lr']
                     # status_update(userid, project_id,
                     #           update_id="hyperparameter",
                     #           update_content=hyp)
+                else:
+                    accumulate = max(1, np.interp(ni, [0, nb], [1, nbs / max(opt.total_batch_size, 1)]).round())
 
                 # Forward
                 optimizer.zero_grad()

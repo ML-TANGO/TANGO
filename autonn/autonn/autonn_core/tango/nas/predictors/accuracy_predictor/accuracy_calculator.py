@@ -16,6 +16,10 @@ import torch
 import torch.distributed as dist
 from copy import deepcopy
 from tqdm import tqdm
+import io
+import time
+import tempfile
+from typing import Tuple, Union
 
 # sys.path.append(os.path.dirname(os.path.dirname(__file__)))  # to run '$ python *.py' files in subdirectories
 # sys.path.append('.../')  # to run '$ python *.py' files in subdirectories
@@ -44,7 +48,7 @@ class AccuracyCalculator():
         self.proj_info = proj_info
         self.userid = proj_info['userid']
         self.project_id = proj_info['project_id']
-
+        self.return_format = "path"
         # Set DDP variables : [TENACE] already done this at select.py (line 169-170)
         # opt.world_size = int(os.environ['WORLD_SIZE']) if 'WORLD_SIZE' in os.environ else 1
         # opt.global_rank = int(os.environ['RANK']) if 'RANK' in os.environ else -1
@@ -121,7 +125,11 @@ class AccuracyCalculator():
         
         # finetune the subnet
         # subnet, maps = finetune(subnet, self.hyp, self.opt, self.device)
-        return finetune.finetune(self.proj_info, subnet, self.hyp, self.opt, self.data_dict, tb_writer=None)
+        try:
+            return finetune.finetune(self.proj_info, subnet, self.hyp, self.opt, self.data_dict, tb_writer=None)
+        except Exception as e:
+            logger.error(f"finetune_subnet failed: {e}")
+            raise
         # raise NotImplementedError
 
     # def predict_accuracy(self, sample_list):
@@ -152,34 +160,55 @@ class AccuracyCalculator():
 
     #     return acc_list
     
-    def predict_accuracy_once(self, sample):
-        # activate the subnet
-        self.supernet.set_active_subnet(sample['d'])
-        # TODO : check the speed and memory about two implementations 1) get_active_subnet() 2) set_active_subnet() and deepcopy
-        # 1) get_active_subnet()
-        subnet = self.supernet.get_active_subnet() # subnet : nn.Module
-        # 2) set_active_subnet() and deepcopy
-        # subnet = deepcopy(self.supernet)
+    def predict_accuracy_once(self, sample) -> Tuple[Union[str, bytes], float]:
+        depth_values = sample['d']
+        if len(depth_values) != len(self.supernet.depth_list):
+            raise ValueError(f"Expected {len(self.supernet.depth_list)} depth values, received {len(depth_values)}")
+        self.supernet.set_active_subnet(depth_values)
 
-        # finetune the subnet
-        # out subnet : str (path/to/subnet.pt) <- in subnet : nn.Module (Model)
+        subnet = self.supernet.get_active_subnet()  # nn.Module or Model
+
         subnet, finetune_results = self.finetune_subnet(subnet)
+        try:
+            acc = float(finetune_results[3])
+        except Exception:
+            acc = float(finetune_results.get("map", 0.0)) if isinstance(finetune_results, dict) else 0.0
 
-        # Calculate mAP
-        # results, _, _ = test.test(self.opt.data,
-        #                           batch_size=self.opt.batch_size * 2,
-        #                           imgsz=self.imgsz_test,
-        #                           conf_thres=0.001,
-        #                           iou_thres=0.7,
-        #                           model=subnet.half(),
-        #                           single_cls=self.opt.single_cls,
-        #                           dataloader=self.testloader,
-        #                           # save_dir=save_dir,
-        #                           save_json=False,
-        #                           plots=False,
-        #                           is_coco=self.is_coco,
-        #                           v5_metric=self.opt.v5_metric)
+        ckpt_path = self._materialize_checkpoint_path(subnet)
+        return ckpt_path, acc
+
+    def _serialize_checkpoint_bytes(self, obj) -> bytes:
+        if isinstance(obj, (str, os.PathLike)):
+            with open(obj, "rb") as f:
+                return f.read()
             
-        # mp, mr, map50, map, avg_loss = results
-        map = finetune_results[3]
-        return subnet, map
+        if isinstance(obj, torch.nn.Module):
+            buf = io.BytesIO()
+            torch.save({"model": obj}, buf)
+            return buf.getvalue()
+        
+        if isinstance(obj, dict):
+            buf = io.BytesIO()
+            torch.save(obj, buf)
+            return buf.getvalue()
+        raise TypeError(f"Unsupported checkpoint object for bytes: {type(obj)}")
+
+    def _materialize_checkpoint_path(self, obj) -> str:
+        base_dir = os.path.join("/shared/runs/nas_subnets", str(self.project_id))
+        os.makedirs(base_dir, exist_ok=True)
+        path = os.path.join(base_dir, f"subnet_{int(time.time()*1000)}.pt")
+
+        if isinstance(obj, (str, os.PathLike)):
+            if not os.path.exists(obj):
+                raise FileNotFoundError(f"Checkpoint not found: {obj}")
+            return str(obj)
+        elif isinstance(obj, torch.nn.Module):
+            torch.save({"model": obj}, path);  return path
+        elif isinstance(obj, dict):
+            torch.save(obj, path);              return path
+        elif isinstance(obj, (bytes, bytearray)):
+            with open(path, "wb") as f: f.write(obj); return path
+        elif obj is None:
+            raise RuntimeError("finetune_subnet() returned None checkpoint")
+        else:
+            raise TypeError(f"Unsupported checkpoint type: {type(obj)}")

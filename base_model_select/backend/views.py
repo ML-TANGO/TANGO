@@ -23,19 +23,19 @@ from batch_test.batch_size_test import run_batch_test
 PREFIX = '[ BMS ]'
 PROCESSES = {}
 
-task_to_model_table = {"detection": "yolov7", "classification": "resnet"}
+task_to_model_table = {"detection": "yolov9", "classification": "resnet"}
 model_to_size_table = {
-    "yolov7": {
-        "cloud": "-tiny",
-        "k8s": "-tiny",
-        "k8sjetsonnano": "-tiny",
-        "pcweb": "-tiny",
-        "pc": "-tiny",
-        "jetsonagxorin": "-tiny",
-        "jetsonagxxavier": "-tiny",
-        "jetsonnano": "-tiny",
-        "galaxys22": "-tiny",
-        "odroidn2": "-tiny",
+    "yolov9": {
+        "cloud": "-e",
+        "k8s": "-m",
+        "k8sjetsonnano": "-t",
+        "pcweb": "-s",
+        "pc": "-m",
+        "jetsonagxorin": "-s",
+        "jetsonagxxavier": "-s",
+        "jetsonnano": "-t",
+        "galaxys22": "-t",
+        "odroidn2": "-t",
     },
     "resnet": {
         "cloud": "20",
@@ -54,15 +54,15 @@ model_to_size_table = {
 
 @api_view(['POST'])
 def manual_change(request):
-    #TODO: need to check other models in addition to yolov7
+    #TODO: extend manual selection UI to support additional detector families
     #TODO: need to combine it with view_status
 
     userid = request.POST['user']
     projectid = request.POST['project']
 
-    if 'yolov7' in request.POST['choice']:
-        model_type = 'yolov7'
-        model_size = request.POST['choice'].split('yolov7')[1]
+    if 'yolov9' in request.POST['choice']:
+        model_type = 'yolov9'
+        model_size = request.POST['choice'].split('yolov9')[1]
     else:
         raise NotImplementedError
     proj_info_yaml = get_user_requirements(userid, projectid)
@@ -84,7 +84,7 @@ def manual_change(request):
                'model': bmsinfo.model_type,
                'size': bmsinfo.model_size,
                'bmsinfo': bmsinfo,
-               'model_table': ['yolov7-tiny', 'yolov7x', 'yolov7-w6', 'yolov7-e6e'],
+               'model_table': ['yolov9-t', 'yolov9-s', 'yolov9-m', 'yolov9-c', 'yolov9-e'],
               }
     return render(request, 'test/detail.html', context)
 
@@ -105,7 +105,7 @@ def view_status(request):
                'model': bmsinfo.model_type,
                'size': bmsinfo.model_size,
                'bmsinfo': bmsinfo,
-               'model_table': ['yolov7-tiny', 'yolov7x', 'yolov7-w6', 'yolov7-e6e'],
+               'model_table': ['yolov9-t', 'yolov9-s', 'yolov9-m', 'yolov9-c', 'yolov9-e'],
               }
 
     return render(request, 'test/detail.html', context)
@@ -244,7 +244,7 @@ def bms_process(yaml_path, userid, project_id):
     batch_size = run_batch_test(basemodel_yaml,
                                 proj_info_dict['task_type'],
                                 basemodel_dict['imgsz'] if proj_info_dict['task_type']=='detection' else 256,
-                                f"hyperparam_yaml/yolov7/hyp.scratch.{basemodel_dict['hyp']}.yaml" if proj_info_dict['task_type']=='detection' else None,
+                                f"hyperparam_yaml/yolov9/hyp.scratch.{basemodel_dict['hyp']}.yaml" if proj_info_dict['task_type']=='detection' else None,
                                 True if proj_info_dict['target_info']=='Galaxy_S22' else False,
                                 )
 
@@ -271,7 +271,8 @@ def create_basemodel_yaml(yaml_path, userid, project_id, manual_select=None):
 
     if manual_select==None:
         model = task_to_model_table[task]
-        model_size = model_to_size_table[model][target]
+        size_table = model_to_size_table.get(model, {})
+        model_size = size_table.get(target, '-s')
     else:
         model = manual_select['model']
         model_size = manual_select['size']

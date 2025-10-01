@@ -91,20 +91,46 @@ def search(proj_info, hyp, opt, data_dict, model):
     logger.info(f"Complete NAS process")
 
     # save weights and configs -------------------------------------------------
+    yaml_file = None
+    valid_results = []
+    supernet_model = supernet if hasattr(supernet, 'yaml') else None
     for i, (ec, result) in enumerate(zip(efficiency_constraint, result_list)):
         # load weights & config
         best_subnet_pt = result[3]
-        best_subnet = attempt_load(best_subnet_pt, map_location=device, fused=True)
-        best_subnet_config = best_subnet.yaml
-        best_depth = best_subnet_config['depth_list']
+        best_subnet_config = None
 
-        # save weights & config
+        if best_subnet_pt and Path(best_subnet_pt).exists():
+            best_subnet = attempt_load(best_subnet_pt, map_location=device, fused=True)
+            best_subnet_config = getattr(best_subnet, 'yaml', None)
+        elif supernet_model and hasattr(supernet_model, 'set_active_subnet'):
+            try:
+                supernet_model.set_active_subnet(result[1]['d'])
+                best_subnet_config = supernet_model.get_active_net_config()
+            except Exception as err:
+                logger.warning(f"NAS: Failed to synthesize config for constraint {ec}: {err}")
+
+        if best_subnet_config is None:
+            logger.warning(
+                f"NAS: Skipping config export for constraint {ec} – weights/config unavailable ({best_subnet_pt})"
+            )
+            continue
+
         PROJ_PATH = COMMON_ROOT / userid / project_id
+        PROJ_PATH.mkdir(parents=True, exist_ok=True)
         yaml_file = str(PROJ_PATH / 'best_search.yaml')
         with open(yaml_file, 'w') as f:
             yaml.dump(best_subnet_config, f, sort_keys=False)
-        logger.info(f'# Depth: {best_depth} | Saved best {i} model\'s config in {yaml_file}')
+        logger.info(f"# Depth: {best_subnet_config.get('depth_list')} | Saved best {i} model's config in {yaml_file}")
 
+        if best_subnet_pt and Path(best_subnet_pt).exists():
+            valid_results.append(best_subnet_pt)
 
-    final = result_list[0][3] # str: path/to/best/subnet/pt
+    final = None
+    if valid_results:
+        final = valid_results[0]
+    elif result_list:
+        final = result_list[0][3] or model
+    else:
+        final = model
+
     return final, yaml_file
