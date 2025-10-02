@@ -273,7 +273,9 @@ def process_autonn_cl(userid, project_id):
         status_report(userid, project_id, "completed")
 
     except Exception as e:
+        import traceback
         print(f"[AutoNN_CL process_autonn_cl] exception: {e}")
+        print(traceback.format_exc())
         import torch, gc
         if torch.cuda.is_available():
             torch.cuda.empty_cache()

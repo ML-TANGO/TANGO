@@ -26,7 +26,7 @@
     RUN apt-get update
     RUN apt-get upgrade -y
     RUN apt-get -y install libgl1-mesa-glx
-    # RUN apt-get install libusb-1.0-0
+    RUN apt-get install libusb-1.0-0
     # RUN apt-get install edgetpu-compiler
     # RUN curl -fsSL https://ollama.com/install.sh | sh
     
@@ -79,20 +79,18 @@
     # RUN pip install streamlit>=1.31.0
     
     # model export -----------------------------------------------------------------
-    # RUN pip install distributed
-    # RUN pip install flatbuffers==24.3.25
-    # RUN pip install keras
-    # RUN pip install nvidia-tensorrt==8.4.1.5
+    RUN pip install distributed
+    RUN pip install flatbuffers==24.3.25
+    RUN pip install nvidia-tensorrt==8.4.1.5
     RUN pip install onnx==1.17.0
-    # RUN pip install onnx_graphsurgeon>=0.3.26
-    # RUN pip install onnx2tf==1.22.3
-    # RUN pip install onnxruntime==1.14.1
+    RUN pip install onnx_graphsurgeon>=0.3.26
+    RUN pip install onnx2tf==1.17.4
+    RUN pip install onnxruntime==1.14.1
     RUN pip install onnxsim==0.4.33
     RUN pip install onnxslim==0.1.39
-    # RUN pip install sng4onnx>=1.0.1
-    # RUN pip install tensorflow==2.16.1
-    # RUN pip install tf_keras==2.16.0
-    # RUN pip install tflite_support
+    RUN pip install sng4onnx>=1.0.1
+    RUN pip install tensorflow==2.13.1
+    RUN pip install tflite_support
     
     RUN pip install albumentations==1.0.3 --no-binary qudida,albumentations
     RUN pip install numpy==1.23.5
@@ -101,4 +99,3 @@
     
     COPY --from=builder /frontend /frontend
     EXPOSE 8102
-    

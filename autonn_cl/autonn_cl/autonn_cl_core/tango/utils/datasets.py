@@ -883,7 +883,7 @@ class LoadImagesAndLabels_v9(Dataset):
         if self.load_masks:
             masks = self.load_masks_from_segments(index, labels_out.numpy(), img.shape[1:])
             return torch.from_numpy(img), labels_out, masks, self.im_files[index], shapes
-        
+
         return torch.from_numpy(img), labels_out, self.im_files[index], shapes
 
     def load_image(self, i):
@@ -1043,44 +1043,44 @@ class LoadImagesAndLabels_v9(Dataset):
         return img9, labels9
 
     def load_masks_from_segments(self, index, labels, img_shape):
-        """
-        Load segmentation masks from polygon segments
-        
-        Args:
-            index: image index
-            labels: [N, 6] - (0, class, x, y, w, h) in normalized format
-            img_shape: (height, width)
-        
-        Returns:
-            masks: [N, H, W] - binary masks
-        """
+        """Load segmentation masks, falling back to bbox masks when polygons are absent."""
         import cv2
-        
+
         segments = self.segments[index] if hasattr(self, 'segments') else []
         h, w = img_shape
-        
-        if len(segments) == 0 or len(labels) == 0:
-            return np.zeros((0, h, w), dtype=np.uint8)
-        
+
         masks = []
+        if len(segments) == 0 and len(labels) > 0:
+            for lb in labels:
+                _, cls, x, y, bw, bh = lb
+                mask = np.zeros((h, w), dtype=np.uint8)
+                x1 = int((x - bw / 2) * w)
+                y1 = int((y - bh / 2) * h)
+                x2 = int((x + bw / 2) * w)
+                y2 = int((y + bh / 2) * h)
+                mask[max(0, y1):min(h, y2), max(0, x1):min(w, x2)] = 1
+                masks.append(mask)
+            return np.stack(masks, axis=0) if masks else np.zeros((0, h, w), dtype=np.uint8)
+
+        if len(labels) == 0:
+            return np.zeros((0, h, w), dtype=np.uint8)
+
         for i, segment in enumerate(segments):
-            if len(segment) >= 3:  # At least 3 points for a polygon
+            if len(segment) >= 3:
                 mask = self.polygon_to_mask(segment, (h, w))
             else:
-                # Fallback: create mask from bbox if polygon invalid
                 mask = np.zeros((h, w), dtype=np.uint8)
                 if i < len(labels) and labels[i].sum() > 0:
-                    # Use bbox to create simple mask
                     x, y, bw, bh = labels[i][2:6]
-                    x1 = int((x - bw/2) * w)
-                    y1 = int((y - bh/2) * h)
-                    x2 = int((x + bw/2) * w)
-                    y2 = int((y + bh/2) * h)
-                    mask[y1:y2, x1:x2] = 1
+                    x1 = int((x - bw / 2) * w)
+                    y1 = int((y - bh / 2) * h)
+                    x2 = int((x + bw / 2) * w)
+                    y2 = int((y + bh / 2) * h)
+                    mask[max(0, y1):min(h, y2), max(0, x1):min(w, x2)] = 1
             masks.append(mask)
-        
+
         return np.stack(masks, axis=0) if masks else np.zeros((0, h, w), dtype=np.uint8)
-    
+
     def polygon_to_mask(self, polygon, img_shape):
         """
         Convert polygon coordinates to binary mask

@@ -2029,20 +2029,22 @@ class ComputeLoss_v9:
         pred_bboxes2 = self.bbox_decode(anchor_points, pred_distri2)  # xyxy, (b, h*w, 4)
         # logger.info(f'\tcompute loss predict bbox decoding done')
 
-        target_labels, target_bboxes, target_scores, fg_mask = self.assigner(
+        assign_out = self.assigner(
             pred_scores.detach().sigmoid(),
             (pred_bboxes.detach() * stride_tensor).type(gt_bboxes.dtype),
             anchor_points * stride_tensor,
             gt_labels,
             gt_bboxes,
             mask_gt)
-        target_labels2, target_bboxes2, target_scores2, fg_mask2 = self.assigner2(
+        target_labels, target_bboxes, target_scores, fg_mask = assign_out[:4]
+        assign_out2 = self.assigner2(
             pred_scores2.detach().sigmoid(),
             (pred_bboxes2.detach() * stride_tensor).type(gt_bboxes.dtype),
             anchor_points * stride_tensor,
             gt_labels,
             gt_bboxes,
             mask_gt)
+        target_labels2, target_bboxes2, target_scores2, fg_mask2 = assign_out2[:4]
         # logger.info(f'\tcompute loss dfl assigner generation done')
         target_bboxes /= stride_tensor
         target_scores_sum = max(target_scores.sum(), 1)
@@ -2084,220 +2086,168 @@ class ComputeLoss_v9:
         return loss.sum() * batch_size, loss.detach()  # loss(box, cls, dfl)
 
 class ComputeLoss_Segmentation:
-    """
-    YOLOv9 Segmentation Loss (Detection + Mask)
-    """
+    """Composite loss for YOLOv9 segmentation (detection + masks)."""
     sort_obj_iou = False
 
     def __init__(self, model, autobalance=False):
         device = next(model.parameters()).device
         h = model.hyp  # hyperparameters
 
-        # Define criteria
-        BCEcls = nn.BCEWithLogitsLoss(pos_weight=torch.tensor([h['cls_pw']], device=device))
-        BCEobj = nn.BCEWithLogitsLoss(pos_weight=torch.tensor([h['obj_pw']], device=device))
-
-        # Class label smoothing
+        bce_cls = nn.BCEWithLogitsLoss(pos_weight=torch.tensor([h['cls_pw']], device=device), reduction='none')
         self.cp, self.cn = smooth_BCE(eps=h.get('label_smoothing', 0.0))
-
-        # Focal loss
         g = h['fl_gamma']
         if g > 0:
-            BCEcls, BCEobj = FocalLoss(BCEcls, g), FocalLoss(BCEobj, g)
+            bce_cls = FocalLoss(bce_cls, g)
 
-        # Get model info
-        det = de_parallel(model).model[-1]  # SegmentationHead
-        
-        self.balance = {3: [4.0, 1.0, 0.4]}.get(det.nl, [4.0, 1.0, 0.25, 0.06, 0.02])
-        self.ssi = list(det.stride).index(16) if autobalance else 0
-        self.BCEcls, self.BCEobj, self.gr, self.hyp, self.autobalance = BCEcls, BCEobj, 1.0, h, autobalance
-        
-        self.na = det.na  # number of anchors
-        self.nc = det.nc  # number of classes
-        self.nl = det.nl  # number of layers
-        self.nm = det.nm  # number of masks
-        self.anchors = det.anchors
+        det = de_parallel(model).model[-1]
+        if not (hasattr(det, 'nm') and hasattr(det, 'proto') and hasattr(det, 'reg_max')):
+            raise TypeError('ComputeLoss_Segmentation requires a segmentation head with mask outputs')
+
+        self.BCEcls = bce_cls
+        self.hyp = h
         self.device = device
+        self.nc = det.nc
+        self.nm = det.nm
+        self.nl = det.nl
+        self.reg_max = det.reg_max
+        self.use_dfl = self.reg_max > 1
+        self.stride = det.stride.to(device)
+
+        self.assigner = TaskAlignedAssigner(
+            topk=int(os.getenv('YOLOM', 10)),
+            num_classes=self.nc,
+            alpha=float(os.getenv('YOLOA', 0.5)),
+            beta=float(os.getenv('YOLOB', 6.0)),
+        )
+        self.bbox_loss = BboxLoss(det.reg_max - 1, use_dfl=self.use_dfl).to(device)
+        self.mask_criterion = nn.BCEWithLogitsLoss()
+        self.proj = torch.arange(self.reg_max, dtype=torch.float32, device=device)
+        self.mask_gain = h.get('mask_gain', h.get('mask', 1.0))
+
+    def preprocess(self, targets, batch_size, scale_tensor):
+        if targets.shape[0] == 0:
+            out = torch.zeros(batch_size, 0, 5, device=self.device)
+        else:
+            i = targets[:, 0]
+            _, counts = i.unique(return_counts=True)
+            out = torch.zeros(batch_size, counts.max(), 5, device=self.device)
+            for j in range(batch_size):
+                matches = i == j
+                n = matches.sum()
+                if n:
+                    out[j, :n] = targets[matches, 1:]
+            out[..., 1:5] = xywh2xyxy_v9(out[..., 1:5].mul_(scale_tensor))
+        return out
+
+    def bbox_decode(self, anchor_points, pred_dist):
+        if self.use_dfl:
+            b, a, c = pred_dist.shape
+            pred_dist = pred_dist.view(b, a, 4, c // 4).softmax(3)
+            pred_dist = pred_dist.matmul(self.proj.to(pred_dist.dtype))
+        return dist2bbox(pred_dist, anchor_points, xywh=False)
+
+    def flatten_masks(self, mask_outputs):
+        bs = mask_outputs[0].shape[0]
+        mask_flat = [m.view(bs, self.nm, -1) for m in mask_outputs]
+        mask_flat = torch.cat(mask_flat, dim=2).permute(0, 2, 1).contiguous()
+        return mask_flat
 
     def __call__(self, preds, targets, masks):
-        """
-        Args:
-            preds: tuple of (p, mc, proto)
-                - p: detection predictions list [bs, na, h, w, no]
-                - mc: mask coefficients [bs, na*h*w, nm]  
-                - proto: prototypes [bs, nm, mask_h, mask_w]
-            targets: [num_targets, 6] - (image_idx, class, x, y, w, h)
-            masks: [bs, max_objs, mask_h, mask_w] - ground truth masks
-        """
-        p, mc, proto = preds
-        device = targets.device
-        bs, nm, mask_h, mask_w = proto.shape
-        
-        # Initialize losses
-        lcls = torch.zeros(1, device=device)
-        lbox = torch.zeros(1, device=device)
-        lobj = torch.zeros(1, device=device)
-        lseg = torch.zeros(1, device=device)
-        
-        # Build targets (anchor matching)
-        tcls, tbox, indices, anchors, tidxs, xywhn = self.build_targets(p, targets)
-        
-        # ========================================
-        # 1. Detection Loss (Box + Obj + Cls)
-        # ========================================
-        for i, pi in enumerate(p):  # layer index
-            b, a, gj, gi = indices[i]  # matched indices
-            tobj = torch.zeros(pi.shape[:4], dtype=pi.dtype, device=device)
-            
-            n = b.shape[0]  # number of targets
-            if n:
-                # Predictions for matched anchors
-                pxy, pwh, _, pcls, pmask = pi[b, a, gj, gi].split((2, 2, 1, self.nc, nm), 1)
-                
-                # Box regression
-                pxy = pxy.sigmoid() * 2 - 0.5
-                pwh = (pwh.sigmoid() * 2) ** 2 * anchors[i]
-                pbox = torch.cat((pxy, pwh), 1)
-                iou = bbox_iou(pbox.T, tbox[i], x1y1x2y2=False, CIoU=True).squeeze()
-                lbox += (1.0 - iou).mean()
-                
-                # Objectness
-                iou = iou.detach().clamp(0).type(tobj.dtype)
-                if self.sort_obj_iou:
-                    j = iou.argsort()
-                    b, a, gj, gi, iou = b[j], a[j], gj[j], gi[j], iou[j]
-                if self.gr < 1:
-                    iou = (1.0 - self.gr) + self.gr * iou
-                tobj[b, a, gj, gi] = iou
-                
-                # Classification
-                if self.nc > 1:
-                    t = torch.full_like(pcls, self.cn, device=device)
-                    t[range(n), tcls[i]] = self.cp
-                    lcls += self.BCEcls(pcls, t)
-                
-                # ========================================
-                # 2. Mask Loss
-                # ========================================
-                if masks is not None and tuple(masks.shape[-2:]) != (mask_h, mask_w):
-                    masks = F.interpolate(masks.float(), (mask_h, mask_w), mode='nearest')
-                
-                # Compute mask area and bbox in pixel coordinates
-                marea = xywhn[i][:, 2:].prod(1)  # normalized area
-                mxyxy = xywh2xyxy(xywhn[i]) * torch.tensor(
-                    [mask_w, mask_h, mask_w, mask_h], device=device
-                )
-                
-                # Process each image
-                for bi in b.unique():
-                    j = b == bi  # indices for this image
-                    
-                    # Get GT masks for this image's objects
-                    if tidxs is not None and len(tidxs[i]) > 0:
-                        # Use tidxs for indexing if available
-                        mask_idx = tidxs[i][j] - 1  # tidx starts from 1
-                        mask_idx = mask_idx.long()
-                        gt_mask = masks[bi, mask_idx]
-                    else:
-                        # Fallback to using order
-                        obj_count = (targets[:, 0] == bi).sum()
-                        gt_mask = masks[bi, :obj_count][j]
-                    
-                    # Get predicted mask coefficients for matched anchors
-                    pred_coef = pmask[j]  # [n_matched, nm]
-                    
-                    # Generate predicted masks: coef @ proto
-                    pred_masks = (pred_coef @ proto[bi].view(nm, -1)).view(-1, mask_h, mask_w)
-                    
-                    # Compute loss for each object
-                    for obj_idx in range(pred_coef.shape[0]):
-                        # BCE loss
-                        loss = F.binary_cross_entropy_with_logits(
-                            pred_masks[obj_idx], 
-                            gt_mask[obj_idx], 
-                            reduction='none'
-                        )
-                        
-                        # Crop to bbox and normalize by area
-                        xyxy = mxyxy[j][obj_idx]
-                        x1, y1, x2, y2 = xyxy.int().clamp(0, mask_w-1, 0, mask_h-1)
-                        cropped = loss[y1:y2+1, x1:x2+1]
-                        
-                        if cropped.numel() > 0:
-                            lseg += cropped.mean() / marea[j][obj_idx].clamp(min=1e-6)
-            
-            obji = self.BCEobj(pi[..., 4], tobj)
-            lobj += obji * self.balance[i]
-            
-            if self.autobalance:
-                self.balance[i] = self.balance[i] * 0.9999 + 0.0001 / obji.detach().item()
-        
-        # ========================================
-        # 3. Weighted Total Loss
-        # ========================================
-        if self.autobalance:
-            self.balance = [x / self.balance[self.ssi] for x in self.balance]
-        
-        lbox *= self.hyp['box']
-        lobj *= self.hyp['obj']
-        lcls *= self.hyp['cls']
-        lseg *= self.hyp.get('box', 0.05) / bs
-        
-        loss = lbox + lobj + lcls + lseg
-        
-        return loss * bs, torch.cat((lbox, lseg, lobj, lcls)).detach()
+        box_outputs, cls_outputs, mask_outputs, proto = preds
+        box_outputs = [torch.nan_to_num(b, nan=0.0, posinf=0.0, neginf=0.0) for b in box_outputs]
+        cls_outputs = [torch.nan_to_num(c, nan=0.0, posinf=0.0, neginf=0.0) for c in cls_outputs]
+        mask_outputs = [torch.nan_to_num(m, nan=0.0, posinf=0.0, neginf=0.0) for m in mask_outputs]
+        proto = torch.nan_to_num(proto, nan=0.0, posinf=0.0, neginf=0.0)
+        bs = box_outputs[0].shape[0]
+        dtype = box_outputs[0].dtype
 
-    def build_targets(self, p, targets):
-        """
-        Build targets for compute_loss() - same as ComputeLoss
-        """
-        na, nt = self.na, targets.shape[0]
-        tcls, tbox, indices, anch, tidxs, xywhn = [], [], [], [], [], []
-        gain = torch.ones(8, device=targets.device)
-        
-        ai = torch.arange(na, device=targets.device).float().view(na, 1).repeat(1, nt)
-        ti = torch.arange(nt, device=targets.device).float().view(1, nt).repeat(na, 1)
-        targets = torch.cat((targets.repeat(na, 1, 1), ai[..., None], ti[..., None]), 2)
-        
-        g = 0.5
-        off = torch.tensor([
-            [0, 0],
-            [1, 0], [0, 1], [-1, 0], [0, -1],
-        ], device=targets.device).float() * g
-        
-        for i in range(self.nl):
-            anchors_i = self.anchors[i]
-            gain[2:6] = torch.tensor(p[i].shape)[[3, 2, 3, 2]]
-            
-            t = targets * gain
-            if nt:
-                r = t[..., 4:6] / anchors_i[:, None]
-                j = torch.max(r, 1 / r).max(2)[0] < self.hyp['anchor_t']
-                t = t[j]
-                
-                gxy = t[:, 2:4]
-                gxi = gain[[2, 3]] - gxy
-                j, k = ((gxy % 1 < g) & (gxy > 1)).T
-                l, m = ((gxi % 1 < g) & (gxi > 1)).T
-                j = torch.stack((torch.ones_like(j), j, k, l, m))
-                t = t.repeat((5, 1, 1))[j]
-                offsets = (torch.zeros_like(gxy)[None] + off[:, None])[j]
-            else:
-                t = targets[0]
-                offsets = 0
-            
-            bc, gxy, gwh, a, tid = t.chunk(5, 1)
-            a, tid = a.long().view(-1), tid.long().view(-1)
-            b, c = bc.long().T
-            
-            gij = (gxy - offsets).long()
-            gi, gj = gij.T
-            
-            indices.append((b, a, gj.clamp_(0, p[i].shape[2]-1), gi.clamp_(0, p[i].shape[3]-1)))
-            tbox.append(torch.cat((gxy - gij, gwh), 1))
-            anch.append(anchors_i[a])
-            tcls.append(c)
-            tidxs.append(tid)
-            xywhn.append(torch.cat((gxy, gwh), 1) / gain[2:6])
-        
-        return tcls, tbox, indices, anch, tidxs, xywhn
+        feats = [torch.cat((b, c), 1) for b, c in zip(box_outputs, cls_outputs)]
+        total_channels = self.reg_max * 4 + self.nc
+        concatenated = torch.cat([f.view(bs, total_channels, -1) for f in feats], 2)
+        pred_distri, pred_scores = concatenated.split((self.reg_max * 4, self.nc), 1)
+        pred_scores = pred_scores.permute(0, 2, 1).contiguous()
+        pred_distri = pred_distri.permute(0, 2, 1).contiguous()
+        pred_scores = torch.nan_to_num(pred_scores, nan=0.0, posinf=0.0, neginf=0.0)
+        pred_distri = torch.nan_to_num(pred_distri, nan=0.0, posinf=0.0, neginf=0.0)
+
+        anchor_points, stride_tensor = make_anchors(feats, self.stride, 0.5)
+        imgsz = torch.tensor(box_outputs[0].shape[2:], device=self.device, dtype=dtype) * self.stride[0]
+
+        targets = self.preprocess(targets, bs, scale_tensor=imgsz[[1, 0, 1, 0]])
+        gt_labels, gt_bboxes = targets.split((1, 4), 2)
+        mask_gt = gt_bboxes.sum(2, keepdim=True).gt_(0)
+
+        pred_bboxes = self.bbox_decode(anchor_points, pred_distri)
+
+        assign_out = self.assigner(
+            pred_scores.detach().sigmoid(),
+            (pred_bboxes.detach() * stride_tensor).type(gt_bboxes.dtype),
+            anchor_points * stride_tensor,
+            gt_labels,
+            gt_bboxes,
+            mask_gt,
+            return_gt_idx=True,
+        )
+        target_labels, target_bboxes, target_scores, fg_mask, target_gt_idx = assign_out
+
+        stride_tensor = stride_tensor.to(pred_bboxes.dtype)
+        target_bboxes = target_bboxes / stride_tensor
+        target_scores_sum = torch.clamp(target_scores.sum(), min=1.0)
+
+        loss = torch.zeros(4, device=self.device)
+
+        cls_targets = target_scores.to(pred_scores.dtype)
+        cls_loss_raw = self.BCEcls(pred_scores, cls_targets)
+        cls_loss = cls_loss_raw.sum() / target_scores_sum
+        cls_loss = torch.nan_to_num(cls_loss, nan=0.0, posinf=0.0, neginf=0.0)
+        loss[1] = cls_loss
+
+        if fg_mask.any():
+            iou_loss, dfl_loss, _ = self.bbox_loss(
+                pred_distri,
+                pred_bboxes,
+                anchor_points,
+                target_bboxes,
+                target_scores,
+                target_scores_sum,
+                fg_mask,
+            )
+            iou_loss = torch.nan_to_num(iou_loss, nan=0.0, posinf=0.0, neginf=0.0)
+            dfl_loss = torch.nan_to_num(dfl_loss, nan=0.0, posinf=0.0, neginf=0.0)
+            loss[0] += iou_loss * 0.25
+            loss[2] += dfl_loss * 0.25
+
+        mask_loss = torch.tensor(0.0, device=self.device)
+        if masks is not None and fg_mask.any():
+            mask_features = self.flatten_masks(mask_outputs)
+            pos_mask = fg_mask.bool()
+            coeffs = mask_features[pos_mask]
+            gt_indices = target_gt_idx[pos_mask]
+            if coeffs.numel() > 0:
+                n_max = self.assigner.n_max_boxes
+                batch_idx = (gt_indices // n_max).long()
+                obj_idx = (gt_indices % n_max).long()
+                valid = obj_idx < masks.shape[1]
+                coeffs = coeffs[valid]
+                batch_idx = batch_idx[valid]
+                obj_idx = obj_idx[valid]
+                if coeffs.numel() > 0:
+                    proto_sel = proto[batch_idx].contiguous()
+                    mask_h, mask_w = proto_sel.shape[-2:]
+                    proto_flat = proto_sel.view(coeffs.shape[0], self.nm, -1)
+                    pred_masks = torch.bmm(coeffs.unsqueeze(1), proto_flat).view(-1, mask_h, mask_w)
+                    gt_masks = masks[batch_idx, obj_idx].to(pred_masks.dtype)
+                    if gt_masks.shape[-2:] != (mask_h, mask_w):
+                        gt_masks = F.interpolate(gt_masks.unsqueeze(1), size=(mask_h, mask_w), mode='nearest').squeeze(1)
+                    mask_loss = self.mask_criterion(pred_masks, gt_masks)
+                    mask_loss = torch.nan_to_num(mask_loss, nan=0.0, posinf=0.0, neginf=0.0)
+        loss[3] = mask_loss * self.mask_gain
+
+        loss[0] *= 7.5
+        loss[1] *= 0.5
+        loss[2] *= 1.5
+        loss = torch.nan_to_num(loss, nan=0.0, posinf=0.0, neginf=0.0)
+        total_loss = torch.nan_to_num(loss.sum() * bs, nan=0.0, posinf=0.0, neginf=0.0)
+        loss_items = torch.nan_to_num(loss.detach(), nan=0.0, posinf=0.0, neginf=0.0)
+
+        return total_loss, loss_items

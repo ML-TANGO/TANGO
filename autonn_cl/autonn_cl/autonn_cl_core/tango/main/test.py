@@ -84,11 +84,13 @@ def report_progress(userid,
                     names, 
                     latency,
                     start_time,
+                    is_segmentation=False,
+                    mean_iou=None,
 ):
     _p, _r, _f1, _mp, _mr, _map50, _map = 0., 0., 0., 0., 0., 0., 0.
     _ap, _ap_class = [], []
 
-    if len(statsn) and statsn[0].any():
+    if (not is_segmentation) and len(statsn) and statsn[0].any():
         _p, _r, _ap, _f1, _ap_class = ap_per_class(
             *statsn, 
             plot=plots, 
@@ -104,10 +106,17 @@ def report_progress(userid,
     val_acc['class'] = 'all'
     val_acc['images'] = seen
     val_acc['labels'] = label_cnt
-    val_acc['P'] = _mp
-    val_acc['R'] = _mr
-    val_acc['mAP50'] = _map50
-    val_acc['mAP50-95'] = _map
+    if is_segmentation:
+        mean_iou = mean_iou if mean_iou is not None else 0.0
+        val_acc['P'] = None
+        val_acc['R'] = None
+        val_acc['mAP50'] = mean_iou
+        val_acc['mAP50-95'] = mean_iou
+    else:
+        val_acc['P'] = _mp
+        val_acc['R'] = _mr
+        val_acc['mAP50'] = _map50
+        val_acc['mAP50-95'] = _map
     val_acc['step'] = current_step # batch_i + 1
     val_acc['total_step'] = total_step# len(dataloader)
     val_acc['time'] = f'{latency:.1f} s'
@@ -123,8 +132,12 @@ def report_progress(userid,
     elapsed_time = str(datetime.timedelta(seconds=elapsed_sec)).split('.')[0]
     ten_percent_cnt = int(current_step/total_step*10+0.5)
     bar = '|'+ '#'*ten_percent_cnt + ' '*(10-ten_percent_cnt)+'|'
-    pf_c = '%22s' + '%11i' * 2 + '%11.3g' *4
-    content = ('all', seen, label_cnt, _mp, _mr, _map50, _map)
+    if is_segmentation:
+        pf_c = '%22s' + '%11i' * 2 + '%11.3g'
+        content = ('all', seen, label_cnt, mean_iou if mean_iou is not None else 0.0)
+    else:
+        pf_c = '%22s' + '%11i' * 2 + '%11.3g' *4
+        content = ('all', seen, label_cnt, _mp, _mr, _map50, _map)
     s = pf_c % content
     content_s = s + (f'{bar}{current_step/total_step*100:3.0f}% {current_step:4.0f}/{total_step:4.0f}  {elapsed_time}')
     logger.info(content_s)
@@ -212,6 +225,9 @@ def test(proj_info,
     info.progress = "validation"
     info.save()
 
+    task = proj_info.get('task_type', 'detection').lower()
+    is_segmentation = task == 'segmentation'
+
     model.eval() # it will set {DualDDetect}.training to False
     if isinstance(data, str):
         with open(data) as f:
@@ -285,8 +301,12 @@ def test(proj_info,
     loss = torch.zeros(3, device=device) # loss
     jdict, stats, ap, ap_class = [], [], [], [] # jdict=json dict, ap=average precision
     
-    pf_t = '%22s' + '%11s' * 6
-    title = ('Class', 'Images', 'Labels', 'P', 'R', 'mAP@50', 'mAP@50-95')
+    if is_segmentation:
+        pf_t = '%22s' + '%11s' * 3
+        title = ('Class', 'Images', 'Labels', 'IoU')
+    else:
+        pf_t = '%22s' + '%11s' * 6
+        title = ('Class', 'Images', 'Labels', 'P', 'R', 'mAP@50', 'mAP@50-95')
     logger.info(pf_t % title)
 
     # pbar = enumerate(dataloader)
@@ -299,8 +319,16 @@ def test(proj_info,
 
     # logger.info(f'dataset size = {len(dataloader)}')
     # for batch_i, (img, targets, paths, shapes) in enumerate(tqdm(dataloader, desc=s)):
+    seg_iou_sum = 0.0
+    seg_gt_cnt = 0
     start_time = time.time()
-    for batch_i, (img, targets, paths, shapes) in enumerate(dataloader): # enumerate(pbar):
+    for batch_i, batch in enumerate(dataloader):  # enumerate(pbar):
+        if len(batch) == 5:
+            img, targets, masks, paths, shapes = batch
+        else:
+            img, targets, paths, shapes = batch
+            masks = None
+
         t = time_synchronized()
         img = img.to(device, non_blocking=True)
         img = img.half() if half else img.float()  # uint8 to fp16/32
@@ -339,7 +367,7 @@ def test(proj_info,
             t1 += _t1
 
             # Compute loss -----------------------------------------------------
-            if compute_loss:
+            if compute_loss and not is_segmentation:
                 if v9:
                     loss = compute_loss(train_out, targets)[1][:3] # box, dfl, cls
                 else:
@@ -385,73 +413,84 @@ def test(proj_info,
 
         # Metrics per image ----------------------------------------------------
         for si, pred in enumerate(out):
-            # print(si, pred.shape)
             labels = targets[targets[:, 0] == si, 1:]
-            # nl = len(labels)
-            nl, npr = labels.shape[0], pred.shape[0] # number of labels, predictions
-            tcls = labels[:, 0].tolist() if nl else []  # target class
+            nl, npr = labels.shape[0], pred.shape[0]
             path = Path(paths[si])
-            # Evaluate : assign all predictions as incorrect
-            correct = torch.zeros(npr, niou, dtype=torch.bool, device=device)
 
             seen += 1
             label_cnt += nl
+
+
+            if is_segmentation:
+                if nl:
+                    if v9:
+                        tbox = xywh2xyxy_v9(labels[:, 1:5])
+                    else:
+                        tbox = xywh2xyxy(labels[:, 1:5])
+                    scale_coords(img[si].shape[1:], tbox, shapes[si][0], shapes[si][1])
+                    tcls_tensor = labels[:, 0]
+
+                    pred_boxes = pred[:, :4]
+                    cls_scores = pred[:, 4:4 + nc]
+                    pred_scores, pred_cls = cls_scores.max(dim=1)
+                    keep = pred_scores > conf_thres
+                    pred_boxes = pred_boxes[keep]
+                    pred_cls = pred_cls[keep]
+                    if pred_boxes.numel():
+                        pred_boxes = xywh2xyxy(pred_boxes)
+                        scale_coords(img[si].shape[1:], pred_boxes, shapes[si][0], shapes[si][1])
+                        for idx_gt, cls in enumerate(tcls_tensor):
+                            cls_mask = pred_cls == cls
+                            if cls_mask.any():
+                                ious = box_iou(pred_boxes[cls_mask], tbox[idx_gt:idx_gt + 1]).squeeze(1)
+                                seg_iou_sum += float(ious.max())
+                            else:
+                                seg_iou_sum += 0.0
+                    seg_gt_cnt += nl
+                continue
+            correct = torch.zeros(npr, niou, dtype=torch.bool, device=device)
             if npr == 0:
                 if nl:
-                    # stats.append((torch.zeros(0, niou, dtype=torch.bool), torch.Tensor(), torch.Tensor(), tcls))
-                    stats.append((correct, *torch.zeros((2,0), device=device), labels[:,0]))
+                    stats.append((correct, *torch.zeros((2, 0), device=device), labels[:, 0]))
                 continue
-
-            # Predictions
             if single_cls:
                 pred[:, 5] = 0
             predn = pred.clone()
-            scale_coords(img[si].shape[1:], predn[:, :4], shapes[si][0], shapes[si][1])  # native-space pred
+            scale_coords(img[si].shape[1:], predn[:, :4], shapes[si][0], shapes[si][1])
 
-            # Evaluate
             if nl:
-                detected = []  # target indices
+                detected = []
                 tcls_tensor = labels[:, 0]
-
-                # target boxes
                 if v9:
                     tbox = xywh2xyxy_v9(labels[:, 1:5])
                 else:
                     tbox = xywh2xyxy(labels[:, 1:5])
-                scale_coords(img[si].shape[1:], tbox, shapes[si][0], shapes[si][1])  # native-space labels
-                labelsn = torch.cat((labels[:, 0:1], tbox), 1) # native-space labels
+                scale_coords(img[si].shape[1:], tbox, shapes[si][0], shapes[si][1])
+                labelsn = torch.cat((labels[:, 0:1], tbox), 1)
                 if plots:
                     confusion_matrix.process_batch(predn, labelsn)
-                
-                # Per target class
+
                 if v9:
                     correct = process_batch(predn, labelsn, iouv)
                 else:
                     for cls in torch.unique(tcls_tensor):
-                        ti = (cls == tcls_tensor).nonzero(as_tuple=False).view(-1)  # target indices
-                        pi = (cls == pred[:, 5]).nonzero(as_tuple=False).view(-1)  # prediction indices
-
-                        # Search for detections
+                        ti = (cls == tcls_tensor).nonzero(as_tuple=False).view(-1)
+                        pi = (cls == pred[:, 5]).nonzero(as_tuple=False).view(-1)
                         if pi.shape[0]:
-                            # Prediction to target ious
-                            ious, i = box_iou(predn[pi, :4], tbox[ti]).max(1)  # best ious, indices
-
-                            # Append detections
+                            ious, i = box_iou(predn[pi, :4], tbox[ti]).max(1)
                             detected_set = set()
                             for j in (ious > iouv[0]).nonzero(as_tuple=False):
-                                d = ti[i[j]]  # detected target
+                                d = ti[i[j]]
                                 if d.item() not in detected_set:
-                                    detected_set.add(d.item()) # set of int
-                                    detected.append(d) # list of tensor
-                                    correct[pi[j]] = ious[j] > iouv  # iou_thres is 1xn
-                                    if len(detected) == nl:  # all targets already located in image
+                                    detected_set.add(d.item())
+                                    detected.append(d)
+                                    correct[pi[j]] = ious[j] > iouv
+                                    if len(detected) == nl:
                                         break
-            # Append statistics (correct, conf, pcls, tcls)
             if v9:
                 stats.append((correct, pred[:, 4], pred[:, 5], labels[:, 0]))
             else:
-                stats.append((correct.cpu(), pred[:, 4].cpu(), pred[:, 5].cpu(), tcls))
-
+                stats.append((correct.cpu(), pred[:, 4].cpu(), pred[:, 5].cpu(), labels[:, 0].cpu().tolist()))
             # Save / log
             if save_txt:
                 file = save_dir / 'labels' / f'{path.stem}.txt'
@@ -515,10 +554,20 @@ def test(proj_info,
             names,
             latency,
             start_time,
+            is_segmentation=is_segmentation,
+            mean_iou=(seg_iou_sum / seg_gt_cnt) if seg_gt_cnt else 0.0,
         )
     # Test end =================================================================
 
     # Compute final metrics ----------------------------------------------------
+    if is_segmentation:
+        mean_iou = seg_iou_sum / seg_gt_cnt if seg_gt_cnt else 0.0
+        logger.info('-'*100)
+        logger.info('%22s%11i%11i%11.3g' % ('all', seen, seg_gt_cnt, mean_iou))
+        speed = (0.0, 0.0, 0.0) if seen == 0 else tuple(x / seen * 1E3 for x in (t0, t1, t2))
+        maps = np.zeros(nc) + mean_iou
+        return (mean_iou, mean_iou, mean_iou, mean_iou, 0.0, 0.0, 0.0), maps, speed
+
     # to numpy
     if v9:
         stats = [torch.cat(x,0).cpu().numpy() for x in zip(*stats)]
@@ -547,27 +596,10 @@ def test(proj_info,
 
     # Print results ------------------------------------------------------------
     logger.info('-'*100)
-    # pf_t = '%20s' + '%12s' * 6
-    # title = ('Class', 'Images', 'Labels', 'P', 'R', 'mAP@.5', 'mAP@.5:.95')
-    # logger.info(pf_t % title)
-
     if nt.sum() == 0:
-        logger.warning(f'WARNING: no labels found in dataset, can not compute metrics w/o labels')
+        logger.warning('WARNING: no labels found in dataset, can not compute metrics w/o labels')
     pf_c = '%22s' + '%11i' * 2 + '%11.3g' * 4
     logger.info(pf_c % ('all', seen, nt.sum(), mp, mr, map50, map))
-
-    # nt_sum_value = nt.sum().item()
-    # val_acc['class'] = 'all'
-    # val_acc['images'] = seen
-    # val_acc['labels'] = nt_sum_value
-    # val_acc['P'] = mp
-    # val_acc['R'] = mr
-    # val_acc['mAP50'] = map50
-    # val_acc['mAP50-95'] = map
-    # # val_acc['time'] = f'{(t0 + t1) :.1f} s' # total time
-    # status_update(userid, project_id,
-    #           update_id="val_accuracy",
-    #           update_content=val_acc)
 
     # Print results per class --------------------------------------------------
     if (verbose or (nc < 50 and not training)) and nc > 1 and len(stats):
@@ -575,8 +607,6 @@ def test(proj_info,
             logger.info(pf_c % (names[c], seen, nt[c], p[i], r[i], ap50[i], ap[i]))
 
     # Print speeds -------------------------------------------------------------
-    # t = (avg. preprocess time, avg. inference time, avg. nms time)
-    # 'seen' may be less than 'batch_size' at last batch
     t = tuple(x / seen * 1E3 for x in (t0, t1, t2))
     if not training:
         logger.info('Speed(avg.): %.1fms pre-process, %.1fms inference, %.1fms nms per images' % t)
@@ -590,32 +620,30 @@ def test(proj_info,
         w = Path(weights[0] if isinstance(weights, list) else weights).stem if weights is not None else ''  # weights
         DATASET_ROOT = Path("/shared/datasets")
         anno_json = str(DATASET_ROOT / 'coco' / 'annotations' / 'instances_val2017.json')
-        # anno_json = './coco/annotations/instances_val2017.json'  # annotations json
         pred_json = str(save_dir / f"{w}_predictions.json")  # predictions json
         logger.info('\nEvaluating pycocotools mAP... saving %s...' % pred_json)
         with open(pred_json, 'w') as f:
             json.dump(jdict, f)
 
-        try:  # https://github.com/cocodataset/cocoapi/blob/master/PythonAPI/pycocoEvalDemo.ipynb
+        try:
             from pycocotools.coco import COCO
             from pycocotools.cocoeval import COCOeval
-            anno = COCO(anno_json)  # init annotations api
-            pred = anno.loadRes(pred_json)  # init predictions api
+            anno = COCO(anno_json)
+            pred = anno.loadRes(pred_json)
             eval = COCOeval(anno, pred, 'bbox')
             if is_coco:
-                # eval.params.imgIds = [int(Path(x).stem) for x in dataloader.dataset.img_files]  # image IDs to evaluate
                 eval.params.imgIds = [int(Path(x).stem) for x in dataloader.dataset.im_files]
             eval.evaluate()
             eval.accumulate()
             eval.summarize()
-            map, map50 = eval.stats[:2]  # update results (mAP@0.5:0.95, mAP@0.5)
+            map, map50 = eval.stats[:2]
         except Exception as e:
             logger.warning(f'pycocotools unable to run: {e}')
 
     # Return results -----------------------------------------------------------
     model.float()  # for training
     if not training:
-        s = f"\n{len(list(save_dir.glob('labels/*.txt')))} labels saved to {save_dir / 'labels'}" if save_txt else ''
+        s = f"{len(list(save_dir.glob('labels/*.txt')))} labels saved to {save_dir / 'labels'}" if save_txt else ''
         logger.info(f"Results saved to {save_dir}{s}")
     maps = np.zeros(nc) + map
     for i, c in enumerate(ap_class):
@@ -692,7 +720,7 @@ def test_cls(proj_info,
             output = model(img, augment=augment)
 
             # compute loss
-            if compute_loss:
+            if compute_loss and not is_segmentation:
                 loss = compute_loss(output, target)
                 val_loss += loss.item()
 
