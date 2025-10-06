@@ -85,6 +85,13 @@ from tango.utils.torch_utils import (   ModelEMA,
 logger = logging.getLogger(__name__)
 
 
+class _NullContinualHooks:
+    """Fallback hook dispatcher that ignores all events."""
+
+    def dispatch(self, *_args, **_kwargs):
+        return None
+
+
 def _extract_cfg_identity(cfg):
     if isinstance(cfg, dict):
         name = str(cfg.get('name', '')).lower()
@@ -232,10 +239,34 @@ def get_optimizer(model, is_adam=False, lr=0.001, momentum=0.9, decay=1e-5):
     return optimizer
 
 
-def train(proj_info, hyp, opt, data_dict, tb_writer=None):
+def train(proj_info, hyp, opt, data_dict, tb_writer=None, continual_hooks=None):
     # Options ------------------------------------------------------------------
     save_dir, epochs, batch_size, weights, rank, local_rank, freeze = \
         Path(opt.save_dir), opt.epochs, opt.batch_size, opt.weights, opt.global_rank, opt.local_rank, opt.freeze
+
+    step_meta = data_dict.get('continual_step') or {}
+    class_filter = data_dict.get('class_filter')
+    eval_class_filter = data_dict.get('eval_class_filter', class_filter)
+    if class_filter is not None:
+        class_filter = [int(c) for c in class_filter]
+    if eval_class_filter is not None:
+        eval_class_filter = [int(c) for c in eval_class_filter]
+    step_name = step_meta.get('name')
+    step_index = step_meta.get('index')
+    step_label = step_name or (f'step_{step_index:02d}' if step_index is not None else '')
+    train_prefix = f"train[{step_label}]" if step_label else 'train'
+    val_prefix = f"val[{step_label}]" if step_label else 'val'
+    continual_hooks = continual_hooks or _NullContinualHooks()
+    epochs = int(step_meta.get('epochs', epochs))
+
+    if step_label:
+        logger.info(
+            "%sRunning %s for %d epochs with class filter %s",
+            colorstr('Continual: '),
+            step_label,
+            epochs,
+            class_filter if class_filter is not None else 'all',
+        )
 
     userid, project_id, task, nas, target, target_acc = \
         proj_info['userid'], proj_info['project_id'], proj_info['task_type'], \
@@ -411,7 +442,7 @@ def train(proj_info, hyp, opt, data_dict, tb_writer=None):
     # Batch size ---------------------------------------------------------------
     if opt.resume:
         logger.info('='*100)
-        bs_factor = opt.bs_factor # it would be 0.1 less than previous one
+        bs_factor = getattr(opt, 'bs_factor', 0.8)
         logger.info(f"bs_factor = {bs_factor}")
         logger.info('='*100)
     else:
@@ -513,11 +544,13 @@ def train(proj_info, hyp, opt, data_dict, tb_writer=None):
         start_epoch = ckpt['epoch'] + 1
         if opt.resume:
             assert start_epoch > 0, '%s training to %g epochs is finished, nothing to resume.' % (weights, epochs)
-        if epochs <= start_epoch:
-            finetune_epoch = vars(opt).get('finetune_epoch', 1)
-            logger.info('%s has been trained for %g epochs. Fine-tuning for %g additional epochs.' %
-                        (weights, ckpt['epoch']+1, finetune_epoch))
-            epochs += finetune_epoch # ckpt['epoch']  # finetune additional epochs
+            if epochs <= start_epoch:
+                finetune_epoch = vars(opt).get('finetune_epoch', 1)
+                logger.info('%s has been trained for %g epochs. Fine-tuning for %g additional epochs.' %
+                            (weights, ckpt['epoch']+1, finetune_epoch))
+                epochs += finetune_epoch # ckpt['epoch']  # finetune additional epochs
+        else:
+            start_epoch = 0
         del ckpt, state_dict
 
     # DP mode (option) ---------------------------------------------------------
@@ -548,12 +581,13 @@ def train(proj_info, hyp, opt, data_dict, tb_writer=None):
                 image_weights=opt.image_weights,
                 close_mosaic=opt.close_mosaic != 0,
                 quad=opt.quad,
-                prefix='train',
+                prefix=train_prefix,
                 shuffle=True,
                 min_items=0, #opt.min_items,
                 uid=userid,
                 pid=project_id,
                 task=task,
+                class_filter=class_filter,
             )
         else: # v7
             dataloader, dataset = create_dataloader(
@@ -573,7 +607,8 @@ def train(proj_info, hyp, opt, data_dict, tb_writer=None):
                 workers=opt.workers,
                 image_weights=opt.image_weights,
                 quad=opt.quad,
-                prefix='train'
+                prefix=train_prefix,
+                class_filter=class_filter,
             )
         mlc = np.concatenate(dataset.labels, 0)[:, 0].max()  # max label class
     elif task == 'classification':
@@ -657,6 +692,21 @@ def train(proj_info, hyp, opt, data_dict, tb_writer=None):
             logger.warning(f'Failed to get dataloder for training: {e}')
     assert mlc < nc, 'Label class %g exceeds nc=%g in %s. Possible class labels are 0-%g' % (mlc, nc, opt.data, nc - 1)
 
+    continual_hooks.dispatch(
+        'on_train_start',
+        step=step_meta,
+        rank=rank,
+        world_size=getattr(opt, 'world_size', 1),
+        model=model,
+        optimizer=optimizer,
+        epochs=epochs,
+        class_filter=class_filter,
+        eval_class_filter=eval_class_filter,
+        dataset=dataset,
+        dataloader=dataloader,
+        testloader=locals().get('testloader'),
+    )
+
     # Process 0 (TestDataLoader) -----------------------------------------------
     if rank in [-1, 0]:
         if task in ['detection', 'segmentation']:
@@ -673,10 +723,11 @@ def train(proj_info, hyp, opt, data_dict, tb_writer=None):
                     rank=-1,
                     workers=opt.workers * 2,
                     pad=0.5,
-                    prefix='val',
+                    prefix=val_prefix,
                     uid=userid,
                     pid=project_id,
                     task=task,
+                    class_filter=eval_class_filter,
                 )[0]
             else:
                 testloader = create_dataloader(
@@ -694,7 +745,8 @@ def train(proj_info, hyp, opt, data_dict, tb_writer=None):
                     world_size=opt.world_size,
                     workers=opt.workers * 2,
                     pad=0.5,
-                    prefix='val'
+                    prefix=val_prefix,
+                    class_filter=eval_class_filter,
                 )[0]
 
             if not opt.resume:
@@ -869,7 +921,19 @@ def train(proj_info, hyp, opt, data_dict, tb_writer=None):
     logger.info(f'{colorstr("Train: ")}start epoch = {start_epoch}, final epoch = {epochs}')
 
     # torch.save(model, wdir / 'init.pt')
+    ran_epochs = 0
     for epoch in range(start_epoch, epochs):
+        ran_epochs += 1
+        continual_hooks.dispatch(
+            'on_epoch_start',
+            step=step_meta,
+            epoch=epoch,
+            total_epochs=epochs,
+            rank=rank,
+            model=model,
+            optimizer=optimizer,
+            dataloader=dataloader,
+        )
         t_epoch = time.time() #time_synchronized()
         model.train()
 
@@ -955,6 +1019,19 @@ def train(proj_info, hyp, opt, data_dict, tb_writer=None):
                 # logger.info(f'step-{i} start')
                 t_batch = time.time() #time_synchronized()
                 ni = i + nb * epoch  # number integrated batches (since train start)
+                continual_hooks.dispatch(
+                    'on_batch_start',
+                    step=step_meta,
+                    epoch=epoch,
+                    total_epochs=epochs,
+                    batch_index=i,
+                    global_step=ni,
+                    rank=rank,
+                    model=model,
+                    optimizer=optimizer,
+                    batch=batch,
+                    masks=masks if task == 'segmentation' else None,
+                )
                 imgs = imgs.to(device, non_blocking=True).float() / 255  # uint8 to float32, 0-255 to 0.0-1.0
                 
                 # Warmup
@@ -1003,6 +1080,20 @@ def train(proj_info, hyp, opt, data_dict, tb_writer=None):
                     else:  # detection
                         loss, loss_items = compute_loss(pred, targets.to(device))
 
+                continual_hooks.dispatch(
+                    'on_before_backward',
+                    step=step_meta,
+                    epoch=epoch,
+                    total_epochs=epochs,
+                    batch_index=i,
+                    global_step=ni,
+                    rank=rank,
+                    model=model,
+                    optimizer=optimizer,
+                    loss=loss,
+                    loss_items=loss_items,
+                )
+
                 # Backward
                 loss = torch.nan_to_num(loss, nan=0.0, posinf=0.0, neginf=0.0)
                 loss_items = torch.nan_to_num(loss_items, nan=0.0, posinf=0.0, neginf=0.0)
@@ -1011,6 +1102,20 @@ def train(proj_info, hyp, opt, data_dict, tb_writer=None):
                     logger.warning(
                         f'step-{i} can not backward (loss items contain NaN or inf): '
                         f'{loss_items.detach().cpu().tolist()}'
+                    )
+                    continual_hooks.dispatch(
+                        'on_batch_end',
+                        step=step_meta,
+                        epoch=epoch,
+                        total_epochs=epochs,
+                        batch_index=i,
+                        global_step=ni,
+                        rank=rank,
+                        model=model,
+                        optimizer=optimizer,
+                        loss=loss,
+                        loss_items=loss_items,
+                        skipped=True,
                     )
                     optimizer.zero_grad()
                     continue
@@ -1098,6 +1203,19 @@ def train(proj_info, hyp, opt, data_dict, tb_writer=None):
                     #     if tb_writer:
                     #         tb_writer.add_image(f, result, dataformats='HWC', global_step=epoch)
                     #         tb_writer.add_graph(torch.jit.trace(model, imgs, strict=False), [])  # add model graph
+                continual_hooks.dispatch(
+                    'on_batch_end',
+                    step=step_meta,
+                    epoch=epoch,
+                    total_epochs=epochs,
+                    batch_index=i,
+                    global_step=ni,
+                    rank=rank,
+                    model=model,
+                    optimizer=optimizer,
+                    loss=loss,
+                    loss_items=loss_items,
+                )
         elif task == 'classification':
             logger.info(('\n' + '%10s' * 6) % ('TrainEpoch', 'GPU_Mem', 'Batch', 'mLoss', 'mAcc', '=curr/all'))
             accumulated_imgs_cnt = 0
@@ -1105,6 +1223,18 @@ def train(proj_info, hyp, opt, data_dict, tb_writer=None):
             for i, (imgs, targets) in pbar:
                 t_batch = time.time() #time_synchronized()
                 ni = i + nb * epoch  # number integrated batches (since train start)
+                continual_hooks.dispatch(
+                    'on_batch_start',
+                    step=step_meta,
+                    epoch=epoch,
+                    total_epochs=epochs,
+                    batch_index=i,
+                    global_step=ni,
+                    rank=rank,
+                    model=model,
+                    optimizer=optimizer,
+                    batch=(imgs, targets),
+                )
                 imgs = imgs.float().to(device, non_blocking=True)
                 targets = targets.to(device)
 
@@ -1141,6 +1271,18 @@ def train(proj_info, hyp, opt, data_dict, tb_writer=None):
 
 
                 # Backward
+                continual_hooks.dispatch(
+                    'on_before_backward',
+                    step=step_meta,
+                    epoch=epoch,
+                    total_epochs=epochs,
+                    batch_index=i,
+                    global_step=ni,
+                    rank=rank,
+                    model=model,
+                    optimizer=optimizer,
+                    loss=loss,
+                )
                 scaler.scale(loss).backward()
 
                 # Optimize
@@ -1183,8 +1325,18 @@ def train(proj_info, hyp, opt, data_dict, tb_writer=None):
                     status_update(userid, project_id,
                                   update_id="train_loss",
                                   update_content=train_loss)
-                    if len(dataloader) -1 == i:
-                        logger.info(f'{s}')
+                continual_hooks.dispatch(
+                    'on_batch_end',
+                    step=step_meta,
+                    epoch=epoch,
+                    total_epochs=epochs,
+                    batch_index=i,
+                    global_step=ni,
+                    rank=rank,
+                    model=model,
+                    optimizer=optimizer,
+                    loss=loss,
+                )
         # training batches end =================================================
 
         # Scheduler
@@ -1306,6 +1458,17 @@ def train(proj_info, hyp, opt, data_dict, tb_writer=None):
                           update_id="epoch_summary",
                           update_content=epoch_summary)
 
+            continual_hooks.dispatch(
+                'on_epoch_end',
+                step=step_meta,
+                epoch=epoch,
+                total_epochs=epochs,
+                rank=rank,
+                model=model,
+                optimizer=optimizer,
+                metrics={'results': results, 'epoch_summary': epoch_summary},
+            )
+
             # Update best mAP
             if task in ['detection', 'segmentation']:
                 fi = fitness(np.array(results).reshape(1, -1))  # weighted combination of [P, R, mAP@.5, mAP@.5-.95]
@@ -1356,7 +1519,7 @@ def train(proj_info, hyp, opt, data_dict, tb_writer=None):
 
     if rank in [-1, 0]:
         # Plots ----------------------------------------------------------------
-        if plots:
+        if plots and ran_epochs:
             if task in ['detection', 'segmentation']:
                 plot_results(
                     save_dir=save_dir,
@@ -1365,7 +1528,10 @@ def train(proj_info, hyp, opt, data_dict, tb_writer=None):
             elif task == 'classification':
                 plot_cls_results(save_dir=save_dir)
 
-        logger.info(f'\n{colorstr("Train: ")}{epoch-start_epoch+1} epochs completed({(time.time() - t0) / 60:.3f} min).')
+        if ran_epochs:
+            logger.info(f'\n{colorstr("Train: ")}{ran_epochs} epochs completed({(time.time() - t0) / 60:.3f} min).')
+        else:
+            logger.info(f'\n{colorstr("Train: ")}No epochs executed (start_epoch={start_epoch}, epochs={epochs}).')
 
         # Test best.pt after fusing layers -------------------------------------
         # [tenace's note] argument of type 'PosixPath' is not iterable (??)
@@ -1420,12 +1586,22 @@ def train(proj_info, hyp, opt, data_dict, tb_writer=None):
 
     # report to PM -------------------------------------------------------------
     mb = os.path.getsize(final_model) / 1E6  # filesize
+    continual_hooks.dispatch(
+        'on_train_end',
+        step=step_meta,
+        rank=rank,
+        results=results,
+        final_model=str(final_model),
+        epochs=epochs,
+    )
     train_end = {}
     train_end['status'] = 'end'
     train_end['epochs'] = epochs
     train_end['bestmodel'] = str(final_model)
     train_end['bestmodel_size'] = f'{mb:.1f} MB'
     train_end['time'] = f'{(time.time() - t0) / 3600:.3f} hours'
+    if step_label:
+        train_end['continual_step'] = step_label
     status_update(userid, project_id,
                   update_id="train_end",
                   update_content=train_end)
