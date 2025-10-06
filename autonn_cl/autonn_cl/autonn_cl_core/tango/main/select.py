@@ -713,9 +713,17 @@ def run_autonn_cl(userid, project_id, resume=False, viz2code=False, nas=False, h
     results, train_final = train_continual(proj_info, hyp, opt, data, tb_writer)
 
     # Log training results
-    best_acc = results[3] if task in ['detection', 'segmentation'] else results[0]
+    if task == 'segmentation':
+        best_metric = results[0]
+        metric_label = 'IoU'
+    elif task == 'detection':
+        best_metric = results[3]
+        metric_label = 'mAP@0.5:0.95'
+    else:
+        best_metric = results[0]
+        metric_label = 'accuracy'
     logger.info(
-        f'{colorstr("Train: ")}Training complete. Best results: {best_acc:.2f},'
+        f'{colorstr("Train: ")}Training complete. Best {metric_label}: {best_metric:.4f},'
         f' Best model saved as: {train_final}\n'
     )
 
@@ -818,7 +826,8 @@ def run_autonn_cl(userid, project_id, resume=False, viz2code=False, nas=False, h
     fuse_layers(train_final, prefix=colorstr("Model Exporter: "))
 
     # Save training configuration
-    opt.best_acc = float(best_acc)  # numpy.float64 to float
+    best_metric = float(best_metric)
+    opt.best_acc = best_metric  # re-used downstream
     opt.weights = str(train_final)
 
     with open(Path(opt.save_dir) / 'opt.yaml', 'w') as f:
