@@ -6,6 +6,7 @@ from pathlib import Path
 from typing import Any, Dict, Iterable, List, Optional, Sequence, Union
 
 from .train import train
+from tango.utils.general import colorstr
 
 logger = logging.getLogger(__name__)
 
@@ -198,6 +199,7 @@ def train_continual(
     previous_weights = getattr(opt, 'weights', None)
     final_model: Optional[Path] = None
     results: Optional[Any] = None
+    step_summaries: List[Dict[str, Any]] = []
 
     for step in schedule:
         step_index = step.index
@@ -255,6 +257,38 @@ def train_continual(
             seen_classes=seen_class_ids,
         )
 
+        metrics_list: List[float] = []
+        if isinstance(results, (list, tuple)):
+            for val in results:
+                try:
+                    metrics_list.append(float(val))
+                except (TypeError, ValueError):
+                    continue
+        metrics_names_map = {
+            7: ['P', 'R', 'mAP50', 'mAP5095', 'val_box', 'val_obj', 'val_cls'],
+            6: ['P', 'R', 'mAP50', 'mAP5095', 'val_box', 'val_obj'],
+            4: ['P', 'R', 'mAP50', 'mAP5095'],
+            3: ['metric0', 'metric1', 'metric2'],
+            2: ['metric0', 'metric1'],
+        }
+        metric_names = metrics_names_map.get(len(metrics_list), [f'm{i}' for i in range(len(metrics_list))])
+        metric_pairs = []
+        for name, value in zip(metric_names, metrics_list):
+            metric_pairs.append(f"{name}={value:.4f}")
+            if len(metric_pairs) == 4:
+                break
+        metrics_text = ', '.join(metric_pairs) if metric_pairs else '—'
+        step_label = f"{step.index:02d} {step.name}"
+        best_model_str = str(final_model) if final_model else 'N/A'
+        step_summaries.append({
+            'step': step_label,
+            'epochs': int(step_opt.epochs or 0),
+            'class_count': len(step.class_ids),
+            'seen_classes': len(seen_class_ids),
+            'metrics_text': metrics_text,
+            'best_model': best_model_str,
+        })
+
         last_checkpoint = Path(final_model).with_name('last.pt') if final_model else None
         if last_checkpoint and last_checkpoint.exists():
             previous_weights = str(last_checkpoint)
@@ -267,12 +301,34 @@ def train_continual(
         opt.weights = previous_weights
         opt.bs_factor = getattr(step_opt, 'bs_factor', getattr(opt, 'bs_factor', 0.8))
 
+    if step_summaries:
+        header = f"{'Step':<32} {'Ep':>3} {'Cls':>4} {'Seen':>5} {'Metrics (first 4)':<45} {'Best Model'}"
+        divider = '-' * len(header)
+        lines = ['']
+        lines.append(colorstr('Continual: ') + 'Schedule Summary')
+        lines.append(divider)
+        lines.append(header)
+        lines.append(divider)
+        for summary in step_summaries:
+            model_name = summary['best_model']
+            try:
+                model_name = Path(model_name).name
+            except Exception:
+                pass
+            metrics_cell = summary['metrics_text'][:45]
+            lines.append(
+                f"{summary['step']:<32} {summary['epochs']:>3} {summary['class_count']:>4} {summary['seen_classes']:>5} {metrics_cell:<45} {model_name}"
+            )
+        lines.append(divider)
+        logger.info('\n'.join(lines))
+
     hook_manager.dispatch(
         'on_schedule_end',
         schedule=schedule,
         final_model=str(final_model) if final_model else None,
         results=results,
         seen_classes=seen_class_ids,
+        summaries=step_summaries,
     )
 
     return results, final_model
