@@ -9,6 +9,7 @@ import shutil
 from copy import deepcopy
 from pathlib import Path
 from threading import Thread
+from typing import List
 import json
 
 import numpy as np
@@ -91,6 +92,128 @@ class _NullContinualHooks:
     def dispatch(self, *_args, **_kwargs):
         return None
 
+
+def _apply_dynamic_patch_segmentation(imgs, targets, masks, paths, grid):
+    """Split each image into grid patches and adjust targets/masks accordingly."""
+
+    if grid <= 1:
+        return imgs, targets, masks, paths
+
+    bsz, channels, height, width = imgs.shape
+    device = imgs.device
+    stride = 32
+    patch_h = int(math.ceil((height / grid) / stride) * stride)
+    patch_w = int(math.ceil((width / grid) / stride) * stride)
+
+    y_edges = torch.linspace(0, height, grid + 1, dtype=torch.int64, device=device)
+    x_edges = torch.linspace(0, width, grid + 1, dtype=torch.int64, device=device)
+
+    new_imgs: List[torch.Tensor] = []
+    new_masks: List[torch.Tensor] = []
+    new_targets: List[torch.Tensor] = []
+    new_paths: List[str] = []
+
+    next_index = 0
+    targets_cols = targets.shape[1] if targets.ndim == 2 else 6
+    targets_dtype = targets.dtype if targets.ndim == 2 else torch.float32
+    targets_device = targets.device if targets.ndim == 2 else device
+
+    for b in range(bsz):
+        sample_mask = masks[b]
+        index_mask = targets[:, 0] == b
+        sample_targets = targets[index_mask].clone()
+        obj_count = sample_targets.shape[0]
+        sample_mask = sample_mask[:obj_count]
+
+        for yi in range(grid):
+            y0 = y_edges[yi].item()
+            y1 = y_edges[yi + 1].item()
+            if y1 <= y0:
+                continue
+            for xi in range(grid):
+                x0 = x_edges[xi].item()
+                x1 = x_edges[xi + 1].item()
+                if x1 <= x0:
+                    continue
+
+                patch_img = imgs[b:b + 1, :, y0:y1, x0:x1]
+                if patch_img.shape[-2:] != (patch_h, patch_w):
+                    patch_img = F.interpolate(
+                        patch_img.float(),
+                        size=(patch_h, patch_w),
+                        mode='bilinear',
+                        align_corners=False,
+                    ).clamp(0, 255).round().to(imgs.dtype)
+                new_imgs.append(patch_img)
+
+                x_range = max((x1 - x0) / width, 1e-6)
+                y_range = max((y1 - y0) / height, 1e-6)
+                x0_norm = x0 / width
+                y0_norm = y0 / height
+                x1_norm = x1 / width
+                y1_norm = y1 / height
+
+                transformed_targets = []
+                transformed_masks = []
+
+                for obj_idx in range(obj_count):
+                    cx, cy = sample_targets[obj_idx, 2].item(), sample_targets[obj_idx, 3].item()
+                    in_x = (cx >= x0_norm) if xi == 0 else (cx > x0_norm)
+                    in_x &= (cx <= x1_norm) if xi == grid - 1 else (cx < x1_norm)
+                    in_y = (cy >= y0_norm) if yi == 0 else (cy > y0_norm)
+                    in_y &= (cy <= y1_norm) if yi == grid - 1 else (cy < y1_norm)
+                    if not (in_x and in_y):
+                        continue
+
+                    target = sample_targets[obj_idx].clone()
+                    target[0] = target.new_tensor(float(next_index))
+
+                    target[2] = (target[2] - x0_norm) / x_range
+                    target[3] = (target[3] - y0_norm) / y_range
+                    target[4] = target[4] / x_range
+                    target[5] = target[5] / y_range
+
+                    target[2:6] = target[2:6].clamp(0.0, 1.0)
+                    transformed_targets.append(target)
+
+                    if obj_idx < sample_mask.shape[0]:
+                        mask_crop = sample_mask[obj_idx:obj_idx + 1, y0:y1, x0:x1]
+                        if mask_crop.shape[-2:] != (patch_h, patch_w):
+                            mask_crop = F.interpolate(
+                                mask_crop.unsqueeze(0).float(),
+                                size=(patch_h, patch_w),
+                                mode='nearest',
+                            ).squeeze(0).round().to(sample_mask.dtype)
+                        transformed_masks.append(mask_crop)
+
+                if transformed_targets:
+                    new_targets.append(torch.stack(transformed_targets, dim=0))
+                    patch_mask_tensor = torch.cat(transformed_masks, dim=0) if transformed_masks else sample_mask.new_zeros((0, patch_h, patch_w))
+                else:
+                    patch_mask_tensor = sample_mask.new_zeros((0, patch_h, patch_w))
+
+                new_masks.append(patch_mask_tensor)
+                new_paths.append(f"{paths[b]}#patch{yi}{xi}")
+                next_index += 1
+
+    imgs_out = torch.cat(new_imgs, dim=0) if new_imgs else imgs
+
+    if new_targets:
+        updated_targets = torch.cat(new_targets, dim=0)
+    else:
+        updated_targets = torch.zeros((0, targets_cols), dtype=targets_dtype, device=targets_device)
+
+    max_objs = max((m.shape[0] for m in new_masks), default=0)
+    if max_objs > 0:
+        masks_out = torch.zeros((len(new_masks), max_objs, patch_h, patch_w), dtype=masks.dtype, device=masks.device)
+        for idx, m in enumerate(new_masks):
+            count = m.shape[0]
+            if count:
+                masks_out[idx, :count] = m.to(masks.dtype)
+    else:
+        masks_out = torch.zeros((len(new_masks), 0, patch_h, patch_w), dtype=masks.dtype, device=masks.device)
+
+    return imgs_out, updated_targets, masks_out, tuple(new_paths)
 
 def _extract_cfg_identity(cfg):
     if isinstance(cfg, dict):
@@ -243,6 +366,9 @@ def train(proj_info, hyp, opt, data_dict, tb_writer=None, continual_hooks=None):
     # Options ------------------------------------------------------------------
     save_dir, epochs, batch_size, weights, rank, local_rank, freeze = \
         Path(opt.save_dir), opt.epochs, opt.batch_size, opt.weights, opt.global_rank, opt.local_rank, opt.freeze
+
+    if not hasattr(opt, 'dynamic_patch_grid'):
+        opt.dynamic_patch_grid = 5 if str(proj_info.get('task_type', '')).lower() == 'segmentation' else 1
 
     step_meta = data_dict.get('continual_step') or {}
     class_filter = data_dict.get('class_filter')
@@ -1014,6 +1140,10 @@ def train(proj_info, hyp, opt, data_dict, tb_writer=None, continual_hooks=None):
                 # Unpack batch based on task
                 if task == 'segmentation':
                     imgs, targets, masks, paths, _ = batch
+                    patch_grid = getattr(opt, 'dynamic_patch_grid', 1)
+                    if patch_grid and patch_grid > 1:
+                        imgs, targets, masks, paths = _apply_dynamic_patch_segmentation(imgs, targets, masks, paths, patch_grid)
+                        batch = (imgs, targets, masks, paths, None)
                 else:  # detection
                     imgs, targets, paths, _ = batch
                 # logger.info(f'step-{i} start')
