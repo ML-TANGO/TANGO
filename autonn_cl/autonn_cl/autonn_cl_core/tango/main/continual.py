@@ -3,10 +3,13 @@ import logging
 import re
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Dict, Iterable, List, Optional, Sequence, Union
+from typing import TYPE_CHECKING, Any, Dict, Iterable, List, Optional, Sequence, Union
 
 from .train import train
 from tango.utils.general import colorstr
+
+if TYPE_CHECKING:  # pragma: no cover - typing aid only
+    from .continual_hooks import ConfidenceWeightedLwFOCDMHook
 
 logger = logging.getLogger(__name__)
 
@@ -117,7 +120,14 @@ def _slugify(value: str) -> str:
 
 def _ensure_manager(hooks: Optional[Union[ContinualHook, Iterable[ContinualHook], ContinualHookManager]]) -> ContinualHookManager:
     if hooks is None:
-        return ContinualHookManager([LoggingHook()])
+        default_hooks: List[ContinualHook] = [LoggingHook()]
+        try:
+            from .continual_hooks import ConfidenceWeightedLwFOCDMHook  # local import avoids circular dependency
+
+            default_hooks.append(ConfidenceWeightedLwFOCDMHook())
+        except Exception as exc:  # pragma: no cover - defensive log only
+            logger.warning('Continual: failed to initialise advanced hook: %s', exc)
+        return ContinualHookManager(default_hooks)
     if isinstance(hooks, ContinualHookManager):
         return hooks
     if isinstance(hooks, ContinualHook):
@@ -190,7 +200,13 @@ def train_continual(
         return train(proj_info, hyp, opt, data_dict, tb_writer)
 
     hook_manager = _ensure_manager(hooks)
-    hook_manager.dispatch('on_schedule_start', schedule=schedule, proj_info=proj_info)
+    applied_methods: List[str] = []
+    for hook in getattr(hook_manager, '_hooks', []):
+        label = getattr(hook, 'METHOD_SUMMARY', None)
+        if label:
+            applied_methods.append(str(label))
+
+    hook_manager.dispatch('on_schedule_start', schedule=schedule, proj_info=proj_info, base_save_dir=opt.save_dir)
 
     base_save_dir = Path(opt.save_dir)
     base_save_dir.mkdir(parents=True, exist_ok=True)
@@ -214,6 +230,14 @@ def train_continual(
             step_opt.bs_factor = getattr(opt, 'bs_factor', 0.8)
 
         step_data = copy.deepcopy(data_dict)
+        prepared = hook_manager.dispatch(
+            'prepare_step_data',
+            step=step,
+            data=step_data,
+            base_save_dir=opt.save_dir,
+        )
+        if isinstance(prepared, dict):
+            step_data = prepared
         step_data['train'] = step.train_path or data_dict.get('train')
         step_data['val'] = step.val_path or data_dict.get('val')
         step_data['class_filter'] = step.class_ids
@@ -314,6 +338,9 @@ def train_continual(
         divider = '-' * len(header)
         lines = ['']
         lines.append(colorstr('Continual: ') + 'Schedule Summary')
+        if applied_methods:
+            methods_text = ', '.join(dict.fromkeys(applied_methods))
+            lines.append(colorstr('Continual: ') + f'Methods: {methods_text}')
         lines.append(divider)
         lines.append(header)
         lines.append(divider)

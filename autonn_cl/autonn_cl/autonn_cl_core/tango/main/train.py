@@ -1031,6 +1031,7 @@ def train(proj_info, hyp, opt, data_dict, tb_writer=None, continual_hooks=None):
                     optimizer=optimizer,
                     batch=batch,
                     masks=masks if task == 'segmentation' else None,
+                    paths=paths,
                 )
                 imgs = imgs.to(device, non_blocking=True).float() / 255  # uint8 to float32, 0-255 to 0.0-1.0
                 
@@ -1090,6 +1091,7 @@ def train(proj_info, hyp, opt, data_dict, tb_writer=None, continual_hooks=None):
                     rank=rank,
                     model=model,
                     optimizer=optimizer,
+                    pred=pred,
                     loss=loss,
                     loss_items=loss_items,
                 )
@@ -1115,6 +1117,7 @@ def train(proj_info, hyp, opt, data_dict, tb_writer=None, continual_hooks=None):
                         optimizer=optimizer,
                         loss=loss,
                         loss_items=loss_items,
+                        paths=paths,
                         skipped=True,
                     )
                     optimizer.zero_grad()
@@ -1215,6 +1218,7 @@ def train(proj_info, hyp, opt, data_dict, tb_writer=None, continual_hooks=None):
                     optimizer=optimizer,
                     loss=loss,
                     loss_items=loss_items,
+                    paths=paths,
                 )
         elif task == 'classification':
             logger.info(('\n' + '%10s' * 6) % ('TrainEpoch', 'GPU_Mem', 'Batch', 'mLoss', 'mAcc', '=curr/all'))
