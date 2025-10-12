@@ -985,10 +985,12 @@ def project_create(request):
 
             shutil.copyfile(os.path.join(config_path, 'hyp.scratch.cls.yaml'), os.path.join(common_path, 'hyp.scratch.cls.yaml'))
             shutil.copyfile(os.path.join(config_path, 'hyp.scratch.p5.yaml'), os.path.join(common_path, 'hyp.scratch.p5.yaml'))
+            shutil.copyfile(os.path.join(config_path, 'hyp.scratch.seg.yaml'), os.path.join(common_path, 'hyp.scratch.seg.yaml'))
 
             shutil.copyfile(os.path.join(config_path, 'args-classification.yaml'), os.path.join(common_path, 'args-classification.yaml'))
             shutil.copyfile(os.path.join(config_path, 'args-detection.yaml'), os.path.join(common_path, 'args-detection.yaml'))
-
+            shutil.copyfile(os.path.join(config_path, 'args-segmentation.yaml'), os.path.join(common_path, 'args-segmentation.yaml'))
+            
             init_autonn_status(data) 
             return Response({'result': True,
                             'id': data.id,
@@ -1104,6 +1106,13 @@ def project_update(request):
 
         learning_type = str(request.data['learning_type'])
 
+        # AutoNN_CL (Segmentation + Continual Learning) projects use fixed target ID 9
+        if (
+            task_type == TaskType.SEGMENTATION
+            and learning_type == LearningType.CONTINUAL_LEARNING
+        ):
+            target = 9
+
         project_info = Project.objects.get(id=request.data['project_id'])
 
         project_info.dataset = dataset
@@ -1179,7 +1188,7 @@ def project_update(request):
 
         # Segmentation 프로젝트인 경우 전용 YAML 생성
         if task_type == TaskType.SEGMENTATION:
-            create_segmentation_project_yaml(request.user, request.data['project_id'], request.data)
+            create_segmentation_project_yaml(str(request.user), request.data['project_id'], request.data)
         else:
             # 기존 project_info.yaml 파일 생성
             common_path = os.path.join(root_path, f"shared/common/{request.user}/{request.data['project_id']}")
@@ -1200,66 +1209,147 @@ def project_update(request):
 
 def create_segmentation_project_yaml(user_id, project_id, project_data):
     """
-    Segmentation 프로젝트용 project_info.yaml 생성 함수
-    
-    Args:
-        user_id (str): 사용자 ID
-        project_id (str): 프로젝트 ID
-        project_data (dict): 프로젝트 데이터
-    
-    Description:
-        Segmentation + Continual Learning 프로젝트를 위한 특별한 YAML 파일 생성
-        중앙대에서 개발할 AutoNN_CL 컨테이너에서 사용할 설정 정보 포함
+    구조 템플릿에 맞춰 shared/common/{user}/{project_id}/project_info.yaml 생성
+    - YAML 주석/섹션 헤더까지 동일하게 출력하기 위해 문자열로 작성
+    - Target 정보가 있으면 거기서 cpu/acc/memory/os/engine 등을 가져옴
+    - memory는 GB 정수로 변환
     """
+    import os
+    from datetime import datetime
+    from .models import Project
+    from targets.models import Target
+ 
+    # 사용자 문자열
+    user_str = getattr(user_id, "username", str(user_id))
+ 
+    # 출력 경로
+    common_path = os.path.join(root_path, f"shared/common/{user_str}/{project_id}")
+    os.makedirs(common_path, exist_ok=True)
+ 
+    # Target 로드
+    tgt = None
     try:
-        import yaml
-        
-        # 공통 경로 설정 및 디렉토리 생성
-        common_path = os.path.join(root_path, f"shared/common/{user_id}/{project_id}")
-        if os.path.isdir(common_path) is False:
-            os.makedirs(common_path)
-
-        # Segmentation 전용 YAML 구조 정의
-        yaml_content = {
-            'project_info': {
-                'project_id': int(project_id),
-                'task_type': 'segmentation',
-                'learning_type': 'continual_learning',
-                'user_id': user_id,
-                'create_date': datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
-                'version': 1
-            },
-            'model_config': {
-                # Configuration 단계에서 입력받은 배포 설정값들
-                'input_source': project_data.get('deploy_input_source', '0'),
-                'output_method': project_data.get('deploy_output_method', '0'),
-                'precision_level': int(project_data.get('deploy_precision_level', 5)),
-                'weight_level': int(project_data.get('deploy_weight_level', 5)),
-                'user_editing': project_data.get('deploy_user_edit', 'no')
-            },
-            'segmentation_config': {
-                # Segmentation 특화 설정 (중앙대 요구사항에 따라 조정 가능)
-                'continual_learning_method': 'default',  # 기본 continual learning 방식
-                'memory_buffer_size': 1000,  # 메모리 버퍼 크기 (예시)
-                'learning_rate': 0.001,  # 학습률 (예시)
-                'batch_size': 16  # 배치 크기 (예시)
-            },
-            'container_info': {
-                'container_id': ContainerId.autonn_cl,
-                'container_port': 8102,  # AutoNN_CL 컨테이너 포트 (가안)
-                'status': ContainerStatus.READY
-            }
-        }
-
-        # YAML 파일로 저장
-        with open(os.path.join(common_path, 'project_info.yaml'), 'w') as f:
-            yaml.dump(yaml_content, f, default_flow_style=False, allow_unicode=True, indent=2)
-        
-        print(f"Segmentation project YAML created successfully for project {project_id}")
-        
-    except Exception as error:
-        print(f"Error creating segmentation project YAML: {error}")
-        raise error
+        proj = Project.objects.get(id=int(project_id))
+        tgt = proj.target
+        if not tgt:
+            # 요청 본문에 target id가 있을 경우 보조 시도
+            tid = project_data.get("project_target")
+            if tid:
+                try:
+                    tgt = Target.objects.get(id=int(tid))
+                except Exception:
+                    pass
+    except Exception:
+        pass
+ 
+    # 메모리 파서 (GB 정수 반환)
+    def parse_memory_to_gb(mem_val):
+        """
+        입력 예: '65536', '65536MB', '64GB', '8G', '8 GB', 8192, 64 ...
+        반환: GB 정수 (예: 65536 → 64, '8G' → 8)
+        """
+        if mem_val is None:
+            return 64
+        s = str(mem_val).strip().upper()
+        # 숫자만 있는 경우: 큰 값이면 MB로 간주해서 GB 변환
+        if s.isdigit():
+            iv = int(s)
+            return iv // 1024 if iv >= 1024 else iv
+        # 단위 포함
+        s = s.replace(" ", "")
+        if s.endswith("GB"):
+            try:
+                return int(s[:-2])
+            except:
+                return 64
+        if s.endswith("G"):
+            try:
+                return int(s[:-1])
+            except:
+                return 64
+        if s.endswith("MB"):
+            try:
+                iv = int(s[:-2])
+                return iv // 1024
+            except:
+                return 64
+        # 그 외는 숫자 추출 시도
+        digits = "".join(ch for ch in s if ch.isdigit())
+        if digits:
+            iv = int(digits)
+            return iv // 1024 if "MB" in s else (iv if "GB" in s or "G" in s else (iv // 1024 if iv >= 1024 else iv))
+        return 64
+ 
+    # Target 기반 값 + 기본값
+    cpu     = str(getattr(tgt, "target_cpu", "x86"))
+    acc     = str(getattr(tgt, "target_acc", "cpu"))
+    memory  = parse_memory_to_gb(getattr(tgt, "target_memory", "65536"))  # GB 정수
+    os_name = str(getattr(tgt, "target_os", "ubuntu"))
+    engine  = str(getattr(tgt, "target_engine", "pytorch"))
+    target_info = str(getattr(tgt, "target_info", "PC"))
+ 
+    nfs_ip  = str(getattr(tgt, "nfs_ip", "") or "")
+    nfs_path = str(getattr(tgt, "nfs_path", "") or "")
+    target_hostip = str(getattr(tgt, "target_host_ip", "") or "")
+    # 샘플처럼 빈 문자열을 원하므로, 포트는 숫자 변환 대신 빈 문자열 유지
+    target_hostport = "" if not getattr(tgt, "target_host_port", "") else str(getattr(tgt, "target_host_port"))
+    target_serviceport = "" if not getattr(tgt, "target_host_service_port", "") else str(getattr(tgt, "target_host_service_port"))
+ 
+    # 요청 데이터 기반 값 + 기본값
+    task_type     = str(project_data.get("task_type", "detection"))
+    learning_type = str(project_data.get("learning_type", "normal"))
+    dataset       = str(project_data.get("project_dataset") or project_data.get("dataset") or "coco128")
+ 
+    basemodel = str(project_data.get("autonn_base_model", "") or "")
+    nas_type  = str(project_data.get("nas_type", "") or "")
+ 
+    lightweight_level = str(project_data.get("deploy_weight_level", 5) or 5)
+    precision_level   = str(project_data.get("deploy_precision_level", 5) or 5)
+    preprocessing_lib = str(project_data.get("deploy_processing_lib", "cv2") or "cv2")
+    input_method      = str(project_data.get("deploy_input_method", "0") or "0")
+    input_data_path   = str(project_data.get("deploy_input_data_path", "") or "")
+    output_method     = str(project_data.get("deploy_output_method", "0") or "0")
+    input_source      = str(project_data.get("deploy_input_source", "0") or "0")
+    user_editing      = str(project_data.get("deploy_user_edit", "no") or "no")
+ 
+    # 샘플과 동일한 “평면 + 주석 포함” 포맷으로 문자열 작성
+    content = (
+        f"# common\n"
+        f"task_type : {task_type}\n"
+        f"target_info : {target_info}\n"
+        f"learning_type : {learning_type}\n"
+        f"cpu : {cpu}\n"
+        f"acc : {acc}\n"
+        f"memory : {memory}\n"
+        f"os : {os_name}\n"
+        f"engine : {engine}\n"
+        f"nfs_ip : {nfs_ip}\n"
+        f"nfs_path : {nfs_path}\n"
+        f"target_hostip : {target_hostip}\n"
+        f"target_hostport : {target_hostport}\n"
+        f"target_serviceport : {target_serviceport}\n"
+        f"\n"
+        f"#for autonn\n"
+        f"dataset : {dataset}\n"
+        f"#basemodel : {basemodel}\n"
+        f"#nas_type : {nas_type}\n"
+        f"\n"
+        f"#for deploy\n"
+        f"lightweight_level : {lightweight_level}\n"
+        f"precision_level : {precision_level}\n"
+        f"#preprocessing_lib : {preprocessing_lib}\n"
+        f"#input_method : {input_method}\n"
+        f"#input_data_location : {input_data_path}\n"
+        f"output_method : {output_method}\n"
+        f"input_source : {input_source}\n"
+        f"user_editing : {user_editing}\n"
+    )
+ 
+    out_path = os.path.join(common_path, "project_info.yaml")
+    with open(out_path, "w", encoding="utf-8") as f:
+        f.write(content)
+ 
+    print(f"[project_info.yaml] created: {out_path}")
 
 # 워크플로우 추가
 @api_view(['POST'])

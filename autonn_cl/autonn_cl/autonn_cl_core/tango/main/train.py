@@ -29,7 +29,8 @@ from . import test  # import test.py to get mAP or val_accuracy after each epoch
 from tango.common.models.experimental import attempt_load
 from tango.common.models.yolo               import Model, DetectionModel
 from tango.common.models.resnet_cifar10     import ClassifyModel
-from tango.common.models.supernet_yolov7    import NASModel
+from tango.common.models.supernet_yolov7    import NASModel as NASModelV7
+from tango.common.models.supernet_yolov9    import NASModel as NASModelV9
 # from tango.common.models import *
 from tango.utils.autoanchor import check_anchors
 from tango.utils.autobatch import get_batch_size_for_gpu
@@ -82,6 +83,43 @@ from tango.utils.torch_utils import (   ModelEMA,
 
 
 logger = logging.getLogger(__name__)
+
+
+def _extract_cfg_identity(cfg):
+    if isinstance(cfg, dict):
+        name = str(cfg.get('name', '')).lower()
+        if name:
+            return name
+        return str(cfg).lower()
+    if isinstance(cfg, (str, Path)):
+        path = Path(cfg)
+        if path.is_file():
+            try:
+                with path.open('r', encoding='utf-8') as f:
+                    data = yaml.safe_load(f)
+                if isinstance(data, dict):
+                    name = str(data.get('name', '')).lower()
+                    if name:
+                        return name
+            except Exception:
+                pass
+        return path.name.lower()
+    return str(cfg).lower()
+
+
+def _select_nas_model_class(cfg):
+    """Return NAS model class matching the cfg name (YOLOv7 vs YOLOv9)."""
+    identity = _extract_cfg_identity(cfg)
+    return NASModelV9 if 'yolov9' in identity else NASModelV7
+
+
+def build_nas_model(cfg, ch, nc, anchors):
+    """Instantiate the NAS-capable model for the given configuration."""
+    NASClass = _select_nas_model_class(cfg)
+    model = NASClass(cfg, ch=ch, nc=nc, anchors=anchors)
+    if model is None:
+        raise RuntimeError(f"Failed to instantiate NAS model for cfg={cfg}")
+    return model
 
 
 def get_optimizer(model, is_adam=False, lr=0.001, momentum=0.9, decay=1e-5):
@@ -253,7 +291,10 @@ def train(proj_info, hyp, opt, data_dict, tb_writer=None):
     cuda = device.type != 'cpu'
     seed = opt.seed if opt.seed else 0
     if opt.loss_name == 'TAL':
-        init_seeds_v9(seed + 1 + rank, deterministic=True) # from yolov9
+        deterministic_train = task != 'segmentation'
+        init_seeds_v9(seed + 1 + rank, deterministic=deterministic_train)
+        if not deterministic_train:
+            logger.info('Deterministic CUDA ops disabled for segmentation to avoid unsupported bilinear backward')
     else:
         init_seeds(2 + rank)
     nc = 1 if opt.single_cls else int(data_dict['nc'])  # number of classes
@@ -277,9 +318,9 @@ def train(proj_info, hyp, opt, data_dict, tb_writer=None):
                 ch=ch, 
                 nc=nc
             ).to(device)
-        elif task == 'detection':
+        elif task in ['detection', 'segmentation']:
             if nas or target == 'Galaxy_S22':
-                model = NASModel(
+                model = build_nas_model(
                     opt.cfg or ckpt['model'].yaml, 
                     ch=ch, 
                     nc=nc, 
@@ -320,9 +361,9 @@ def train(proj_info, hyp, opt, data_dict, tb_writer=None):
                 ch=ch, 
                 nc=nc
             ).to(device)
-        elif task == 'detection':
+        elif task in ['detection', 'segmentation']:
             if nas or target == 'Galaxy_S22':
-                model = NASModel(
+                model = build_nas_model(
                     opt.cfg, 
                     ch=ch, 
                     nc=nc, 
@@ -362,7 +403,7 @@ def train(proj_info, hyp, opt, data_dict, tb_writer=None):
 
     # Image sizes --------------------------------------------------------------
     imgsz, imgsz_test = [x for x in opt.img_size]
-    if task == 'detection':
+    if task in ['detection', 'segmentation']:
         gs = max(int(model.stride.max()), 32)  # grid size (max stride)
         # verify imgsz are gs-multiples (gs=grid stride)
         imgsz, imgsz_test = [check_img_size(x, gs) for x in opt.img_size]
@@ -391,8 +432,12 @@ def train(proj_info, hyp, opt, data_dict, tb_writer=None):
             max_search=True 
         )
         batch_size = int(autobatch_rst) # autobatch_rst = result * bs_factor * gpu_number
+        if task == 'segmentation':
+            batch_size = min(batch_size, getattr(opt, 'seg_batch_limit', 8))
     
     batch_size = min(batch_size, server_gpu_mem*2)
+    if task == 'segmentation':
+        batch_size = min(batch_size, getattr(opt, 'seg_batch_limit', 32))
     logger.info(f'{colorstr("AutoBatch: ")}'
                 f'Limit batch size {batch_size} (up to 2 x GPU memory {server_gpu_mem}G)')
 
@@ -486,7 +531,7 @@ def train(proj_info, hyp, opt, data_dict, tb_writer=None):
         logger.info('Using SyncBatchNorm()')
 
     # TrainDataloader ----------------------------------------------------------
-    if task == 'detection':
+    if task in ['detection', 'segmentation']:
         if opt.loss_name == 'TAL': # v9
             dataloader, dataset = create_dataloader_v9(
                 train_path,
@@ -508,6 +553,7 @@ def train(proj_info, hyp, opt, data_dict, tb_writer=None):
                 min_items=0, #opt.min_items,
                 uid=userid,
                 pid=project_id,
+                task=task,
             )
         else: # v7
             dataloader, dataset = create_dataloader(
@@ -613,7 +659,7 @@ def train(proj_info, hyp, opt, data_dict, tb_writer=None):
 
     # Process 0 (TestDataLoader) -----------------------------------------------
     if rank in [-1, 0]:
-        if task == 'detection':
+        if task in ['detection', 'segmentation']:
             if opt.loss_name == 'TAL': # v9
                 testloader = create_dataloader_v9(
                     test_path,
@@ -630,6 +676,7 @@ def train(proj_info, hyp, opt, data_dict, tb_writer=None):
                     prefix='val',
                     uid=userid,
                     pid=project_id,
+                    task=task,
                 )[0]
             else:
                 testloader = create_dataloader(
@@ -730,7 +777,7 @@ def train(proj_info, hyp, opt, data_dict, tb_writer=None):
         logger.info('Using DDP()')
 
     # Model parameters ---------------------------------------------------------
-    if task == 'detection':
+    if task in ['detection', 'segmentation']:
         # nl = model.module.model[-1].nl if is_parallel(model) else model.model[-1].nl
         nl = de_parallel(model).model[-1].nl # number of detection layers (to scale hyps)
         if opt.loss_name != 'TAL': # v7
@@ -767,17 +814,23 @@ def train(proj_info, hyp, opt, data_dict, tb_writer=None):
             compute_loss = FocalLossCE()
         else:
             logger.warning(f'not supported loss function {opt.loss_name}')
-    else: # if task == 'detection':
-        if opt.loss_name == 'TAL':
-            compute_loss = ComputeLoss_v9(model) #ComputeLossTAL(model)
+    elif task in ['detection', 'segmentation']:  # 수정됨
+        if task == 'segmentation':
+            from tango.utils.loss import ComputeLoss_Segmentation
+            compute_loss = ComputeLoss_Segmentation(model)
+            compute_loss_ota = None
         else:
-            if opt.loss_name == 'OTA':
-                compute_loss_ota = ComputeLossOTA(model)  # init loss class
-            elif opt.loss_name == 'AuxOTA':
-                compute_loss_ota = ComputeLossAuxOTA(model)  # init loss class
-            else:
+            if opt.loss_name == 'TAL':
+                compute_loss = ComputeLoss_v9(model)
                 compute_loss_ota = None
-            compute_loss = ComputeLoss(model)  # init loss class
+            else:
+                if opt.loss_name == 'OTA':
+                    compute_loss_ota = ComputeLossOTA(model)
+                elif opt.loss_name == 'AuxOTA':
+                    compute_loss_ota = ComputeLossAuxOTA(model)
+                else:
+                    compute_loss_ota = None
+                compute_loss = ComputeLoss(model)
     
     # Ealry Stopper ------------------------------------------------------------
     # how many epochs could you be waiting for patiently 
@@ -791,7 +844,7 @@ def train(proj_info, hyp, opt, data_dict, tb_writer=None):
     nb = len(dataloader)  # number of batches
     nw = max(round(hyp['warmup_epochs'] * nb), 100)  # number of warmup iterations, max(3 epochs, 100 iterations)
     # nw = min(nw, (epochs - start_epoch) / 2 * nb)  # limit warmup to < 1/2 of training
-    if task == 'detection':
+    if task in ['detection', 'segmentation']:
         maps = np.zeros(nc)  # mAP per class
         results = (0, 0, 0, 0, 0, 0, 0)  # P, R, mAP@.5, mAP@.5-.95, val_loss(box, obj, cls)
     elif task == 'classification':
@@ -822,7 +875,7 @@ def train(proj_info, hyp, opt, data_dict, tb_writer=None):
 
         # Update image weights (optional)
         if opt.image_weights:
-            if task == 'detection':
+            if task in ['detection', 'segmentation']:
                 # Generate indices
                 if rank in [-1, 0]:
                     cw = model.class_weights.cpu().numpy() * (1 - maps) ** 2 / nc  # class weights
@@ -847,8 +900,10 @@ def train(proj_info, hyp, opt, data_dict, tb_writer=None):
         # dataset.mosaic_border = [b - imgsz, -b]  # height, width borders
 
         # mean losses
-        if task == 'detection':
-            if opt.loss_name == 'TAL':
+        if task in ['detection', 'segmentation']:
+            if task == 'segmentation':
+                mloss = torch.zeros(4, device=device)
+            elif opt.loss_name == 'TAL':
                 mloss = torch.zeros(3, device=device)
             else:
                 mloss = torch.zeros(4, device=device)
@@ -864,7 +919,11 @@ def train(proj_info, hyp, opt, data_dict, tb_writer=None):
         pbar = enumerate(dataloader)
         # pbar = tqdm(pbar, total=nb, bar_format=TQDM_BAR_FORMAT)
 
-        if opt.loss_name == 'TAL': # v9
+        if task == 'segmentation':
+            title_s = ('\n' + '%11s' * 8) % (
+                'Epoch', 'GPU_Mem', 'Box', 'Cls', 'DFL', 'Mask', 'Labels', 'Img_Size'
+            )
+        elif opt.loss_name == 'TAL': # v9
             title_s = ('\n' + '%11s' * 7) % (
                 'Epoch', 'GPU_Mem', 'box', 'cls', 'dfl', 'Labels', 'Img_Size'
             )
@@ -883,10 +942,16 @@ def train(proj_info, hyp, opt, data_dict, tb_writer=None):
         #     )  # progress bar
 
         train_loss = {}
+        log_prefix = ''
         optimizer.zero_grad()
         # training batches start ===============================================
-        if task == 'detection':
-            for i, (imgs, targets, paths, _) in pbar:
+        if task in ['detection', 'segmentation']:
+            for i, batch in pbar:
+                # Unpack batch based on task
+                if task == 'segmentation':
+                    imgs, targets, masks, paths, _ = batch
+                else:  # detection
+                    imgs, targets, paths, _ = batch
                 # logger.info(f'step-{i} start')
                 t_batch = time.time() #time_synchronized()
                 ni = i + nb * epoch  # number integrated batches (since train start)
@@ -929,35 +994,35 @@ def train(proj_info, hyp, opt, data_dict, tb_writer=None):
                     pred = model(imgs)  # forward
                     # logger.info(f'step-{i} forward done')
                     # if 'loss_ota' not in hyp or hyp['loss_ota'] == 1:
-                    if 'OTA' in opt.loss_name: #opt.loss_name == 'OTA':
-                        loss, loss_items = compute_loss_ota(pred, targets.to(device), imgs)  # loss scaled by batch_size
-                    else:
-                        loss, loss_items = compute_loss(pred, targets.to(device))  # loss scaled by batch_size
-                    # logger.info(f'step-{i} compute loss done {loss}')
-                    if rank != -1:
-                        loss *= opt.world_size  # gradient averaged between devices in DDP mode
-                    if opt.quad:
-                        loss *= 4.
+                if task != 'segmentation' and 'OTA' in opt.loss_name:
+                    loss, loss_items = compute_loss_ota(pred, targets.to(device), imgs)
+                else:
+                    # Segmentation task requires masks
+                    if task == 'segmentation':
+                        loss, loss_items = compute_loss(pred, targets.to(device), masks.to(device))
+                    else:  # detection
+                        loss, loss_items = compute_loss(pred, targets.to(device))
 
                 # Backward
-                loss_items_na = loss_items.cpu().numpy()
-                is_missing_value = False
-                for l in loss_items_na:
-                    if np.isinf(l) or np.isnan(l):
-                        is_missing_value = True
-                        break
-                if not is_missing_value:
-                    scaler.scale(loss).backward()
-                    # logger.info(f'step-{i} backward done')
-                else:
-                    logger.warning(f'step-{i} can not backward')
+                loss = torch.nan_to_num(loss, nan=0.0, posinf=0.0, neginf=0.0)
+                loss_items = torch.nan_to_num(loss_items, nan=0.0, posinf=0.0, neginf=0.0)
+
+                if not torch.isfinite(loss) or not torch.isfinite(loss_items).all():
+                    logger.warning(
+                        f'step-{i} can not backward (loss items contain NaN or inf): '
+                        f'{loss_items.detach().cpu().tolist()}'
+                    )
+                    optimizer.zero_grad()
+                    continue
+
+                scaler.scale(loss).backward()
 
                 # Optimize
                 # if ni % accumulate == 0:
                 if ni - last_opt_step >= accumulate:
                     # https://pytorch.org/docs/master/notes/amp_examples.html
                     scaler.unscale_(optimizer)  # unscale gradients
-                    torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=10.0)  # clip gradients                    
+                    torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=10.0)  # clip gradients
                     scaler.step(optimizer)  # optimizer.step
                     scaler.update()
                     optimizer.zero_grad()
@@ -971,10 +1036,14 @@ def train(proj_info, hyp, opt, data_dict, tb_writer=None):
                     mem = '%.3gG' % (torch.cuda.memory_reserved() / 1E9 if torch.cuda.is_available() else 0)  # (GB)
 
 
-                    if not is_missing_value:
-                        mloss = (mloss * i + loss_items) / (i + 1)  # update mean losses
+                    mloss = (mloss * i + loss_items) / (i + 1)  # update mean losses
 
-                    if opt.loss_name == 'TAL':
+                    if task == 'segmentation':
+                        s = ('%10s' * 2 + '%11.4f' * 4 + '%11.0f' * 2) % (
+                            '%g/%g' % (epoch, epochs - 1), mem,
+                            *mloss, targets.shape[0], imgs.shape[-1]
+                        )
+                    elif opt.loss_name == 'TAL':
                         s = ('%11s' * 2 + '%11.4g' * 5) % (
                             '%g/%g' % (epoch, epochs - 1), mem,         # epoch/total, gpu_mem
                             *mloss, targets.shape[0], imgs.shape[-1]    # box, dfl, cls, labels, imgsz
@@ -984,6 +1053,7 @@ def train(proj_info, hyp, opt, data_dict, tb_writer=None):
                             '%g/%g' % (epoch, epochs - 1), mem,         # epoch/total, gpu_mem
                             *mloss, targets.shape[0], imgs.shape[-1]    # box, obj, cls, total, labels, imgsz
                         )
+                    log_prefix = s
 
                     # pbar.set_description(s)
                     mloss_np = mloss.to('cpu').numpy()
@@ -992,12 +1062,18 @@ def train(proj_info, hyp, opt, data_dict, tb_writer=None):
                     train_loss['total_epoch'] = epochs
                     train_loss['gpu_mem'] = mem
                     train_loss['box'] = mloss_list[0]
-                    train_loss['obj'] = mloss_list[1]
-                    train_loss['cls'] = mloss_list[2]
-                    if opt.loss_name == 'TAL':
-                        train_loss['total'] = train_loss['box'] + train_loss['obj'] + train_loss['cls'] # sum(mloss_list)
+                    if task == 'segmentation':
+                        train_loss['cls'] = mloss_list[1]
+                        train_loss['obj'] = mloss_list[2]  # store DFL under obj slot for compatibility
+                        train_loss['mask'] = mloss_list[3]
+                        train_loss['total'] = float(sum(mloss_list))
                     else:
-                        train_loss['total'] = mloss_list[3]
+                        train_loss['obj'] = mloss_list[1]
+                        train_loss['cls'] = mloss_list[2]
+                        if opt.loss_name == 'TAL':
+                            train_loss['total'] = train_loss['box'] + train_loss['obj'] + train_loss['cls'] # sum(mloss_list)
+                        else:
+                            train_loss['total'] = mloss_list[3]
                     train_loss['label'] = targets.shape[0]
                     train_loss['step'] = i + 1
                     train_loss['total_step'] = nb
@@ -1088,6 +1164,7 @@ def train(proj_info, hyp, opt, data_dict, tb_writer=None):
                         targets.shape[0], mloss, macc,          # labels, loss, acc
                         '%g/%g' % (tacc, accumulated_imgs_cnt)  # correct/all
                     ) #imgs.shape[-1])
+                    log_prefix = s
 
                     mloss_item = mloss.item()
                     macc_item = macc.item()
@@ -1122,7 +1199,7 @@ def train(proj_info, hyp, opt, data_dict, tb_writer=None):
         # (DDP process 0 or single-GPU) test ===================================
         if rank in [-1, 0]:
             # mAP
-            if task == 'detection':
+            if task in ['detection', 'segmentation']:
                 if opt.loss_name == 'TAL':
                     ema.update_attr(model, include=['yaml', 'nc', 'hyp', 'names', 'stride', 'class_weights'])
                 else:
@@ -1132,7 +1209,7 @@ def train(proj_info, hyp, opt, data_dict, tb_writer=None):
             final_epoch = (epoch + 1 == epochs) or stopper.possible_stop
             if not opt.notest or final_epoch:  # Calculate mAP
                 # wandb_logger.current_epoch = epoch + 1
-                if task == 'detection':
+                if task in ['detection', 'segmentation']:
                     # results: tuple    (mp, mr, map50, map, box, obj, cls)
                     # maps: numpy array (ap0, ap1, ..., ap79)  : mAP per cls
                     # times: tuple      (inf, nms, total, imgsz, imgsz, batchsz)
@@ -1172,15 +1249,16 @@ def train(proj_info, hyp, opt, data_dict, tb_writer=None):
 
             # Write
             with open(results_file, 'a') as f:
-                if task == 'detection':
-                    f.write(s + '%10.4f' * 7 % results + '\n')  # append metrics, val_loss
+                prefix = log_prefix if log_prefix else ''
+                if task in ['detection', 'segmentation']:
+                    f.write(prefix + '%10.4f' * 7 % results + '\n')  # append metrics, val_loss
                 elif task == 'classification':
-                    f.write(s + '%10.4f' * 2 % results + '\n') # append val_acc, val_loss
+                    f.write(prefix + '%10.4f' * 2 % results + '\n') # append val_acc, val_loss
             if len(opt.name) and opt.bucket:
                 os.system('gsutil cp %s gs://%s/results/results%s.txt' % (results_file, opt.bucket, opt.name))
 
             # Log
-            if task == 'detection':
+            if task in ['detection', 'segmentation']:
                 if opt.loss_name == 'TAL': # v9
                     tags = ['train/box_loss', 'train/dfl_loss', 'train/cls_loss',  # train loss
                             'metrics/precision', 'metrics/recall', 'metrics/mAP_0.5', 'metrics/mAP_0.5_0.95',
@@ -1206,7 +1284,7 @@ def train(proj_info, hyp, opt, data_dict, tb_writer=None):
             epoch_summary = {}
             epoch_summary['total_epoch'] = epochs
             epoch_summary['current_epoch'] = epoch + 1
-            if task == 'detection':
+            if task in ['detection', 'segmentation']:
                 epoch_summary['train_loss_box'] = mloss_list[0]
                 epoch_summary['train_loss_obj'] = mloss_list[1]
                 epoch_summary['train_loss_cls'] = mloss_list[2]
@@ -1229,7 +1307,7 @@ def train(proj_info, hyp, opt, data_dict, tb_writer=None):
                           update_content=epoch_summary)
 
             # Update best mAP
-            if task == 'detection':
+            if task in ['detection', 'segmentation']:
                 fi = fitness(np.array(results).reshape(1, -1))  # weighted combination of [P, R, mAP@.5, mAP@.5-.95]
             elif task == 'classification':
                 fi = results[0] # validation accuracy itself
@@ -1279,7 +1357,7 @@ def train(proj_info, hyp, opt, data_dict, tb_writer=None):
     if rank in [-1, 0]:
         # Plots ----------------------------------------------------------------
         if plots:
-            if task == 'detection':
+            if task in ['detection', 'segmentation']:
                 plot_results(
                     save_dir=save_dir,
                     use_dfl=True if opt.loss_name == 'TAL' else False
@@ -1292,7 +1370,7 @@ def train(proj_info, hyp, opt, data_dict, tb_writer=None):
         # Test best.pt after fusing layers -------------------------------------
         # [tenace's note] argument of type 'PosixPath' is not iterable (??)
         if best.exists():
-            if task == 'detection':
+            if task in ['detection', 'segmentation']:
                 m = os.path.splitext(best)[0] + "_stripped.pt"
                 strip_optimizer(deepcopy(best), m, prefix=colorstr("Test: "))
                 results, _, _ = test.test(

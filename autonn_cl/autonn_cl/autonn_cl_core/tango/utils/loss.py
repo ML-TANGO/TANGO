@@ -2029,20 +2029,22 @@ class ComputeLoss_v9:
         pred_bboxes2 = self.bbox_decode(anchor_points, pred_distri2)  # xyxy, (b, h*w, 4)
         # logger.info(f'\tcompute loss predict bbox decoding done')
 
-        target_labels, target_bboxes, target_scores, fg_mask = self.assigner(
+        assign_out = self.assigner(
             pred_scores.detach().sigmoid(),
             (pred_bboxes.detach() * stride_tensor).type(gt_bboxes.dtype),
             anchor_points * stride_tensor,
             gt_labels,
             gt_bboxes,
             mask_gt)
-        target_labels2, target_bboxes2, target_scores2, fg_mask2 = self.assigner2(
+        target_labels, target_bboxes, target_scores, fg_mask = assign_out[:4]
+        assign_out2 = self.assigner2(
             pred_scores2.detach().sigmoid(),
             (pred_bboxes2.detach() * stride_tensor).type(gt_bboxes.dtype),
             anchor_points * stride_tensor,
             gt_labels,
             gt_bboxes,
             mask_gt)
+        target_labels2, target_bboxes2, target_scores2, fg_mask2 = assign_out2[:4]
         # logger.info(f'\tcompute loss dfl assigner generation done')
         target_bboxes /= stride_tensor
         target_scores_sum = max(target_scores.sum(), 1)
@@ -2082,3 +2084,170 @@ class ComputeLoss_v9:
         loss[2] *= 1.5  # dfl gain
 
         return loss.sum() * batch_size, loss.detach()  # loss(box, cls, dfl)
+
+class ComputeLoss_Segmentation:
+    """Composite loss for YOLOv9 segmentation (detection + masks)."""
+    sort_obj_iou = False
+
+    def __init__(self, model, autobalance=False):
+        device = next(model.parameters()).device
+        h = model.hyp  # hyperparameters
+
+        bce_cls = nn.BCEWithLogitsLoss(pos_weight=torch.tensor([h['cls_pw']], device=device), reduction='none')
+        self.cp, self.cn = smooth_BCE(eps=h.get('label_smoothing', 0.0))
+        g = h['fl_gamma']
+        if g > 0:
+            bce_cls = FocalLoss(bce_cls, g)
+
+        det = de_parallel(model).model[-1]
+        if not (hasattr(det, 'nm') and hasattr(det, 'proto') and hasattr(det, 'reg_max')):
+            raise TypeError('ComputeLoss_Segmentation requires a segmentation head with mask outputs')
+
+        self.BCEcls = bce_cls
+        self.hyp = h
+        self.device = device
+        self.nc = det.nc
+        self.nm = det.nm
+        self.nl = det.nl
+        self.reg_max = det.reg_max
+        self.use_dfl = self.reg_max > 1
+        self.stride = det.stride.to(device)
+
+        self.assigner = TaskAlignedAssigner(
+            topk=int(os.getenv('YOLOM', 10)),
+            num_classes=self.nc,
+            alpha=float(os.getenv('YOLOA', 0.5)),
+            beta=float(os.getenv('YOLOB', 6.0)),
+        )
+        self.bbox_loss = BboxLoss(det.reg_max - 1, use_dfl=self.use_dfl).to(device)
+        self.mask_criterion = nn.BCEWithLogitsLoss()
+        self.proj = torch.arange(self.reg_max, dtype=torch.float32, device=device)
+        self.mask_gain = h.get('mask_gain', h.get('mask', 1.0))
+
+    def preprocess(self, targets, batch_size, scale_tensor):
+        if targets.shape[0] == 0:
+            out = torch.zeros(batch_size, 0, 5, device=self.device)
+        else:
+            i = targets[:, 0]
+            _, counts = i.unique(return_counts=True)
+            out = torch.zeros(batch_size, counts.max(), 5, device=self.device)
+            for j in range(batch_size):
+                matches = i == j
+                n = matches.sum()
+                if n:
+                    out[j, :n] = targets[matches, 1:]
+            out[..., 1:5] = xywh2xyxy_v9(out[..., 1:5].mul_(scale_tensor))
+        return out
+
+    def bbox_decode(self, anchor_points, pred_dist):
+        if self.use_dfl:
+            b, a, c = pred_dist.shape
+            pred_dist = pred_dist.view(b, a, 4, c // 4).softmax(3)
+            pred_dist = pred_dist.matmul(self.proj.to(pred_dist.dtype))
+        return dist2bbox(pred_dist, anchor_points, xywh=False)
+
+    def flatten_masks(self, mask_outputs):
+        bs = mask_outputs[0].shape[0]
+        mask_flat = [m.view(bs, self.nm, -1) for m in mask_outputs]
+        mask_flat = torch.cat(mask_flat, dim=2).permute(0, 2, 1).contiguous()
+        return mask_flat
+
+    def __call__(self, preds, targets, masks):
+        box_outputs, cls_outputs, mask_outputs, proto = preds
+        box_outputs = [torch.nan_to_num(b, nan=0.0, posinf=0.0, neginf=0.0) for b in box_outputs]
+        cls_outputs = [torch.nan_to_num(c, nan=0.0, posinf=0.0, neginf=0.0) for c in cls_outputs]
+        mask_outputs = [torch.nan_to_num(m, nan=0.0, posinf=0.0, neginf=0.0) for m in mask_outputs]
+        proto = torch.nan_to_num(proto, nan=0.0, posinf=0.0, neginf=0.0)
+        bs = box_outputs[0].shape[0]
+        dtype = box_outputs[0].dtype
+
+        feats = [torch.cat((b, c), 1) for b, c in zip(box_outputs, cls_outputs)]
+        total_channels = self.reg_max * 4 + self.nc
+        concatenated = torch.cat([f.view(bs, total_channels, -1) for f in feats], 2)
+        pred_distri, pred_scores = concatenated.split((self.reg_max * 4, self.nc), 1)
+        pred_scores = pred_scores.permute(0, 2, 1).contiguous()
+        pred_distri = pred_distri.permute(0, 2, 1).contiguous()
+        pred_scores = torch.nan_to_num(pred_scores, nan=0.0, posinf=0.0, neginf=0.0)
+        pred_distri = torch.nan_to_num(pred_distri, nan=0.0, posinf=0.0, neginf=0.0)
+
+        anchor_points, stride_tensor = make_anchors(feats, self.stride, 0.5)
+        imgsz = torch.tensor(box_outputs[0].shape[2:], device=self.device, dtype=dtype) * self.stride[0]
+
+        targets = self.preprocess(targets, bs, scale_tensor=imgsz[[1, 0, 1, 0]])
+        gt_labels, gt_bboxes = targets.split((1, 4), 2)
+        mask_gt = gt_bboxes.sum(2, keepdim=True).gt_(0)
+
+        pred_bboxes = self.bbox_decode(anchor_points, pred_distri)
+
+        assign_out = self.assigner(
+            pred_scores.detach().sigmoid(),
+            (pred_bboxes.detach() * stride_tensor).type(gt_bboxes.dtype),
+            anchor_points * stride_tensor,
+            gt_labels,
+            gt_bboxes,
+            mask_gt,
+            return_gt_idx=True,
+        )
+        target_labels, target_bboxes, target_scores, fg_mask, target_gt_idx = assign_out
+
+        stride_tensor = stride_tensor.to(pred_bboxes.dtype)
+        target_bboxes = target_bboxes / stride_tensor
+        target_scores_sum = torch.clamp(target_scores.sum(), min=1.0)
+
+        loss = torch.zeros(4, device=self.device)
+
+        cls_targets = target_scores.to(pred_scores.dtype)
+        cls_loss_raw = self.BCEcls(pred_scores, cls_targets)
+        cls_loss = cls_loss_raw.sum() / target_scores_sum
+        cls_loss = torch.nan_to_num(cls_loss, nan=0.0, posinf=0.0, neginf=0.0)
+        loss[1] = cls_loss
+
+        if fg_mask.any():
+            iou_loss, dfl_loss, _ = self.bbox_loss(
+                pred_distri,
+                pred_bboxes,
+                anchor_points,
+                target_bboxes,
+                target_scores,
+                target_scores_sum,
+                fg_mask,
+            )
+            iou_loss = torch.nan_to_num(iou_loss, nan=0.0, posinf=0.0, neginf=0.0)
+            dfl_loss = torch.nan_to_num(dfl_loss, nan=0.0, posinf=0.0, neginf=0.0)
+            loss[0] += iou_loss * 0.25
+            loss[2] += dfl_loss * 0.25
+
+        mask_loss = torch.tensor(0.0, device=self.device)
+        if masks is not None and fg_mask.any():
+            mask_features = self.flatten_masks(mask_outputs)
+            pos_mask = fg_mask.bool()
+            coeffs = mask_features[pos_mask]
+            gt_indices = target_gt_idx[pos_mask]
+            if coeffs.numel() > 0:
+                n_max = self.assigner.n_max_boxes
+                batch_idx = (gt_indices // n_max).long()
+                obj_idx = (gt_indices % n_max).long()
+                valid = obj_idx < masks.shape[1]
+                coeffs = coeffs[valid]
+                batch_idx = batch_idx[valid]
+                obj_idx = obj_idx[valid]
+                if coeffs.numel() > 0:
+                    proto_sel = proto[batch_idx].contiguous()
+                    mask_h, mask_w = proto_sel.shape[-2:]
+                    proto_flat = proto_sel.view(coeffs.shape[0], self.nm, -1)
+                    pred_masks = torch.bmm(coeffs.unsqueeze(1), proto_flat).view(-1, mask_h, mask_w)
+                    gt_masks = masks[batch_idx, obj_idx].to(pred_masks.dtype)
+                    if gt_masks.shape[-2:] != (mask_h, mask_w):
+                        gt_masks = F.interpolate(gt_masks.unsqueeze(1), size=(mask_h, mask_w), mode='nearest').squeeze(1)
+                    mask_loss = self.mask_criterion(pred_masks, gt_masks)
+                    mask_loss = torch.nan_to_num(mask_loss, nan=0.0, posinf=0.0, neginf=0.0)
+        loss[3] = mask_loss * self.mask_gain
+
+        loss[0] *= 7.5
+        loss[1] *= 0.5
+        loss[2] *= 1.5
+        loss = torch.nan_to_num(loss, nan=0.0, posinf=0.0, neginf=0.0)
+        total_loss = torch.nan_to_num(loss.sum() * bs, nan=0.0, posinf=0.0, neginf=0.0)
+        loss_items = torch.nan_to_num(loss.detach(), nan=0.0, posinf=0.0, neginf=0.0)
+
+        return total_loss, loss_items

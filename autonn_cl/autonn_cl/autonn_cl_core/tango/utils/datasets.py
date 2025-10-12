@@ -171,6 +171,7 @@ def create_dataloader_v9(path,
                       shuffle=False,
                       uid=None,
                       pid=None,
+                      task='detection',
 ):
     if rect and shuffle:
         logger.warning(f'{colorstr(f"{prefix}_dataset: ")}WARNING ⚠️ --rect is incompatible with DataLoader shuffle, setting shuffle=False')
@@ -192,6 +193,7 @@ def create_dataloader_v9(path,
             prefix=prefix,
             uid=uid,
             pid=pid,
+            task=task,
         )
 
     batch_size = min(batch_size, len(dataset))
@@ -230,7 +232,8 @@ def create_dataloader(uid, pid, path, imgsz, batch_size, stride, opt, hyp=None,
             stride=int(stride),
             pad=pad,
             image_weights=image_weights,
-            prefix=prefix
+            prefix=prefix,
+            task='detection'
         )
 
     batch_size = min(batch_size, len(dataset))
@@ -549,6 +552,7 @@ class LoadImagesAndLabels_v9(Dataset):
                  prefix='',
                  uid=None,
                  pid=None,
+                 task='detection',
     ):
         self.userid = uid
         self.project_id = pid
@@ -562,6 +566,8 @@ class LoadImagesAndLabels_v9(Dataset):
         self.stride = stride
         self.path = path
         self.albumentations = Albumentations_v9(size=img_size) if augment else None
+        self.task = task
+        self.load_masks = (task == 'segmentation')
 
         try:
             f = []  # image files
@@ -871,9 +877,12 @@ class LoadImagesAndLabels_v9(Dataset):
         if nl:
             labels_out[:, 1:] = torch.from_numpy(labels)
 
-        # Convert
-        img = img.transpose((2, 0, 1))[::-1]  # HWC to CHW, BGR to RGB
+        img = img[:, :, ::-1].transpose(2, 0, 1)  # BGR to RGB, to 3x416x416
         img = np.ascontiguousarray(img)
+
+        if self.load_masks:
+            masks = self.load_masks_from_segments(index, labels_out.numpy(), img.shape[1:])
+            return torch.from_numpy(img), labels_out, masks, self.im_files[index], shapes
 
         return torch.from_numpy(img), labels_out, self.im_files[index], shapes
 
@@ -1033,12 +1042,110 @@ class LoadImagesAndLabels_v9(Dataset):
 
         return img9, labels9
 
+    def load_masks_from_segments(self, index, labels, img_shape):
+        """Load segmentation masks, falling back to bbox masks when polygons are absent."""
+        import cv2
+
+        segments = self.segments[index] if hasattr(self, 'segments') else []
+        h, w = img_shape
+
+        masks = []
+        if len(segments) == 0 and len(labels) > 0:
+            for lb in labels:
+                _, cls, x, y, bw, bh = lb
+                mask = np.zeros((h, w), dtype=np.uint8)
+                x1 = int((x - bw / 2) * w)
+                y1 = int((y - bh / 2) * h)
+                x2 = int((x + bw / 2) * w)
+                y2 = int((y + bh / 2) * h)
+                mask[max(0, y1):min(h, y2), max(0, x1):min(w, x2)] = 1
+                masks.append(mask)
+            return np.stack(masks, axis=0) if masks else np.zeros((0, h, w), dtype=np.uint8)
+
+        if len(labels) == 0:
+            return np.zeros((0, h, w), dtype=np.uint8)
+
+        for i, segment in enumerate(segments):
+            if len(segment) >= 3:
+                mask = self.polygon_to_mask(segment, (h, w))
+            else:
+                mask = np.zeros((h, w), dtype=np.uint8)
+                if i < len(labels) and labels[i].sum() > 0:
+                    x, y, bw, bh = labels[i][2:6]
+                    x1 = int((x - bw / 2) * w)
+                    y1 = int((y - bh / 2) * h)
+                    x2 = int((x + bw / 2) * w)
+                    y2 = int((y + bh / 2) * h)
+                    mask[max(0, y1):min(h, y2), max(0, x1):min(w, x2)] = 1
+            masks.append(mask)
+
+        return np.stack(masks, axis=0) if masks else np.zeros((0, h, w), dtype=np.uint8)
+
+    def polygon_to_mask(self, polygon, img_shape):
+        """
+        Convert polygon coordinates to binary mask
+        
+        Args:
+            polygon: array of shape [N, 2] with normalized coordinates
+            img_shape: (height, width)
+        
+        Returns:
+            mask: [H, W] binary mask
+        """
+        import cv2
+        
+        h, w = img_shape
+        
+        # Ensure polygon is in correct format
+        if isinstance(polygon, list):
+            polygon = np.array(polygon)
+        
+        # Reshape if needed: [x1, y1, x2, y2, ...] -> [[x1, y1], [x2, y2], ...]
+        if polygon.ndim == 1:
+            polygon = polygon.reshape(-1, 2)
+        
+        # Denormalize coordinates
+        polygon_pixel = polygon.copy()
+        polygon_pixel[:, 0] *= w
+        polygon_pixel[:, 1] *= h
+        polygon_pixel = polygon_pixel.astype(np.int32)
+        
+        # Create binary mask
+        mask = np.zeros((h, w), dtype=np.uint8)
+        cv2.fillPoly(mask, [polygon_pixel], 1)
+        
+        return mask
+
     @staticmethod
     def collate_fn(batch):
-        im, label, path, shapes = zip(*batch)  # transposed
-        for i, lb in enumerate(label):
-            lb[:, 0] = i  # add target image index for build_targets()
-        return torch.stack(im, 0), torch.cat(label, 0), path, shapes
+        if len(batch[0]) == 4:  # (img, label, path, shapes)
+            im, label, path, shapes = zip(*batch)
+            for i, lb in enumerate(label):
+                lb[:, 0] = i
+            return torch.stack(im, 0), torch.cat(label, 0), path, shapes
+
+        elif len(batch[0]) == 5:  # (img, label, masks, path, shapes)
+            im, label, masks, path, shapes = zip(*batch)
+            
+            # Stack images
+            im = torch.stack(im, 0)
+            
+            # Concatenate labels with batch index
+            for i, lb in enumerate(label):
+                lb[:, 0] = i
+            label = torch.cat(label, 0)
+            
+            # Stack masks with padding to max objects
+            max_objs = max(m.shape[0] for m in masks)
+            h, w = masks[0].shape[1:]
+            batch_masks = torch.zeros(len(masks), max_objs, h, w, dtype=torch.float32)
+            
+            for i, m in enumerate(masks):
+                n = m.shape[0]
+                if n > 0:
+                    batch_masks[i, :n] = torch.from_numpy(m)
+            
+            return im, label, batch_masks, path, shapes
 
     @staticmethod
     def collate_fn4(batch):

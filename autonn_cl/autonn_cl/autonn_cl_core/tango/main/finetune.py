@@ -64,7 +64,8 @@ from . import status_update, Info
 from . import test
 from tango.common.models.experimental import attempt_load
 from tango.common.models.yolo               import Model
-from tango.common.models.supernet_yolov7    import NASModel
+from tango.common.models.supernet_yolov7    import NASModel as NASModelV7
+from tango.common.models.supernet_yolov9    import NASModel as NASModelV9
 from tango.common.models.resnet_cifar10     import ClassifyModel
 # from tango.common.models import *
 from tango.utils.autoanchor import check_anchors
@@ -100,6 +101,43 @@ from tango.utils.torch_utils import (   ModelEMA,
 
 
 logger = logging.getLogger(__name__)
+
+
+def _extract_cfg_identity(cfg):
+    if isinstance(cfg, dict):
+        name = str(cfg.get('name', '')).lower()
+        if name:
+            return name
+        return str(cfg).lower()
+    if isinstance(cfg, (str, Path)):
+        path = Path(cfg)
+        if path.is_file():
+            try:
+                with path.open('r', encoding='utf-8') as f:
+                    data = yaml.safe_load(f)
+                if isinstance(data, dict):
+                    name = str(data.get('name', '')).lower()
+                    if name:
+                        return name
+            except Exception:
+                pass
+        return path.name.lower()
+    return str(cfg).lower()
+
+
+def _select_nas_model_class(cfg):
+    """Return NAS model class matching the cfg name (YOLOv7 vs YOLOv9)."""
+    identity = _extract_cfg_identity(cfg)
+    return NASModelV9 if 'yolov9' in identity else NASModelV7
+
+
+def build_nas_model(cfg, ch, nc, anchors):
+    """Instantiate the NAS-capable model for the given configuration."""
+    NASClass = _select_nas_model_class(cfg)
+    model = NASClass(cfg, ch=ch, nc=nc, anchors=anchors)
+    if model is None:
+        raise RuntimeError(f"Failed to instantiate NAS model for cfg={cfg}")
+    return model
 
 
 def finetune(proj_info, subnet, hyp, opt, data_dict, tb_writer=None):
@@ -571,7 +609,7 @@ def finetune_hyp(proj_info, basemodel, hyp, opt, data_dict, tb_writer=None):
         net = ClassifyModel(opt.cfg or ckpt['model'].yaml, ch=ch, nc=nc)
     elif task == 'detection':
         if nas or target == 'Galaxy_S22':
-            net = NASModel(opt.cfg or ckpt['model'].yaml, ch=ch, nc=nc, anchors=hyp.get('anchors'))  # create
+            net = build_nas_model(opt.cfg or ckpt['model'].yaml, ch=ch, nc=nc, anchors=hyp.get('anchors'))  # create
         else:
             net = Model(opt.cfg or ckpt['model'].yaml, ch=ch, nc=nc, anchors=hyp.get('anchors'))  # create
         exclude = ['anchor'] if (opt.cfg or hyp.get('anchors')) and not opt.resume else []  # exclude keys

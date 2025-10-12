@@ -68,6 +68,10 @@ def export_torchscript(model, im, file, optimize, task='detection', prefix=color
         ts = torch.jit.trace(model, im, strict=False)
         if task == 'detection':
             d = {"shape": im.shape, "stride": int(max(model.stride)), "names": model.names}
+        elif task == 'segmentation':
+            stride = int(max(getattr(model, 'stride', [32]))) if hasattr(model, 'stride') else 32
+            nm = getattr(getattr(model, 'model', [None])[-1], 'nm', 0) if getattr(model, 'model', None) else 0
+            d = {"shape": im.shape, "stride": stride, "names": model.names, "masks": nm}
         elif task == 'classification':
             d = {"shape": im.shape, "names": model.names}
         extra_files = {'config.txt': json.dumps(d)}  # torch._C.ExtraFilesMap()
@@ -89,16 +93,15 @@ def export_onnx(model, im, file, opset, dynamic, simplify, task='detection', pre
     try:
         f = file.with_suffix('.onnx')
 
-        # output_names = ['output0', 'output1'] if isinstance(model, SegmentationModel) else ['output0']
-        output_names = ['output0']
+        if task == 'segmentation':
+            output_names = ['output0', 'output1']
+        else:
+            output_names = ['output0']
         if dynamic:
             dynamic = {'images': {0: 'batch', 2: 'height', 3: 'width'}}  # shape(1,3,640,640)
-            # if isinstance(model, SegmentationModel):
-            #     dynamic['output0'] = {0: 'batch', 1: 'anchors'}  # shape(1,25200,85)
-            #     dynamic['output1'] = {0: 'batch', 2: 'mask_height', 3: 'mask_width'}  # shape(1,32,160,160)
-            # elif isinstance(model, DetectionModel):
-            #     dynamic['output0'] = {0: 'batch', 1: 'anchors'}  # shape(1,25200,85)
             dynamic['output0'] = {0: 'batch', 1: 'anchors'}  # shape(1,25200,85)
+            if task == 'segmentation':
+                dynamic['output1'] = {0: 'batch', 1: 'proto_channels', 2: 'mask_height', 3: 'mask_width'}
 
         torch.onnx.export(
             model.cpu() if dynamic else model,  # --dynamic only compatible with cpu
@@ -119,6 +122,10 @@ def export_onnx(model, im, file, opset, dynamic, simplify, task='detection', pre
         # Metadata
         if task == 'detection':
             d = {'stride': int(max(model.stride)), 'names': model.names}
+        elif task == 'segmentation':
+            stride = int(max(getattr(model, 'stride', [32]))) if hasattr(model, 'stride') else 32
+            nm = getattr(getattr(model, 'model', [None])[-1], 'nm', 0) if getattr(model, 'model', None) else 0
+            d = {'stride': stride, 'names': model.names, 'masks': nm}
         elif task == 'classification':
             d = {'names': model.names}
         for k, v in d.items():
@@ -515,11 +522,7 @@ def add_tflite_metadata(file, meta):
         model_meta.author = meta['author']
         model_meta.license = meta['license']
 
-        label_file = _metadata_fb.AssociatedFileT()
-        label_file.name = tmp_file.name
-        label_file.type = _metadata_fb.AssociatedFileType.TENSOR_AXIS_LABELS
-
-        # model_meta.associatedFiles = [label_file]
+        task = (meta.get('task') or '').lower()
 
         input_meta = _metadata_fb.TensorMetadataT()
         input_meta.name = 'image'
@@ -529,14 +532,32 @@ def add_tflite_metadata(file, meta):
         input_meta.content.contentProperties.colorSpace = _metadata_fb.ColorSpaceType.RGB
         input_meta.content.contentPropertiesType = _metadata_fb.ContentProperties.ImageProperties
 
-        output_meta = _metadata_fb.TensorMetadataT()
-        output_meta.name = "output"
-        output_meta.description = "Box coordinates and class labels"
-        output_meta.associatedFiles = [label_file]
+        output_specs = [('output', 'Box coordinates and class labels', True)]
+        if task == 'segmentation':
+            output_specs = [
+                ('detections', 'Box coordinates, class scores, mask coefficients', True),
+                ('prototypes', 'Mask prototype feature maps', False),
+            ]
+        elif task in ('classify', 'classification'):
+            output_specs = [('probabilities', 'Class probabilities', True)]
+
+        output_metas = []
+        for name, description, attach_label in output_specs:
+            tensor_meta = _metadata_fb.TensorMetadataT()
+            tensor_meta.name = name
+            tensor_meta.description = description
+            if attach_label:
+                label_file = _metadata_fb.AssociatedFileT()
+                label_file.name = tmp_file.name
+                label_file.type = _metadata_fb.AssociatedFileType.TENSOR_AXIS_LABELS
+                tensor_meta.associatedFiles = [label_file]
+            else:
+                tensor_meta.associatedFiles = []
+            output_metas.append(tensor_meta)
 
         subgraph = _metadata_fb.SubGraphMetadataT()
         subgraph.inputTensorMetadata = [input_meta]
-        subgraph.outputTensorMetadata = [output_meta]
+        subgraph.outputTensorMetadata = output_metas
         model_meta.subgraphMetadata = [subgraph]
 
         b = flatbuffers.Builder(0)
@@ -640,6 +661,25 @@ def export_config(src, dst, data, base, device, engine, task='detection'):
                 [1, 4+nc, int(total_pred_num)], # <= for training
                 [1, 4+nc, int(total_pred_num)]  # <= for prediction
             ]
+    elif task == 'segmentation':
+        stride = base.get('stride', [8, 16, 32])
+        mask_dim = base.get('mask_dim', base.get('mask_prototypes', 32))
+        mask_ratio = base.get('mask_ratio', 4)
+        need_nms = True
+        conf_thres = 0.25
+        iou_thres = 0.45
+        grid_sizes = [int(imgsz // s) for s in stride if s]
+        if not grid_sizes:
+            grid_sizes = [int(imgsz // d) for d in (8, 16, 32)]
+        total_pred_num = sum([g * g for g in grid_sizes])
+        proto_hw = max(1, int(imgsz // mask_ratio))
+        output_number = 2
+        output_size = [
+            [1, 4 + nc + mask_dim, int(total_pred_num)],
+            [1, mask_dim, proto_hw, proto_hw]
+        ]
+        nn_dict['mask_dim'] = mask_dim
+        nn_dict['mask_ratio'] = mask_ratio
     elif task == 'classification':
         output_number = 1
         output_size = [1, nc]
@@ -647,7 +687,7 @@ def export_config(src, dst, data, base, device, engine, task='detection'):
     nn_dict['output_number'] = output_number
     nn_dict['output_size'] = output_size
 
-    if task == 'detection':
+    if task in ('detection', 'segmentation'):
         nn_dict['stride'] = stride
         nn_dict['need_nms'] = need_nms
         nn_dict['conf_thres'] = conf_thres
@@ -679,6 +719,8 @@ def export_config(src, dst, data, base, device, engine, task='detection'):
             nn_dict['output_pred_format'] = ['x', 'y', 'w', 'h', 'confidence', 'probability_of_classes']
         else:
             nn_dict['output_pred_format'] = ['x', 'y', 'w', 'h', 'probability_of_classes']
+    elif task == 'segmentation':
+        nn_dict['output_pred_format'] = ['x', 'y', 'w', 'h', 'probability_of_classes', 'mask_coefficients']
 
     with open(dst, 'w') as f:
         yaml.dump(nn_dict, f, default_flow_style=False)
@@ -732,11 +774,24 @@ def export_weight(weights, device, include, task='detection', ch=3, imgsz=[640,6
     model = attempt_load(weights, map_location=device, fused=True)  # load fused FP32 model
     logger.debug(model)
 
+    if ch is None:
+        try:
+            ch = int(model.model[0].conv.weight.shape[1])
+        except Exception:
+            ch = 3
+
+    default_img = 640
+    if hasattr(model, 'yaml') and isinstance(model.yaml, dict):
+        default_img = int(model.yaml.get('imgsz', default_img) or default_img)
+
     # Checks
     if edgetpu | tflite:
         imgsz = 320
+    if imgsz is None:
+        imgsz = default_img
     imgsz = [imgsz] if isinstance(imgsz, int) else imgsz
     imgsz *= 2 if len(imgsz) == 1 else 1  # expand
+    imgsz = [int(x) if x else default_img for x in imgsz]
     if optimize:
         if device.type != 'cpu':
             logger.warning(f'{colorstr("Model Exporter: ")}--optimize not compatible with cuda devices, ignore --optimize')
@@ -747,6 +802,11 @@ def export_weight(weights, device, include, task='detection', ch=3, imgsz=[640,6
         gs = int(max(model.stride))  # grid size (max stride)
         imgsz = [check_img_size(x, gs) for x in imgsz]  # verify img_size are gs-multiples
         im = torch.zeros(batch_size, ch, *imgsz).to(device)  # image size(1,3,320,192) BCHW iDetection
+    elif task == 'segmentation':
+        # Segmentation models share the same input layout as detection (BCHW)
+        gs = int(max(model.stride)) if hasattr(model, 'stride') else 32
+        imgsz = [check_img_size(x, gs) for x in imgsz]
+        im = torch.zeros(batch_size, ch, *imgsz).to(device)
     elif task == 'classification':
         im = torch.zeros(batch_size, ch, *imgsz).to(device)
 
@@ -847,6 +907,23 @@ def export_weight(weights, device, include, task='detection', ch=3, imgsz=[640,6
             'imgsz': imgsz,
             'names': model.names
         }  # model metadata
+    elif task == 'segmentation':
+        stride = int(max(getattr(model, 'stride', [32]))) if hasattr(model, 'stride') else 32
+        nm = getattr(getattr(model, 'model', [None])[-1], 'nm', 0) if getattr(model, 'model', None) else 0
+        metadata = {
+            'description': 'TANGO YOLOv9-segmentation model',
+            'author': 'ETRI',
+            'date': datetime.now().isoformat(),
+            'version': 'tango-24.11',
+            'license': 'GNU General Public License v3.0 or later(GPLv3)',
+            'docs': 'https://github.com/ML-TANGO/TANGO/wiki',
+            'stride': stride,
+            'task': 'segmentation',
+            'batch': batch_size,
+            'imgsz': imgsz,
+            'names': model.names,
+            'mask_prototypes': nm
+        }
     elif task == 'classification':
         metadata = {
             'description': 'TANGO ResNet-based model',
@@ -1119,13 +1196,18 @@ def convert_yolov9(model_pt, cfg):
         logger.warning(f'{colorstr("Model Exporter: ")}not found {cfg}, can not convert')
         return model_pt
     
-    model = DetectionModel(cfg, ch=3, nc=80, anchors=3).to(device) # create empty model
+    cfg_name = os.path.basename(cfg).lower()
+    if 'seg' in cfg_name:
+        logger.info(f"{colorstr('Model Exporter:')} skip reparameterization for segmentation model")
+        return model_pt
+
+    anchors = 3
+    model = DetectionModel(cfg, ch=3, nc=80, anchors=anchors).to(device) # create empty model
     _ = model.eval()
 
     ckpt = torch.load(model_pt, map_location='cpu')
     model.names = ckpt['model'].names
     model.nc = ckpt['model'].nc
-    cfg_name = os.path.basename(cfg).lower()
     if 'yolov9-t' in cfg_name or 'yolov9-s' in cfg_name:
         model = convert_small_model(model, ckpt)
     elif 'yolov9-m' in cfg_name or 'yolov9-c' in cfg_name:

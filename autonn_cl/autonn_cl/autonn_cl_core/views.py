@@ -13,7 +13,7 @@ from rest_framework.response import Response
 from .models import Info, Node, Edge, Pth
 from .serializers import InfoSerializer, NodeSerializer, EdgeSerializer, PthSerializer
 # Dependencies need to be properly installed in production environment
-# from .tango.main.select import run_autonn  
+from .tango.main.select import run_autonn_cl  
 # from .tango.main.visualize import export_pth, export_yml
 
 DEBUG = False
@@ -96,7 +96,7 @@ def start(request):
                 zombie_process.terminate()
                 zombie_process.join()
 
-        pr = mp.Process(target=process_autonn, args=(userid, project_id))
+        pr = mp.Process(target=process_autonn_cl, args=(userid, project_id))
         pr_id = get_process_id()
         PROCESSES[pr_id] = pr
         PROCESSES[pr_id].start()
@@ -143,7 +143,7 @@ def resume(request):
                 zombie_process.terminate()
                 zombie_process.join()
 
-        pr = mp.Process(target=process_autonn, args=(userid, project_id))
+        pr = mp.Process(target=process_autonn_cl, args=(userid, project_id))
         pr_id = get_process_id()
         PROCESSES[pr_id] = pr
         PROCESSES[pr_id].start()
@@ -254,7 +254,7 @@ def status_report(userid, project_id, status="success"):
         print(f"[AutoNN_CL status_report] exception: {e}")
 
 
-def process_autonn(userid, project_id):
+def process_autonn_cl(userid, project_id):
     """
     1. Run autonn_cl pipeline
     2. Export model weights and architecture
@@ -264,7 +264,7 @@ def process_autonn(userid, project_id):
     resume = info.progress == 'oom'
 
     try:
-        # run_autonn(userid, project_id, resume=resume, viz2code=False, nas=False, hpo=False)
+        run_autonn_cl(userid, project_id, resume=resume, viz2code=False, nas=False, hpo=False)
         print(f"[AutoNN_CL] Ready for CL implementation - {userid}/{project_id}")
         info = Info.objects.get(userid=userid, project_id=project_id)
         info.progress = 'autonn_cl ends'
@@ -273,7 +273,9 @@ def process_autonn(userid, project_id):
         status_report(userid, project_id, "completed")
 
     except Exception as e:
-        print(f"[AutoNN_CL process_autonn] exception: {e}")
+        import traceback
+        print(f"[AutoNN_CL process_autonn_cl] exception: {e}")
+        print(traceback.format_exc())
         import torch, gc
         if torch.cuda.is_available():
             torch.cuda.empty_cache()
@@ -281,10 +283,10 @@ def process_autonn(userid, project_id):
 
         info = Info.objects.get(userid=userid, project_id=project_id)
         if 'CUDA' in str(e):
-            print(f"[AutoNN_CL process_autonn] CUDA OOM, retry with reduced batch size next time")
+            print(f"[AutoNN_CL process_autonn_cl] CUDA OOM, retry with reduced batch size next time")
             info.progress = "oom"
         else:
-            print(f"[AutoNN_CL process_autonn] General failure")
+            print(f"[AutoNN_CL process_autonn_cl] General failure")
 
         info.status = "failed"
         info.model_viz = "not ready"

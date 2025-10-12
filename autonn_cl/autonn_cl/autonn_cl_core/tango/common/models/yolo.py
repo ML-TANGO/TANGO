@@ -780,6 +780,23 @@ class Model(nn.Module):
             self.stride = m.stride
             m.bias_init()  # only run once
 
+        if isinstance(m, SegmentationHead):
+            s = 256  # 2x min stride
+            dummy = torch.zeros(1, ch, s, s)
+            with torch.no_grad():
+                head_out = self.forward(dummy)
+            if isinstance(head_out, tuple):
+                box_outputs = head_out[0]
+            elif isinstance(head_out, list):
+                box_outputs = head_out
+            else:
+                box_outputs = head_out
+            if isinstance(box_outputs, torch.Tensor):
+                box_outputs = [box_outputs]
+            strides = [s / x.shape[-2] for x in box_outputs]
+            m.stride = torch.tensor(strides, dtype=torch.float32)
+            self.stride = m.stride
+
         # Init weights, biases
         logger.info(f'{colorstr("Models: ")}Initializing weights')
         initialize_weights(self)
@@ -905,11 +922,14 @@ class Model(nn.Module):
     def _apply(self, fn):
         # Apply to(), cpu(), cuda(), half() to model tensors that are not parameters or registered buffers
         self = super()._apply(fn)
-        m = self.model[-1]  # Detect()
-        if isinstance(m, (Detect, DDetect, DualDDetect, TripleDDetect)):
-            m.stride = fn(m.stride)
-            m.anchors = fn(m.anchors)
-            m.strides = fn(m.strides)
+        m = self.model[-1]  # Detect() or SegmentationHead
+        if isinstance(m, (Detect, DDetect, DualDDetect, TripleDDetect, SegmentationHead)):  # SegmentationHead 추가
+            if getattr(m, 'stride', None) is not None:
+                m.stride = fn(m.stride)
+            if hasattr(m, 'anchors') and getattr(m, 'anchors', None) is not None:  # SegmentationHead는 anchors가 없을 수 있음
+                m.anchors = fn(m.anchors)
+            if hasattr(m, 'strides') and getattr(m, 'strides', None) is not None:
+                m.strides = fn(m.strides)
             # m.grid = list(map(fn, m.grid))
         return self
 
@@ -1003,11 +1023,14 @@ class BaseModel(nn.Module):
     def _apply(self, fn):
         # Apply to(), cpu(), cuda(), half() to model tensors that are not parameters or registered buffers
         self = super()._apply(fn)
-        m = self.model[-1]  # Detect()
-        if isinstance(m, (Detect, DDetect, DualDDetect, TripleDDetect)):
-            m.stride = fn(m.stride)
-            m.anchors = fn(m.anchors)
-            m.strides = fn(m.strides)
+        m = self.model[-1]  # Detect() or SegmentationHead
+        if isinstance(m, (Detect, DDetect, DualDDetect, TripleDDetect, SegmentationHead)):  # SegmentationHead 추가
+            if getattr(m, 'stride', None) is not None:
+                m.stride = fn(m.stride)
+            if hasattr(m, 'anchors') and getattr(m, 'anchors', None) is not None:  # SegmentationHead는 anchors가 없을 수 있음
+                m.anchors = fn(m.anchors)
+            if hasattr(m, 'strides') and getattr(m, 'strides', None) is not None:
+                m.strides = fn(m.strides)
             # m.grid = list(map(fn, m.grid))
         return self
 
@@ -1038,25 +1061,27 @@ class DetectionModel(BaseModel):
         self.inplace = self.yaml.get('inplace', True)
 
         # Build strides, anchors
-        m = self.model[-1]  # Detect()
+        m = self.model[-1]  # Detect() or SegmentationHead
         if isinstance(m, (Detect, DDetect)):
             s = 256  # 2x min stride
             m.inplace = self.inplace
             forward = lambda x: self.forward(x)
-            m.stride = torch.tensor([s / x.shape[-2] for x in forward(torch.zeros(1, ch, s, s))])  # forward
-            # check_anchor_order(m)
-            # m.anchors /= m.stride.view(-1, 1, 1)
+            m.stride = torch.tensor([s / x.shape[-2] for x in forward(torch.zeros(1, ch, s, s))])
             self.stride = m.stride
             m.bias_init()  # only run once
         elif isinstance(m, (DualDDetect, TripleDDetect)):
             s = 256  # 2x min stride
             m.inplace = self.inplace
             forward = lambda x: self.forward(x)[0]
-            m.stride = torch.tensor([s / x.shape[-2] for x in forward(torch.zeros(1, ch, s, s))])  # forward
-            # check_anchor_order(m)
-            # m.anchors /= m.stride.view(-1, 1, 1)
+            m.stride = torch.tensor([s / x.shape[-2] for x in forward(torch.zeros(1, ch, s, s))])
             self.stride = m.stride
             m.bias_init()  # only run once
+        elif isinstance(m, SegmentationHead):  # SegmentationHead 초기화
+            # Segmentation heads operate on P3/P4/P5 feature maps (stride 8/16/32)
+            strides = torch.tensor([8., 16., 32.])
+            m.stride = strides
+            self.stride = strides
+            m.bias_init()
         else:
             self.stride = torch.tensor([8., 16., 32.])
         # Init weights, biases
@@ -1188,7 +1213,7 @@ def parse_model(d, ch):  # model_dict, input_channels(3)
             c2 = ch[f[0]]
         elif m is Foldcut:
             c2 = ch[f] // 2
-        elif m in [Detect, IDetect, IAuxDetect, DDetect, DualDDetect, TripleDDetect]:
+        elif m in [Detect, IDetect, IAuxDetect, DDetect, DualDDetect, TripleDDetect, SegmentationHead]:  # SegmentationHead 추가
             args.append([ch[x] for x in f])
             if m in [Detect, IDetect, IAuxDetect]:
                 if isinstance(args[1], int):  # number of anchors
@@ -1274,7 +1299,7 @@ def parse_model_v9(d, ch):  # model_dict, input_channels(3)
         elif m is CBFuse:
             c2 = ch[f[-1]]
         # TODO: channel, gw, gd
-        elif m in {Detect, DDetect, DualDDetect, TripleDDetect}:
+        elif m in {Detect, DDetect, DualDDetect, TripleDDetect, SegmentationHead}:
             args.append([ch[x] for x in f])
             # if isinstance(args[1], int):  # number of anchors
             #     args[1] = [list(range(args[1] * 2))] * len(f)
@@ -1296,3 +1321,130 @@ def parse_model_v9(d, ch):  # model_dict, input_channels(3)
             ch = []
         ch.append(c2)
     return nn.Sequential(*layers), sorted(save)
+
+#seg 수정
+# ============================= Segmentation Head =============================
+class SegmentationHead(nn.Module):
+    """
+    YOLOv9 Segmentation Head
+    Outputs: detection boxes + segmentation masks
+    """
+    stride = None  # strides computed during build
+    dynamic = False
+    export = False
+    shape = None
+    
+    def __init__(self, nc=80, nm=32, npr=256, ch=()):
+        """
+        Args:
+            nc: number of classes
+            nm: number of mask prototypes (default: 32)
+            npr: number of prototype channels (default: 256)
+            ch: input channels from backbone
+        """
+        super().__init__()
+        self.nc = nc  # number of classes
+        self.nm = nm  # number of masks
+        self.npr = npr  # number of prototype channels
+        self.nl = len(ch)  # number of detection layers
+        self.reg_max = 16  # DFL channels
+        self.no = self.reg_max * 4 + self.nc  # detection output channels (distribution + cls)
+        
+        # Detection head - same as DDetect
+        c2, c3 = max((16, ch[0] // 4, self.reg_max * 4)), max(ch[0], min(self.nc, 100))
+        self.cv2 = nn.ModuleList(
+            nn.Sequential(Conv(x, c2, 3), Conv(c2, c2, 3), nn.Conv2d(c2, 4 * self.reg_max, 1)) 
+            for x in ch
+        )
+        self.cv3 = nn.ModuleList(
+            nn.Sequential(Conv(x, c3, 3), Conv(c3, c3, 3), nn.Conv2d(c3, self.nc, 1)) 
+            for x in ch
+        )
+        
+        # Mask head - outputs mask coefficients
+        self.cv4 = nn.ModuleList(
+            nn.Sequential(Conv(x, c3, 3), Conv(c3, c3, 3), nn.Conv2d(c3, self.nm, 1))
+            for x in ch
+        )
+        
+        # Prototype generation network
+        self.proto = nn.Sequential(
+            Conv(ch[0], self.npr, 3),
+            nn.Upsample(scale_factor=2, mode='bilinear', align_corners=False),
+            Conv(self.npr, self.npr, 3),
+            nn.Upsample(scale_factor=2, mode='bilinear', align_corners=False),
+            Conv(self.npr, self.nm, 1)
+        )
+        
+        self.dfl = DFL(self.reg_max) if self.reg_max > 1 else nn.Identity()
+        
+    def forward(self, x):
+        """
+        Args:
+            x: list of feature maps from backbone [P3, P4, P5]
+        Returns:
+            if training: (box_output, mask_output, prototypes)
+            if inference: concatenated output
+        """
+        shape = x[0].shape
+        proto_out = self.proto(x[0])  # Generate mask prototypes from P3
+
+        box_feats = []
+        cls_feats = []
+        mask_feats = []
+
+        for i in range(self.nl):
+            box_feats.append(self.cv2[i](x[i]))
+            cls_feats.append(self.cv3[i](x[i]))
+            mask_feats.append(self.cv4[i](x[i]))
+
+        if self.training:
+            return box_feats, cls_feats, mask_feats, proto_out
+
+        cat_parts = []
+        for b_feat, c_feat, m_feat in zip(box_feats, cls_feats, mask_feats):
+            combined = torch.cat((b_feat, c_feat, m_feat), 1)
+            cat_parts.append(combined.view(combined.shape[0], self.reg_max * 4 + self.nc + self.nm, -1))
+
+        concat = torch.cat(cat_parts, 2)
+        box_raw, cls_raw, mask_raw = torch.split(concat, (self.reg_max * 4, self.nc, self.nm), 1)
+
+        anchor_points, stride_tensor = make_anchors(box_feats, self.stride, 0.5)
+        anchor_points = anchor_points.to(box_raw.device)
+        stride_tensor = stride_tensor.to(box_raw.device)
+
+        pred_distri = self.dfl(box_raw)  # (bs, 4, anchors)
+        pred_distri = pred_distri.permute(0, 2, 1).contiguous()  # (bs, anchors, 4)
+        boxes = dist2bbox(pred_distri, anchor_points.unsqueeze(0), xywh=True, dim=2)
+        boxes = boxes * stride_tensor.view(1, -1, 1)
+
+        cls_scores = cls_raw.permute(0, 2, 1).contiguous().sigmoid()
+        mask_coeff = mask_raw.permute(0, 2, 1).contiguous()
+
+        y = torch.cat([boxes, cls_scores, mask_coeff], dim=-1)
+
+        return y, proto_out
+    
+    def make_anchors(self, feats, grid_cell_offset=0.5):
+        """Generate anchor points and strides"""
+        anchors, strides = [], []
+        for i, feat in enumerate(feats):
+            _, _, h, w = feat.shape
+            stride = self.stride[i]
+            
+            shifts_x = torch.arange(0, w, dtype=torch.float32, device=feat.device) + grid_cell_offset
+            shifts_y = torch.arange(0, h, dtype=torch.float32, device=feat.device) + grid_cell_offset
+            shift_y, shift_x = torch.meshgrid(shifts_y, shifts_x, indexing='ij')
+            
+            anchor = torch.stack([shift_x, shift_y], dim=-1).view(-1, 2)
+            anchors.append(anchor)
+            strides.append(torch.full((anchor.shape[0], 1), stride, dtype=torch.float32, device=feat.device))
+        
+        return anchors, strides
+    
+    def bias_init(self):
+        """Initialize biases"""
+        for a, b, c in zip(self.cv2, self.cv3, self.cv4):
+            a[-1].bias.data[:] = 1.0  # box
+            b[-1].bias.data[:self.nc] = math.log(5 / self.nc / (640 / 16) ** 2)  # cls
+            c[-1].bias.data[:] = 0.0  # mask coefficients
