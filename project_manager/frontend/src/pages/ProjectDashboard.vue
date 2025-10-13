@@ -31,6 +31,11 @@
         <TabView v-if="isData(this.projectsByTab['Auto NN'])" :items="this.projectsByTab['Auto NN']" />
         <NoResultTab v-else />
       </v-tab-item>
+      <!-- AUTO NN CL -->
+      <v-tab-item>
+        <TabView v-if="isData(this.projectsByTab['Auto NN CL'])" :items="this.projectsByTab['Auto NN CL']" />
+        <NoResultTab v-else />
+      </v-tab-item>
       <!-- IMAGE GEN -->
       <v-tab-item>
         <TabView v-if="isData(this.projectsByTab['Code Gen'])" :items="this.projectsByTab['Code Gen']" />
@@ -75,15 +80,16 @@ export default {
       tab: null,
       step: 1,
       // items: ["All Status", "Preparing", "BMS", "Visualization", "Auto NN", "Code Gen", "Image Deploy"],
-      items: ["All Status", "Preparing", "Auto NN", "Code Gen", "Image Deploy"],
+      items: ["All Status", "Preparing", "Auto NN", "Auto NN CL", "Code Gen", "Image Deploy"],
       // defaultValue: { Preparing: [], BMS: [], Visualization: [], "Auto NN": [], "Code Gen": [], "Image Deploy": [] },
-      defaultValue: { Preparing: [], "Auto NN": [], "Code Gen": [], "Image Deploy": [] },
+      defaultValue: { Preparing: [], "Auto NN": [], "Auto NN CL": [], "Code Gen": [], "Image Deploy": [] },
       projectsByTab: {},
       tabItems: [
         { key: "Preparing", allowed: ["", "init"] },
         // { key: "BMS", allowed: ["bms"] },
         // { key: "Visualization", allowed: ["visualization", "viz2code"] },
         { key: "Auto NN", allowed: ["autonk", "yoloe", "autobb", "autonn-resnet", "autonn"] },
+        { key: "Auto NN CL", allowed: ["autonn_cl"] },
         { key: "Code Gen", allowed: ["code_gen"] },
         { key: "Image Deploy", allowed: ["imagedeploy"] }
         // { key: "Run Image", allowed: ["run_image"] }
