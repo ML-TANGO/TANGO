@@ -9,6 +9,7 @@ import shutil
 from copy import deepcopy
 from pathlib import Path
 from threading import Thread
+from typing import List
 import json
 
 import numpy as np
@@ -84,6 +85,135 @@ from tango.utils.torch_utils import (   ModelEMA,
 
 logger = logging.getLogger(__name__)
 
+
+class _NullContinualHooks:
+    """Fallback hook dispatcher that ignores all events."""
+
+    def dispatch(self, *_args, **_kwargs):
+        return None
+
+
+def _apply_dynamic_patch_segmentation(imgs, targets, masks, paths, grid):
+    """Split each image into grid patches and adjust targets/masks accordingly."""
+
+    if grid <= 1:
+        return imgs, targets, masks, paths
+
+    bsz, channels, height, width = imgs.shape
+    device = imgs.device
+    stride = 32
+    patch_h = int(math.ceil((height / grid) / stride) * stride)
+    patch_w = int(math.ceil((width / grid) / stride) * stride)
+
+    y_edges = torch.linspace(0, height, grid + 1, dtype=torch.int64, device=device)
+    x_edges = torch.linspace(0, width, grid + 1, dtype=torch.int64, device=device)
+
+    new_imgs: List[torch.Tensor] = []
+    new_masks: List[torch.Tensor] = []
+    new_targets: List[torch.Tensor] = []
+    new_paths: List[str] = []
+
+    next_index = 0
+    targets_cols = targets.shape[1] if targets.ndim == 2 else 6
+    targets_dtype = targets.dtype if targets.ndim == 2 else torch.float32
+    targets_device = targets.device if targets.ndim == 2 else device
+
+    for b in range(bsz):
+        sample_mask = masks[b]
+        index_mask = targets[:, 0] == b
+        sample_targets = targets[index_mask].clone()
+        obj_count = sample_targets.shape[0]
+        sample_mask = sample_mask[:obj_count]
+
+        for yi in range(grid):
+            y0 = y_edges[yi].item()
+            y1 = y_edges[yi + 1].item()
+            if y1 <= y0:
+                continue
+            for xi in range(grid):
+                x0 = x_edges[xi].item()
+                x1 = x_edges[xi + 1].item()
+                if x1 <= x0:
+                    continue
+
+                patch_img = imgs[b:b + 1, :, y0:y1, x0:x1]
+                if patch_img.shape[-2:] != (patch_h, patch_w):
+                    patch_img = F.interpolate(
+                        patch_img.float(),
+                        size=(patch_h, patch_w),
+                        mode='bilinear',
+                        align_corners=False,
+                    ).clamp(0, 255).round().to(imgs.dtype)
+                new_imgs.append(patch_img)
+
+                x_range = max((x1 - x0) / width, 1e-6)
+                y_range = max((y1 - y0) / height, 1e-6)
+                x0_norm = x0 / width
+                y0_norm = y0 / height
+                x1_norm = x1 / width
+                y1_norm = y1 / height
+
+                transformed_targets = []
+                transformed_masks = []
+
+                for obj_idx in range(obj_count):
+                    cx, cy = sample_targets[obj_idx, 2].item(), sample_targets[obj_idx, 3].item()
+                    in_x = (cx >= x0_norm) if xi == 0 else (cx > x0_norm)
+                    in_x &= (cx <= x1_norm) if xi == grid - 1 else (cx < x1_norm)
+                    in_y = (cy >= y0_norm) if yi == 0 else (cy > y0_norm)
+                    in_y &= (cy <= y1_norm) if yi == grid - 1 else (cy < y1_norm)
+                    if not (in_x and in_y):
+                        continue
+
+                    target = sample_targets[obj_idx].clone()
+                    target[0] = target.new_tensor(float(next_index))
+
+                    target[2] = (target[2] - x0_norm) / x_range
+                    target[3] = (target[3] - y0_norm) / y_range
+                    target[4] = target[4] / x_range
+                    target[5] = target[5] / y_range
+
+                    target[2:6] = target[2:6].clamp(0.0, 1.0)
+                    transformed_targets.append(target)
+
+                    if obj_idx < sample_mask.shape[0]:
+                        mask_crop = sample_mask[obj_idx:obj_idx + 1, y0:y1, x0:x1]
+                        if mask_crop.shape[-2:] != (patch_h, patch_w):
+                            mask_crop = F.interpolate(
+                                mask_crop.unsqueeze(0).float(),
+                                size=(patch_h, patch_w),
+                                mode='nearest',
+                            ).squeeze(0).round().to(sample_mask.dtype)
+                        transformed_masks.append(mask_crop)
+
+                if transformed_targets:
+                    new_targets.append(torch.stack(transformed_targets, dim=0))
+                    patch_mask_tensor = torch.cat(transformed_masks, dim=0) if transformed_masks else sample_mask.new_zeros((0, patch_h, patch_w))
+                else:
+                    patch_mask_tensor = sample_mask.new_zeros((0, patch_h, patch_w))
+
+                new_masks.append(patch_mask_tensor)
+                new_paths.append(f"{paths[b]}#patch{yi}{xi}")
+                next_index += 1
+
+    imgs_out = torch.cat(new_imgs, dim=0) if new_imgs else imgs
+
+    if new_targets:
+        updated_targets = torch.cat(new_targets, dim=0)
+    else:
+        updated_targets = torch.zeros((0, targets_cols), dtype=targets_dtype, device=targets_device)
+
+    max_objs = max((m.shape[0] for m in new_masks), default=0)
+    if max_objs > 0:
+        masks_out = torch.zeros((len(new_masks), max_objs, patch_h, patch_w), dtype=masks.dtype, device=masks.device)
+        for idx, m in enumerate(new_masks):
+            count = m.shape[0]
+            if count:
+                masks_out[idx, :count] = m.to(masks.dtype)
+    else:
+        masks_out = torch.zeros((len(new_masks), 0, patch_h, patch_w), dtype=masks.dtype, device=masks.device)
+
+    return imgs_out, updated_targets, masks_out, tuple(new_paths)
 
 def _extract_cfg_identity(cfg):
     if isinstance(cfg, dict):
@@ -232,10 +362,37 @@ def get_optimizer(model, is_adam=False, lr=0.001, momentum=0.9, decay=1e-5):
     return optimizer
 
 
-def train(proj_info, hyp, opt, data_dict, tb_writer=None):
+def train(proj_info, hyp, opt, data_dict, tb_writer=None, continual_hooks=None):
     # Options ------------------------------------------------------------------
     save_dir, epochs, batch_size, weights, rank, local_rank, freeze = \
         Path(opt.save_dir), opt.epochs, opt.batch_size, opt.weights, opt.global_rank, opt.local_rank, opt.freeze
+
+    if not hasattr(opt, 'dynamic_patch_grid'):
+        opt.dynamic_patch_grid = 5 if str(proj_info.get('task_type', '')).lower() == 'segmentation' else 1
+
+    step_meta = data_dict.get('continual_step') or {}
+    class_filter = data_dict.get('class_filter')
+    eval_class_filter = data_dict.get('eval_class_filter', class_filter)
+    if class_filter is not None:
+        class_filter = [int(c) for c in class_filter]
+    if eval_class_filter is not None:
+        eval_class_filter = [int(c) for c in eval_class_filter]
+    step_name = step_meta.get('name')
+    step_index = step_meta.get('index')
+    step_label = step_name or (f'step_{step_index:02d}' if step_index is not None else '')
+    train_prefix = f"train[{step_label}]" if step_label else 'train'
+    val_prefix = f"val[{step_label}]" if step_label else 'val'
+    continual_hooks = continual_hooks or _NullContinualHooks()
+    epochs = int(step_meta.get('epochs', epochs))
+
+    if step_label:
+        logger.info(
+            "%sRunning %s for %d epochs with class filter %s",
+            colorstr('Continual: '),
+            step_label,
+            epochs,
+            class_filter if class_filter is not None else 'all',
+        )
 
     userid, project_id, task, nas, target, target_acc = \
         proj_info['userid'], proj_info['project_id'], proj_info['task_type'], \
@@ -411,7 +568,7 @@ def train(proj_info, hyp, opt, data_dict, tb_writer=None):
     # Batch size ---------------------------------------------------------------
     if opt.resume:
         logger.info('='*100)
-        bs_factor = opt.bs_factor # it would be 0.1 less than previous one
+        bs_factor = getattr(opt, 'bs_factor', 0.8)
         logger.info(f"bs_factor = {bs_factor}")
         logger.info('='*100)
     else:
@@ -513,11 +670,13 @@ def train(proj_info, hyp, opt, data_dict, tb_writer=None):
         start_epoch = ckpt['epoch'] + 1
         if opt.resume:
             assert start_epoch > 0, '%s training to %g epochs is finished, nothing to resume.' % (weights, epochs)
-        if epochs <= start_epoch:
-            finetune_epoch = vars(opt).get('finetune_epoch', 1)
-            logger.info('%s has been trained for %g epochs. Fine-tuning for %g additional epochs.' %
-                        (weights, ckpt['epoch']+1, finetune_epoch))
-            epochs += finetune_epoch # ckpt['epoch']  # finetune additional epochs
+            if epochs <= start_epoch:
+                finetune_epoch = vars(opt).get('finetune_epoch', 1)
+                logger.info('%s has been trained for %g epochs. Fine-tuning for %g additional epochs.' %
+                            (weights, ckpt['epoch']+1, finetune_epoch))
+                epochs += finetune_epoch # ckpt['epoch']  # finetune additional epochs
+        else:
+            start_epoch = 0
         del ckpt, state_dict
 
     # DP mode (option) ---------------------------------------------------------
@@ -548,12 +707,13 @@ def train(proj_info, hyp, opt, data_dict, tb_writer=None):
                 image_weights=opt.image_weights,
                 close_mosaic=opt.close_mosaic != 0,
                 quad=opt.quad,
-                prefix='train',
+                prefix=train_prefix,
                 shuffle=True,
                 min_items=0, #opt.min_items,
                 uid=userid,
                 pid=project_id,
                 task=task,
+                class_filter=class_filter,
             )
         else: # v7
             dataloader, dataset = create_dataloader(
@@ -573,7 +733,8 @@ def train(proj_info, hyp, opt, data_dict, tb_writer=None):
                 workers=opt.workers,
                 image_weights=opt.image_weights,
                 quad=opt.quad,
-                prefix='train'
+                prefix=train_prefix,
+                class_filter=class_filter,
             )
         mlc = np.concatenate(dataset.labels, 0)[:, 0].max()  # max label class
     elif task == 'classification':
@@ -657,6 +818,21 @@ def train(proj_info, hyp, opt, data_dict, tb_writer=None):
             logger.warning(f'Failed to get dataloder for training: {e}')
     assert mlc < nc, 'Label class %g exceeds nc=%g in %s. Possible class labels are 0-%g' % (mlc, nc, opt.data, nc - 1)
 
+    continual_hooks.dispatch(
+        'on_train_start',
+        step=step_meta,
+        rank=rank,
+        world_size=getattr(opt, 'world_size', 1),
+        model=model,
+        optimizer=optimizer,
+        epochs=epochs,
+        class_filter=class_filter,
+        eval_class_filter=eval_class_filter,
+        dataset=dataset,
+        dataloader=dataloader,
+        testloader=locals().get('testloader'),
+    )
+
     # Process 0 (TestDataLoader) -----------------------------------------------
     if rank in [-1, 0]:
         if task in ['detection', 'segmentation']:
@@ -673,10 +849,11 @@ def train(proj_info, hyp, opt, data_dict, tb_writer=None):
                     rank=-1,
                     workers=opt.workers * 2,
                     pad=0.5,
-                    prefix='val',
+                    prefix=val_prefix,
                     uid=userid,
                     pid=project_id,
                     task=task,
+                    class_filter=eval_class_filter,
                 )[0]
             else:
                 testloader = create_dataloader(
@@ -694,7 +871,8 @@ def train(proj_info, hyp, opt, data_dict, tb_writer=None):
                     world_size=opt.world_size,
                     workers=opt.workers * 2,
                     pad=0.5,
-                    prefix='val'
+                    prefix=val_prefix,
+                    class_filter=eval_class_filter,
                 )[0]
 
             if not opt.resume:
@@ -869,7 +1047,19 @@ def train(proj_info, hyp, opt, data_dict, tb_writer=None):
     logger.info(f'{colorstr("Train: ")}start epoch = {start_epoch}, final epoch = {epochs}')
 
     # torch.save(model, wdir / 'init.pt')
+    ran_epochs = 0
     for epoch in range(start_epoch, epochs):
+        ran_epochs += 1
+        continual_hooks.dispatch(
+            'on_epoch_start',
+            step=step_meta,
+            epoch=epoch,
+            total_epochs=epochs,
+            rank=rank,
+            model=model,
+            optimizer=optimizer,
+            dataloader=dataloader,
+        )
         t_epoch = time.time() #time_synchronized()
         model.train()
 
@@ -950,11 +1140,29 @@ def train(proj_info, hyp, opt, data_dict, tb_writer=None):
                 # Unpack batch based on task
                 if task == 'segmentation':
                     imgs, targets, masks, paths, _ = batch
+                    patch_grid = getattr(opt, 'dynamic_patch_grid', 1)
+                    if patch_grid and patch_grid > 1:
+                        imgs, targets, masks, paths = _apply_dynamic_patch_segmentation(imgs, targets, masks, paths, patch_grid)
+                        batch = (imgs, targets, masks, paths, None)
                 else:  # detection
                     imgs, targets, paths, _ = batch
                 # logger.info(f'step-{i} start')
                 t_batch = time.time() #time_synchronized()
                 ni = i + nb * epoch  # number integrated batches (since train start)
+                continual_hooks.dispatch(
+                    'on_batch_start',
+                    step=step_meta,
+                    epoch=epoch,
+                    total_epochs=epochs,
+                    batch_index=i,
+                    global_step=ni,
+                    rank=rank,
+                    model=model,
+                    optimizer=optimizer,
+                    batch=batch,
+                    masks=masks if task == 'segmentation' else None,
+                    paths=paths,
+                )
                 imgs = imgs.to(device, non_blocking=True).float() / 255  # uint8 to float32, 0-255 to 0.0-1.0
                 
                 # Warmup
@@ -1003,6 +1211,21 @@ def train(proj_info, hyp, opt, data_dict, tb_writer=None):
                     else:  # detection
                         loss, loss_items = compute_loss(pred, targets.to(device))
 
+                continual_hooks.dispatch(
+                    'on_before_backward',
+                    step=step_meta,
+                    epoch=epoch,
+                    total_epochs=epochs,
+                    batch_index=i,
+                    global_step=ni,
+                    rank=rank,
+                    model=model,
+                    optimizer=optimizer,
+                    pred=pred,
+                    loss=loss,
+                    loss_items=loss_items,
+                )
+
                 # Backward
                 loss = torch.nan_to_num(loss, nan=0.0, posinf=0.0, neginf=0.0)
                 loss_items = torch.nan_to_num(loss_items, nan=0.0, posinf=0.0, neginf=0.0)
@@ -1011,6 +1234,21 @@ def train(proj_info, hyp, opt, data_dict, tb_writer=None):
                     logger.warning(
                         f'step-{i} can not backward (loss items contain NaN or inf): '
                         f'{loss_items.detach().cpu().tolist()}'
+                    )
+                    continual_hooks.dispatch(
+                        'on_batch_end',
+                        step=step_meta,
+                        epoch=epoch,
+                        total_epochs=epochs,
+                        batch_index=i,
+                        global_step=ni,
+                        rank=rank,
+                        model=model,
+                        optimizer=optimizer,
+                        loss=loss,
+                        loss_items=loss_items,
+                        paths=paths,
+                        skipped=True,
                     )
                     optimizer.zero_grad()
                     continue
@@ -1098,6 +1336,20 @@ def train(proj_info, hyp, opt, data_dict, tb_writer=None):
                     #     if tb_writer:
                     #         tb_writer.add_image(f, result, dataformats='HWC', global_step=epoch)
                     #         tb_writer.add_graph(torch.jit.trace(model, imgs, strict=False), [])  # add model graph
+                continual_hooks.dispatch(
+                    'on_batch_end',
+                    step=step_meta,
+                    epoch=epoch,
+                    total_epochs=epochs,
+                    batch_index=i,
+                    global_step=ni,
+                    rank=rank,
+                    model=model,
+                    optimizer=optimizer,
+                    loss=loss,
+                    loss_items=loss_items,
+                    paths=paths,
+                )
         elif task == 'classification':
             logger.info(('\n' + '%10s' * 6) % ('TrainEpoch', 'GPU_Mem', 'Batch', 'mLoss', 'mAcc', '=curr/all'))
             accumulated_imgs_cnt = 0
@@ -1105,6 +1357,18 @@ def train(proj_info, hyp, opt, data_dict, tb_writer=None):
             for i, (imgs, targets) in pbar:
                 t_batch = time.time() #time_synchronized()
                 ni = i + nb * epoch  # number integrated batches (since train start)
+                continual_hooks.dispatch(
+                    'on_batch_start',
+                    step=step_meta,
+                    epoch=epoch,
+                    total_epochs=epochs,
+                    batch_index=i,
+                    global_step=ni,
+                    rank=rank,
+                    model=model,
+                    optimizer=optimizer,
+                    batch=(imgs, targets),
+                )
                 imgs = imgs.float().to(device, non_blocking=True)
                 targets = targets.to(device)
 
@@ -1141,6 +1405,18 @@ def train(proj_info, hyp, opt, data_dict, tb_writer=None):
 
 
                 # Backward
+                continual_hooks.dispatch(
+                    'on_before_backward',
+                    step=step_meta,
+                    epoch=epoch,
+                    total_epochs=epochs,
+                    batch_index=i,
+                    global_step=ni,
+                    rank=rank,
+                    model=model,
+                    optimizer=optimizer,
+                    loss=loss,
+                )
                 scaler.scale(loss).backward()
 
                 # Optimize
@@ -1183,8 +1459,18 @@ def train(proj_info, hyp, opt, data_dict, tb_writer=None):
                     status_update(userid, project_id,
                                   update_id="train_loss",
                                   update_content=train_loss)
-                    if len(dataloader) -1 == i:
-                        logger.info(f'{s}')
+                continual_hooks.dispatch(
+                    'on_batch_end',
+                    step=step_meta,
+                    epoch=epoch,
+                    total_epochs=epochs,
+                    batch_index=i,
+                    global_step=ni,
+                    rank=rank,
+                    model=model,
+                    optimizer=optimizer,
+                    loss=loss,
+                )
         # training batches end =================================================
 
         # Scheduler
@@ -1306,6 +1592,17 @@ def train(proj_info, hyp, opt, data_dict, tb_writer=None):
                           update_id="epoch_summary",
                           update_content=epoch_summary)
 
+            continual_hooks.dispatch(
+                'on_epoch_end',
+                step=step_meta,
+                epoch=epoch,
+                total_epochs=epochs,
+                rank=rank,
+                model=model,
+                optimizer=optimizer,
+                metrics={'results': results, 'epoch_summary': epoch_summary},
+            )
+
             # Update best mAP
             if task in ['detection', 'segmentation']:
                 fi = fitness(np.array(results).reshape(1, -1))  # weighted combination of [P, R, mAP@.5, mAP@.5-.95]
@@ -1356,7 +1653,7 @@ def train(proj_info, hyp, opt, data_dict, tb_writer=None):
 
     if rank in [-1, 0]:
         # Plots ----------------------------------------------------------------
-        if plots:
+        if plots and ran_epochs:
             if task in ['detection', 'segmentation']:
                 plot_results(
                     save_dir=save_dir,
@@ -1365,7 +1662,10 @@ def train(proj_info, hyp, opt, data_dict, tb_writer=None):
             elif task == 'classification':
                 plot_cls_results(save_dir=save_dir)
 
-        logger.info(f'\n{colorstr("Train: ")}{epoch-start_epoch+1} epochs completed({(time.time() - t0) / 60:.3f} min).')
+        if ran_epochs:
+            logger.info(f'\n{colorstr("Train: ")}{ran_epochs} epochs completed({(time.time() - t0) / 60:.3f} min).')
+        else:
+            logger.info(f'\n{colorstr("Train: ")}No epochs executed (start_epoch={start_epoch}, epochs={epochs}).')
 
         # Test best.pt after fusing layers -------------------------------------
         # [tenace's note] argument of type 'PosixPath' is not iterable (??)
@@ -1420,12 +1720,22 @@ def train(proj_info, hyp, opt, data_dict, tb_writer=None):
 
     # report to PM -------------------------------------------------------------
     mb = os.path.getsize(final_model) / 1E6  # filesize
+    continual_hooks.dispatch(
+        'on_train_end',
+        step=step_meta,
+        rank=rank,
+        results=results,
+        final_model=str(final_model),
+        epochs=epochs,
+    )
     train_end = {}
     train_end['status'] = 'end'
     train_end['epochs'] = epochs
     train_end['bestmodel'] = str(final_model)
     train_end['bestmodel_size'] = f'{mb:.1f} MB'
     train_end['time'] = f'{(time.time() - t0) / 3600:.3f} hours'
+    if step_label:
+        train_end['continual_step'] = step_label
     status_update(userid, project_id,
                   update_id="train_end",
                   update_content=train_end)
