@@ -27,6 +27,7 @@ import torch.optim.lr_scheduler as lr_scheduler
 # Local application imports
 from . import status_update, Info
 from .train import train
+from .continual import train_continual
 from .search import search
 from .evolve import evolve
 from .visualize import BasemodelViewer
@@ -45,7 +46,7 @@ from tango.utils.plots import plot_evolution
 # Constants
 COMMON_ROOT = Path("/shared/common")
 DATASET_ROOT = Path("/shared/datasets")
-DUMMY_DATASET_ROOT = Path("/shared/datasets/dummy")
+COCO128_SEG_DATASET_ROOT = Path("/shared/datasets/coco128_seg")
 MODEL_ROOT = Path("/shared/models")
 CORE_DIR = Path(__file__).resolve().parent.parent.parent # /source/autonn_cl_core
 CFG_PATH = CORE_DIR / 'tango' / 'common' / 'cfg'
@@ -352,7 +353,7 @@ def get_dataset_info(dataset_name, task):
     Get dataset information from dataset.yaml file.
     """
     if task == 'segmentation':
-        root_path = DUMMY_DATASET_ROOT
+        root_path = COCO128_SEG_DATASET_ROOT
         if not root_path.exists():
             raise FileNotFoundError('Segmentation dataset root not found: {}'.format(root_path))
         dataset_yaml_path = root_path / 'dataset.yaml'
@@ -414,6 +415,15 @@ def create_segmentation_dataset_yaml(root_path, yaml_path):
     """
     Create a dataset.yaml file for segmentation tasks when none is provided.
     """
+    existing = {}
+    if yaml_path.exists():
+        try:
+            with open(yaml_path, 'r') as f:
+                existing = yaml.safe_load(f) or {}
+        except Exception as err:
+            logger.warning(f'Failed to read existing dataset yaml {yaml_path}: {err}')
+            existing = {}
+
     train_dir = root_path / 'images' / 'train'
     val_dir = root_path / 'images' / 'val'
     label_dirs = [root_path / 'labels' / 'train', root_path / 'labels' / 'val']
@@ -436,15 +446,18 @@ def create_segmentation_dataset_yaml(root_path, yaml_path):
     nc = max(class_ids) + 1 if class_ids else 1
     names = [f'class_{i}' for i in range(nc)]
 
-    dataset_dict = {
+    dataset_dict = dict(existing) if isinstance(existing, dict) else {}
+    dataset_dict.update({
         'path': str(root_path),
-        'train': str(root_path / 'images' / 'train'),
-        'val': str(root_path / 'images' / 'val'),
-        'nc': nc,
-        'names': names,
+        'train': str(train_dir),
+        'val': str(val_dir),
         'mask_format': 'poly',
-        'dataset_name': root_path.name
-    }
+        'dataset_name': root_path.name,
+    })
+    prev_nc = dataset_dict.get('nc', 0) or 0
+    dataset_dict['nc'] = max(nc, int(prev_nc))
+    if not dataset_dict.get('names'):
+        dataset_dict['names'] = names
 
     yaml_path.parent.mkdir(parents=True, exist_ok=True)
     with open(yaml_path, 'w') as f:
@@ -697,12 +710,20 @@ def run_autonn_cl(userid, project_id, resume=False, viz2code=False, nas=False, h
     #         logger.warn(f'{prefix}Fail to load tensorbord because {e}')
 
     # Train model
-    results, train_final = train(proj_info, hyp, opt, data, tb_writer)
+    results, train_final = train_continual(proj_info, hyp, opt, data, tb_writer)
 
     # Log training results
-    best_acc = results[3] if task in ['detection', 'segmentation'] else results[0]
+    if task == 'segmentation':
+        best_metric = results[0]
+        metric_label = 'IoU'
+    elif task == 'detection':
+        best_metric = results[3]
+        metric_label = 'mAP@0.5:0.95'
+    else:
+        best_metric = results[0]
+        metric_label = 'accuracy'
     logger.info(
-        f'{colorstr("Train: ")}Training complete. Best results: {best_acc:.2f},'
+        f'{colorstr("Train: ")}Training complete. Best {metric_label}: {best_metric:.4f},'
         f' Best model saved as: {train_final}\n'
     )
 
@@ -805,7 +826,8 @@ def run_autonn_cl(userid, project_id, resume=False, viz2code=False, nas=False, h
     fuse_layers(train_final, prefix=colorstr("Model Exporter: "))
 
     # Save training configuration
-    opt.best_acc = float(best_acc)  # numpy.float64 to float
+    best_metric = float(best_metric)
+    opt.best_acc = best_metric  # re-used downstream
     opt.weights = str(train_final)
 
     with open(Path(opt.save_dir) / 'opt.yaml', 'w') as f:

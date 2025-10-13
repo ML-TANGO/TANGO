@@ -172,6 +172,7 @@ def create_dataloader_v9(path,
                       uid=None,
                       pid=None,
                       task='detection',
+                      class_filter=None,
 ):
     if rect and shuffle:
         logger.warning(f'{colorstr(f"{prefix}_dataset: ")}WARNING ⚠️ --rect is incompatible with DataLoader shuffle, setting shuffle=False')
@@ -194,6 +195,7 @@ def create_dataloader_v9(path,
             uid=uid,
             pid=pid,
             task=task,
+            class_filter=class_filter,
         )
 
     batch_size = min(batch_size, len(dataset))
@@ -218,7 +220,7 @@ def create_dataloader_v9(path,
 def create_dataloader(uid, pid, path, imgsz, batch_size, stride, opt, hyp=None,
                       augment=False, cache=False, pad=0.0, rect=False,
                       rank=-1, world_size=1, workers=8, image_weights=False, quad=False,
-                      prefix=''):
+                      prefix='', class_filter=None):
     # Make sure only the first process in DDP process the dataset first, and the following others can use the cache
     with torch_distributed_zero_first(rank):
         dataset = LoadImagesAndLabels(
@@ -233,7 +235,7 @@ def create_dataloader(uid, pid, path, imgsz, batch_size, stride, opt, hyp=None,
             pad=pad,
             image_weights=image_weights,
             prefix=prefix,
-            task='detection'
+            class_filter=class_filter,
         )
 
     batch_size = min(batch_size, len(dataset))
@@ -553,6 +555,7 @@ class LoadImagesAndLabels_v9(Dataset):
                  uid=None,
                  pid=None,
                  task='detection',
+                 class_filter=None,
     ):
         self.userid = uid
         self.project_id = pid
@@ -568,6 +571,7 @@ class LoadImagesAndLabels_v9(Dataset):
         self.albumentations = Albumentations_v9(size=img_size) if augment else None
         self.task = task
         self.load_masks = (task == 'segmentation')
+        self.class_filter = sorted({int(c) for c in class_filter}) if class_filter else []
 
         try:
             f = []  # image files
@@ -631,6 +635,7 @@ class LoadImagesAndLabels_v9(Dataset):
         # Read cache
         [cache.pop(k) for k in ('hash', 'version', 'msgs')]  # remove items
         labels, shapes, self.segments = zip(*cache.values())
+        self.segments = [list(seg) if isinstance(seg, (list, tuple)) else [] for seg in self.segments]
         nl = len(np.concatenate(labels, 0))  # number of labels
         assert nl > 0 or not augment, f'{colorstr(f"{prefix}_dataset: ")}All labels empty in {cache_path}, can not start training.'
         self.labels = list(labels)
@@ -648,25 +653,50 @@ class LoadImagesAndLabels_v9(Dataset):
             self.segments = [self.segments[i] for i in include]
             self.shapes = self.shapes[include]  # wh
 
-        # Create indices
+        # Update labels with optional class filtering
+        include_class = np.array(self.class_filter, dtype=np.int64)
+        keep_mask = np.ones(len(self.labels), dtype=bool) if include_class.size else None
+        filtered_images = 0
+        for idx, (label, segment) in enumerate(zip(self.labels, self.segments)):
+            if include_class.size:
+                if label.size:
+                    class_ids = label[:, 0].astype(np.int64)
+                    mask = np.isin(class_ids, include_class)
+                    if mask.any():
+                        self.labels[idx] = label[mask]
+                        if segment:
+                            self.segments[idx] = [segment[j] for j, keep in enumerate(mask) if keep]
+                    else:
+                        self.labels[idx] = label[:0]
+                        self.segments[idx] = []
+                else:
+                    self.segments[idx] = []
+                if keep_mask is not None and not len(self.labels[idx]):
+                    keep_mask[idx] = False
+                    filtered_images += 1
+            if single_cls and len(self.labels[idx]):  # single-class training, merge all classes into 0
+                self.labels[idx][:, 0] = 0
+
+        if include_class.size and keep_mask is not None and filtered_images:
+            keep_indices = np.flatnonzero(keep_mask).tolist()
+            if not keep_indices:
+                raise ValueError(f"{colorstr(f'{prefix}_dataset: ')}Class filter {self.class_filter} removed all samples")
+            self.im_files = [self.im_files[i] for i in keep_indices]
+            self.label_files = [self.label_files[i] for i in keep_indices]
+            self.labels = [self.labels[i] for i in keep_indices]
+            self.segments = [self.segments[i] for i in keep_indices]
+            self.shapes = self.shapes[keep_indices]
+            logger.info(f"{colorstr(f'{prefix}_dataset: ')}Filtered {filtered_images} images outside allowed classes {self.class_filter}")
+
+        # Create indices after filtering
         n = len(self.shapes)  # number of images
+        if n == 0:
+            raise ValueError(f"{colorstr(f'{prefix}_dataset: ')}No data remaining after class filtering")
         bi = np.floor(np.arange(n) / batch_size).astype(int)  # batch index
         nb = bi[-1] + 1  # number of batches
         self.batch = bi  # batch index of image
         self.n = n
         self.indices = range(n)
-
-        # Update labels
-        include_class = []  # filter labels to include only these classes (optional)
-        include_class_array = np.array(include_class).reshape(1, -1)
-        for i, (label, segment) in enumerate(zip(self.labels, self.segments)):
-            if include_class:
-                j = (label[:, 0:1] == include_class_array).any(1)
-                self.labels[i] = label[j]
-                if segment:
-                    self.segments[i] = segment[j]
-            if single_cls:  # single-class training, merge all classes into 0
-                self.labels[i][:, 0] = 0
 
         # Rectangular Training
         if self.rect:
@@ -1178,7 +1208,7 @@ class LoadImagesAndLabels(Dataset):  # for training/testing
     def __init__(self, uid, pid, path, img_size=640, batch_size=16,
                  augment=False, hyp=None, rect=False, image_weights=False,
                  cache_images=False, single_cls=False, stride=32, pad=0.0,
-                 prefix=''):
+                 prefix='', class_filter=None):
         self.userid = uid
         self.project_id = pid
         self.img_size = img_size
@@ -1191,6 +1221,7 @@ class LoadImagesAndLabels(Dataset):  # for training/testing
         self.stride = stride
         self.path = path
         self.albumentations = AlbumentationsTransform(size=img_size) if augment else None
+        self.class_filter = sorted({int(c) for c in class_filter}) if class_filter else []
         try:
             f = []  # image files
             for p in path if isinstance(path, list) else [path]:
@@ -1245,6 +1276,7 @@ class LoadImagesAndLabels(Dataset):  # for training/testing
         cache.pop('hash')  # remove hash
         cache.pop('version')  # remove version
         labels, shapes, self.segments = zip(*cache.values())
+        self.segments = [list(seg) if isinstance(seg, (list, tuple)) else [] for seg in self.segments]
         self.labels = list(labels)
         self.shapes = np.array(shapes) #, dtype=np.float64)
         self.img_files = list(cache.keys())  # update
@@ -1261,24 +1293,49 @@ class LoadImagesAndLabels(Dataset):  # for training/testing
         self.shapes = self.shapes[include]  # wh
         '''
         
+        # Update labels with optional class filtering
+        include_class = np.array(self.class_filter, dtype=np.int64)
+        keep_mask = np.ones(len(self.labels), dtype=bool) if include_class.size else None
+        filtered_images = 0
+        for idx, (label, segment) in enumerate(zip(self.labels, self.segments)):
+            if include_class.size:
+                if label.size:
+                    class_ids = label[:, 0].astype(np.int64)
+                    mask = np.isin(class_ids, include_class)
+                    if mask.any():
+                        self.labels[idx] = label[mask]
+                        if segment:
+                            self.segments[idx] = [segment[j] for j, keep in enumerate(mask) if keep]
+                    else:
+                        self.labels[idx] = label[:0]
+                        self.segments[idx] = []
+                else:
+                    self.segments[idx] = []
+                if keep_mask is not None and not len(self.labels[idx]):
+                    keep_mask[idx] = False
+                    filtered_images += 1
+            if single_cls and len(self.labels[idx]):  # single-class training, merge all classes into 0
+                self.labels[idx][:, 0] = 0
+
+        if include_class.size and keep_mask is not None and filtered_images:
+            keep_indices = np.flatnonzero(keep_mask).tolist()
+            if not keep_indices:
+                raise ValueError(f"{colorstr(f'{prefix}_dataset: ')}Class filter {self.class_filter} removed all samples")
+            self.img_files = [self.img_files[i] for i in keep_indices]
+            self.label_files = [self.label_files[i] for i in keep_indices]
+            self.labels = [self.labels[i] for i in keep_indices]
+            self.segments = [self.segments[i] for i in keep_indices]
+            self.shapes = self.shapes[keep_indices]
+            logger.info(f"{colorstr(f'{prefix}_dataset: ')}Filtered {filtered_images} images outside allowed classes {self.class_filter}")
+
         n = len(self.shapes)  # number of images
+        if n == 0:
+            raise ValueError(f"{colorstr(f'{prefix}_dataset: ')}No data remaining after class filtering")
         bi = np.floor(np.arange(n) / batch_size).astype(int)  # batch index
         nb = bi[-1] + 1  # number of batches
         self.batch = bi  # batch index of image
         self.n = n
         self.indices = range(n)
-
-        # Update labels
-        include_class = []  # filter labels to include only these classes (optional)
-        include_class_array = np.array(include_class).reshape(1, -1)
-        for i, (label, segment) in enumerate(zip(self.labels, self.segments)):
-            if include_class:
-                j = (label[:, 0:1] == include_class_array).any(1)
-                self.labels[i] = label[j]
-                if segment:
-                    self.segments[i] = segment[j]
-            if single_cls:  # single-class training, merge all classes into 0
-                self.labels[i][:, 0] = 0
 
         # Rectangular Training
         if self.rect:
