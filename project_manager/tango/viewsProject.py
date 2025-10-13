@@ -1106,12 +1106,12 @@ def project_update(request):
 
         learning_type = str(request.data['learning_type'])
 
-        # AutoNN_CL (Segmentation + Continual Learning) projects use fixed target ID 9
+        # AutoNN_CL (Segmentation + Continual Learning) projects use fixed target 
         if (
             task_type == TaskType.SEGMENTATION
             and learning_type == LearningType.CONTINUAL_LEARNING
         ):
-            target = 9
+            target = 5 # PC
 
         project_info = Project.objects.get(id=request.data['project_id'])
 
