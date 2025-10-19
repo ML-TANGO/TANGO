@@ -91,7 +91,9 @@ async def stop_service(user_id: str, project_id: str):
     if not service:
         raise HTTPException(status_code=404, detail="Service not found")
     target_class = TARGET_CLASS_MAP[service.deploy_yaml.deploy.type]
-    logging.info(f"service.user_id={service.user_id}, service.project_id={service.project_id}")
+    logging.info(
+        f"service.user_id={service.user_id}, service.project_id={service.project_id}"
+    )
     target = target_class(service.user_id, service.project_id)
     await target.stop_service(service.deploy_yaml.deploy.service_name)
     service.status = ServiceStatus.STOPPED
@@ -118,9 +120,7 @@ async def status_request(user_id: str, project_id: str):
     logging.info(f"response output: {resp}")
 
     if resp.get("error") is not None:
-        return Response(
-            content=resp["error"], status_code=400, media_type="text/plain"
-        )
+        return Response(content=resp["error"], status_code=400, media_type="text/plain")
     else:
         return Response(
             content=resp["status"].value, status_code=200, media_type="text/plain"

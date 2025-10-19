@@ -8,7 +8,6 @@ from app.config import read_from_file
 
 
 class AuthConfig:
-
     config, path = read_from_file(None, daemon_name="forklift")
     SECRET_KEY = config["auth"]["FORKLIFT_SECRET_KEY"]
     ALGORITHM = "HS256"

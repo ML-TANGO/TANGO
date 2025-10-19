@@ -34,7 +34,7 @@ async def read_root():
 
 async def save_file(temp_dir: Path, file: UploadFile):
     file_path = temp_dir / file.filename
-    async with aiofiles.open(file_path, 'wb') as out_file:
+    async with aiofiles.open(file_path, "wb") as out_file:
         while True:
             chunk = await file.read(8192)
             if not chunk:
@@ -47,12 +47,17 @@ async def run_inference(file_path: Path, file_ext: str):
     cmd = [
         "python",
         "/model/repo/detect.py",
-        "--weights", "/model/yolov7-e6e.pt",
-        "--conf", "0.25",
-        "--img-size", "640",
-        "--project", MEDIA_DIR,
+        "--weights",
+        "/model/yolov7-e6e.pt",
+        "--conf",
+        "0.25",
+        "--img-size",
+        "640",
+        "--project",
+        MEDIA_DIR,
         "--exist-ok",
-        "--source", str(file_path),
+        "--source",
+        str(file_path),
     ]
     process = await asyncio.create_subprocess_exec(
         *cmd,
@@ -63,7 +68,7 @@ async def run_inference(file_path: Path, file_ext: str):
     stdout, stderr = await process.communicate()
     if process.returncode != 0:
         raise InferenceException(stderr.decode())
-    result_path = file_path.parent.joinpath('exp', file_path.name)
+    result_path = file_path.parent.joinpath("exp", file_path.name)
     return result_path
 
 
@@ -73,7 +78,9 @@ async def process_image(file: UploadFile):
     try:
         result_path = await run_inference(file_path, "jpg")  # Assuming images are jpg
     except InferenceException as e:
-        raise HTTPException(status_code=500, detail=f"Inference failed: {e.error_message}")
+        raise HTTPException(
+            status_code=500, detail=f"Inference failed: {e.error_message}"
+        )
     media_url = f"/media/{result_path.name}"
     html_response = f'<img src="{media_url}" alt="Result media" />'
     return HTMLResponse(content=html_response)

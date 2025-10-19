@@ -15,6 +15,7 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
+
 async def get_service(
     user_id: str, project_id: str, *, statuses: List[ServiceStatus] = None
 ) -> Optional[Service]:

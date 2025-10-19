@@ -73,21 +73,27 @@ def run_command_sync(command: List[str]):
     process = subprocess.run(command, capture_output=True)
     return process.stdout.decode(), process.stderr.decode()
 
+
 def mb_to_gib(mb):
     gib = mb // 1024
     return f"{gib}Gi"
 
+
 # Authenticate with Google Cloud only once in a module level.
-run_command_sync(
-    [
-        "gcloud",
-        "auth",
-        "activate-service-account",
-        "--key-file",
-        GOOGLE_APPLICATION_CREDENTIALS,
-    ]
-)
-print("Google Cloud authentication activated")
+# Only authenticate if credentials are provided.
+if GOOGLE_APPLICATION_CREDENTIALS:
+    run_command_sync(
+        [
+            "gcloud",
+            "auth",
+            "activate-service-account",
+            "--key-file",
+            GOOGLE_APPLICATION_CREDENTIALS,
+        ]
+    )
+    print("Google Cloud authentication activated")
+else:
+    print("GOOGLE_APPLICATION_CREDENTIALS not set, skipping GCP authentication")
 
 
 class CloudRun(CloudTargetBase):
@@ -108,7 +114,6 @@ class CloudRun(CloudTargetBase):
         self.parent = f"projects/{self.gcp_project_id}/locations/{self.gcp_region}"
 
         super().__init__(user_id, project_id)
-
 
     async def start_service(self, deploy_yaml) -> dict[str, str]:
         """

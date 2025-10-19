@@ -7,7 +7,6 @@ SIZE = 4096
 
 
 class TextPickleType(TypeDecorator):
-
     impl = sqlalchemy.Text(SIZE)
     cache_ok = True
 
