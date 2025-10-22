@@ -10,11 +10,26 @@ from kubernetes.client.rest import ApiException
 from kubernetes.client.api import core_v1_api
 import logging
 import logging.handlers
+import os
 
-config.load_kube_config()
-v1 = client.CoreV1Api() 
-apps_v1 = client.AppsV1Api() 
-batch_v1 = client.BatchV1Api() 
+# Kubernetes 설정 로드 시도
+try:
+    config.load_kube_config()
+    v1 = client.CoreV1Api() 
+    apps_v1 = client.AppsV1Api() 
+    batch_v1 = client.BatchV1Api()
+    print("✅ Kubernetes configuration loaded successfully")
+except Exception as e:
+    print(f"❌ Kubernetes configuration error: {e}")
+    print("=" * 60)
+    print("K8S 배포를 사용하려면 다음 중 하나를 수행하세요:")
+    print("1. Kubernetes 클러스터를 설정하고 ~/.kube/config 파일을 생성")
+    print("2. 다른 배포 옵션 사용 (Cloud Deploy 또는 OnDevice Deploy)")
+    print("=" * 60)
+    # K8S API가 필요한 경우를 위해 None으로 설정
+    v1 = None
+    apps_v1 = None
+    batch_v1 = None 
 
 #IMAGE="busan_deid:source"
 NAMESPACE="default"

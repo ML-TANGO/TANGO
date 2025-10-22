@@ -16,6 +16,7 @@ input source mp4 + jpg in same folder
 import os
 import socket
 import shutil
+import pathlib
 import zipfile
 import numpy as np
 import onnx
@@ -593,35 +594,85 @@ class CodeGen:
                 self.m_sysinfo_libs = []
                 self.m_sysinfo_apt = ['vim', 'python3.9']
                 self.m_sysinfo_papi = ['torch', 'torchvision', 'opencv-python', 'pandas', 'numpy', 'python-math', 'albumentations']
-                self.m_deploy_entrypoint = self.m_deploy_python_file
-                if not os.path.exists(self.m_current_code_folder):
-                    os.makedirs(self.m_current_code_folder)
-                # make nn_model folder
-                if not os.path.exists(self.m_current_code_folder):
-                    os.makedirs(self.m_current_code_folder)
-                # copy pt file
-                pt_path = "%s%s" % (self.m_current_file_path, self.m_nninfo_weight_pt_file)
-                shutil.copy(pt_path, self.m_current_code_folder)
-                # copy template code
-                codefile_path = "%s%s%s" % (self.m_current_code_folder, "/", self.m_deploy_python_file)
-                f = open(codefile_path, "w")
-                # copy heading 
-                f.write("#!/usr/bin/python\n")
-                f.write("# -*- coding: utf-8 -*-\n")
-                f.write("DEF_IMG_PATH = %s\n" % self.m_sysinfo_input_method) 
-                f.write("DEF_ACC = %s\n" % "\"cpu\"") # only for testing self.m_sysinfo_acc_type) 
-                f.write("DEF_PT_FILE = \"%s\"\n\n\n" % self.m_nninfo_weight_pt_file)
-                try:
-                    f1 = open("./db/resnet152.db", 'r')
-                except IOError as err:
-                    logging.debug("resnet162 db open error")
-                    self.m_last_run_state = 0
-                    return -1
-                for line1 in f1:
-                    f.write(line1)
-                f1.close()
-                f.close()
-                self.make_deployment_yaml()  
+                
+                if self.m_deploy_type == 'k8s':
+                    # k8s deployment needs fileset structure - create directories first
+                    pathlib.Path("%s/fileset/yolov7" % self.m_current_code_folder).mkdir(parents=True, exist_ok=True)
+                    
+                    self.m_deploy_entrypoint = ['python', './output.py']
+                    k8s_path = "%s/fileset/yolov7" % self.m_current_code_folder
+                    
+                    # copy pt file to k8s_path
+                    pt_path = "%s%s" % (self.m_current_file_path, self.m_nninfo_weight_pt_file)
+                    shutil.copy(pt_path, k8s_path)
+                    
+                    # create output.py in k8s_path
+                    codefile_path = "%s/output.py" % k8s_path
+                    f = open(codefile_path, "w")
+                    f.write("#!/usr/bin/python\n")
+                    f.write("# -*- coding: utf-8 -*-\n")
+                    f.write("DEF_IMG_PATH = %s\n" % self.m_sysinfo_input_method) 
+                    f.write("DEF_ACC = %s\n" % "\"cpu\"")
+                    f.write("DEF_PT_FILE = \"%s\"\n\n\n" % self.m_nninfo_weight_pt_file)
+                    try:
+                        f1 = open("./db/resnet152.db", 'r')
+                    except IOError as err:
+                        logging.debug("resnet152.db open error")
+                        self.m_last_run_state = 0
+                        return -1
+                    for line1 in f1:
+                        f.write(line1)
+                    f1.close()
+                    f.close()
+                    
+                    # copy requirements.txt to k8s_path and code_folder
+                    try:
+                        outpath = "%s/%s" % (self.m_current_code_folder, self.m_requirement_file)
+                        outf = open(outpath, "w")
+                    except IOError as err:
+                        logging.debug("requirements.txt file open error")
+                        self.m_last_run_state = 0
+                        return -1
+                    for item in self.m_sysinfo_papi:
+                        outf.write(item)
+                        outf.write('\n')
+                    outf.close()
+                    os.system("cp %s %s" % (outpath, k8s_path))
+                    
+                    # copy pt file to code_folder and fileset for deployment.yaml reference
+                    shutil.copy(pt_path, self.m_current_code_folder)
+                    fileset_path = "%s/fileset" % self.m_current_code_folder
+                    shutil.copy(pt_path, fileset_path)
+                else:
+                    # non-k8s deployment
+                    self.m_deploy_entrypoint = self.m_deploy_python_file
+                    
+                    # copy pt file
+                    pt_path = "%s%s" % (self.m_current_file_path, self.m_nninfo_weight_pt_file)
+                    shutil.copy(pt_path, self.m_current_code_folder)
+                    
+                    # copy template code
+                    codefile_path = "%s%s%s" % (self.m_current_code_folder, "/", self.m_deploy_python_file)
+                    f = open(codefile_path, "w")
+                    # copy heading 
+                    f.write("#!/usr/bin/python\n")
+                    f.write("# -*- coding: utf-8 -*-\n")
+                    f.write("DEF_IMG_PATH = %s\n" % self.m_sysinfo_input_method) 
+                    f.write("DEF_ACC = %s\n" % "\"cpu\"")
+                    f.write("DEF_PT_FILE = \"%s\"\n\n\n" % self.m_nninfo_weight_pt_file)
+                    try:
+                        f1 = open("./db/resnet152.db", 'r')
+                    except IOError as err:
+                        logging.debug("resnet152.db open error")
+                        self.m_last_run_state = 0
+                        return -1
+                    for line1 in f1:
+                        f.write(line1)
+                    f1.close()
+                    f.close()
+                
+                # make deployment yaml for all deployment types
+                self.make_deployment_yaml()
             else:
                 print("the inference engine is not support for classification")
             self.m_last_run_state = 0
@@ -842,6 +893,9 @@ class CodeGen:
                 outf.write('\n')
             outf.close()
         elif self.m_deploy_type == 'k8s':
+            # create directories first for k8s deployment
+            pathlib.Path("%s/fileset/yolov7" % self.m_current_code_folder).mkdir(parents=True, exist_ok=True)
+            
             self.m_sysinfo_libs = ['python==3.8', 'torch>=1.1.0']
             self.m_sysinfo_apt = ['vim', 'libgl1-mesa-glx']
             self.m_sysinfo_papi = ["cython", "numpy<17", "imutils", "flask",
@@ -851,8 +905,6 @@ class CodeGen:
                 "werkzeug", "torch", "torchvision", "python-math",  
                 "albumentations", "pathlib"]
             self.m_deploy_entrypoint = ['python', './output.py']
-            os.system("mkdir %s/fileset" % self.m_current_code_folder) 
-            os.system("mkdir %s/fileset/yolov7" % self.m_current_code_folder) 
             k8s_path = "%s/fileset/yolov7" % self.m_current_code_folder
             os.system("cp -r ./db/web/* %s" % k8s_path) 
             # pt 화일 복사 done  
@@ -1174,8 +1226,9 @@ class CodeGen:
                 outf.write('\n')
             outf.close()
         elif self.m_deploy_type == 'k8s':
-            os.system("mkdir %s/fileset" % self.m_current_code_folder) 
-            os.system("mkdir %s/fileset/yolov7" % self.m_current_code_folder) 
+            # create directories first for k8s deployment
+            pathlib.Path("%s/fileset/yolov7" % self.m_current_code_folder).mkdir(parents=True, exist_ok=True)
+            
             k8s_path = "%s/fileset/yolov7" % self.m_current_code_folder
             os.system("cp -r ./db/trtweb/* %s" % k8s_path) 
             os.system("rm %s/*.db" % k8s_path) 
@@ -1548,9 +1601,16 @@ class CodeGen:
              }
         a_file = self.m_nninfo_annotation_file.split("/")
         b_file = a_file[-1]
+        
+        # for classification, use .pt file; for detection, use .torchscript file
+        if self.m_sysinfo_task_type == "classification":
+            weight_file = self.m_nninfo_weight_pt_file
+        else:
+            weight_file = self.m_nninfo_weight_ts_file
+        
         t_opt = {"nn_file": 'output.py',
-                 "weight_file": self.m_nninfo_weight_ts_file,
-                 "model_file": self.m_nninfo_weight_ts_file,
+                 "weight_file": weight_file,
+                 "model_file": weight_file,
                  "annotation_file": b_file }
         t_total = {"build": t_build, "deploy": t_deploy, "optional": t_opt}
         try:
@@ -1562,8 +1622,15 @@ class CodeGen:
         yaml.dump(t_total, f)
         f.close()
         shutil.copy(r_file, self.m_current_file_path)
-        shutil.copy(r_file, "%s/fileset" % self.m_current_code_folder)
-        shutil.copy(r_file, "%s/fileset/yolov7" % self.m_current_code_folder)
+        
+        # ensure fileset directories exist for k8s deployment
+        fileset_path = "%s/fileset" % self.m_current_code_folder
+        yolov7_path = "%s/fileset/yolov7" % self.m_current_code_folder
+        pathlib.Path(yolov7_path).mkdir(parents=True, exist_ok=True)
+        
+        # copy deployment.yaml to both directories (specify filename in destination)
+        shutil.copy(r_file, os.path.join(fileset_path, self.m_deployment_file))
+        shutil.copy(r_file, os.path.join(yolov7_path, self.m_deployment_file))
         return
 
     def make_deploayment_web_yaml(self): 

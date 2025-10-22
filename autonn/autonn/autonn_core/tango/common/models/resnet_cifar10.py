@@ -551,6 +551,10 @@ class ClassifyModel(nn.Module):
     def summary(self, img_size=640, verbose=False):
         return model_summary(self, img_size, verbose)
 
+    def info(self, verbose=False, img_size=640):  # print model information
+        from tango.utils.torch_utils import model_info
+        model_info(self, verbose, img_size)
+
 
 def parse_model(d, ch):  # model_dict, input_channels(1 or 3)
     # logger.info('\n%3s%18s%3s%10s  %-40s%-30s' % ('', 'from', 'n', 'params', 'module', 'arguments'))
