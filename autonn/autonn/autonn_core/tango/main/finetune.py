@@ -60,13 +60,14 @@ from torch.nn.parallel import DistributedDataParallel as DDP
 # from torch.utils.tensorboard import SummaryWriter
 from tqdm import tqdm
 
-from . import status_update, Info
+from . import status_update #, Info
 from . import test
 from tango.common.models.experimental import attempt_load
 from tango.common.models.yolo               import Model
 from tango.common.models.supernet_yolov7    import NASModel
 from tango.common.models.resnet_cifar10     import ClassifyModel
 # from tango.common.models import *
+from tango.utils.django_utils import safe_update_info
 from tango.utils.autoanchor import check_anchors
 from tango.utils.autobatch import get_batch_size_for_gpu
 from tango.utils.datasets import create_dataloader
@@ -111,7 +112,7 @@ def finetune(proj_info, subnet, hyp, opt, data_dict, tb_writer=None):
         proj_info['userid'], proj_info['project_id'], proj_info['task_type'], \
         proj_info['nas'], proj_info['hpo'], proj_info['target_info'], proj_info['acc']
 
-    info = Info.objects.get(userid=userid, project_id=project_id)
+    # info = Info.objects.get(userid=userid, project_id=project_id)
 
     # Directories --------------------------------------------------------------
     wdir = save_dir / 'weights'
@@ -534,7 +535,7 @@ def finetune_hyp(proj_info, basemodel, hyp, opt, data_dict, tb_writer=None):
         proj_info['nas'], proj_info['hpo'], proj_info['target_info'], proj_info['acc']
 
     assert hpo and lt == 'HPO', f'HPO: project information mismatch. Learning type {lt}, HPO ? {hpo}'
-    info = Info.objects.get(userid=userid, project_id=project_id)
+    # info = Info.objects.get(userid=userid, project_id=project_id)
 
     # Directories --------------------------------------------------------------
     wdir = save_dir / 'weights'

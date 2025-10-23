@@ -8,7 +8,8 @@ from copy import deepcopy
 import torch
 import torch.nn as nn
 
-from . import Info, Node, Edge, Pth
+#from . import Info, Node, Edge, Pth
+from . import get_model
 from django.core import serializers
 from autonn_core.serializers import NodeSerializer
 from autonn_core.serializers import EdgeSerializer
@@ -16,6 +17,7 @@ from autonn_core.serializers import EdgeSerializer
 from tango.viz.graph import CGraph, CEdge, CNode, CShow2
 from tango.viz.binder import CPyBinder
 from tango.utils.general import colorstr
+from tango.utils.django_utils import safe_update_info
 
 logger = logging.getLogger(__name__)
 
@@ -72,6 +74,8 @@ class BasemodelViewer:
 
     def initialize(self):
         # clear all nodes & edges before constructing a new architecture
+        Node = get_model('Node')
+        Edge = get_model('Edge')
         nodes = Node.objects.all()
         edges = Edge.objects.all()
         nodes.delete()
@@ -747,11 +751,10 @@ class BasemodelViewer:
     def update(self):
 
         try:
-            info = Info.objects.get(userid=self.userid, project_id=self.projid)
             self.update_legacy()
-            info.progress = "viz_update"
-            info.save()
-        except Info.DoesNotExist:
+            safe_update_info(self.userid, self.projid,
+                             progress = 'viz_update')
+        except Exception:
             logger.warning(f'{colorstr("Visualizer: ")}not found {self.userid}/{self.project_id} information')
 
         # logger.info(f'{colorstr("Visualizer: ")}Updating nodes and edges complete\n')
@@ -816,6 +819,8 @@ def export_pth(file_path):
     """
     Make a graph with nodes and edges and export pytorch model from the graph
     """
+    Node = get_model('Node')
+    Edge = get_model('Edge')
     nodes = Node.objects.all()
     edges = Edge.objects.all()
 
