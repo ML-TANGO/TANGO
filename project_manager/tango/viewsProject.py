@@ -18,6 +18,7 @@ from rest_framework.permissions import AllowAny
 
 from rest_framework.response import Response
 from rest_framework.decorators import api_view, permission_classes, authentication_classes
+
 from oauth2_provider.contrib.rest_framework import OAuth2Authentication
 
 from .models import Project, WorkflowOrder, AutonnStatus
@@ -511,10 +512,27 @@ def container_start(request):
         try:
             log = start_container(user_id, project_id, project_info, container_id)
         except Exception as error:
+            error_msg = str(error)
             print(str(container_id) + " Container Start 요청 실패")
-            print(error)
+            print(error_msg)
+            
+            # 컨테이너가 실행되지 않은 경우 더 명확한 에러 메시지 제공
+            if "배포 타입" in error_msg or "실행 중이지 않습니다" in error_msg:
+                response_data = {
+                    'status': 503,
+                    'message': f'{container_id} 컨테이너 시작 실패',
+                    'error': error_msg,
+                    'solution': '해당 배포 타입의 컨테이너가 실행되지 않았습니다. docker-compose.yml에서 해당 서비스의 주석을 해제하고 "docker compose up -d [서비스명]"으로 컨테이너를 실행해주세요.'
+                }
+            else:
+                response_data = {
+                    'status': 500,
+                    'message': f'{container_id} 컨테이너 시작 실패',
+                    'error': error_msg
+                }
+            
             project_info.save()
-            return HttpResponse(str(error))
+            return HttpResponse(json.dumps(response_data))
 
         project_info.container = container_id
         project_info.container_status = ContainerStatus.STARTED
@@ -555,8 +573,10 @@ def status_request(request):
     """
 
     try:
-        print("----------status_request----------")
         response_log = ""
+
+        print("----------status_request----------")
+        print("request data : ", request)
 
         user_id = request.data['user_id']
         project_id = request.data['project_id']
@@ -601,7 +621,7 @@ def status_request(request):
                 return HttpResponse(json.dumps({'container': container_id, 'container_status': '', 'message': ''}))
 
             response = json.loads(res)
-        else :
+        else:
             response = { "response" : project_info.container_status }
                
         if len(response['response']) > 50:
@@ -641,13 +661,14 @@ def status_request(request):
         project_info.save()
         return HttpResponse(json.dumps({'container': container_id, 'container_status': response['response'], 'message': response_log,}))
 
-    except Project.DoesNotExist:
-        print(f"project_id : {project_id}를 찾을 수 없음.")
-        return HttpResponse(error)
     except Exception as error:
         print("status_request --- error")
-        print(error)
-        return HttpResponse(error)
+        print(f"Error type: {type(error).__name__}")
+        print(f"Error message: {error}")
+        import traceback
+        print(f"Traceback:")
+        traceback.print_exc()
+        return HttpResponse("error")
 
 # 컨테이너 상태 결과 응답
 @api_view(['GET'])
@@ -749,8 +770,11 @@ def status_report(request):
 
     except Exception as error:
         print("status_report - error")
-        print(error)
-        return HttpResponse(error)
+        print(f"Error type: {type(error).__name__}")
+        print(f"Error message: {error}")
+        import traceback
+        print(f"Traceback: {traceback.format_exc()}")
+        return HttpResponse(json.dumps({'status': 'error', 'message': str(error)}))
 
 # 컨테이너 업데이트 (for Auto NN)
 @api_view(['POST'])

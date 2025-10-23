@@ -361,22 +361,22 @@ services:
   #---------------------------------
   # K8S deploy
   #---------------------------------
-  # kube_deploy:
-  #   hostname: kube-deploy
-  #   build:
-  #     context: ./deploy_targets/k8s
-  #   container_name: "tango_k8s"
-  #   privileged: true
-  #   command: bash -c "cd /app && python3 k8s_deploy.py"
-  #   volumes:
-  #     - $HOME/.kube:/home/root/.kube
-  #     - shared:/app/tango
-  #     - ./deploy_targets/k8s:/app
-  #     - /var/run/docker.sock:/var/run/docker.sock
-  #   environment:
-  #     - "HOME=/home/root"
-  #   ports:
-  #     - "8901:8901"
+  kube_deploy:
+    hostname: kube-deploy
+    build:
+      context: ./deploy_targets/k8s
+    container_name: "tango_k8s"
+    privileged: true
+    command: bash -c "cd /app && python3 k8s_deploy.py"
+    volumes:
+      - $HOME/.kube:/home/root/.kube
+      - shared:/app/tango
+      - ./deploy_targets/k8s:/app
+      - /var/run/docker.sock:/var/run/docker.sock
+    environment:
+      - "HOME=/home/root"
+    ports:
+      - "8901:8901"
 
   #---------------------------------
   # K8S docker registry(image manager)

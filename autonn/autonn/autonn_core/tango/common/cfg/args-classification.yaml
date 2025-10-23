@@ -20,6 +20,7 @@ workers: 8 # data loading thread workers
 multi_scale: False # randomly scale image per epoch (x0.5 ~ x1.5)
 single_cls: False # treat all classes as the one same class
 image_weights: False # give sampling priority low accuracy class
+close_mosaic: 15 # do not use mosaic during last 15 epochs
 
 # optimizer
 adam: False # optimizer = SGD / ADAM
