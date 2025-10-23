@@ -25,7 +25,7 @@ import torch.optim as optim
 import torch.optim.lr_scheduler as lr_scheduler
 
 # Local application imports
-from . import status_update, Info
+from . import status_update #, Info
 from .train import train
 from .search import search
 from .evolve import evolve
@@ -41,6 +41,7 @@ from tango.utils.general import (
     colorstr
 )
 from tango.utils.plots import plot_evolution
+from tango.utils.django_utils import safe_update_info, safe_get_info_values, safe_get_info_field
 
 # Constants
 COMMON_ROOT = Path("/shared/common")
@@ -132,50 +133,41 @@ def get_user_requirements(userid, projid, resume=False):
     with open(proj_yaml_path, "r") as f:
         proj_info_dict = yaml.safe_load(f)
 
-    status_update(
-        userid, 
-        projid,
-        update_id="project_info",
-        update_content=proj_info_dict
-    )
+    status_update(userid, projid, update_id="project_info", update_content=proj_info_dict)
 
     target = proj_info_dict['target_info'].replace('-', '').replace('_', '').lower()
     device = proj_info_dict['acc']
     task = proj_info_dict['task_type'].lower()
 
-    # Update database info
-    info = Info.objects.get(userid=userid, project_id=projid)
-    info.target = target
-    info.device = device
-    info.dataset = proj_info_dict['dataset']
-    info.task = task
-    info.status = "running"
-    info.progress = "setting"
-    info.model_viz = "not ready"
-    info.save()
+    # ORM update (1/4)
+    safe_update_info(userid, projid,
+            targeti=target, device=device, dataset=proj_info_dict['dataset'], task=task,
+            status="running", progress="setting", model_viz="not ready",
+    )
 
     # Handle learning type
     lt = proj_info_dict['learning_type'].lower()
     skip_bms = False
-    
-    if os.path.isfile(info.best_net):
+   
+    best_model_file = safe_get_info_field(userid, projid, "best_net")
+    if isinstance(best_model_file, str) and os.path.isfile(best_model_file):
         if lt in ['incremental', 'transfer', 'finetune', 'hpo']:
             logger.info(
-                f'{colorstr("Project Info: ")}Pretrained model {info.best_net} exists.\n'
+                f'{colorstr("Project Info: ")}Pretrained model {best_model_file} exists.\n'
                 f'              BMS will be skipped.'
             )
             skip_bms = True
         elif lt == 'normal':
-            bak_dir = backup_previous_work(info.best_net)
+            bak_dir = backup_previous_work(best_model_file)
             logger.info(
-                f'{colorstr("Project Info: ")}Pretrained model {info.best_net}\n'
+                f'{colorstr("Project Info: ")}Pretrained model {best_model_file}\n'
                 f'              moved to {bak_dir}/...'
             )
-            info.best_net = ''
-            info.save()
+            # ORM update (2/4)
+            safe_update_info(userid, projid, best_net='')
         else:
             logger.warning(
-                f'{colorstr("Project Info: ")}Pretrained model {info.best_net} exists.\n'
+                f'{colorstr("Project Info: ")}Pretrained model {best_model_file} exists.\n'
                 f'              But learning type {lt} is unknown, '
                 f'so it will be overwritten by the end of training.'
             )
@@ -192,14 +184,11 @@ def get_user_requirements(userid, projid, resume=False):
     # Select base model
     if skip_bms:
         basemodel_yaml_path = str(PROJ_PATH / 'basemodel.yaml')
+        model_value = safe_get_info_values(userid, projid, fields=["model_type", "model_size"])
         basemodel = {
-            "model_name": info.model_type,
-            "model_size": info.model_size,
+            "model_name": model_value['model_type'], #info.model_type,
+            "model_size": model_value['model_size'], #info.model_size,
         }
-        # save internally
-        info = Info.objects.get(userid=userid, project_id=projid)
-        info.model_viz = "ready"
-        info.save()
     else:
         basemodel_yaml_path, basemodel = base_model_select(
             userid,
@@ -207,7 +196,7 @@ def get_user_requirements(userid, projid, resume=False):
             proj_info_dict,
             data_dict
         )
-    
+
     with open(basemodel_yaml_path, "r") as f:
         basemodel_dict = yaml.load(f, Loader=yaml.SafeLoader)
 
@@ -259,7 +248,8 @@ def get_user_requirements(userid, projid, resume=False):
     logger.info(f'{colorstr("Project Info: ")}CUDA OOM: resume? {resume}')
     if resume:
         opt.resume = True
-        opt.bs_factor = info.batch_multiplier - 0.1
+        prev_bs_factor = safe_get_info_field(userid, projid, "batch_multiplier")
+        opt.bs_factor = prev_bs_factor - 0.1 #info.batch_multiplier - 0.1
 
     # Check for incremental learning
     if lt == 'incremental':
@@ -274,18 +264,34 @@ def get_user_requirements(userid, projid, resume=False):
     RANK:       global rank, the unique ID for each process involved in the training
                 (ranging from 0 to WORLD_SIZE-1)
     LOCAL_RANK: the ID under the same node
-                (often GPU is specified with LOCAL_RANK, but not necessarily 1-to-1)  
+                (often GPU is specified with LOCAL_RANK, but not necessarily 1-to-1)
+    (주의) torchrun으로 DDP 실행하면 torchrun이 환경변수로 WORLD_SIZE, RANK, LOCAL_RANK 설정
+    지금은 DDP 실행여부를 판단하기 전이므로 환경변수 설정이 안되어 있음
     '''
     # Set distributed training parameters
     opt.world_size = int(os.environ['WORLD_SIZE']) if 'WORLD_SIZE' in os.environ else 1
     opt.global_rank = int(os.environ['RANK']) if 'RANK' in os.environ else -1
+
+    # Set image size
+    if opt.img_size == -1:
+        opt.img_size = [basemodel_dict['imgsz'], basemodel_dict['imgsz']]
+    else:
+        if isinstance(opt.img_size, int):
+            opt.img_size = [opt.img_size, opt.img_size]
+        elif isinstance(opt.img_size, list):
+            pass
+        else:
+            logger.warning(f"Unexpected argument type for img_size: {type(opt.img_size)}")
+            opt.img_size = [640, 640]
+        basemodel_dict['imgsz'] = opt.img_size[0] # 파싱할 때 여기에 기재된 입력 해상도를 사용함
+        with open(basemodel_yaml_path, "w") as f:
+            yaml.safe_dump(basemodel_dict, f, sort_keys=False)
 
     # Set paths and configurations
     opt.project = str(PROJ_PATH)
     opt.data = str(dataset_yaml_path)
     opt.cfg = str(basemodel_yaml_path)
     opt.hyp = str(hyp_yaml_path)
-    opt.img_size = [basemodel_dict['imgsz'], basemodel_dict['imgsz']]
 
     # Update status
     opt_content = vars(opt)
@@ -464,14 +470,13 @@ def base_model_select(userid, project_id, proj_info, data, manual_select=False):
     else:
         logger.warning(f"\nBMS: Not supported task: {task}")
 
-    # Special case for Galaxy S22
-    if target == 'galaxys22':
-        if task == 'detection':
-            task_ = 'detection7'
-            model_size = 'NAS'
-        else: # taks == 'classification'
-            task_ = 'classification-v'
-            model_size = 'M' # = vgg16
+    # Special case for Galaxy S22 + Detection / Rasberry Pi5 + Classification
+    if target == 'galaxys22' and task == 'detection':
+        task_ = 'detection7'
+        model_size = 'NAS'
+    elif target == 'rasberrypi5' and task == 'classification':
+        task_ = 'classification-v'
+        model_size = 'M' # = vgg16
 
     # Look up appropriate model
     if not manual_select:
@@ -502,14 +507,9 @@ def base_model_select(userid, project_id, proj_info, data, manual_select=False):
         viewer.parse_yaml(target_path, data)
         viewer.update()
 
-    # Save internally
-    info = Info.objects.get(userid=userid, project_id=project_id)
-    info.model_type = model
-    info.model_size = size
-    info.status = "running"
-    info.progress = "bms"
-    info.model_viz = "ready"
-    info.save()
+    # ORM update (3/4)
+    safe_update_info(userid, project_id,
+            model_type=model, model_size=size, progress="bms", model_viz="ready")
 
     # Prepare return values
     model_p = model.upper()
@@ -658,7 +658,50 @@ def run_autonn(userid, project_id, resume=False, viz2code=False, nas=False, hpo=
     #         logger.warn(f'{prefix}Fail to load tensorbord because {e}')
 
     # Train model
-    results, train_final = train(proj_info, hyp, opt, data, tb_writer)
+    already_ddp = "WORLD_SIZE" in os.environ
+    ddp =  (torch.cuda.is_available() and torch.cuda.device_count() > 1) and not already_ddp
+    nproc = torch.cuda.device_count() if ddp else 1
+    env = os.environ.copy()
+    if ddp:
+        env["AUTONN_ALLOW_ORM"] = "1"
+        import tempfile, json
+        cfg = {
+            "proj_info": proj_info,
+            "hyp": hyp,
+            "opt": vars(opt) if hasattr(opt, "__dict__") else opt,
+            "data_dict": data,
+        }
+        
+        fd_cfg, cfg_path = tempfile.mkstemp(prefix=f"train_cfg_", suffix=".json")
+        os.close(fd_cfg)
+        with open(cfg_path, "w", encoding="utf-8") as f:
+            json.dump(cfg, f, ensure_ascii=False, indent=2)
+        
+        fd_res, res_path = tempfile.mkstemp(prefix="train_result_", suffix=".json")
+        os.close(fd_res)
+        with open(res_path, "w", encoding="utf-8") as f:
+            json.dump({}, f)
+        
+        env["TRAIN_CONFIG"] = cfg_path
+        env["RESULT_PATH"] = res_path
+        
+        MODULE = "tango.main.train"
+        cmd = [
+            shutil.which("torchrun") or "torchrun",
+            f"--nproc_per_node={nproc}",
+            "-m", MODULE
+        ]
+        subprocess.run(cmd, check=True, env=env, cwd=str(CORE_DIR))
+    
+        with open(res_path, "r", encoding="utf-8") as f:
+            payload = json.load(f)
+        results = payload.get("results")
+        train_final = payload.get("train_final")
+
+        os.remove(cfg_path)
+        os.remove(res_path)
+    else:
+        results, train_final = train(proj_info, hyp, opt, data, tb_writer)
 
     # Log training results
     best_acc = results[3] if task == 'detection' else results[0]
@@ -704,21 +747,6 @@ def run_autonn(userid, project_id, resume=False, viz2code=False, nas=False, hpo=
         else:
             logger.info(f'\n{colorstr("Incremental: ")}Training complete and got a better model')
 
-    # Convert Model ------------------------------------------------------------
-    # Dual or Triple heads for training -> Single head for inference
-    # Reparameterization process
-    #     (1) Load model configuration(e.g. yolov9-s-converted.yaml) with single head [model]
-    #     (2) Load model weights(e.g. best.pt) with daul/triple heads from training result [ckpt]
-    #     (3) Cherry-pick weight params from [ckpt] to [model] using dedeicated indices
-    #     (4) Other params in [model] like epoch, training_results, etc set to None
-    #     (4) Save [model] (e.g. best_converted.pt)
-    # --------------------------------------------------------------------------
-
-    # Convert YOLOv9 model for inference
-    if 'yolov9' in basemodel['name']:
-        inf_cfg = str(CFG_PATH / 'yolov9' / f"{basemodel['name']}-converted.yaml")
-        train_final = convert_yolov9(train_final, inf_cfg)
-
     # Model Export -------------------------------------------------------------
     # cloud           : pytorch (torchscript, onnx)
     # k8s             : pytorch (torchscript, onnx)
@@ -741,7 +769,7 @@ def run_autonn(userid, project_id, resume=False, viz2code=False, nas=False, hpo=
     # 5. reset attribute 'epoch' to -1
     # 6. convert model to FP16 precision (not anymore by tenace)
     # 7. set [model].[parameters].requires_grad = False
-    # 8. save model to original file path
+    # 8. save model to target file path(e.g. best_stripped.pt)
     # --------------------------------------------------------------------------
 
     # Check if trained model exists
@@ -749,41 +777,61 @@ def run_autonn(userid, project_id, resume=False, viz2code=False, nas=False, hpo=
         logger.warning(f'\n{colorstr("Model Exporter: ")}Training complete but no trained weights')
         return
 
-    # Strip optimizer and save model
-    stripped_train_final = COMMON_ROOT / userid / project_id / 'bestmodel.pt'
-    # shutil.copyfile(str(train_final), str(stripped_train_final))
-    strip_optimizer(
-        f=train_final,
-        s=stripped_train_final,
-        prefix=colorstr("Model Exporter: ")
-    )  # strip optimizers
+    # Strip optimizer, ema, etc.
+    stripped_train_final = str(train_final).replace('.pt', '_stripped.pt')
+    if not Path(stripped_train_final).exists():
+        strip_optimizer(
+            f=train_final,
+            s=stripped_train_final,
+            prefix=colorstr("Model Exporter: ")
+        )
     train_final = stripped_train_final
 
-    # Fuse layers for inference efficiency
+    # Convert Model ------------------------------------------------------------
+    # Dual or Triple heads for training -> Single head for inference
+    # Reparameterization process
+    #     (1) Load model configuration(e.g. yolov9-s-converted.yaml) with single head [model]
+    #     (2) Load model weights(e.g. best.pt) with daul/triple heads from training result [ckpt]
+    #     (3) Cherry-pick weight params from [ckpt] to [model] using dedeicated indices
+    #     (4) Other params in [model] like epoch, training_results, etc set to None
+    #     (4) Save [model] (e.g. best_stripped_converted.pt)
+    # --------------------------------------------------------------------------
+
+    # Convert YOLOv9 model for inference
+    if 'yolov9' in basemodel['name']:
+        inf_cfg = str(CFG_PATH / 'yolov9' / f"{basemodel['name']}-converted.yaml")
+        train_final = convert_yolov9(train_final, inf_cfg)
+
+    # Fuse layers for inference efficiency -------------------------------------
     # [tenace's note] we need to save fused model to file as final inference model
     # 1. conv+bn combination to conv with bias
     # 2. implicit+conv to conv with bias
-    fuse_layers(train_final, prefix=colorstr("Model Exporter: "))
+    # --------------------------------------------------------------------------
+    final_out = COMMON_ROOT / userid / project_id / 'bestmodel.pt'
+    shutil.copyfile(train_final, final_out)
+    fuse_layers(final_out, prefix=colorstr("Model Exporter: "))
 
     # Save training configuration
     opt.best_acc = float(best_acc)  # numpy.float64 to float
-    opt.weights = str(train_final)
+    opt.weights = str(final_out)
 
     with open(Path(opt.save_dir) / 'opt.yaml', 'w') as f:
         yaml.dump(vars(opt), f, sort_keys=False)
 
-    # Update internal status
-    info = Info.objects.get(userid=userid, project_id=project_id)
-    info.status = "running"
-    info.progress = "model export"
-    info.best_acc = opt.best_acc
-    info.best_net = str(train_final)
-    info.save()
+    # ORM update (4/4)
+    safe_update_info(userid, project_id,
+        status="running", progress="model_export",
+        best_acc=opt.best_acc, best_net=str(final_out),
+    )
 
     # Export model for target device
-    export_model(userid, project_id, train_final, opt, data, basemodel, 
+    export_model(userid, project_id, final_out, opt, data, basemodel, 
                  target, target_acc, target_engine, task, results)
 
+    # Wait until 'stop' signal
+    import time
+    while True:
+        time.sleep(2)
 
 def export_model(userid, project_id, train_final, opt, data, basemodel, 
                 target, target_acc, target_engine, task, results):
