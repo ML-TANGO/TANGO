@@ -61,7 +61,7 @@ def pth_list(request):
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
 # 돌아가는 중으로 간주할 상태들(원하는 대로 조정)
-ACTIVE_STATUSES = ["started", "running", "resumed"]
+ACTIVE_STATUSES = ["started", "running", "resumed", "failed"]
 
 @api_view(['GET'])
 def active_info(request):
