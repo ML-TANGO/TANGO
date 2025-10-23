@@ -1,47 +1,119 @@
-import logging
-logger = logging.getLogger(__name__)
+"""
+=========================================================
+ TANGO Model Export Utility (export.py)
+=========================================================
 
-import contextlib
+This module provides three main APIs for model deployment:
+
+1. export — Export a trained model to deployment formats
+---------------------------------------------------------
+Convert a .pt checkpoint into one or more formats
+(TorchScript, ONNX, TensorRT, TFLite, etc.)
+
+Example (CLI):
+    cd /source/autonn_core
+    python -m tango.main.export export \
+        --weights runs/train/exp/weights/best.pt \
+        --include torchscript,onnx \
+        --device cuda \
+        --task detection \
+        --half
+
+Example (Python):
+    from export import export_weight
+    export_weight(
+        weights="runs/train/exp/weights/best.pt",
+        include=["torchscript", "onnx"],
+        device="cuda",
+        task="detection",
+        half=True,
+    )
+
+
+2. config — Generate model metadata YAML
+-----------------------------------------
+Create a CodeGen-compatible YAML file describing model
+inputs, outputs, and deployment parameters.
+
+Example (CLI):
+    cd /source/autonn_core
+    python -m tango.main.export  config \
+        --src best.pt \
+        --dst bestmodel.yaml \
+        --data data/coco128.yaml \
+        --base cfg/basemodel.yaml \
+        --device cuda \
+        --engine onnx
+
+Example (Python):
+    from export import export_config
+    import yaml
+    with open("data/coco128.yaml") as f: data = yaml.safe_load(f)
+    with open("cfg/basemodel.yaml") as f: base = yaml.safe_load(f)
+    export_config("best.pt", "bestmodel.yaml", data, base, "cuda", "onnx")
+
+
+3. convert — Convert YOLOv9 training checkpoint to inference
+-------------------------------------------------------------
+Reparameterize a YOLOv9 training checkpoint for deployment.
+
+Example (CLI):
+    cd /source/autonn_core
+    python -m tango.main.export  convert \
+        --weights yolov9-s.pt \
+        --cfg tango/common/cfg/yolov9/yolov9-s-converted.yaml
+
+Example (Python):
+    from export import convert_yolov9
+    convert_yolov9("yolov9-s.pt", "cfg/yolov9-s-converted.yaml")
+"""
+
+
+# ——— Standard library
+import logging
 import json
-import yaml
 import os
 import platform
 import re
 import subprocess
 import time
-from datetime import datetime
 import warnings
+from datetime import datetime
 from pathlib import Path
-COMMON_ROOT = Path("/shared/common")
-DATASET_ROOT = Path("/shared/datasets")
-CORE_DIR = Path(__file__).resolve().parent.parent.parent # /source/autonn_core
-CFG_PATH = CORE_DIR / 'tango' / 'common' / 'cfg'
-INF_PATH = CORE_DIR / 'tango' / 'inference'
+from typing import List, Optional
 
+# ——— Third-party
 import pandas as pd
 import torch
 from torch.utils.mobile_optimizer import optimize_for_mobile
+import yaml
 
-from tango.common.models.experimental import attempt_load, End2End
-from tango.common.models.yolo import    (   Detect,
-                                            DDetect,
-                                            DualDDetect,
-                                            IDetect,
-                                            IAuxDetect,
-                                            Model,
-                                            DetectionModel,
-                                        )
-# from tango.utils.dataloaders import LoadImages
-from tango.utils.general import (   check_dataset,
-                                    check_img_size,
-                                    check_requirements,
-                                    colorstr,
-                                )
-from tango.utils.torch_utils import select_device
+# ——— Local (project)
+from tango.common.models.experimental import End2End, attempt_load
+from tango.common.models.yolo import (
+    DDetect,
+    Detect,
+    DetectionModel,
+    DualDDetect,
+    IAuxDetect,
+    IDetect,
+)
+from tango.utils.general import (
+    check_img_size,
+    check_requirements,
+    colorstr,
+)
 
+# ——— Constants / paths
+COMMON_ROOT = Path("/shared/common")
+DATASET_ROOT = Path("/shared/datasets")
+CORE_DIR = Path(__file__).resolve().parent.parent.parent  # /source/autonn_core
+CFG_PATH = CORE_DIR / "tango" / "common" / "cfg"
+INF_PATH = CORE_DIR / "tango" / "inference"
 
+logger = logging.getLogger(__name__)
 
-
+# --- export helpers ---
 def export_formats():
     # YOLO export formats
     x = [
@@ -57,7 +129,6 @@ def export_formats():
             ['TensorFlow Edge TPU', 'edgetpu', '_edgetpu.tflite', False, False],
         ]
     return pd.DataFrame(x, columns=['Format', 'Argument', 'Suffix', 'CPU', 'GPU'])
-
 
 def export_torchscript(model, im, file, optimize, task='detection', prefix=colorstr('TorchScript:')):
     # YOLO TorchScript model export
@@ -80,7 +151,6 @@ def export_torchscript(model, im, file, optimize, task='detection', prefix=color
     except Exception as e:
         logger.warning(f'Model Exporter: {colorstr("TorchScript ")}export failure: {e}')
         return None, None
-
 
 def export_onnx(model, im, file, opset, dynamic, simplify, task='detection', prefix=colorstr('ONNX:')):
     import onnx
@@ -146,7 +216,6 @@ def export_onnx(model, im, file, opset, dynamic, simplify, task='detection', pre
     except Exception as e:
         logger.warning(f'Model Exporter: {colorstr("ONNX ")}export failure: {e}')
         return None, None
-
 
 def export_onnx_end2end(model,
                         im,
@@ -232,7 +301,6 @@ def export_onnx_end2end(model,
         logger.warning(f'Model Exporter: {colorstr("ONNX END2END ")}export failure: {e}')
         return None, None
 
-
 def export_openvino(file, metadata, half, prefix=colorstr('OpenVINO:')):
     # YOLO OpenVINO export
     check_requirements('openvino-dev')  # requires openvino-dev: https://pypi.org/project/openvino-dev/
@@ -246,9 +314,9 @@ def export_openvino(file, metadata, half, prefix=colorstr('OpenVINO:')):
     half_arg = "--compress_to_fp16" if half else ""
     cmd = f"mo --input_model {file.with_suffix('.onnx')} --output_dir {f} {half_arg}"
     subprocess.run(cmd.split(), check=True, env=os.environ)  # export
-    yaml_save(Path(f) / file.with_suffix('.yaml').name, metadata)  # add metadata.yaml
+    with open(Path(f) / file.with_suffix('.yaml').name, 'w') as yf:
+        yaml.safe_dump(metadata, yf, sort_keys=False)
     return f, None
-
 
 def export_tensorrt(model,
                     im,
@@ -261,7 +329,7 @@ def export_tensorrt(model,
                     prefix=colorstr('TensorRT:')):
     # YOLO TensorRT export https://developer.nvidia.com/tensorrt
     # assert im.device.type != 'cpu', 'export running on CPU but must be on GPU, i.e. `python export.py --device 0`'
-    onnx, _ = export_onnx(model, im, file, 12, dynamic, simplify)
+    onnx_path, _ = export_onnx(model, im, file, 12, dynamic, simplify)
 
     try:
         import tensorrt as trt
@@ -280,7 +348,7 @@ def export_tensorrt(model,
     # onnx = file.with_suffix('.onnx')
 
     logger.info(f'{prefix} starting export with TensorRT {trt.__version__}...')
-    assert onnx.exists(), f'failed to export ONNX file: {onnx}'
+    assert Path(onnx_path).exists(), f'failed to export ONNX file: {onnx_path}'
     try:
         f = file.with_suffix('.engine')  # TensorRT engine file
         logger_trt = trt.Logger(trt.Logger.INFO)
@@ -298,8 +366,8 @@ def export_tensorrt(model,
         flag = (1 << int(trt.NetworkDefinitionCreationFlag.EXPLICIT_BATCH))
         network = builder.create_network(flag)
         parser = trt.OnnxParser(network, logger_trt)
-        if not parser.parse_from_file(str(onnx)):
-            raise RuntimeError(f'failed to load ONNX file: {onnx}')
+        if not parser.parse_from_file(str(onnx_path)):
+            raise RuntimeError(f'failed to load ONNX file: {onnx_path}')
 
         inputs = [network.get_input(i) for i in range(network.num_inputs)]
         outputs = [network.get_output(i) for i in range(network.num_outputs)]
@@ -334,13 +402,13 @@ def export_tensorrt(model,
         logger.warn('TensorRT export failure: %s' % e)
         return None, None
 
-
 def export_tf(f_onnx, metadata, int8, imgsz, batch_size, stride=1, prefix=colorstr("TF Saved Model:")):
     # import tensorflow as tf
     import numpy as np
     import onnx2tf
     import shutil
 
+    keras_model = None
     try:
         logger.info(f"\nModel Exporter: {prefix} Starting export with onnx2tf {onnx2tf.__version__}...")
 
@@ -411,7 +479,6 @@ def export_tf(f_onnx, metadata, int8, imgsz, batch_size, stride=1, prefix=colors
         logger.info(f'Model Exporter: {prefix} export failure: {e}')
     return str(f), keras_model
 
-
 def export_tf_pb(keras_model, file, prefix=colorstr('TensorFlow GraphDef:')):
     # YOLO TensorFlow GraphDef *.pb export https://github.com/leimao/Frozen_Graph_TensorFlow
     import tensorflow as tf
@@ -431,11 +498,12 @@ def export_tf_pb(keras_model, file, prefix=colorstr('TensorFlow GraphDef:')):
         logger.info(f'Model Exporter: {prefix} export failure: {e}')
     return f, None
 
-
 def export_tflite(file, half, prefix=colorstr("TensorFlow Lite:")):
     import tensorflow as tf
     import shutil
     logger.info(f'\nModel Exporter: {prefix} Starting export with tensorflow {tf.__version__}...')
+
+    f_tflite = file.with_suffix('.tflite')
     try:
         saved_model = Path(str(file).replace(file.suffix, "_saved_model"))
         if half:
@@ -444,16 +512,16 @@ def export_tflite(file, half, prefix=colorstr("TensorFlow Lite:")):
             f = saved_model / f"{file.stem}_float32.tflite"     # fp32 weights, fp32 in/out
         # f = saved_model / f"{file.stem}_drq_int8.tflite"    # dynamic range quantization: int8 weigths, fp32 in/out
         # f = saved_model / f"{file.stem}_fiq_int8.tflite"    # full integer quantization: int8 weights, int8 in/out
-        f_tflite = file.with_suffix('.tflite')
+        # f_tflite = file.with_suffix('.tflite')
         shutil.copyfile(str(f), f_tflite)
         logger.info(f'Model Exporter: {prefix} export success, {str(f)} is saved as {f_tflite}')
     except Exception as e:
         logger.warning(f'Model Exporter: {prefix} export failure: {e}')
     return f_tflite, None
 
-
 def export_edgetpu(tflite_model, prefix=colorstr('Edge TPU:')):
     # YOLO Edge TPU export https://coral.ai/docs/edgetpu/models-intro/
+    f_tpu = str(tflite_model).replace(".tflite", "_edgetpu.tflite")  # Edge TPU model
     try:
         cmd = 'edgetpu_compiler --version'
         help_url = 'https://coral.ai/docs/edgetpu/compiler/'
@@ -472,7 +540,7 @@ def export_edgetpu(tflite_model, prefix=colorstr('Edge TPU:')):
         ver = subprocess.run(cmd, shell=True, capture_output=True, check=True).stdout.decode().split()[-1]
 
         logger.info(f'\nModel Exporter: {prefix} starting export with Edge TPU compiler {ver}...')
-        f_tpu = str(tflite_model).replace(".tflite", "_edgetpu.tflite")  # Edge TPU model
+        # f_tpu = str(tflite_model).replace(".tflite", "_edgetpu.tflite")  # Edge TPU model
 
         cmd = (
             "edgetpu_compiler "
@@ -488,7 +556,6 @@ def export_edgetpu(tflite_model, prefix=colorstr('Edge TPU:')):
     except Exception as e:
         logger.info(f'Model Exporter: {prefix} export failure: {e}')
     return str(f_tpu), None
-
 
 def add_tflite_metadata(file, meta):
     # Add metadata to *.tflite models per https://www.tensorflow.org/lite/models/convert/metadata
@@ -552,7 +619,6 @@ def add_tflite_metadata(file, meta):
     except Exception as e:
         logger.warning(f'Model Exporter: {colorstr("TF Lite: ")}exception metadata {e}')
 
-
 def get_int8_calibration_dataloader(data, imgsz, batch, gs, prefix=colorstr("ONNX-to-TF:")):
     """Build and return a dataloader suitable for calibration of INT8 models."""
     from tango.utils.datasets import create_rep_dataloader
@@ -566,134 +632,245 @@ def get_int8_calibration_dataloader(data, imgsz, batch, gs, prefix=colorstr("ONN
     return dataloader
 
 
-def export_config(src, dst, data, base, device, engine, task='detection'):
-    logger.info(f'\n{colorstr("Model Exporter: ")}Creating meta data...')
-    nn_dict = {}
-
-    # NN Model
-    config = ''
-    if task == 'classification':
-        weight = 'bestmodel.pt' # 'bestmodel.torchscript', 'bestmodel.onnx'
-    else: # if task == 'detection'
-        weight = [
-            'bestmodel.pt', 
-            'bestmodel.torchscript', 
-            'bestmodel.onnx'
-        ]
-        if engine == 'tensorrt':
-            weight.append('bestmodel_end2end.onnx')
-        elif engine == 'tflite':
-            tfmodels = ['bestmodel.pb', 'bestmodel.tflite']
-            weight.extend(tfmodels)
-            if device == 'tpu':
-                weight.append('bestmodel_edgetpu.tflite')
-    nn_dict['weight_file'] = weight
-    nn_dict['config_file'] = config # not neccessary
-
-    # Label
-    nc = data.get('nc')
-    ch = data.get('ch', 3) # need to check (ChestXRay: ch=1)
-    names = data.get('names')
-    if not nc and names:
-        nc = len(names)
-    if not names and nc:
-        names = list(range(nc)) # default name: [0, 1, ..., nc-1]
-    nn_dict['nc'] = nc
-    nn_dict['names'] = names
-
-    # Input
-    imgsz = base.get('imgsz', 640) # need to check (ChestXRay: imgsz=256)
-    input_tensor_shape = [1, ch, imgsz, imgsz]
-    # device = select_device(device)
-    device = torch.device('cuda:0' if device == 'cuda' else 'cpu')
-    if device.type == 'cpu':
-        input_data_type = 'fp32'
-    else:
-        input_data_type = 'fp16'
-    anchors = base.get('anchors', None)
-    if (not anchors or anchors == 'None') and task == 'detection':
-        # logger.warn(f'Model Exporter: not found anchor imformation')
-        logger.info(f'{colorstr("Model Exporter: ")}Anchor-free detection heads')
-
-    nn_dict['input_tensor_shape'] = input_tensor_shape
-    nn_dict['input_data_type'] = input_data_type
-    nn_dict['anchors'] = anchors
-
-    # Output
-    if task == 'detection':
-        output_number = 3
-        stride = [8, 16, 32]
-        need_nms = True
-        conf_thres = 0.25
-        iou_thres = 0.45
-        total_pred_num = 0
-        if anchors and (anchors != 'None'): # v7 (num of anchors = 3)
-            total_pred_num = sum([3*(imgsz/stride[i])**2 for i in range(output_number)])
-            output_size = [
-                [1, ch, imgsz/stride[0], imgsz/stride[0], 5+nc],
-                [1, ch, imgsz/stride[1], imgsz/stride[1], 5+nc],
-                [1, ch, imgsz/stride[2], imgsz/stride[2], 5+nc]
-            ]
-        else: # v9 (no anchors)
-            total_pred_num = sum([(imgsz/stride[i])**2 for i in range(output_number)])
-            output_size = [
-                [1, 4+nc, int(total_pred_num)], # <= for training
-                [1, 4+nc, int(total_pred_num)]  # <= for prediction
-            ]
-    elif task == 'classification':
-        output_number = 1
-        output_size = [1, nc]
-
-    nn_dict['output_number'] = output_number
-    nn_dict['output_size'] = output_size
-
-    if task == 'detection':
-        nn_dict['stride'] = stride
-        nn_dict['need_nms'] = need_nms
-        nn_dict['conf_thres'] = conf_thres
-        nn_dict['iou_thres'] = iou_thres
-
-    # for backward compatibility
-    nn_dict['base_dir_autonn'] = 'autonn_core/tango'
-    nn_dict['class_file'] = ['common/models/yolo.py',
-                             'common/models/common.py',
-                             'common/models/experimental.py',
-                             'common/models/dynamic_op.py',
-                             'common/models/resnet_cifar10.py',
-                             'common/models/search_block.py',
-                             'common/models/supernet_yolov7.py',
-                             'common/models/my_modules.py',
-                            ]
-    if task == 'detection':
-        nn_dict['class_name'] = "Model(cfg='basemodel.yaml')"
-    elif task == 'classification':
-        nn_dict['class_name'] = "ClassifyModel(cfg='basemodel.yaml')"
-    # nn_dict['label_info_file'] = None
-    # nn_dict['vision_lib'] = None
-    # nn_dict['norm'] = None
-    # nn_dict['mean'] = None
-    # nn_dict['output_format_allow_list'] = None
-
-    if task == 'detection':
-        if anchors and (anchors != 'None'):
-            nn_dict['output_pred_format'] = ['x', 'y', 'w', 'h', 'confidence', 'probability_of_classes']
+# --- conversion helpers ---
+def convert_small_model(model, ckpt):
+    idx, cnt = 0, 0
+    max = len(model.state_dict().items())
+    for k, v in model.state_dict().items():
+        if "model.{}.".format(idx) in k:
+            if idx < 22:
+                kr = k.replace("model.{}.".format(idx), "model.{}.".format(idx))
+                model.state_dict()[k] -= model.state_dict()[k]
+                model.state_dict()[k] += ckpt['model'].state_dict()[kr]
+                logger.debug(f"{k}: perfectly matched!!")
+            elif "model.{}.cv2.".format(idx) in k:
+                kr = k.replace("model.{}.cv2.".format(idx), "model.{}.cv4.".format(idx+7))
+                model.state_dict()[k] -= model.state_dict()[k]
+                model.state_dict()[k] += ckpt['model'].state_dict()[kr]
+                logger.debug(f"{k}: perfectly matched!!")
+            elif "model.{}.cv3.".format(idx) in k:
+                kr = k.replace("model.{}.cv3.".format(idx), "model.{}.cv5.".format(idx+7))
+                model.state_dict()[k] -= model.state_dict()[k]
+                model.state_dict()[k] += ckpt['model'].state_dict()[kr]
+                logger.debug(f"{k}: perfectly matched!!")
+            elif "model.{}.dfl.".format(idx) in k:
+                kr = k.replace("model.{}.dfl.".format(idx), "model.{}.dfl2.".format(idx+7))
+                model.state_dict()[k] -= model.state_dict()[k]
+                model.state_dict()[k] += ckpt['model'].state_dict()[kr]
+                logger.debug(f"{k}: perfectly matched!!")
         else:
-            nn_dict['output_pred_format'] = ['x', 'y', 'w', 'h', 'probability_of_classes']
+            while True:
+                idx += 1
+                ten_percent_cnt = int((cnt+1)/max*10+0.5)
+                bar = '|'+ '🟩'*ten_percent_cnt + ' '*(20-ten_percent_cnt*2)+'|'
+                s = f'model.{idx:2.0f} weights transferring...'
+                s += (f'{bar} {(cnt+1)/max*100:3.0f}% {cnt+1:6.0f}/{max:6.0f}')
+                logger.info(s)
+                if "model.{}.".format(idx) in k:
+                    break
+            if idx < 22:
+                kr = k.replace("model.{}.".format(idx), "model.{}.".format(idx))
+                model.state_dict()[k] -= model.state_dict()[k]
+                model.state_dict()[k] += ckpt['model'].state_dict()[kr]
+                logger.debug(f"{k}: perfectly matched!!")
+            elif "model.{}.cv2.".format(idx) in k:
+                kr = k.replace("model.{}.cv2.".format(idx), "model.{}.cv4.".format(idx+7))
+                model.state_dict()[k] -= model.state_dict()[k]
+                model.state_dict()[k] += ckpt['model'].state_dict()[kr]
+                logger.debug(f"{k}: perfectly matched!!")
+            elif "model.{}.cv3.".format(idx) in k:
+                kr = k.replace("model.{}.cv3.".format(idx), "model.{}.cv5.".format(idx+7))
+                model.state_dict()[k] -= model.state_dict()[k]
+                model.state_dict()[k] += ckpt['model'].state_dict()[kr]
+                logger.debug(f"{k}: perfectly matched!!")
+            elif "model.{}.dfl.".format(idx) in k:
+                kr = k.replace("model.{}.dfl.".format(idx), "model.{}.dfl2.".format(idx+7))
+                model.state_dict()[k] -= model.state_dict()[k]
+                model.state_dict()[k] += ckpt['model'].state_dict()[kr]
+                logger.debug(f"{k}: perfectly matched!!")
+        cnt += 1
+    _ = model.eval()
+    return model
 
-    with open(dst, 'w') as f:
-        yaml.dump(nn_dict, f, default_flow_style=False)
+def convert_medium_model(model, ckpt):
+    idx, cnt = 0, 0
+    max = len(model.state_dict().items())
+    for k, v in model.state_dict().items():
+        if "model.{}.".format(idx) in k:
+            if idx < 22:
+                kr = k.replace("model.{}.".format(idx), "model.{}.".format(idx+1))
+                model.state_dict()[k] -= model.state_dict()[k]
+                model.state_dict()[k] += ckpt['model'].state_dict()[kr]
+                logger.debug(f"{k}: perfectly matched!!")
+            elif "model.{}.cv2.".format(idx) in k:
+                kr = k.replace("model.{}.cv2.".format(idx), "model.{}.cv4.".format(idx+16))
+                model.state_dict()[k] -= model.state_dict()[k]
+                model.state_dict()[k] += ckpt['model'].state_dict()[kr]
+                logger.debug(f"{k}: perfectly matched!!")
+            elif "model.{}.cv3.".format(idx) in k:
+                kr = k.replace("model.{}.cv3.".format(idx), "model.{}.cv5.".format(idx+16))
+                model.state_dict()[k] -= model.state_dict()[k]
+                model.state_dict()[k] += ckpt['model'].state_dict()[kr]
+                logger.debug(f"{k}: perfectly matched!!")
+            elif "model.{}.dfl.".format(idx) in k:
+                kr = k.replace("model.{}.dfl.".format(idx), "model.{}.dfl2.".format(idx+16))
+                model.state_dict()[k] -= model.state_dict()[k]
+                model.state_dict()[k] += ckpt['model'].state_dict()[kr]
+                logger.debug(f"{k}: perfectly matched!!")
+        else:
+            while True:
+                idx += 1
+                ten_percent_cnt = int((cnt+1)/max*10+0.5)
+                bar = '|'+ '🟩'*ten_percent_cnt + ' '*(20-ten_percent_cnt*2)+'|'
+                s = f'model.{idx:2.0f} weights transferring...'
+                s += (f'{bar} {(cnt+1)/max*100:3.0f}% {cnt+1:6.0f}/{max:6.0f}')
+                logger.debug(s)
+                if "model.{}.".format(idx) in k:
+                    break
+            if idx < 22:
+                kr = k.replace("model.{}.".format(idx), "model.{}.".format(idx+1))
+                model.state_dict()[k] -= model.state_dict()[k]
+                model.state_dict()[k] += ckpt['model'].state_dict()[kr]
+                logger.debug(f"{k}: perfectly matched!!")
+            elif "model.{}.cv2.".format(idx) in k:
+                kr = k.replace("model.{}.cv2.".format(idx), "model.{}.cv4.".format(idx+16))
+                model.state_dict()[k] -= model.state_dict()[k]
+                model.state_dict()[k] += ckpt['model'].state_dict()[kr]
+                logger.debug(f"{k}: perfectly matched!!")
+            elif "model.{}.cv3.".format(idx) in k:
+                kr = k.replace("model.{}.cv3.".format(idx), "model.{}.cv5.".format(idx+16))
+                model.state_dict()[k] -= model.state_dict()[k]
+                model.state_dict()[k] += ckpt['model'].state_dict()[kr]
+                logger.debug(f"{k}: perfectly matched!!")
+            elif "model.{}.dfl.".format(idx) in k:
+                kr = k.replace("model.{}.dfl.".format(idx), "model.{}.dfl2.".format(idx+16))
+                model.state_dict()[k] -= model.state_dict()[k]
+                model.state_dict()[k] += ckpt['model'].state_dict()[kr]
+                logger.debug(f"{k}: perfectly matched!!")
+        cnt += 1
+    _ = model.eval()
+    return model
 
-    # import pprint
-    # print('-'*100)
-    # pprint.pprint(nn_dict)
-    # print('-'*100)
+def convert_large_model(model, ckpt):
+    idx, cnt = 0, 0
+    max = len(model.state_dict().items())
+    for k, v in model.state_dict().items():
+        if "model.{}.".format(idx) in k:
+            if idx < 29:
+                kr = k.replace("model.{}.".format(idx), "model.{}.".format(idx))
+                model.state_dict()[k] -= model.state_dict()[k]
+                model.state_dict()[k] += ckpt['model'].state_dict()[kr]
+                logger.debug(f"{k}: perfectly matched!!")
+            elif idx < 42:
+                kr = k.replace("model.{}.".format(idx), "model.{}.".format(idx+7))
+                model.state_dict()[k] -= model.state_dict()[k]
+                model.state_dict()[k] += ckpt['model'].state_dict()[kr]
+                logger.debug(f"{k}: perfectly matched!!")
+            elif "model.{}.cv2.".format(idx) in k:
+                kr = k.replace("model.{}.cv2.".format(idx), "model.{}.cv4.".format(idx+7))
+                model.state_dict()[k] -= model.state_dict()[k]
+                model.state_dict()[k] += ckpt['model'].state_dict()[kr]
+                logger.debug(f"{k}: perfectly matched!!")
+            elif "model.{}.cv3.".format(idx) in k:
+                kr = k.replace("model.{}.cv3.".format(idx), "model.{}.cv5.".format(idx+7))
+                model.state_dict()[k] -= model.state_dict()[k]
+                model.state_dict()[k] += ckpt['model'].state_dict()[kr]
+                logger.debug(f"{k}: perfectly matched!!")
+            elif "model.{}.dfl.".format(idx) in k:
+                kr = k.replace("model.{}.dfl.".format(idx), "model.{}.dfl2.".format(idx+7))
+                model.state_dict()[k] -= model.state_dict()[k]
+                model.state_dict()[k] += ckpt['model'].state_dict()[kr]
+                logger.debug(f"{k}: perfectly matched!!")
+        else:
+            while True:
+                idx += 1
+                ten_percent_cnt = int((cnt+1)/max*10+0.5)
+                bar = '|'+ '🟩'*ten_percent_cnt + ' '*(20-ten_percent_cnt*2)+'|'
+                s = f'model.{idx:2.0f} weights transferring...'
+                s += (f'{bar} {(cnt+1)/max*100:3.0f}% {cnt+1:6.0f}/{max:6.0f}')
+                logger.info(s)
+                if "model.{}.".format(idx) in k:
+                    break
+            if idx < 29:
+                kr = k.replace("model.{}.".format(idx), "model.{}.".format(idx))
+                model.state_dict()[k] -= model.state_dict()[k]
+                model.state_dict()[k] += ckpt['model'].state_dict()[kr]
+                logger.debug(f"{k}: perfectly matched!!")
+            elif idx < 42:
+                kr = k.replace("model.{}.".format(idx), "model.{}.".format(idx+7))
+                model.state_dict()[k] -= model.state_dict()[k]
+                model.state_dict()[k] += ckpt['model'].state_dict()[kr]
+                logger.debug(f"{k}: perfectly matched!!")
+            elif "model.{}.cv2.".format(idx) in k:
+                kr = k.replace("model.{}.cv2.".format(idx), "model.{}.cv4.".format(idx+7))
+                model.state_dict()[k] -= model.state_dict()[k]
+                model.state_dict()[k] += ckpt['model'].state_dict()[kr]
+                logger.debug(f"{k}: perfectly matched!!")
+            elif "model.{}.cv3.".format(idx) in k:
+                kr = k.replace("model.{}.cv3.".format(idx), "model.{}.cv5.".format(idx+7))
+                model.state_dict()[k] -= model.state_dict()[k]
+                model.state_dict()[k] += ckpt['model'].state_dict()[kr]
+                logger.debug(f"{k}: perfectly matched!!")
+            elif "model.{}.dfl.".format(idx) in k:
+                kr = k.replace("model.{}.dfl.".format(idx), "model.{}.dfl2.".format(idx+7))
+                model.state_dict()[k] -= model.state_dict()[k]
+                model.state_dict()[k] += ckpt['model'].state_dict()[kr]
+                logger.debug(f"{k}: perfectly matched!!")
+        cnt += 1
+    _ = model.eval()
+    return model
 
-    logger.info(f'{colorstr("Model Exporter: ")}NN meta information export success, saved as {dst}')
-    logger.info('-'*100)
 
+def export_weight(
+    weights: str,
+    device: str = "cuda",
+    include: Optional[List[str]] = None,
+    task: str ='detection',
+    ch: int = 3,
+    imgsz: Optional[List[int]] = None,
+    *,
+    half: bool = True,
+    int8: bool = False,
+    dynamic: bool = False,
+    simplify: bool = True,
+    opset: int = 12,
+    workspace: float = 4.0,
+    verbose: bool = False,
+    topk_all: int = 100,
+    iou_thres: float = 0.45,
+    conf_thres: float = 0.25,
+) -> List[str]:
+    """
+    Export a trained TANGO model to one or more deployment formats.
 
-def export_weight(weights, device, include, task='detection', ch=3, imgsz=[640,640]):
+    Args:
+        weights (str): Path to the .pt checkpoint file.
+        device (str): 'cuda' or 'cpu'. Determines whether GPU acceleration is used.
+        include (list[str]): List of export targets (e.g. ['torchscript', 'onnx', 'engine']).
+        task (str): 'detection' or 'classification'.
+        ch (int): Input channel count. Defaults to 3 (RGB).
+        imgsz (list[int]): Input image size [H, W].
+        half (bool): Use FP16 precision when supported (GPU only).
+        int8 (bool): Use INT8 quantization (for TFLite/EdgeTPU).
+        dynamic (bool): Enable dynamic input shapes (ONNX/TRT only).
+        simplify (bool): Apply ONNX graph simplification.
+        opset (int): ONNX opset version.
+        workspace (float): TensorRT max workspace memory size in GB.
+        verbose (bool): Enable detailed logs for TensorRT export.
+        topk_all (int): Number of top detections to keep in end-to-end ONNX export.
+        iou_thres (float): IoU threshold for end-to-end ONNX NMS.
+        conf_thres (float): Confidence threshold for end-to-end ONNX NMS.
+
+    Returns:
+        list[str]: Paths to successfully exported model files.
+    """
     t = time.time()
+
+    if include is None:
+        include = ["torchscript", "onnx"]
+    if imgsz is None:
+        imgsz = [640, 640]
+
     fmts = tuple(export_formats()['Argument'][1:])
     flags = [x in include for x in fmts]
     assert sum(flags) == len(include), f'ERROR: Invalid --include {include}, valid --include arguments are {fmts}'
@@ -701,22 +878,11 @@ def export_weight(weights, device, include, task='detection', ch=3, imgsz=[640,6
     file = Path(weights)
 
     # options ----------------------------------------------------------------------------------------------------------
-    # imgsz = [640, 640]  # input image size
-    batch_size = 1      # inference batch size
-    inplace = True      # Detect(): set to compute tensors w/o copy
-    half = True         # FP16 quantization / GPU only
-    int8 = False        # TF: INT8 quantization
-    dynamic = False     # ONNX/TF/TensorRT: dynamic input sizes
-    simplify = True     # ONNX/ONNX-E2E/TensorRT: simplifies the graph for onnx (TensorRT requires ONNX first)
-    opset = 12          # ONNX: operator-set version
-    workspace = 4.0     # TensorRT: max space size(GB) for tensorrt
-    verbose = False     # TensorRT: detail logging for tensorrt
-    nms = False         # TF: add nms
-    agnostic_nms = True # TF: add nms to tensorflow
-    optimize = False    # TorchScript: mobile optimization / CPU only
-    topk_all = 100      # ONNX-E2E: nms -  top-k for all classes to keep
-    iou_thres = 0.45    # ONNX-E2E: nms -  iou threshold
-    conf_thres = 0.25   # ONNX-E2E: nms -  confidence threshold
+    batch_size = 1        # inference batch size
+    inplace = True        # Detect(): set to compute tensors w/o copy
+    # nms = False         # TF: add nms
+    # agnostic_nms = True # TF: add nms to tensorflow
+    optimize = False      # TorchScript: mobile optimization / CPU only
     #-------------------------------------------------------------------------------------------------------------------
 
     # Load PyTorch model
@@ -748,6 +914,7 @@ def export_weight(weights, device, include, task='detection', ch=3, imgsz=[640,6
         imgsz = [check_img_size(x, gs) for x in imgsz]  # verify img_size are gs-multiples
         im = torch.zeros(batch_size, ch, *imgsz).to(device)  # image size(1,3,320,192) BCHW iDetection
     elif task == 'classification':
+        gs = 32 # only to avoid exception
         im = torch.zeros(batch_size, ch, *imgsz).to(device)
 
 
@@ -787,7 +954,7 @@ def export_weight(weights, device, include, task='detection', ch=3, imgsz=[640,6
         --------------------------------------------------------------------------------------------
         | v9 head       | export | type(y) |             y                                         |
         --------------------------------------------------------------------------------------------
-        | DualDDetect   |   T    |  tensor |  (aux-output ⨁ pred-output)*                          |
+        | DualDDetect   |   T    |  tensor |  (aux-output ⨁ pred-output)*                         |
         |               |   F    |  tuple  | ([aux-output, pred-output*], [aux-train, pred-train]) |
         --------------------------------------------------------------------------------------------
         | DDetect       |   T    |  tensor |     pred-output*                                      |
@@ -914,201 +1081,176 @@ def export_weight(weights, device, include, task='detection', ch=3, imgsz=[640,6
     return f  # return list of exported files/dirs
 
 
+def export_config(
+    src: str,
+    dst: str,
+    data: dict,
+    base: dict,
+    device: str,
+    engine: str,
+    task: str = "detection",
+) -> None:
+    """
+    Generate a metadata YAML file describing model inputs/outputs and export artifacts for CodeGen.
 
+    This function consolidates model information (architecture, labels, anchors, I/O tensor shapes)
+    into a structured YAML configuration file used by the CodeGen module or downstream deployment pipelines.
 
+    Args:
+        src (str): Path to the source model file (.pt or converted artifact).
+        dst (str): Output path for the generated YAML metadata file.
+        data (dict): Dataset configuration dictionary (typically loaded from dataset.yaml).
+        base (dict): Base model configuration dictionary (e.g., from basemodel.yaml).
+        device (str): Target device type, 'cuda' or 'cpu'.
+        engine (str): Target inference engine, e.g. 'onnx', 'tensorrt', or 'tflite'.
+        task (str, optional): Model task type, 'detection' (default) or 'classification'.
 
+    Returns:
+        None
+    """
+    logger.info(f'\n{colorstr("Model Exporter: ")}Creating meta data...')
+    nn_dict = {}
 
-def convert_small_model(model, ckpt):
-    idx, cnt = 0, 0
-    max = len(model.state_dict().items())
-    for k, v in model.state_dict().items():
-        if "model.{}.".format(idx) in k:
-            if idx < 22:
-                kr = k.replace("model.{}.".format(idx), "model.{}.".format(idx))
-                model.state_dict()[k] -= model.state_dict()[k]
-                model.state_dict()[k] += ckpt['model'].state_dict()[kr]
-                logger.debug(f"{k}: perfectly matched!!")
-            elif "model.{}.cv2.".format(idx) in k:
-                kr = k.replace("model.{}.cv2.".format(idx), "model.{}.cv4.".format(idx+7))
-                model.state_dict()[k] -= model.state_dict()[k]
-                model.state_dict()[k] += ckpt['model'].state_dict()[kr]
-                logger.debug(f"{k}: perfectly matched!!")
-            elif "model.{}.cv3.".format(idx) in k:
-                kr = k.replace("model.{}.cv3.".format(idx), "model.{}.cv5.".format(idx+7))
-                model.state_dict()[k] -= model.state_dict()[k]
-                model.state_dict()[k] += ckpt['model'].state_dict()[kr]
-                logger.debug(f"{k}: perfectly matched!!")
-            elif "model.{}.dfl.".format(idx) in k:
-                kr = k.replace("model.{}.dfl.".format(idx), "model.{}.dfl2.".format(idx+7))
-                model.state_dict()[k] -= model.state_dict()[k]
-                model.state_dict()[k] += ckpt['model'].state_dict()[kr]
-                logger.debug(f"{k}: perfectly matched!!")
+    # NN Model
+    config = ''
+    if task == 'classification':
+        weight = 'bestmodel.pt' # 'bestmodel.torchscript', 'bestmodel.onnx'
+    else: # if task == 'detection'
+        weight = [
+            'bestmodel.pt', 
+            'bestmodel.torchscript', 
+            'bestmodel.onnx'
+        ]
+        if engine == 'tensorrt':
+            weight.append('bestmodel_end2end.onnx')
+        elif engine == 'tflite':
+            tfmodels = ['bestmodel.pb', 'bestmodel.tflite']
+            weight.extend(tfmodels)
+            if device == 'tpu':
+                weight.append('bestmodel_edgetpu.tflite')
+    nn_dict['weight_file'] = weight
+    nn_dict['config_file'] = config # not neccessary
+
+    # Label
+    nc = data.get('nc')
+    ch = data.get('ch', 3) # need to check (ChestXRay: ch=1)
+    names = data.get('names')
+    if not nc and names:
+        nc = len(names)
+    if not names and nc:
+        names = list(range(nc)) # default name: [0, 1, ..., nc-1]
+    nn_dict['nc'] = nc
+    nn_dict['names'] = names
+
+    # Input
+    imgsz = base.get('imgsz', 640) # need to check (ChestXRay: imgsz=256)
+    input_tensor_shape = [1, ch, imgsz, imgsz]
+    # device = select_device(device)
+    device = torch.device('cuda:0' if device == 'cuda' else 'cpu')
+    if device.type == 'cpu':
+        input_data_type = 'fp32'
+    else:
+        input_data_type = 'fp16'
+    anchors = base.get('anchors', None)
+    if (not anchors or anchors == 'None') and task == 'detection':
+        # logger.warn(f'Model Exporter: not found anchor imformation')
+        logger.info(f'{colorstr("Model Exporter: ")}Anchor-free detection heads')
+
+    nn_dict['input_tensor_shape'] = input_tensor_shape
+    nn_dict['input_data_type'] = input_data_type
+    nn_dict['anchors'] = anchors
+
+    # Output
+    if task == 'detection':
+        output_number = 3
+        stride = [8, 16, 32]
+        need_nms = True
+        conf_thres = 0.25
+        iou_thres = 0.45
+        total_pred_num = 0
+        if anchors and (anchors != 'None'): # v7 (num of anchors = 3)
+            total_pred_num = sum([3*(imgsz/stride[i])**2 for i in range(output_number)])
+            output_size = [
+                [1, ch, imgsz/stride[0], imgsz/stride[0], 5+nc],
+                [1, ch, imgsz/stride[1], imgsz/stride[1], 5+nc],
+                [1, ch, imgsz/stride[2], imgsz/stride[2], 5+nc]
+            ]
+        else: # v9 (no anchors)
+            total_pred_num = sum([(imgsz/stride[i])**2 for i in range(output_number)])
+            output_size = [
+                [1, 4+nc, int(total_pred_num)], # <= for training
+                [1, 4+nc, int(total_pred_num)]  # <= for prediction
+            ]
+    elif task == 'classification':
+        output_number = 1
+        output_size = [1, nc]
+
+    nn_dict['output_number'] = output_number
+    nn_dict['output_size'] = output_size
+
+    if task == 'detection':
+        nn_dict['stride'] = stride
+        nn_dict['need_nms'] = need_nms
+        nn_dict['conf_thres'] = conf_thres
+        nn_dict['iou_thres'] = iou_thres
+
+    # for backward compatibility
+    nn_dict['base_dir_autonn'] = 'autonn_core/tango'
+    nn_dict['class_file'] = ['common/models/yolo.py',
+                             'common/models/common.py',
+                             'common/models/experimental.py',
+                             'common/models/dynamic_op.py',
+                             'common/models/resnet_cifar10.py',
+                             'common/models/search_block.py',
+                             'common/models/supernet_yolov7.py',
+                             'common/models/my_modules.py',
+                            ]
+    if task == 'detection':
+        nn_dict['class_name'] = "Model(cfg='basemodel.yaml')"
+    elif task == 'classification':
+        nn_dict['class_name'] = "ClassifyModel(cfg='basemodel.yaml')"
+    # nn_dict['label_info_file'] = None
+    # nn_dict['vision_lib'] = None
+    # nn_dict['norm'] = None
+    # nn_dict['mean'] = None
+    # nn_dict['output_format_allow_list'] = None
+
+    if task == 'detection':
+        if anchors and (anchors != 'None'):
+            nn_dict['output_pred_format'] = ['x', 'y', 'w', 'h', 'confidence', 'probability_of_classes']
         else:
-            while True:
-                idx += 1
-                ten_percent_cnt = int((cnt+1)/max*10+0.5)
-                bar = '|'+ '🟩'*ten_percent_cnt + ' '*(20-ten_percent_cnt*2)+'|'
-                s = f'model.{idx:2.0f} weights transferring...'
-                s += (f'{bar} {(cnt+1)/max*100:3.0f}% {cnt+1:6.0f}/{max:6.0f}')
-                logger.info(s)
-                if "model.{}.".format(idx) in k:
-                    break
-            if idx < 22:
-                kr = k.replace("model.{}.".format(idx), "model.{}.".format(idx))
-                model.state_dict()[k] -= model.state_dict()[k]
-                model.state_dict()[k] += ckpt['model'].state_dict()[kr]
-                logger.debug(f"{k}: perfectly matched!!")
-            elif "model.{}.cv2.".format(idx) in k:
-                kr = k.replace("model.{}.cv2.".format(idx), "model.{}.cv4.".format(idx+7))
-                model.state_dict()[k] -= model.state_dict()[k]
-                model.state_dict()[k] += ckpt['model'].state_dict()[kr]
-                logger.debug(f"{k}: perfectly matched!!")
-            elif "model.{}.cv3.".format(idx) in k:
-                kr = k.replace("model.{}.cv3.".format(idx), "model.{}.cv5.".format(idx+7))
-                model.state_dict()[k] -= model.state_dict()[k]
-                model.state_dict()[k] += ckpt['model'].state_dict()[kr]
-                logger.debug(f"{k}: perfectly matched!!")
-            elif "model.{}.dfl.".format(idx) in k:
-                kr = k.replace("model.{}.dfl.".format(idx), "model.{}.dfl2.".format(idx+7))
-                model.state_dict()[k] -= model.state_dict()[k]
-                model.state_dict()[k] += ckpt['model'].state_dict()[kr]
-                logger.debug(f"{k}: perfectly matched!!")
-        cnt += 1
-    _ = model.eval()
-    return model
+            nn_dict['output_pred_format'] = ['x', 'y', 'w', 'h', 'probability_of_classes']
+
+    with open(dst, 'w') as f:
+        yaml.dump(nn_dict, f, default_flow_style=False)
+
+    # import pprint
+    # print('-'*100)
+    # pprint.pprint(nn_dict)
+    # print('-'*100)
+
+    logger.info(f'{colorstr("Model Exporter: ")}NN meta information export success, saved as {dst}')
+    logger.info('-'*100)
 
 
-def convert_medium_model(model, ckpt):
-    idx, cnt = 0, 0
-    max = len(model.state_dict().items())
-    for k, v in model.state_dict().items():
-        if "model.{}.".format(idx) in k:
-            if idx < 22:
-                kr = k.replace("model.{}.".format(idx), "model.{}.".format(idx+1))
-                model.state_dict()[k] -= model.state_dict()[k]
-                model.state_dict()[k] += ckpt['model'].state_dict()[kr]
-                logger.debug(f"{k}: perfectly matched!!")
-            elif "model.{}.cv2.".format(idx) in k:
-                kr = k.replace("model.{}.cv2.".format(idx), "model.{}.cv4.".format(idx+16))
-                model.state_dict()[k] -= model.state_dict()[k]
-                model.state_dict()[k] += ckpt['model'].state_dict()[kr]
-                logger.debug(f"{k}: perfectly matched!!")
-            elif "model.{}.cv3.".format(idx) in k:
-                kr = k.replace("model.{}.cv3.".format(idx), "model.{}.cv5.".format(idx+16))
-                model.state_dict()[k] -= model.state_dict()[k]
-                model.state_dict()[k] += ckpt['model'].state_dict()[kr]
-                logger.debug(f"{k}: perfectly matched!!")
-            elif "model.{}.dfl.".format(idx) in k:
-                kr = k.replace("model.{}.dfl.".format(idx), "model.{}.dfl2.".format(idx+16))
-                model.state_dict()[k] -= model.state_dict()[k]
-                model.state_dict()[k] += ckpt['model'].state_dict()[kr]
-                logger.debug(f"{k}: perfectly matched!!")
-        else:
-            while True:
-                idx += 1
-                ten_percent_cnt = int((cnt+1)/max*10+0.5)
-                bar = '|'+ '🟩'*ten_percent_cnt + ' '*(20-ten_percent_cnt*2)+'|'
-                s = f'model.{idx:2.0f} weights transferring...'
-                s += (f'{bar} {(cnt+1)/max*100:3.0f}% {cnt+1:6.0f}/{max:6.0f}')
-                logger.debug(s)
-                if "model.{}.".format(idx) in k:
-                    break
-            if idx < 22:
-                kr = k.replace("model.{}.".format(idx), "model.{}.".format(idx+1))
-                model.state_dict()[k] -= model.state_dict()[k]
-                model.state_dict()[k] += ckpt['model'].state_dict()[kr]
-                logger.debug(f"{k}: perfectly matched!!")
-            elif "model.{}.cv2.".format(idx) in k:
-                kr = k.replace("model.{}.cv2.".format(idx), "model.{}.cv4.".format(idx+16))
-                model.state_dict()[k] -= model.state_dict()[k]
-                model.state_dict()[k] += ckpt['model'].state_dict()[kr]
-                logger.debug(f"{k}: perfectly matched!!")
-            elif "model.{}.cv3.".format(idx) in k:
-                kr = k.replace("model.{}.cv3.".format(idx), "model.{}.cv5.".format(idx+16))
-                model.state_dict()[k] -= model.state_dict()[k]
-                model.state_dict()[k] += ckpt['model'].state_dict()[kr]
-                logger.debug(f"{k}: perfectly matched!!")
-            elif "model.{}.dfl.".format(idx) in k:
-                kr = k.replace("model.{}.dfl.".format(idx), "model.{}.dfl2.".format(idx+16))
-                model.state_dict()[k] -= model.state_dict()[k]
-                model.state_dict()[k] += ckpt['model'].state_dict()[kr]
-                logger.debug(f"{k}: perfectly matched!!")
-        cnt += 1
-    _ = model.eval()
-    return model
+def convert_yolov9(model_pt: str, cfg: str) -> Optional[str]:
+    """
+    Convert a YOLOv9 training checkpoint into a reparameterized inference model.
 
+    This function loads the specified YOLOv9 training checkpoint (.pt),
+    reconstructs the model architecture from its YAML config, and transfers
+    weights to the correct layers depending on the variant (t/s/m/e).
+    The converted model is saved as "<original_name>_converted.pt".
 
-def convert_large_model(model, ckpt):
-    idx, cnt = 0, 0
-    max = len(model.state_dict().items())
-    for k, v in model.state_dict().items():
-        if "model.{}.".format(idx) in k:
-            if idx < 29:
-                kr = k.replace("model.{}.".format(idx), "model.{}.".format(idx))
-                model.state_dict()[k] -= model.state_dict()[k]
-                model.state_dict()[k] += ckpt['model'].state_dict()[kr]
-                logger.debug(f"{k}: perfectly matched!!")
-            elif idx < 42:
-                kr = k.replace("model.{}.".format(idx), "model.{}.".format(idx+7))
-                model.state_dict()[k] -= model.state_dict()[k]
-                model.state_dict()[k] += ckpt['model'].state_dict()[kr]
-                logger.debug(f"{k}: perfectly matched!!")
-            elif "model.{}.cv2.".format(idx) in k:
-                kr = k.replace("model.{}.cv2.".format(idx), "model.{}.cv4.".format(idx+7))
-                model.state_dict()[k] -= model.state_dict()[k]
-                model.state_dict()[k] += ckpt['model'].state_dict()[kr]
-                logger.debug(f"{k}: perfectly matched!!")
-            elif "model.{}.cv3.".format(idx) in k:
-                kr = k.replace("model.{}.cv3.".format(idx), "model.{}.cv5.".format(idx+7))
-                model.state_dict()[k] -= model.state_dict()[k]
-                model.state_dict()[k] += ckpt['model'].state_dict()[kr]
-                logger.debug(f"{k}: perfectly matched!!")
-            elif "model.{}.dfl.".format(idx) in k:
-                kr = k.replace("model.{}.dfl.".format(idx), "model.{}.dfl2.".format(idx+7))
-                model.state_dict()[k] -= model.state_dict()[k]
-                model.state_dict()[k] += ckpt['model'].state_dict()[kr]
-                logger.debug(f"{k}: perfectly matched!!")
-        else:
-            while True:
-                idx += 1
-                ten_percent_cnt = int((cnt+1)/max*10+0.5)
-                bar = '|'+ '🟩'*ten_percent_cnt + ' '*(20-ten_percent_cnt*2)+'|'
-                s = f'model.{idx:2.0f} weights transferring...'
-                s += (f'{bar} {(cnt+1)/max*100:3.0f}% {cnt+1:6.0f}/{max:6.0f}')
-                logger.info(s)
-                if "model.{}.".format(idx) in k:
-                    break
-            if idx < 29:
-                kr = k.replace("model.{}.".format(idx), "model.{}.".format(idx))
-                model.state_dict()[k] -= model.state_dict()[k]
-                model.state_dict()[k] += ckpt['model'].state_dict()[kr]
-                logger.debug(f"{k}: perfectly matched!!")
-            elif idx < 42:
-                kr = k.replace("model.{}.".format(idx), "model.{}.".format(idx+7))
-                model.state_dict()[k] -= model.state_dict()[k]
-                model.state_dict()[k] += ckpt['model'].state_dict()[kr]
-                logger.debug(f"{k}: perfectly matched!!")
-            elif "model.{}.cv2.".format(idx) in k:
-                kr = k.replace("model.{}.cv2.".format(idx), "model.{}.cv4.".format(idx+7))
-                model.state_dict()[k] -= model.state_dict()[k]
-                model.state_dict()[k] += ckpt['model'].state_dict()[kr]
-                logger.debug(f"{k}: perfectly matched!!")
-            elif "model.{}.cv3.".format(idx) in k:
-                kr = k.replace("model.{}.cv3.".format(idx), "model.{}.cv5.".format(idx+7))
-                model.state_dict()[k] -= model.state_dict()[k]
-                model.state_dict()[k] += ckpt['model'].state_dict()[kr]
-                logger.debug(f"{k}: perfectly matched!!")
-            elif "model.{}.dfl.".format(idx) in k:
-                kr = k.replace("model.{}.dfl.".format(idx), "model.{}.dfl2.".format(idx+7))
-                model.state_dict()[k] -= model.state_dict()[k]
-                model.state_dict()[k] += ckpt['model'].state_dict()[kr]
-                logger.debug(f"{k}: perfectly matched!!")
-        cnt += 1
-    _ = model.eval()
-    return model
+    Args:
+        model_pt (str): Path to the YOLOv9 training checkpoint (.pt file).
+        cfg (str): Path to the YOLOv9 model configuration YAML file
+            (e.g., 'yolov9-s-converted.yaml', 'yolov9-m-converted.yaml', etc.).
 
-
-def convert_yolov9(model_pt, cfg):
+    Returns:
+        Optional[str]: Path to the converted checkpoint file if successful, else None.
+    """
+    logger.info('='*100)
     device = torch.device("cpu")
 
     if not os.path.isfile(model_pt):
@@ -1124,7 +1266,8 @@ def convert_yolov9(model_pt, cfg):
 
     ckpt = torch.load(model_pt, map_location='cpu')
     model.names = ckpt['model'].names
-    model.nc = ckpt['model'].nc
+
+    # model.nc = ckpt['model'].nc
     cfg_name = os.path.basename(cfg).lower()
     if 'yolov9-t' in cfg_name or 'yolov9-s' in cfg_name:
         model = convert_small_model(model, ckpt)
@@ -1148,3 +1291,68 @@ def convert_yolov9(model_pt, cfg):
     mb = os.path.getsize(f_path) / 1E6
     logger.info(f'{colorstr("Model Exporter: ")}Reparametered as {f_path}({mb:.1f}MB)')
     return f_path
+
+
+if __name__ == '__main__':
+    logging.basicConfig(level=logging.INFO, format="%(message)s")
+    
+    import argparse, re
+    parser = argparse.ArgumentParser(prog='export.py')
+    sub = parser.add_subparsers(dest='cmd', required=True)
+
+    # export
+    p_exp = sub.add_parser('export')
+    p_exp.add_argument('--weights', required=True)
+    p_exp.add_argument('--include', default='torchscript,onnx')
+    p_exp.add_argument('--device', default='cuda', choices=['cuda','cpu'])
+    p_exp.add_argument('--task', default='detection', choices=['detection','classification'])
+    p_exp.add_argument('--ch', type=int, default=3)
+    p_exp.add_argument('--imgsz', default='640')
+    p_exp.add_argument('--half', action='store_true')
+    p_exp.add_argument('--no-half', dest='half', action='store_false'); p_exp.set_defaults(half=True)
+    p_exp.add_argument('--dynamic', action='store_true')
+    p_exp.add_argument('--simplify', action='store_true'); p_exp.add_argument('--no-simplify', dest='simplify', action='store_false'); p_exp.set_defaults(simplify=True)
+    p_exp.add_argument('--opset', type=int, default=12)
+    p_exp.add_argument('--workspace', type=float, default=4.0)
+    p_exp.add_argument('--verbose', action='store_true')
+    p_exp.add_argument('--topk-all', type=int, default=100)
+    p_exp.add_argument('--iou-thres', type=float, default=0.45)
+    p_exp.add_argument('--conf-thres', type=float, default=0.25)
+    p_exp.add_argument('--int8', action='store_true')
+
+    # config
+    p_cfg = sub.add_parser('config')
+    p_cfg.add_argument('--src', required=True)
+    p_cfg.add_argument('--dst', required=True)
+    p_cfg.add_argument('--data', required=True)  # path to dataset yaml
+    p_cfg.add_argument('--base', required=True)  # path to base yaml
+    p_cfg.add_argument('--device', default='cuda', choices=['cuda','cpu'])
+    p_cfg.add_argument('--engine', default='onnx', choices=['onnx','tensorrt','tflite'])
+    p_cfg.add_argument('--task', default='detection', choices=['detection','classification'])
+
+    # convert (yolov9)
+    p_cvt = sub.add_parser('convert')
+    p_cvt.add_argument('--weights', required=True)
+    p_cvt.add_argument('--cfg', required=True)
+
+    args = parser.parse_args()
+
+    if args.cmd == 'export':
+        include = [s.strip() for s in args.include.split(',') if s.strip()]
+        imgsz = [int(v) for v in re.split(r'[xX]', args.imgsz)] if 'x' in args.imgsz.lower() else [int(args.imgsz), int(args.imgsz)]
+        export_weight(
+            weights=args.weights, device=args.device, include=include, task=args.task, ch=args.ch, imgsz=imgsz,
+            half=args.half, int8=args.int8, dynamic=args.dynamic, simplify=args.simplify, opset=args.opset,
+            workspace=args.workspace, verbose=args.verbose, topk_all=args.topk_all,
+            iou_thres=args.iou_thres, conf_thres=args.conf_thres,
+        )
+
+    elif args.cmd == 'config':
+        with open(args.data) as f: data = yaml.safe_load(f)
+        with open(args.base) as f: base = yaml.safe_load(f)
+        export_config(args.src, args.dst, data, base, args.device, args.engine, task=args.task)
+
+    elif args.cmd == 'convert':
+        convert_yolov9(args.weights, args.cfg)
+
+
