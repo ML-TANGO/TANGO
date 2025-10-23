@@ -17,8 +17,7 @@ FROM msranni/nni
 # ENV TF_ENABLE_ONEDNN_OPTS=0
 # ENV TF_CPP_MIN_LOG_LEVEL=3
 ENV PIP_DEFAULT_TIMEOUT=1000
-ENV CUDA_LAUNCH_BLOCKING=1
-
+# ENV CUDA_LAUNCH_BLOCKING=1
 
 # RUN curl https://packages.cloud.google.com/apt/doc/apt-key.gpg | apt-key add -
 # RUN echo "deb https://packages.cloud.google.com/apt coral-edgetpu-stable main" | tee /etc/apt/sources.list.d/coral-edgetpu.list
