@@ -594,13 +594,27 @@ class CodeGen:
                 self.m_sysinfo_libs = []
                 self.m_sysinfo_apt = ['vim', 'python3.9']
                 self.m_sysinfo_papi = ['torch', 'torchvision', 'opencv-python', 'pandas', 'numpy', 'python-math', 'albumentations']
+                repo_url = "https://github.com/ML-TANGO/TDistWork/archive/refs/heads/main.zip"
+                repo_dir = pathlib.Path(self.m_current_code_folder) / pathlib.Path("TDistWork-main")
+                apps_dir = pathlib.Path(self.m_current_code_folder) / pathlib.Path("apps")
+
+                # download source code from github
+                zip_path = "%s/main.zip" % self.m_current_code_folder
+                r = requests.get(repo_url, stream=True)
+                with open(zip_path, 'wb') as fd:
+                    for chunk in r.iter_content(chunk_size=128):
+                        fd.write(chunk)
+                with zipfile.ZipFile(zip_path, 'r') as zip_ref:
+                    zip_ref.extractall(self.m_current_code_folder)
+                os.remove(zip_path)
+                pathlib.Path(repo_dir).rename(apps_dir)
                 
                 if self.m_deploy_type == 'k8s':
                     # k8s deployment needs fileset structure - create directories first
-                    pathlib.Path("%s/fileset/yolov7" % self.m_current_code_folder).mkdir(parents=True, exist_ok=True)
+                    pathlib.Path("%s/fileset/resnet" % self.m_current_code_folder).mkdir(parents=True, exist_ok=True)
                     
                     self.m_deploy_entrypoint = ['python', './output.py']
-                    k8s_path = "%s/fileset/yolov7" % self.m_current_code_folder
+                    k8s_path = "%s/fileset/resnet" % self.m_current_code_folder
                     
                     # copy pt file to k8s_path
                     pt_path = "%s%s" % (self.m_current_file_path, self.m_nninfo_weight_pt_file)
