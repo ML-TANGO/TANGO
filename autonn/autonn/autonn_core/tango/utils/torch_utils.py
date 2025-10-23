@@ -102,6 +102,8 @@ def select_device_and_info(device=''):
     if cpu:
         os.environ['CUDA_VISIBLE_DEVICES'] = '-1'  # force torch.cuda.is_available() = False
     elif device:  # non-cpu device requested
+        # device가 명시되었을 때만 env를 설정
+        # device가 ''이면 기존 환경변수인 CUDA_VISIBLE_DEVICES를 존중(변경 없음)
         os.environ['CUDA_VISIBLE_DEVICES'] = device  # set environment variable
         assert torch.cuda.is_available(), f'CUDA unavailable, invalid device {device} requested'  # check availability
 
@@ -109,9 +111,11 @@ def select_device_and_info(device=''):
     device_info = []
     if cuda:
         n = torch.cuda.device_count()
-        for i, d in enumerate(device.split(',') if device else range(n)):
+        order = device.split(',') if device else list(range(n))
+        for i, d in enumerate(order):
+            # 여기서 i는 env 적용 후의 "논리" 인덱스
             p = torch.cuda.get_device_properties(i)
-            device_info.append([f"CUDA:{d}", f"{p.name}", f"{round(p.total_memory / 1024 ** 3, 2)}"])
+            device_info.append([f"CUDA:{i}", f"{p.name}", f"{round(p.total_memory / 1024 ** 3, 2)}"])
     else:
         device_info.append([f"CPU", '', ''])
 
