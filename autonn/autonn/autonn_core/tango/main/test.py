@@ -1,3 +1,58 @@
+"""
+===========================================================
+🧪 TANGO Model Evaluation Script (test.py)
+===========================================================
+사용법 (CLI)
+-----------------------------------------------------------
+▶ 1. Validation / Testing
+    모델의 성능을 평가하고 mAP, Precision, Recall 등을 측정
+
+    예시:
+    cd /source/autonn_core
+    python -m tango.main.test \
+        --purpose val \
+        --weights ../archive/bestmodel.pt \
+        --data /shared/datasets/coco/dataset.yaml \
+        --img-size 1280 \
+        --batch-size 4 \
+        --device 0 \
+        --iou-thres 0.7 \
+        --save-json \
+        --no-trace \
+        --is-coco \
+        --metric v9
+
+▶ 2. Speed Benchmark
+    모델의 처리 속도(inference latency, FPS 등)를 측정
+
+    예시:
+    python -m tango.main.test \
+        --purpose speed \
+        --weights ../archive/bestmodel.pt \
+        --data /shared/datasets/coco/dataset.yaml \
+        --img-size 1280 \
+        --batch-size 4 \
+        --device 0 \
+        --metric v9
+
+▶ 3. Study Mode (Resolution Sweep)
+    여러 입력 해상도에서의 성능 변화를 측정하고 결과를 저장/시각화
+
+    예시:
+    python -m tango.main.test \
+        --purpose study \
+        --weights ../archive/bestmodel.pt \
+        --data /shared/datasets/coco/dataset.yaml \
+        --iou-thres 0.65 \
+        --no-trace \
+        --is-coco \
+        --metric v9
+    # 결과물:
+    # study_<dataset>_<model>.txt 파일 생성 후 study.zip 압축
+    # plot_study_txt(x=x) 로 결과 그래프 자동 생성
+
+===========================================================
+"""
 import argparse
 import logging
 import json
@@ -10,8 +65,6 @@ import yaml
 from tqdm import tqdm
 import time
 import datetime
-
-from . import status_update, Info
 
 from tango.common.models.experimental import attempt_load
 from tango.utils.datasets import create_dataloader, create_dataloader_v9
@@ -84,6 +137,7 @@ def report_progress(userid,
                     names, 
                     latency,
                     start_time,
+                    can_update_progress,
 ):
     _p, _r, _f1, _mp, _mr, _map50, _map = 0., 0., 0., 0., 0., 0., 0.
     _ap, _ap_class = [], []
@@ -100,20 +154,25 @@ def report_progress(userid,
         _mp, _mr, _map50, _map = _p.mean(), _r.mean(), _ap50.mean(), _ap.mean()
 
     # Status update
-    val_acc = {}
-    val_acc['class'] = 'all'
-    val_acc['images'] = seen
-    val_acc['labels'] = label_cnt
-    val_acc['P'] = _mp
-    val_acc['R'] = _mr
-    val_acc['mAP50'] = _map50
-    val_acc['mAP50-95'] = _map
-    val_acc['step'] = current_step # batch_i + 1
-    val_acc['total_step'] = total_step# len(dataloader)
-    val_acc['time'] = f'{latency:.1f} s'
-    status_update(userid, project_id,
-                    update_id="val_accuracy",
-                    update_content=val_acc)
+    if can_update_progress:
+        try:
+            val_acc = {
+                'class': 'all',
+                'images': seen,
+                'labels': label_cnt,
+                'P': _mp,
+                'R': _mr,
+                'mAP50': _map50,
+                'mAP50-95': _map,
+                'step': current_step, # batch_i + 1
+                'total_step': total_step, # len(dataloader)
+                'time': f'{latency:.1f} s',
+            }
+            safe_status_update(userid, project_id,
+                            update_id="val_accuracy",
+                            update_content=val_acc)
+        except Exception as e:
+            pass
 
     # Print 
     # pf_t = '%20s' + '%12s' * 6
@@ -153,6 +212,14 @@ def process_batch(detections, labels, iouv):
             correct[matches[:, 1].astype(int), i] = True
     return torch.tensor(correct, dtype=torch.bool, device=iouv.device)
 
+def safe_status_update(userid, project_id, **kwargs):
+    try:
+        from . import status_update
+        status_update(userid, project_id, **kwargs)
+    except Exception:
+        pass  # 외부 환경/CLI 등에서 통신 실패는 무시
+
+
 @smart_inference_mode()
 def test(proj_info,
          data,
@@ -173,7 +240,7 @@ def test(proj_info,
          save_dir=Path(''),  # for saving results
          plots=True,
          compute_loss=None,
-         half_precision=True,
+         half_precision=False,
          trace=False,
          is_coco=False,
          metric='v5'
@@ -203,16 +270,14 @@ def test(proj_info,
     model.half() if half else model.float()
 
     # Configure ----------------------------------------------------------------
-    userid = proj_info['userid']
-    project_id = proj_info['project_id']
+    userid = (proj_info or {}).get('userid') if isinstance(proj_info, dict) else None
+    project_id = (proj_info or {}).get('project_id') if isinstance(proj_info, dict) else None
+    can_update_progress = training and userid and project_id
 
-    # save internally
-    info = Info.objects.get(userid=userid, project_id=project_id)
-    info.status = "running"
-    info.progress = "validation"
-    info.save()
-
+    # Model --------------------------------------------------------------------
     model.eval() # it will set {DualDDetect}.training to False
+
+    # Dataset ------------------------------------------------------------------
     if isinstance(data, str):
         with open(data) as f:
             data = yaml.load(f, Loader=yaml.SafeLoader)
@@ -232,12 +297,18 @@ def test(proj_info,
                 imgsz,
                 batch_size,
                 gs,
-                opt.single_cls,
+                single_cls,
+                # hyp=None, # default:None
+                # cache=False, # default:False
+                # rank=-1, # default:-1
+                # workers=16, # default:8
                 pad=0.5,
+                close_mosaic=True, # always use torch.utils.data.Dataloader
                 rect=True,
                 prefix='val',
-                uid=userid,
-                pid=project_id,
+                #shuffle=False, # default:False
+                uid=userid, # None
+                pid=project_id, # None
             )[0]
         else:
             dataloader = create_dataloader(
@@ -515,6 +586,7 @@ def test(proj_info,
             names,
             latency,
             start_time,
+            can_update_progress,
         )
     # Test end =================================================================
 
@@ -622,6 +694,7 @@ def test(proj_info,
         maps[c] = ap[i]
     return (mp, mr, map50, map, *(loss.cpu() / len(dataloader)).tolist()), maps, t
 
+
 def test_cls(proj_info,
              data,
              weights=None,
@@ -662,8 +735,10 @@ def test_cls(proj_info,
         model.half()
 
     # Configure ----------------------------------------------------------------
-    userid = proj_info['userid']
-    project_id = proj_info['project_id']
+    userid = (proj_info or {}).get('userid') if isinstance(proj_info, dict) else None
+    project_id = (proj_info or {}).get('project_id') if isinstance(proj_info, dict) else None
+    can_update_progress = training and userid and project_id
+
     model.eval()
 
     # Dataset ------------------------------------------------------------------
@@ -706,18 +781,37 @@ def test_cls(proj_info,
         accumulated_data_count += len(target)
         elapsed_time += t0
         # status update
-        val_acc['step'] = i + 1
-        val_acc['images'] = accumulated_data_count
-        val_acc['labels'] = output.size(1) # val_accuracy.item()
-        val_acc['P'] = accumulated_data_count
-        val_acc['R'] = val_accuracy.item()
-        val_acc['mAP50'] = val_loss.item() / (i+1)
-        val_acc['mAP50-95'] = val_accuracy.item() / accumulated_data_count
-        val_acc['total_step'] = len(dataloader)
-        val_acc['time'] = f'{t0:.1f} s'
-        status_update(userid, project_id,
-                      update_id="val_accuracy",
-                      update_content=val_acc)
+        if can_update_progress: # called by train.py
+            try:
+                step = i + 1
+                total_step = len(dataloader)
+                images_so_far = accumulated_data_count
+                num_classes = int(output.size(1))  # for reference
+
+                # 평균 loss와 top1 정확도 계산 (안전 나눗셈)
+                avg_loss = (val_loss.item() / step) if step > 0 else float('nan')
+                top1 = (val_accuracy.item() / images_so_far) if images_so_far > 0 else 0.0
+
+                val_acc = {
+                    'step': step,
+                    'total_step': total_step,
+                    'images': images_so_far,
+                    'labels': num_classes,         # 분류 task에서는 "클래스 수"로 사용 중
+                    'P': images_so_far,            # 기존 스키마 호환(원래의 의미와 다름)
+                    'R': val_accuracy.item(),      # 누적 correct 수
+                    'mAP50': avg_loss,             # <- 분류: 평균 loss(스키마 호환용 필드)
+                    'mAP50-95': top1,              # <- 분류: top-1 accuracy
+                    'time': f'{t0:.1f} s'
+                }
+                safe_status_update(
+                    userid, project_id,
+                    update_id="val_accuracy",
+                    update_content=val_acc
+                )
+            except Exception as e:
+                if verbose:
+                    logger.debug(f"[test.py] status update skipped: {e}")
+                pass
     # Test end =================================================================
 
     # Compute statistics -------------------------------------------------------
@@ -756,7 +850,10 @@ if __name__ == '__main__':
     parser.add_argument('--project', default='runs/test', help='save to project/name')
     parser.add_argument('--name', default='exp', help='save to project/name')
     parser.add_argument('--exist-ok', action='store_true', help='existing project/name ok, do not increment')
+    parser.add_argument('--half-precision', dest='half_precision', action='store_true',
+                        help='use half precision (FP16) for inference on CUDA devices')
     parser.add_argument('--no-trace', action='store_true', help='don`t trace model')
+    parser.add_argument('--is-coco', action='store_true', help='enable COCO evaluation with pycocotools')
     parser.add_argument('--metric', type=str, default='v5', help='mAP metrics; v5/v7/v9')
     opt = parser.parse_args()
     opt.save_json |= opt.data.endswith('coco.yaml')
@@ -765,37 +862,84 @@ if __name__ == '__main__':
     #check_requirements()
 
     if opt.purpose in ('train', 'val', 'test'):  # run normally
-        test(opt.data,
-             opt.weights,
-             opt.batch_size,
-             opt.img_size,
-             opt.conf_thres,
-             opt.iou_thres,
-             opt.save_json,
-             opt.single_cls,
-             opt.augment,
-             opt.verbose,
-             save_txt=opt.save_txt | opt.save_hybrid,
-             save_hybrid=opt.save_hybrid,
-             save_conf=opt.save_conf,
-             trace=not opt.no_trace,
-             metric=opt.metric
-             )
+        # cd /source/autonn_core
+        # python -m tango.main.test \
+        #   --purpose val \
+        #   --weights ../archive/bestmodel.pt \
+        #   --data /shared/datasets/coco/dataset.yaml \
+        #   --img-size 1280 \
+        #   --batch-size 8 \
+        #   --device 0 \
+        #   --iou-thres 0.75 \
+        #   --save-json \
+        #   --no-trace \
+        #   --is-coco \
+        #   --metric v9
+        test(
+            proj_info=None,
+            data=opt.data,
+            weights=opt.weights,
+            batch_size=opt.batch_size,
+            imgsz=opt.img_size,
+            conf_thres=opt.conf_thres,
+            iou_thres=opt.iou_thres,
+            single_cls=opt.single_cls,
+            augment=opt.augment,
+            verbose=opt.verbose,
+            save_txt=opt.save_txt | opt.save_hybrid,
+            save_hybrid=opt.save_hybrid,
+            save_conf=opt.save_conf,
+            save_json=opt.save_json,
+            half_precision=opt.half_precision,
+            trace=not opt.no_trace,
+            is_coco=opt.is_coco,
+            metric=opt.metric
+        )
 
     elif opt.purpose == 'speed':  # speed benchmarks
         for w in opt.weights:
-            test(opt.data, w, opt.batch_size, opt.img_size, 0.25, 0.45, save_json=False, plots=False, metric=opt.metric)
+            test(
+                proj_info=None,
+                data=opt.data,
+                weights=w,
+                batch_size=opt.batch_size,
+                imgsz=opt.img_size,
+                conf_thres=0.25,
+                iou_thres=0.45,
+                save_json=False,
+                plots=False,
+                metric=opt.metric
+            )
 
     elif opt.purpose == 'study':  # run over a range of settings and save/plot
-        # python test.py --purpose study --data coco.yaml --iou 0.65 --weights yolov7.pt
+        # cd /source/autonn_core
+        # python -m tango.main.test \
+        #   --purpose study \
+        #   --data coco.yaml \
+        #   --iou-thres 0.65 \
+        #   --weights yolov9-e.pt \
+        #   --no-trace \
+        #   --is-coco \
+        #   --metric v9
         x = list(range(256, 1536 + 128, 128))  # x axis (image sizes)
         for w in opt.weights:
             f = f'study_{Path(opt.data).stem}_{Path(w).stem}.txt'  # filename to save to
             y = []  # y axis
             for i in x:  # img-size
                 logger.info(f'\nRunning {f} point {i}...')
-                r, _, t = test(opt.data, w, opt.batch_size, i, opt.conf_thres, opt.iou_thres, opt.save_json,
-                               plots=False, metric=opt.metric)
+                r, _, t = test(
+                    proj_info=None,
+                    data=opt.data,
+                    weights=w,
+                    batch_size=opt.batch_size,
+                    imgsz=i,
+                    conf_thres=opt.conf_thres,
+                    iou_thres=opt.iou_thres,
+                    save_json=opt.save_json,
+                    plots=False,
+                    is_coco=opt.is_coco,
+                    metric=opt.metric
+                )
                 y.append(r + t)  # results and times
             np.savetxt(f, y, fmt='%10.4g')  # save
         os.system('zip -r study.zip study_*.txt')
