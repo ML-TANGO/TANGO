@@ -126,7 +126,18 @@ class Bottleneck(nn.Module):
         self.conv3 = conv1x1(width, planes * self.expansion)
         self.bn3 = norm_layer(planes * self.expansion)
         self.relu = nn.ReLU(inplace=True)
-        self.downsample = downsample
+        if isinstance(downsample, bool):
+            self.downsample = (nn.Sequential(
+                conv1x1(inplanes, planes * self.expansion, stride),
+                norm_layer(planes * self.expansion),
+            ) if downsample else None)
+        elif downsample is None:
+            self.downsample = (nn.Sequential(
+                conv1x1(inplanes, planes * self.expansion, stride),
+                norm_layer(planes * self.expansion),
+            ) if (stride != 1 or inplanes != planes * self.expansion) else None)
+        else:
+            self.downsample = downsample
         self.stride = stride
 
     def forward(self, x: Tensor) -> Tensor:
@@ -493,6 +504,14 @@ class ClassifyModel(nn.Module):
             if not hasattr(self, 'traced'):
                 self.traced=False
 
+            # try:
+            #     x = m(x)  # run
+            # except Exception as e:
+            #     typ = getattr(m, 'type', type(m).__name__)
+            #     idx = getattr(m, 'i', '?')
+            #     logger.exception(f"[forward_once] failed at layer idx={idx}, type={typ}: {e}")
+            #     raise
+
             if profile:
                 import thop
                 o = thop.profile(m, inputs=x, verbose=False)[0] / 1E9 * 2 if thop else 0  # FLOPS
@@ -553,13 +572,29 @@ class ClassifyModel(nn.Module):
 
 
 def parse_model(d, ch):  # model_dict, input_channels(1 or 3)
-    # logger.info('\n%3s%18s%3s%10s  %-40s%-30s' % ('', 'from', 'n', 'params', 'module', 'arguments'))
+    # Parse a classification model.yaml dictionay
+    logger.info(f"\n{'':>3}{'from':>18}{'n':>3}{'params':>10}  {'module':<40}{'arguments':<30}")
     nodes_info = {}
     nc = d['nc']
 
     layers, save, c2 = [], [], ch[-1]  # layers, savelist, ch out
+
+    # ==========================================================================
+    # Shape tracking initialization
+    # ==========================================================================
+    imgsz = d.get('imgsz', 640)
+    input_shape = (ch[0], imgsz, imgsz)
+    shapes = [] # output shapes
+
+    def _shape_at(idx):
+        if idx == -1:
+            return shapes[-1] if shapes else input_shape
+        return shapes[idx]
+    
+    # ==========================================================================
+    # Layer parsing loop
+    # ==========================================================================
     for i, (f, n, m, args) in enumerate(d['backbone'] + d['head']):  # from, number, module, args
-        node = {}
         m = eval(m) if isinstance(m, str) else m  # eval strings
         for j, a in enumerate(args):
             try:
@@ -567,66 +602,44 @@ def parse_model(d, ch):  # model_dict, input_channels(1 or 3)
             except:
                 pass
 
-        n = max(round(n * gd), 1) if n > 1 else n  # depth gain
-        if m in [   nn.Conv2d,
-                    Conv,
-                    RobustConv,
-                    RobustConv2,
-                    DWConv,
-                    GhostConv,
-                    RepConv,
-                    RepConv_OREPA,
-                    DownC,
-                    SPP,
-                    SPPF,
-                    SPPCSPC,
-                    GhostSPPCSPC,
-                    MixConv2d,
-                    Focus,
-                    Stem,
-                    GhostStem,
-                    CrossConv,
-                    cBasicBlock,
-                    Bottleneck,
-                    BottleneckCSPA, BottleneckCSPB, BottleneckCSPC,
-                    RepBottleneck,
-                    RepBottleneckCSPA, RepBottleneckCSPB, RepBottleneckCSPC,
-                    Res,
-                    ResCSPA, ResCSPB, ResCSPC,
-                    RepRes,
-                    RepResCSPA, RepResCSPB, RepResCSPC,
-                    ResX,
-                    ResXCSPA, ResXCSPB, ResXCSPC,
-                    RepResX,
-                    RepResXCSPA, RepResXCSPB, RepResXCSPC,
-                    Ghost,
-                    GhostCSPA, GhostCSPB, GhostCSPC,
-                    SwinTransformerBlock,
-                    STCSPA, STCSPB, STCSPC,
-                    SwinTransformer2Block,
-                    ST2CSPA, ST2CSPB, ST2CSPC,
-                    nn.Linear   ]:
-            c1, c2 = ch[f], args[0]
-            if c2 != nc:  # if not output
-                c2 = make_divisible(c2, 8)
+        # ---- helpers ----
+        def _decorate_module(mod_:nn.Module, iter_:int, from_:int):
+            mod_.i = iter_
+            mod_.f = from_
+            mod_.type = mod_.__class__.__name__
+            mod_.np = sum(p.numel() for p in mod_.parameters())
+            return mod_
 
+        # ----------------------------------------------------------------------
+        # Input shape
+        # ----------------------------------------------------------------------
+        in_shapes = [_shape_at(x) for x in (f if isinstance(f, list) else [f])] # [(C,H,W), ...]
+
+        # ----------------------------------------------------------------------
+        # Channel propagation (determine c2 and ajust agrs)
+        # ----------------------------------------------------------------------
+        if m is nn.Conv2d:
+            c1, c2 = ch[f], make_divisible(args[0], 8)
             args = [c1, c2, *args[1:]]
-            if m in [   DownC,
-                        SPPCSPC,
-                        GhostSPPCSPC,
-                        BottleneckCSPA, BottleneckCSPB, BottleneckCSPC,
-                        RepBottleneckCSPA, RepBottleneckCSPB, RepBottleneckCSPC,
-                        ResCSPA, ResCSPB, ResCSPC,
-                        RepResCSPA, RepResCSPB, RepResCSPC,
-                        ResXCSPA, ResXCSPB, ResXCSPC,
-                        RepResXCSPA, RepResXCSPB, RepResXCSPC,
-                        GhostCSPA, GhostCSPB, GhostCSPC,
-                        STCSPA, STCSPB, STCSPC,
-                        ST2CSPA, ST2CSPB, ST2CSPC   ]:
-                args.insert(2, n)  # number of repeats
-                n = 1
         elif m is nn.BatchNorm2d:
             args = [ch[f]]
+            c2 = ch[f]
+        elif m is Bottleneck: # ResNet-style Bottleneck (not YOLO Bottleneck)
+            c1 = ch[f]
+            planes = int(args[0])
+            exp = getattr(Bottleneck, 'expansion', 4)
+            c2 = planes * exp
+            args = [c1, planes, *args[1:]]
+        elif m is BasicBlock:
+            c1 = ch[f]
+            planes = int(args[0])
+            exp = getattr(BasicBlock, 'expansion', 1)
+            c2 = planes * exp
+            args = [c1, planes, *args[1:]]
+        elif m is cBasicBlock:
+            c1 = ch[f]
+            c2 = int(args[0])
+            args = [c1, c2, *args[1:]]
         elif m is Concat:
             c2 = sum([ch[x] for x in f])
         elif m is Chuncat:
@@ -641,25 +654,293 @@ def parse_model(d, ch):  # model_dict, input_channels(1 or 3)
             c2 = ch[f] * args[0] ** 2
         elif m is Expand:
             c2 = ch[f] // args[0] ** 2
+        elif m is nn.Flatten:
+            # Normalize args to PyTorch signature: (start_dim=1, end_dim=-1)
+            # Many YAMLs mistakenly put tuples/dicts here; ignore them.
+            if len(args) == 0:
+                args = []  # use defaults
+            elif len(args) == 1:
+                logger.info('1'*100)
+                # If someone put a tuple or dict, ignore and use defaults
+                if isinstance(args[0], (tuple, list, dict)) or args[0] is None:
+                    logger.warning("Ignoring invalid Flatten arg; using defaults (start_dim=1, end_dim=-1)")
+                    args = []
+                else:
+                    # keep single int as start_dim
+                    args = [int(args[0])]
+            else:
+                logger.info('2'*100)
+                # keep first two as ints (start_dim, end_dim), drop the rest
+                args = [int(args[0]), int(args[1])]
+
+            c2 = ch[f]  # channels unchanged
+        elif m is nn.Linear:
+            if len(in_shapes) != 1:
+                logger.warning("Linear expects a single input tensor")
+            in_shape = in_shapes[0]
+            if isinstance(in_shape, (list, tuple)) and len(in_shape) == 3:
+                C, H, W = in_shape
+                in_features = C * H * W
+
+                flat = nn.Flatten()
+                flat = _decorate_module(flat, i, f)
+                layers.append(flat)
+                i += 1
+                f = -1
+                in_shape = (in_features,)
+            elif isinstance(in_shape, (list, tuple)) and len(in_shape) == 1:
+                (in_features, ) = in_shape
+            else:
+                logger.warning(f'Linear expects 1D or 3D shape, got {in_shape}')
+            out_features = int(args[0])
+            args = [in_features, out_features, *args[1:]]
+            c2 = out_features
         else:
             c2 = ch[f]
 
+        # ----------------------------------------------------------------------
+        # Module creation
+        # ----------------------------------------------------------------------
         m_ = nn.Sequential(*[m(*args) for _ in range(n)]) if n > 1 else m(*args)  # module
         t = str(m)[8:-2].replace('__main__.', '').split('.')[-1]  # module type
         np = sum([x.numel() for x in m_.parameters()])  # number params
         m_.i, m_.f, m_.type, m_.np = i, f, t, np  # attach index, 'from' index, type, number params
-        # logger.info('%3s%18s%3s%10.0f  %-40s%-30s' % (i, f, n, np, t, args))  # print
-        node['from'] = f
-        node['repeat'] = n
-        node['params'] = np
-        node['module'] = t
-        node['arguments'] = str(args)
-        nodes_info[f'{i}'.zfill(2)] = node
+        logger.info(f'{i:>3}{str(f):>18}{n:>3}{np:10.0f}  {t:<40}{str(args):<30}')  # print
+
+        nodes_info[f"{i:02d}"] = {
+            "from": f,
+            "repeat": n,
+            "params": np,
+            "module": t,
+            "arguments": str(args),
+        }
         save.extend(x % i for x in ([f] if isinstance(f, int) else f) if x != -1)  # append to savelist
         layers.append(m_)
+
+        # ----------------------------------------------------------------------
+        # Shape propagation
+        # ----------------------------------------------------------------------
+        multi_input = len(in_shapes) > 1
+        if multi_input:
+            cur_shape = propagate_shape(m, args, in_shapes)
+        else:
+            cur_shape = in_shapes[0]
+            n_eff = n if isinstance(n, int) else 1
+            for _ in range(n_eff):
+                cur_shape = propagate_shape(m, args, [cur_shape])
+        shapes.append(cur_shape)
+
+        # ----------------------------------------------------------------------
+        # Channel update
+        # ----------------------------------------------------------------------
         if i == 0:
             ch = []
         ch.append(c2)
+
     return nn.Sequential(*layers), sorted(save), nodes_info
 
 
+def propagate_shape(m, args, in_shapes):
+    """
+    Shape inference for a single application of module class `m` with constructor args `args`.
+    Works before module instantiation. Returns (C_out, H_out, W_out) when determinable,
+    otherwise returns a conservative pass-through of the first input.
+    Assumptions:
+      - For Conv-like layers, args are normalized to [inC, outC, k, s, p, d, ...]
+      - For Linear, args are normalized to [in_features, out_features, ...]
+      - For Flatten, no args needed.
+    """
+    # ---- helpers ----
+    def _conv_out_len(l_in, k, s, p, d=1):
+        return ((l_in + 2*p - d*(k-1) - 1) // s + 1)
+
+    def _as_hw_tuple(x, default):
+        # normalize int/tuple to (h,w)
+        if isinstance(x, (tuple, list)):
+            return int(x[0]), int(x[1])
+        return int(x), int(x)
+
+    def _same_hw(hws):
+        h0, w0 = hws[0]
+        for (h, w) in hws[1:]:
+            if h != h0 or w != w0:
+                raise ValueError(f"Multi-input H,W mismatch: {hws}")
+        return h0, w0
+    
+    def _ceil_div(a, b): 
+        b = max(1, int(b))
+        return (int(a) + b - 1) // b
+
+    single = (len(in_shapes) == 1)
+    first = in_shapes[0]
+
+    # ---- multi-input ops ----
+    if m in (Concat, Chuncat):
+        # H,W must match; C sums
+        H, W = _same_hw([(h, w) for (_, h, w) in in_shapes])
+        C = sum(C for (C, _, _) in in_shapes)
+        return (C, H, W)
+
+    if m is Shortcut:
+        # elementwise add: all (C,H,W) identical
+        C0, H0, W0 = in_shapes[0]
+        for (C, H, W) in in_shapes[1:]:
+            if (C, H, W) != (C0, H0, W0):
+                raise ValueError(f"Shortcut shape mismatch: {in_shapes}")
+        return (C0, H0, W0)
+
+    # ---- single-input ops below ----
+    if not single:
+        # Unknown multi-input type → conservative: pass-through first
+        return first
+
+    C_in, H_in, W_in = first
+
+    # Foldcut
+    if m is Foldcut:
+        return (C_in // 2, H_in, W_in)
+
+    # ReOrg / Focus
+    if m in (ReOrg, Focus):
+        return (C_in * 4, H_in // 2, W_in // 2)
+
+    # Contract / Expand
+    if m is Contract:
+        s = args[0]
+        return (C_in * (s**2), H_in // s, W_in // s)
+
+    if m is Expand:
+        s = args[0]
+        return (C_in // (s**2), H_in * s, W_in * s)
+
+    # Flatten
+    if m is nn.Flatten:
+        return (C_in * H_in * W_in, 1, 1)
+
+    # Linear (args already normalized)
+    if m is nn.Linear:
+        out_features = args[1] if len(args) > 1 else args[0]
+        return (int(out_features), 1, 1)
+
+    # BatchNorm2d
+    if m is nn.BatchNorm2d:
+        return (C_in, H_in, W_in)
+
+    # MaxPool2d / AvgPool2d  (args: k, s=None, p=0, ...)
+    if m in (nn.MaxPool2d, nn.AvgPool2d):
+        k = args[0] if len(args) > 0 else 2
+        s = args[1] if len(args) > 1 and args[1] is not None else k
+        p = args[2] if len(args) > 2 else 0
+        kh, kw = _as_hw_tuple(k, 2)
+        sh, sw = _as_hw_tuple(s, kh)
+        ph, pw = _as_hw_tuple(p, 0)
+        H_out = _conv_out_len(H_in, kh, sh, ph, 1)
+        W_out = _conv_out_len(W_in, kw, sw, pw, 1)
+        return (C_in, H_out, W_out)
+
+    # AdaptiveAvgPool2d (args[0] can be int or (H_out, W_out))
+    if m is nn.AdaptiveAvgPool2d:
+        out_sz = args[0] if len(args) > 0 else 1
+        if isinstance(out_sz, int):
+            return (C_in, int(out_sz), int(out_sz))
+        return (C_in, int(out_sz[0]), int(out_sz[1]))
+
+    # Upsample (constructor may pass size= or scale_factor=. Here we read from args if present.)
+    if m is nn.Upsample:
+        # best-effort: accept either kw-style dict or positional list
+        # common: kwargs dict as last arg or only arg
+        size = None
+        scale_factor = None
+        # try kwargs dict at the end
+        if args and isinstance(args[-1], dict):
+            size = args[-1].get('size')
+            scale_factor = args[-1].get('scale_factor')
+        # or positional (rare in yaml)
+        if size is None and len(args) >= 1 and isinstance(args[0], (tuple, list, int)):
+            # heuristics: treat first positional as size if provided
+            size = args[0] if not isinstance(args[0], (float,)) else None
+        if scale_factor is None and len(args) >= 1 and isinstance(args[0], (float, tuple, list)):
+            scale_factor = args[0] if isinstance(args[0], (float, tuple, list)) else None
+
+        if size is not None:
+            if isinstance(size, (tuple, list)):
+                return (C_in, int(size[0]), int(size[1]))
+            return (C_in, int(size), int(size))
+        if scale_factor is None:
+            scale_factor = 2
+        if isinstance(scale_factor, (tuple, list)):
+            sh, sw = float(scale_factor[0]), float(scale_factor[1])
+        else:
+            sh = sw = float(scale_factor)
+        return (C_in, int(round(H_in * sh)), int(round(W_in * sw)))
+
+    # ConvTranspose2d (args: inC, outC, k, s, p, out_pad, groups, bias, d)
+    if m is nn.ConvTranspose2d:
+        k = args[2] if len(args) > 2 else 2
+        s = args[3] if len(args) > 3 else 2
+        p = args[4] if len(args) > 4 else 0
+        op = args[5] if len(args) > 5 else 0
+        d = args[8] if len(args) > 8 else 1
+        kh, kw = _as_hw_tuple(k, 2)
+        sh, sw = _as_hw_tuple(s, 2)
+        ph, pw = _as_hw_tuple(p, 0)
+        oph, opw = _as_hw_tuple(op, 0)
+        # (in - 1)*s - 2p + d*(k-1) + out_pad + 1
+        H_out = (H_in - 1) * sh - 2 * ph + d * (kh - 1) + oph + 1
+        W_out = (W_in - 1) * sw - 2 * pw + d * (kw - 1) + opw + 1
+        # C_out은 outC(= args[1])이지만, 여기서는 외부에서 채널 관리 가능
+        C_out = int(args[1]) if len(args) > 1 else C_in
+        return (C_out, H_out, W_out)
+    
+    # Redefined Bottleneck (ResNet-style, not YOLO Bottleneck)
+    if m is Bottleneck:
+        # args normalized earlier as [inplanes, planes, stride, ...]
+        planes = int(args[1]) if len(args) > 1 else C_in
+        stride = max(1, int(args[2])) if len(args) > 2 else 1
+        exp = getattr(Bottleneck, 'expansion', 4)
+
+        C_out = planes * exp
+        H_out = _ceil_div(H_in, stride)
+        W_out = _ceil_div(W_in, stride)
+        return (C_out, H_out, W_out)
+
+    # BasicBlock for ResNet
+    if m is BasicBlock:
+        planes = int(args[1]) if len(args) > 1 else C_in
+        stride = max(1, int(args[2])) if len(args) > 2 else 1
+        exp = getattr(BasicBlock, 'expansion', 1)
+
+        C_out = planes * exp  # == planes
+        H_out = _ceil_div(H_in, stride)
+        W_out = _ceil_div(W_in, stride)
+        return (C_out, H_out, W_out)
+
+    # cBasicBlock for ResNet-CIFAR
+    if m is cBasicBlock:
+        planes = int(args[1]) if len(args) > 1 else C_in
+        stride = max(1, int(args[2])) if len(args) > 2 else 1
+        exp = 1  # cBasicBlock has no widening
+
+        C_out = planes  # or planes * exp
+        H_out = _ceil_div(H_in, stride)
+        W_out = _ceil_div(W_in, stride)
+        return (C_out, H_out, W_out)
+
+    # Conv-like / composite blocks (treat as single conv step):
+    # Expect args like [inC, outC, k, s, p, d, ...] after your channel-prop normalization.
+    if m in (nn.Conv2d, Conv):
+        C_out = int(args[1]) if len(args) > 1 else C_in
+        k = args[2] if len(args) > 2 else 1
+        s = args[3] if len(args) > 3 else 1
+        p = args[4] if len(args) > 4 else (k // 2 if isinstance(k, int) else 0)
+        d = args[5] if len(args) > 5 else 1
+        kh, kw = _as_hw_tuple(k, 1)
+        sh, sw = _as_hw_tuple(s, 1)
+        ph, pw = _as_hw_tuple(p, kh // 2)
+        dh, dw = _as_hw_tuple(d, 1)
+        H_out = _conv_out_len(H_in, kh, sh, ph, dh)
+        W_out = _conv_out_len(W_in, kw, sw, pw, dw)
+        return (C_out, H_out, W_out)
+
+    # Fallback: unknown layer → pass-through (safe default)
+    return (C_in, H_in, W_in)

@@ -100,7 +100,6 @@ def autobatch(uid, pid, model, ch, imgsz, bs_factor=0.8, batch_size=16, max_sear
     f = t - (r + a)                             # free = total - (reserved + allocated)
     logger.info(f'\n{PREFIX}{d} ({properties.name}) {t:.2f}G total, {r:.2f}G reserved, {a:.2f}G allocated, {f:.2f}G free')
 
-
     # model.to(device)
     v9 = False
     for _, m in model.named_modules():
@@ -154,13 +153,12 @@ def autobatch(uid, pid, model, ch, imgsz, bs_factor=0.8, batch_size=16, max_sear
     if max_search: # search maximum batch size (allow size other than multiple of 2)
         test_func = TestFuncGen(model, ch, imgsz, v9)
         final_batch_size = binary_search(uid, pid, final_batch_size, batch_size, test_func, want_to_get=True)
-        logger.info(f'{PREFIX}max {final_batch_size} x margin factor {bs_factor}')
+        logger.info(f'{PREFIX}{final_batch_size} x margin({bs_factor}) = {int(final_batch_size * bs_factor)}')
         final_batch_size *= bs_factor # need some spare
     final_batch_size = max(final_batch_size, 1.0)
     torch.cuda.empty_cache()
 
     gc.collect()
-    final_batch_size = max(final_batch_size, 1.0)
-    result = max(final_batch_size * num_dev, 1.0)
-    logger.info(f'{PREFIX}= {int(result)}')
-    return result
+    return final_batch_size
+
+

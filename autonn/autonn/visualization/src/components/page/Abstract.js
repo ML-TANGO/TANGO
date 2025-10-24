@@ -26,7 +26,7 @@ import Concat from "../layer/Concat";
 import DownC from "../layer/DownC";
 import SPPCSPC from "../layer/SPPCSPC";
 import ReOrg from "../layer/ReOrg";
-import InitialArch from '../../InitialArch';
+import useInitialArch from '../../InitialArch';
 
 import axios from 'axios';
 import ReactFlow, {
@@ -70,7 +70,7 @@ function AbstractList() {
       //       console.log(response)
       //     }).catch(err=>console.log(err));
       //       // Initializate selected architecture
-    var initElement = InitialArch();
+    var initElement = useInitialArch();
     for (var i=0;i<initElement.length;i++) {
       elements.push(initElement[i]);
       // setElements((es) => es.concat(initElement[i]));
@@ -583,7 +583,7 @@ function AbstractList() {
         <div className="reactflow-wrapper" ref={reactFlowWrapper}>
           <ReactFlow
 //            onClick={onRunningStateClick}
-            initElement={InitialArch}
+            initElement={useInitialArch}
             onConnect={onConnect}
             elements={elements}
             onLoad={onLoad}
