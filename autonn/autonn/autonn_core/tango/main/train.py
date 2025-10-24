@@ -509,7 +509,7 @@ def train(proj_info, hyp, opt, data_dict, tb_writer=None):
 
     # Optimizer ----------------------------------------------------------------
     nbs = 96 # 64  # nominal batch size
-    accumulate = max(round(nbs / max(batch_size, 1), 1)  # accumulate loss before optimizing
+    accumulate = max(round(nbs / max(batch_size,1)), 1)  # accumulate loss before optimizing
     hyp['weight_decay'] *= batch_size * accumulate / nbs  # scale weight_decay
     weight_decay_, momentum_, lr0_ = hyp['weight_decay'], hyp['momentum'], hyp['lr0']
     optimizer = get_optimizer(model, opt.adam, lr0_, momentum_, weight_decay_)
@@ -1011,7 +1011,7 @@ def train(proj_info, hyp, opt, data_dict, tb_writer=None):
                 if ni <= nw:
                     xi = [0, nw]  # x interp
                     # model.gr = np.interp(ni, xi, [0.0, 1.0])  # iou loss ratio (obj_loss = 1.0 or iou)
-                    accumulate = max(1, np.interp(ni, xi, [1, nbs / max(batch_size, 1)]).round())
+                    accumulate = max(1, np.interp(ni, xi, [1, nbs / batch_size]).round())
                     for j, param_group in enumerate(optimizer.param_groups):
                         # bias lr falls from 0.1 to lr0, all other lrs rise from 0.0 to lr0
                         param_group['lr'] = np.interp(
