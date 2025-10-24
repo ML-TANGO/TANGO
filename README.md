@@ -1,7 +1,7 @@
 # TANGO
 
 > **Announcement**
-> * [2025 October TANGO Release](https://github.com/ML-TANGO/TANGO/releases/tag/tango-25.10))
+> * [2025 October TANGO Release](https://github.com/ML-TANGO/TANGO/releases/tag/tango-25.10)
 > 
 ----
 
