@@ -2,7 +2,8 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from torch import Tensor
-
+import os, io
+import time
 import logging
 logger = logging.getLogger(__name__)
 
@@ -1967,7 +1968,7 @@ class NASModel(DetectModel):
     """     
     def __init__(
         self,
-        cfg='yolov7-supernet.yml',
+        cfg='yolov9-supernet.yml',
         ch=3, 
         nc=None, 
         anchors=None,
@@ -2129,22 +2130,29 @@ class ModelLoader(nn.Module):
     def __init__(self, weights='bestmodel.pt', cfg='bestmodel.yaml', task='detection', device=torch.device('cpu'), fuse=True):
         super().__init__()
         print('-'*50+'ModelLoader'+'-'*50)
-        w = str(weights[0] if isinstance(weights, list) else weights)
-        pt, jit, onnx, onnx_end2end, xml, engine, coreml, saved_model, pb, tflite, edgetpu, tfjs, paddle, triton = self._model_type(w)
-        # fp16 &= pt or jit or onnx # FP16
-        fp16 = False
-        stride = 32  # default stride
-        cuda = torch.cuda.is_available() and device.type != 'cpu'  # use CUDA
 
-        if pt:  # PyTorch
+        import os
+        is_pathlike = isinstance(weights, (str, os.PathLike)) or (isinstance(weights, list) and isinstance(weights[0], (str, os.PathLike)))
+
+        if is_pathlike:
+            w = str(weights[0] if isinstance(weights, list) else weights)
+            pt, jit, onnx, onnx_end2end, xml, engine, coreml, saved_model, pb, tflite, edgetpu, tfjs, paddle, triton = self._model_type(w)
+        else:
+            pt, jit, onnx, onnx_end2end, xml, engine, coreml, saved_model, pb, tflite, edgetpu, tfjs, paddle, triton = True, False, False, False, False, False, False, False, False, False, False, False, False, False
+            w = "<in-memory>"
+
+        fp16 = False
+        stride = 32
+        cuda = torch.cuda.is_available() and device.type != 'cpu'
+
+        if pt:
             print(f'Loading {w} for PyTorch inference...')
-            model = load_weights(cfg, weights if isinstance(weights, list) else w, task, map_location=device, fused=fuse)
-            
-            stride = max(int(model.stride.max()), 32)  # model stride
-            names = model.module.names if hasattr(model, 'module') else model.names  # get class names
-            # model.half() if fp16 else model.float()
+            model = load_weights(cfg, weights if not isinstance(weights, list) else weights[0], task, map_location=device, fused=fuse)
+            stride = max(int(model.stride.max()), 32) if hasattr(model, 'stride') else 32
+            names = model.module.names if hasattr(model, 'module') else getattr(model, 'names', None)
             model.float()
-            self.model = model  # explicitly assign for to(), cpu(), cuda(), half()
+            self.model = model
+            
         elif jit:  # TorchScript
             print(f'Loading {w} for TorchScript inference...')
             extra_files = {'config.txt': ''}  # model metadata
@@ -2235,6 +2243,34 @@ class ModelLoader(nn.Module):
 import math
 import time
 from copy import deepcopy
+
+def load_ckpt_any(src, map_location=None):
+    if src is None:
+        raise ValueError("Checkpoint source is None. Upstream returned no weights.")
+
+    if isinstance(src, (str, os.PathLike)):
+        return torch.load(src, map_location=map_location, weights_only=True)
+
+    if isinstance(src, (bytes, bytearray)):
+        return torch.load(io.BytesIO(src), map_location=map_location, weights_only=True)
+
+    if hasattr(src, "read"):
+        if hasattr(src, "seekable") and callable(src.seekable):
+            try:
+                if src.seekable():
+                    return torch.load(src, map_location=map_location, weights_only=True)
+            except Exception:
+                pass
+        data = src.read()
+        return torch.load(io.BytesIO(data), map_location=map_location, weights_only=True)
+
+    if isinstance(src, torch.nn.Module):
+        return {"model": src}
+
+    if isinstance(src, dict):
+        return src
+
+    raise TypeError(f"Unsupported checkpoint source type: {type(src)}")
 
 def parse_cls_model(d, ch):  # model_dict, input_channels(1 or 3)
     nc = d['nc']
@@ -2372,28 +2408,72 @@ def load_weights(cfg, weights, task, map_location=None, fused=True):
         model = DetectModel(cfg=cfg)
     elif task == 'classification':
         model = ClassifyModel(cfg=cfg)
-    print(weights)
-    ckpt = torch.load(weights, map_location=map_location, weights_only=True)  # load
-    print('#'*100)
-    # Model compatibility updates
-    # if not hasattr(ckpt, 'stride'):
-    #     ckpt.stride = torch.tensor([32.])
-
-    if fused:
-        csd = ckpt['ema' if ckpt.get('ema') else 'model'].float().fuse().state_dict()
     else:
-        csd = ckpt['ema' if ckpt.get('ema') else 'model'].float().state_dict()
+        raise ValueError(f"Unknown task: {task}")
 
-    model.load_state_dict(csd, strict=True)
+    print(weights)
+    if weights is None:
+        raise RuntimeError("load_weights: got None for 'weights' (checkpoint path).")
+    if not isinstance(weights, (str, os.PathLike)):
+        raise TypeError(f"load_weights expects a file path, got {type(weights)}")
+    if not os.path.exists(str(weights)):
+        raise FileNotFoundError(f"Checkpoint path not found: {weights}")
+    ckpt = torch.load(weights, map_location=map_location, weights_only=True)
+    print('#'*100)
 
-    # Compatibility updates
+    state_dict = None
+
+    if isinstance(ckpt, dict):
+        if 'ema' in ckpt and ckpt['ema'] is not None:
+            m = ckpt['ema']
+            if isinstance(m, nn.Module):
+                m = m.float()
+                if fused and hasattr(m, "fuse") and callable(m.fuse):
+                    m = m.fuse()
+                state_dict = m.state_dict()
+            elif isinstance(m, dict):
+                state_dict = m
+        elif 'model' in ckpt and ckpt['model'] is not None:
+            m = ckpt['model']
+            if isinstance(m, nn.Module):
+                m = m.float()
+                if fused and hasattr(m, "fuse") and callable(m.fuse):
+                    m = m.fuse()
+                state_dict = m.state_dict()
+            elif isinstance(m, dict):
+                state_dict = m
+        elif 'state_dict' in ckpt and isinstance(ckpt['state_dict'], dict):
+            state_dict = ckpt['state_dict']
+        else:
+            state_dict = ckpt
+    else:
+        raise RuntimeError(f"Unexpected checkpoint type after load: {type(ckpt)}")
+
+    if not isinstance(state_dict, dict) or len(state_dict) == 0:
+        raise ValueError("Empty or invalid state_dict. Upstream may have returned None or wrong object.")
+
+    try:
+        model.load_state_dict(state_dict, strict=True)
+    except Exception as e:
+        missing, unexpected = [], []
+        try:
+            info = model.load_state_dict(state_dict, strict=False)
+            missing, unexpected = getattr(info, 'missing_keys', []), getattr(info, 'unexpected_keys', [])
+        except Exception:
+            pass
+        print("Strict load failed, falling back to non-strict:", e)
+        if missing:
+            print(f"[load_weights] missing keys: {missing[:20]}{' ...' if len(missing)>20 else ''}")
+        if unexpected:
+            print(f"[load_weights] unexpected keys: {unexpected[:20]}{' ...' if len(unexpected)>20 else ''}")
+            
     for m in model.modules():
         if type(m) in [nn.Hardswish, nn.LeakyReLU, nn.ReLU, nn.ReLU6, nn.SiLU]:
-            m.inplace = True  # pytorch 1.7.0 compatibility
+            m.inplace = True
         elif type(m) is nn.Upsample:
-            m.recompute_scale_factor = None  # torch 1.11.0 compatibility
+            m.recompute_scale_factor = None
         elif type(m) is Conv:
-            m._non_persistent_buffers_set = set()  # pytorch 1.6.0 compatibility
+            m._non_persistent_buffers_set = set()
 
     return model
 

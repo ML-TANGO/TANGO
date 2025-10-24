@@ -31,6 +31,11 @@
         <TabView v-if="isData(this.projectsByTab['Auto NN'])" :items="this.projectsByTab['Auto NN']" />
         <NoResultTab v-else />
       </v-tab-item>
+      <!-- AUTO NN CL -->
+      <v-tab-item>
+        <TabView v-if="isData(this.projectsByTab['Auto NN CL'])" :items="this.projectsByTab['Auto NN CL']" />
+        <NoResultTab v-else />
+      </v-tab-item>
       <!-- IMAGE GEN -->
       <v-tab-item>
         <TabView v-if="isData(this.projectsByTab['Code Gen'])" :items="this.projectsByTab['Code Gen']" />
@@ -75,15 +80,16 @@ export default {
       tab: null,
       step: 1,
       // items: ["All Status", "Preparing", "BMS", "Visualization", "Auto NN", "Code Gen", "Image Deploy"],
-      items: ["All Status", "Preparing", "Auto NN", "Code Gen", "Image Deploy"],
+      items: ["All Status", "Preparing", "Auto NN", "Auto NN CL", "Code Gen", "Image Deploy"],
       // defaultValue: { Preparing: [], BMS: [], Visualization: [], "Auto NN": [], "Code Gen": [], "Image Deploy": [] },
-      defaultValue: { Preparing: [], "Auto NN": [], "Code Gen": [], "Image Deploy": [] },
+      defaultValue: { Preparing: [], "Auto NN": [], "Auto NN CL": [], "Code Gen": [], "Image Deploy": [] },
       projectsByTab: {},
       tabItems: [
         { key: "Preparing", allowed: ["", "init"] },
         // { key: "BMS", allowed: ["bms"] },
         // { key: "Visualization", allowed: ["visualization", "viz2code"] },
         { key: "Auto NN", allowed: ["autonk", "yoloe", "autobb", "autonn-resnet", "autonn"] },
+        { key: "Auto NN CL", allowed: ["autonn_cl"] },
         { key: "Code Gen", allowed: ["code_gen"] },
         { key: "Image Deploy", allowed: ["imagedeploy"] }
         // { key: "Run Image", allowed: ["run_image"] }
@@ -95,11 +101,19 @@ export default {
     await this.initProjectList();
 
     this.$EventBus.$on("deleteProject", async () => {
+      console.log("🗑️ 프로젝트 삭제 이벤트 - 목록 업데이트 시작");
       await this.initProjectList();
     });
 
     this.$EventBus.$on("projectDialogclose", async () => {
+      console.log("❌ 프로젝트 다이얼로그 닫기 이벤트");
       await this.close();
+    });
+
+    // 프로젝트 생성 완료 시 목록 업데이트
+    this.$EventBus.$on("projectCreated", async () => {
+      console.log("🎉 프로젝트 생성 완료 이벤트 - 목록 업데이트 시작");
+      await this.initProjectList();
     });
   },
 
@@ -113,19 +127,31 @@ export default {
     }),
 
     async initProjectList() {
-      const projectList = await getProjectList();
+      try {
+        console.log("🔄 프로젝트 목록 로딩 시작...");
+        const projectList = await getProjectList();
+        console.log("📋 받은 프로젝트 목록:", projectList);
+        console.log("📊 프로젝트 개수:", projectList ? projectList.length : 0);
 
-      this.projectsByTab = {
-        ...this.defaultValue,
-        ...projectList.reduce((acc, val) => {
-          const container = this.tabItems.find(q => q.allowed.includes(val.container)).key;
-          if (!Object.keys(acc).includes(container)) {
-            acc[container] = [];
-          }
-          acc[container].push(val);
-          return acc;
-        }, {})
-      };
+        this.projectsByTab = {
+          ...this.defaultValue,
+          ...projectList.reduce((acc, val) => {
+            const containerItem = this.tabItems.find(q => q.allowed.includes(val.container));
+            const container = containerItem ? containerItem.key : "Preparing"; // 기본값으로 "Preparing" 사용
+            console.log(`📂 프로젝트 "${val.project_name}" -> 탭 "${container}" (컨테이너: ${val.container})`);
+            
+            if (!Object.keys(acc).includes(container)) {
+              acc[container] = [];
+            }
+            acc[container].push(val);
+            return acc;
+          }, {})
+        };
+        
+        console.log("✅ 프로젝트 목록 업데이트 완료:", this.projectsByTab);
+      } catch (error) {
+        console.error("❌ 프로젝트 목록 로딩 실패:", error);
+      }
     },
     onStepChange(step) {
       this.step = step;

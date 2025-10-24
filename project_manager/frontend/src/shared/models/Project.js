@@ -45,6 +45,11 @@ export class Project {
    */
   validation() {
     try {
+      // Segmentation 프로젝트는 별도의 검증 규칙 적용
+      if (this.task_type === TaskType.SEGMENTATION) {
+        return this.validateSegmentationProject();
+      }
+
       for (const column of ProjectRequiredColumn) {
         if (!this[column]) {
           return false;
@@ -60,9 +65,69 @@ export class Project {
   }
 
   /**
+   * Segmentation 프로젝트 전용 검증 로직
+   * @returns 검증 성공 : true, else : false
+   */
+  validateSegmentationProject() {
+    try {
+      console.log("🔍 Segmentation 프로젝트 검증 시작:", {
+        task_type: this.task_type,
+        deploy_weight_level: this.deploy_weight_level,
+        deploy_precision_level: this.deploy_precision_level,
+        deploy_user_edit: this.deploy_user_edit,
+        deploy_output_method: this.deploy_output_method
+      });
+
+      // task_type은 필수이므로 반드시 있어야 함
+      if (!this.task_type || this.task_type === "") {
+        console.log("❌ Segmentation validation failed: task_type is missing");
+        return false;
+      }
+
+      // 나머지 필드들은 기본값 적용
+      if (!this.deploy_weight_level) {
+        console.log("🔧 deploy_weight_level 기본값 적용: 5");
+        this.deploy_weight_level = "5";
+      }
+      
+      if (!this.deploy_precision_level) {
+        console.log("🔧 deploy_precision_level 기본값 적용: 5");
+        this.deploy_precision_level = "5";
+      }
+      
+      if (!this.deploy_user_edit) {
+        console.log("🔧 deploy_user_edit 기본값 적용: no");
+        this.deploy_user_edit = "no";
+      }
+      
+      if (!this.deploy_output_method) {
+        console.log("🔧 deploy_output_method 기본값 적용: 0");
+        this.deploy_output_method = "0";
+      }
+
+      // Segmentation은 target_id와 dataset이 없어도 유효함
+      console.log("✅ Segmentation project validation passed");
+      return true;
+    } catch (err) {
+      console.error("❌ Segmentation validation error:", err);
+      return false;
+    }
+  }
+
+  /**
    * dataset load
    */
   async load() {
+    // Segmentation 프로젝트는 dataset 로딩 생략
+    if (this.task_type === TaskType.SEGMENTATION) {
+      console.log("Segmentation project: skipping dataset load");
+      if (!this.project_type) {
+        await updateProjectType(this.id, ProjectType.AUTO); // Segmentation은 AUTO 타입으로 설정
+        this.project_type = ProjectType.AUTO;
+      }
+      return;
+    }
+
     if (this.dataset) {
       const res = await getDatasetInfo(this.dataset);
       this.datasetObject = res?.dataset || [];

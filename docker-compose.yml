@@ -55,12 +55,14 @@ services:
       # - ./project_manager:/code
       - shared:/shared
       - ${configYaml:-./autonn/autonn/autonn_core/tango/common/cfg}:/configYaml
+      - ./autonn_cl/autonn_cl/autonn_cl_core/tango/common/cfg:/configYaml  # configYaml 위에 autonn_cl의 cfg 폴더를 겹쳐서 마운트합니다.
       - *vol_coco
       - *vol_coco128
       - *vol_imagenet
       - *vol_voc
       - *vol_chestxray
       - /var/run/docker.sock:/var/run/docker.sock
+
     hostname: projectmanager
     ports:
       - "8085:8085"
@@ -146,6 +148,42 @@ services:
     ports:
       - "8100:8100" # visualizer (vision model)
       - "8101:8101" # streamlit  (llm)
+
+
+  #---------------------------------
+  # AutoNN_CL: AutoNN_CL (중앙대 개발 - 기본 구조 제공)
+  #---------------------------------
+  autonn_cl:
+      build:
+        context: ./autonn_cl/autonn_cl
+      shm_size: "256M"
+      ipc: host
+      command: >
+        sh -c "python manage.py makemigrations &&
+               python manage.py migrate &&
+               python manage.py runserver 0.0.0.0:8102"
+      deploy:
+        resources:
+          reservations:
+            devices:
+              - driver: nvidia
+                count: all
+                capabilities:
+                  - gpu
+                  - utility
+                  - compute
+                  - video
+      environment:
+        - NVIDIA_VISIBLE_DEVICES=${GPU_NUM:-all}
+      volumes:
+        - ./autonn_cl/autonn_cl:/source
+        - shared:/shared
+        - ./autonn_cl/autonn_cl/autonn_cl_core/datasets/coco128_seg:/shared/datasets/coco128_seg
+        - ${COCODIR:-./autonn/autonn/autonn_core/datasets/coco}:/shared/datasets/coco
+        - ${COCO128DIR:-./autonn/autonn/autonn_core/datasets/coco128}:/shared/datasets/coco128
+      hostname: autonn-cl
+      ports:
+        - "8102:8102"
 
   #---------------------------------
   # Base Model Selector

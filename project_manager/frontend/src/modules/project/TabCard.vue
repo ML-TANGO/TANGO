@@ -175,21 +175,65 @@ export default {
     navigation() {
       let status = true;
       const info = this.projectInfo;
-      if (info.task_type !== TaskType.CHAT && (!info?.dataset || info?.dataset === "")) status = false;
-      else if (!info?.target_id || !info?.target_info) status = false;
-      else if (!info?.target_id || info?.target_id === "") status = false;
-      else if (!info?.task_type || info?.task_type === "") status = false;
-      else if (!info?.nas_type || info?.nas_type === "") status = false;
-      else if (!info?.deploy_weight_level || info?.deploy_weight_level === "") status = false;
-      else if (!info?.deploy_precision_level || info?.deploy_precision_level === "") status = false;
-      else if (!info?.deploy_user_edit || info?.deploy_user_edit === "") status = false;
-      else if (!info?.deploy_output_method || info?.deploy_output_method === "") status = false;
+      console.log("프로젝트 네비게이션 시작:", info);
+      
+      // Segmentation 프로젝트는 별도의 검증 규칙 적용
+      if (info.task_type === TaskType.SEGMENTATION) {
+        console.log("Segmentation 프로젝트 검증 시작");
+        status = this.validateSegmentationProject(info);
+      } else {
+        // 기존 검증 로직 (Detection, Classification, Chat)
+        if (info.task_type !== TaskType.CHAT && (!info?.dataset || info?.dataset === "")) status = false;
+        else if (!info?.target_id || !info?.target_info) status = false;
+        else if (!info?.target_id || info?.target_id === "") status = false;
+        else if (!info?.task_type || info?.task_type === "") status = false;
+        else if (!info?.nas_type || info?.nas_type === "") status = false;
+        else if (!info?.deploy_weight_level || info?.deploy_weight_level === "") status = false;
+        else if (!info?.deploy_precision_level || info?.deploy_precision_level === "") status = false;
+        else if (!info?.deploy_user_edit || info?.deploy_user_edit === "") status = false;
+        else if (!info?.deploy_output_method || info?.deploy_output_method === "") status = false;
+      }
 
       if (status) {
         this.$router.push(`/project/${this.projectInfo.id}`);
       } else {
         Swal.fire("project를 완성해 주세요.");
       }
+    },
+
+    /**
+     * Segmentation 프로젝트 전용 검증 로직
+     * Dataset과 Target이 없어도 유효함
+     */
+    validateSegmentationProject(info) {
+      console.log("Segmentation 프로젝트 검증:", info);
+      console.log("필드별 값 확인:");
+      console.log("- task_type:", info?.task_type);
+      console.log("- deploy_weight_level:", info?.deploy_weight_level);
+      console.log("- deploy_precision_level:", info?.deploy_precision_level);
+      console.log("- deploy_user_edit:", info?.deploy_user_edit);
+      console.log("- deploy_output_method:", info?.deploy_output_method);
+      
+      // Segmentation 프로젝트에 필수인 필드들만 검증 (더 안전한 체크)
+      if (!info?.task_type || info?.task_type === "") {
+        console.log("task_type 누락");
+        return false;
+      }
+      
+      // 기본값으로 검증 통과 (값이 없으면 기본값 적용)
+      const weightLevel = info?.deploy_weight_level || "5";
+      const precisionLevel = info?.deploy_precision_level || "5";
+      const userEdit = info?.deploy_user_edit || "no";
+      const outputMethod = info?.deploy_output_method || "0";
+      
+      console.log("기본값 적용 후:");
+      console.log("- deploy_weight_level:", weightLevel);
+      console.log("- deploy_precision_level:", precisionLevel);
+      console.log("- deploy_user_edit:", userEdit);
+      console.log("- deploy_output_method:", outputMethod);
+
+      console.log("Segmentation 프로젝트 검증 통과");
+      return true;
     },
 
     onDelete() {

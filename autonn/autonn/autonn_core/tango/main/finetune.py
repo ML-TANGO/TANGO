@@ -64,7 +64,7 @@ from . import status_update #, Info
 from . import test
 from tango.common.models.experimental import attempt_load
 from tango.common.models.yolo               import Model
-from tango.common.models.supernet_yolov7    import NASModel
+from tango.common.models.supernet_yolov9    import NASModel as NASModelV9
 from tango.common.models.resnet_cifar10     import ClassifyModel
 # from tango.common.models import *
 from tango.utils.django_utils import safe_update_info
@@ -130,7 +130,7 @@ def finetune(proj_info, subnet, hyp, opt, data_dict, tb_writer=None):
     plots = False  # create plots
     cuda = device.type != 'cpu'
     # init_seeds(2 + rank)
-    init_seeds(opt.seed + 1 + rank, deterministric=True) # from yolov9
+    init_seeds(opt.seed + 1 + rank, deterministic=True) # from yolov9
 
     nc = 1 if opt.single_cls else int(data_dict['nc'])  # number of classes
     ch = int(data_dict.get('ch', 3))
@@ -155,6 +155,11 @@ def finetune(proj_info, subnet, hyp, opt, data_dict, tb_writer=None):
                                             imgsz,
                                             amp_enabled=False,
                                             max_search=False )
+    if autobatch_rst:
+        new_bs = max(int(round(autobatch_rst)), 1)
+        batch_size = total_batch_size = new_bs
+        opt.batch_size = new_bs
+        opt.total_batch_size = new_bs
     logger.info(f"autobatch result = {autobatch_rst}, supernet_batchsize = {batch_size}")
 
     # Dataset ------------------------------------------------------------------
@@ -166,7 +171,7 @@ def finetune(proj_info, subnet, hyp, opt, data_dict, tb_writer=None):
 
     # Optimizer ----------------------------------------------------------------
     nbs = 64  # nominal batch size
-    accumulate = max(round(nbs / total_batch_size), 1)  # accumulate loss before optimizing
+    accumulate = max(round(nbs / max(total_batch_size, 1)), 1)  # accumulate loss before optimizing
     hyp['weight_decay'] *= total_batch_size * accumulate / nbs  # scale weight_decay
     logger.info(f"Scaled weight_decay = {hyp['weight_decay']}")
 
@@ -408,7 +413,7 @@ def finetune(proj_info, subnet, hyp, opt, data_dict, tb_writer=None):
             if ni <= nw:
                 xi = [0, nw]  # x interp
                 # model.gr = np.interp(ni, xi, [0.0, 1.0])  # iou loss ratio (obj_loss = 1.0 or iou)
-                accumulate = max(1, np.interp(ni, xi, [1, nbs / total_batch_size]).round())
+                accumulate = max(1, np.interp(ni, xi, [1, nbs / max(total_batch_size, 1)]).round())
                 for j, x in enumerate(optimizer.param_groups):
                     # bias lr falls from 0.1 to lr0, all other lrs rise from 0.0 to lr0
                     x['lr'] = np.interp(ni, xi, [hyp['warmup_bias_lr'] if j == 2 else 0.0, x['initial_lr'] * lf(epoch)])
@@ -520,10 +525,25 @@ def finetune(proj_info, subnet, hyp, opt, data_dict, tb_writer=None):
     # 6. requires_grad -> False
     # 7. save .pt
     subnet_pt = search_best if search_best.exists() else None
+    if subnet_pt is None:
+        logger.warning(
+            f'{colorstr("NAS: ")}No best subnet checkpoint saved; writing current weights to {search_best}'
+        )
+        ckpt = {
+            'epoch': epochs,
+            'best_fitness': best_fitness,
+            'model': deepcopy(subnet.module if is_parallel(subnet) else subnet).half(),
+            'ema': deepcopy(ema.ema).half() if ema else None,
+            'updates': ema.updates if ema else None,
+            'optimizer': optimizer.state_dict(),
+        }
+        torch.save(ckpt, search_best)
+        del ckpt
+        subnet_pt = search_best
     if subnet_pt:
         strip_optimizer(subnet_pt)
 
-    return str(subnet_pt), results
+    return str(subnet_pt) if subnet_pt else None, results
 
 def finetune_hyp(proj_info, basemodel, hyp, opt, data_dict, tb_writer=None):
     # Options ------------------------------------------------------------------
@@ -550,7 +570,7 @@ def finetune_hyp(proj_info, basemodel, hyp, opt, data_dict, tb_writer=None):
     plots = False  # create plots
     cuda = device.type != 'cpu'
     # init_seeds(2 + rank)
-    init_seeds(opt.seed + 1 + rank, deterministric=True) # from yolov9
+    init_seeds(opt.seed + 1 + rank, deterministic=True) # from yolov9
 
     nc = 1 if opt.single_cls else int(data_dict['nc'])  # number of classes
     ch = int(data_dict.get('ch', 3))
@@ -572,7 +592,7 @@ def finetune_hyp(proj_info, basemodel, hyp, opt, data_dict, tb_writer=None):
         net = ClassifyModel(opt.cfg or ckpt['model'].yaml, ch=ch, nc=nc)
     elif task == 'detection':
         if nas or target == 'Galaxy_S22':
-            net = NASModel(opt.cfg or ckpt['model'].yaml, ch=ch, nc=nc, anchors=hyp.get('anchors'))  # create
+            net = NASModelV9(opt.cfg or ckpt['model'].yaml, ch=ch, nc=nc, anchors=hyp.get('anchors'))  # create
         else:
             net = Model(opt.cfg or ckpt['model'].yaml, ch=ch, nc=nc, anchors=hyp.get('anchors'))  # create
         exclude = ['anchor'] if (opt.cfg or hyp.get('anchors')) and not opt.resume else []  # exclude keys
@@ -602,6 +622,11 @@ def finetune_hyp(proj_info, basemodel, hyp, opt, data_dict, tb_writer=None):
                                             imgsz,
                                             amp_enabled=False,
                                             max_search=False )
+    if autobatch_rst:
+        new_bs = max(int(round(autobatch_rst)), 1)
+        batch_size = total_batch_size = new_bs
+        opt.batch_size = new_bs
+        opt.total_batch_size = new_bs
     logger.info(f"autobatch result = {autobatch_rst}, basemodel_batchsize = {batch_size}")
 
     # Dataset ------------------------------------------------------------------
@@ -613,7 +638,7 @@ def finetune_hyp(proj_info, basemodel, hyp, opt, data_dict, tb_writer=None):
 
     # Optimizer ----------------------------------------------------------------
     nbs = 64  # nominal batch size
-    accumulate = max(round(nbs / total_batch_size), 1)  # accumulate loss before optimizing
+    accumulate = max(round(nbs / max(total_batch_size, 1)), 1)  # accumulate loss before optimizing
     hyp['weight_decay'] *= total_batch_size * accumulate / nbs  # scale weight_decay
     logger.info(f"Scaled weight_decay = {hyp['weight_decay']}")
 
@@ -871,7 +896,7 @@ def finetune_hyp(proj_info, basemodel, hyp, opt, data_dict, tb_writer=None):
             if ni <= nw:
                 xi = [0, nw]  # x interp
                 # model.gr = np.interp(ni, xi, [0.0, 1.0])  # iou loss ratio (obj_loss = 1.0 or iou)
-                accumulate = max(1, np.interp(ni, xi, [1, nbs / total_batch_size]).round())
+                accumulate = max(1, np.interp(ni, xi, [1, nbs / max(total_batch_size, 1)]).round())
                 for j, x in enumerate(optimizer.param_groups):
                     # bias lr falls from 0.1 to lr0, all other lrs rise from 0.0 to lr0
                     x['lr'] = np.interp(ni, xi, [hyp['warmup_bias_lr'] if j == 2 else 0.0, x['initial_lr'] * lf(epoch)])

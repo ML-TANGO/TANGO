@@ -155,7 +155,8 @@ def autobatch(uid, pid, model, ch, imgsz, bs_factor=0.8, batch_size=16, max_sear
         final_batch_size = binary_search(uid, pid, final_batch_size, batch_size, test_func, want_to_get=True)
         logger.info(f'{PREFIX}{final_batch_size} x margin({bs_factor}) = {int(final_batch_size * bs_factor)}')
         final_batch_size *= bs_factor # need some spare
-        torch.cuda.empty_cache()
+    final_batch_size = max(final_batch_size, 1.0)
+    torch.cuda.empty_cache()
 
     gc.collect()
     return final_batch_size
