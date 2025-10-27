@@ -132,10 +132,17 @@ services:
       sh -c "python manage.py makemigrations &&
              python manage.py migrate &&
              python manage.py runserver 0.0.0.0:8100"
-    gpus: all
-    environment:
-      - NVIDIA_VISIBLE_DEVICES=${NVIDIA_VISIBLE_DEVICES:-all}
-      - NVIDIA_DRIVER_CAPABILITIES=compute,utility
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities:
+                - gpu
+                - utility
+                - compute
+                - video
     volumes:
       - ./autonn/autonn:/source
       - shared:/shared
@@ -173,8 +180,6 @@ services:
                   - utility
                   - compute
                   - video
-      environment:
-        - NVIDIA_VISIBLE_DEVICES=${GPU_NUM:-all}
       volumes:
         - ./autonn_cl/autonn_cl:/source
         - shared:/shared
