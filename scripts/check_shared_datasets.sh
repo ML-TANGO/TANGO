@@ -5,54 +5,59 @@
 #   scripts/check_shared_datasets.sh tango .compose/docker-compose.datasets.yml
 #
 # 동작:
-# - <project>_shared 볼륨의 Mountpoint 하위 /datasets/* 검사
-# - 항상 x-vol-* 앵커는 정의하되, services의 volumes에는 "비어있는 데이터셋만" 앵커 추가
+# - <project>_shared 볼륨의 /datasets/* 를 "임시 컨테이너"로 마운트해 파일 유무 검사(호스트 권한 이슈 회피)
+# - 항상 x-vol-* 앵커는 정의하되, services의 volumes에는 "비어있는(없거나 파일 없는) 데이터셋만" 앵커 추가
 # - 아무 것도 비어있지 않으면 services가 비어있게 생성됨(= override 없어도 됨)
 
 set -euo pipefail
 
-PROJECT_NAME="${1:-tango}"
+DOCKER="${DOCKER:-docker}"
+
+# 프로젝트명 해석 우선순위: 인자 > 환경변수 > 현재 디렉토리명
+PROJECT_NAME="${1:-${COMPOSE_PROJECT_NAME:-$(basename "$(pwd)" | tr '[:upper:]' '[:lower:]')}}"
 OUT_YAML="${2:-.compose/docker-compose.datasets.yml}"
 VOLUME_NAME="${PROJECT_NAME}_shared"
 
 mkdir -p "$(dirname "$OUT_YAML")"
 
-# 볼륨 마운트 경로
-MOUNTPOINT="$(docker volume inspect "$VOLUME_NAME" --format '{{ .Mountpoint }}' 2>/dev/null || true)"
+echo ">> PROJECT_NAME resolved to: '${PROJECT_NAME}'"
+echo ">> Using Docker volume name: '${VOLUME_NAME}'"
 
 # 키와 shared 상대경로
 declare -A SHARED_PATHS=(
   [coco]="datasets/coco"
   [coco128]="datasets/coco128"
+  [coco128seg]="datasets/coco128_seg"
   [imagenet]="datasets/imagenet"
   [voc]="datasets/VOC"
   [chestxray]="datasets/ChestXRay"
 )
 
-DATASET_ORDER=(coco coco128 imagenet voc chestxray)
+DATASET_ORDER=(coco coco128 coco128seg imagenet voc chestxray)
 
-is_empty_dir() {
-  local p="$1"
-  # 파일 하나라도 있으면 non-empty로 간주 (디렉토리만 있는 빈 구조는 empty)
-  if [[ ! -d "$p" ]]; then
-    return 0
-  fi
-  if find "$p" -type f -mindepth 1 -print -quit | grep -q . ; then
-    return 1  # non-empty
-  else
-    return 0  # empty
-  fi
+# 임시 컨테이너로 볼륨 내부 검사: 파일이 하나라도 있으면 true(0), 없으면 false(1)
+dir_has_files() {
+  # $1 = dataset relative path, e.g., "datasets/coco"
+  # -t로 TTY 요구하면 CI에서 실패할 수 있으니 비TTY 실행
+  $DOCKER run --rm -v "${VOLUME_NAME}:/mnt:ro" --entrypoint sh alpine:3.20 -lc \
+    "test -d \"/mnt/$1\" && find \"/mnt/$1\" -type f -mindepth 1 -print -quit | grep -q ."
 }
 
 NEED_KEYS=()
 
-if [[ -z "$MOUNTPOINT" || ! -d "$MOUNTPOINT" ]]; then
-  # shared 볼륨이 아직 없으면 모든 데이터셋을 외부 바인딩 대상으로
+# 1) 볼륨 존재 여부를 상태코드로 판단(출력을 버리고 실패/성공만)
+if ! $DOCKER volume inspect "$VOLUME_NAME" >/dev/null 2>&1; then
+  echo "🔍 Docker volume '${VOLUME_NAME}' not found or not accessible via '${DOCKER}'."
+  echo "➡️  Treating as empty: all datasets will be considered for external binding."
   NEED_KEYS=("${DATASET_ORDER[@]}")
 else
+  echo "🔍 Docker volume '${VOLUME_NAME}' is present. Inspecting contents via helper container..."
   for key in "${DATASET_ORDER[@]}"; do
-    target="${MOUNTPOINT}/${SHARED_PATHS[$key]}"
-    if is_empty_dir "$target"; then
+    rel="${SHARED_PATHS[$key]}"
+    if dir_has_files "$rel"; then
+      echo "   • ${key}: already has files → skip host binding"
+    else
+      echo "   • ${key}: missing or empty → will bind from host (.env)"
       NEED_KEYS+=("$key")
     fi
   done
@@ -62,7 +67,7 @@ fi
 {
   cat <<'YAML'
 # --- Anchors: env 기반 host-dataset bindings ---
-# .env 에서 COCODIR, COCO128DIR, IMAGENETDIR, VOCDIR, CHESTXRAYDIR 설정 가능
+# .env에서 COCODIR, COCO128DIR, COCO128SEGDIR, IMAGENETDIR, VOCDIR, CHESTXRAYDIR 설정 가능
 x-vol-coco: &vol_coco
   type: bind
   source: ${COCODIR:-./autonn/autonn/autonn_core/datasets/coco}
@@ -73,6 +78,12 @@ x-vol-coco128: &vol_coco128
   type: bind
   source: ${COCO128DIR:-./autonn/autonn/autonn_core/datasets/coco128}
   target: /shared/datasets/coco128
+  read_only: false
+
+x-vol-coco128seg: &vol_coco128seg
+  type: bind
+  source: ${COCO128SEGDIR:-./autonn_cl/autonn_cl/autonn_cl_core/datasets/coco128_seg}
+  target: /shared/datasets/coco128_seg
   read_only: false
 
 x-vol-imagenet: &vol_imagenet
@@ -100,18 +111,18 @@ YAML
     local svc="$1"
     local first=1
     for key in "${NEED_KEYS[@]}"; do
-      # 필요할 때만 volumes 섹션과 항목 출력
       if [[ $first -eq 1 ]]; then
         echo "  ${svc}:"
         echo "    volumes:"
         first=0
       fi
       case "$key" in
-        coco)      echo "      - *vol_coco" ;;
-        coco128)   echo "      - *vol_coco128" ;;
-        imagenet)  echo "      - *vol_imagenet" ;;
-        voc)       echo "      - *vol_voc" ;;
-        chestxray) echo "      - *vol_chestxray" ;;
+        coco)       echo "      - *vol_coco" ;;
+        coco128)    echo "      - *vol_coco128" ;;
+        coco128seg) echo "      - *vol_coco128seg" ;;
+        imagenet)   echo "      - *vol_imagenet" ;;
+        voc)        echo "      - *vol_voc" ;;
+        chestxray)  echo "      - *vol_chestxray" ;;
       esac
     done
   }

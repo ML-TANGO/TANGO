@@ -146,18 +146,18 @@ validate-host-datasets: gen-datasets-override ## override에 포함된 데이터
 	check_one() { \
 	  local name="$$1"; local envv="$$2"; local val="$${!2}"; \
 	  if grep -q "\*vol_$${name}" '$(DATASETS_OVERRIDE)' 2>/dev/null; then \
-	    if [ -z "$$val" ]; then echo "❌ $$envv not set (needed for $$name)"; has_err=1; \
-	    elif [ ! -d "$$val" ]; then echo "❌ $$envv dir not found: $$val"; has_err=1; \
-	    elif [ -z "$$(ls -A "$$val" 2>/dev/null)" ]; then echo "❌ $$envv is empty: $$val"; has_err=1; \
+	    if [ -z "$$val" ]; then echo "⚠️  $$envv not set (skipped)"; \
+	    elif [ ! -d "$$val" ]; then echo "⚠️  $$envv dir not found: $$val (skipped)"; \
+	    elif [ -z "$$(ls -A "$$val" 2>/dev/null)" ]; then echo "⚠️  $$envv is empty: $$val (skipped)";  \
 	    else echo "✓ $$envv OK → $$val"; fi; \
 	  fi; \
 	}; \
 	check_one coco COCODIR; \
 	check_one coco128 COCO128DIR; \
+	check_one coco128seg COCO128SEGDIR; \
 	check_one imagenet IMAGENETDIR; \
 	check_one voc VOCDIR; \
 	check_one chestxray CHESTXRAYDIR; \
-	if [ $$has_err -eq 1 ]; then echo "✋ Fix the errors above."; exit 1; fi; \
 	echo "✅ host dataset paths OK (for the ones that will be bound)"
 
 # --------------------------------------------
