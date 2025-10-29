@@ -1,35 +1,3 @@
-# version: "3"
-
-x-vol-coco: &vol_coco
-  type: bind
-  source: ${COCODIR:-./autonn/autonn/autonn_core/datasets/coco}
-  target: /shared/datasets/coco
-  read_only: false   # ← 쓰기 허용이면 false
-
-x-vol-coco128: &vol_coco128
-  type: bind
-  source: ${COCO128DIR:-./autonn/autonn/autonn_core/datasets/coco128}
-  target: /shared/datasets/coco128
-  read_only: false
-
-x-vol-imagenet: &vol_imagenet
-  type: bind
-  source: ${IMAGENETDIR:-./autonn/autonn/autonn_core/datasets/imagenet}
-  target: /shared/datasets/imagenet
-  read_only: false
-
-x-vol-voc: &vol_voc
-  type: bind
-  source: ${VOCDIR:-./autonn/autonn/autonn_core/datasets/voc}
-  target: /shared/datasets/VOC
-  read_only: false
-
-x-vol-chestxray: &vol_chestxray
-  type: bind
-  source: ${CHESTXRAYDIR:-./autonn/autonn/autonn_core/datasets/ChestXRay}
-  target: /shared/datasets/ChestXRay
-  read_only: false  
-
 services:
   #---------------------------------
   # Project Manager
@@ -56,11 +24,6 @@ services:
       - shared:/shared
       - ${configYaml:-./autonn/autonn/autonn_core/tango/common/cfg}:/configYaml
       - ./autonn_cl/autonn_cl/autonn_cl_core/tango/common/cfg:/configYaml  # configYaml 위에 autonn_cl의 cfg 폴더를 겹쳐서 마운트합니다.
-      - *vol_coco
-      - *vol_coco128
-      - *vol_imagenet
-      - *vol_voc
-      - *vol_chestxray
       - /var/run/docker.sock:/var/run/docker.sock
 
     hostname: projectmanager
@@ -146,11 +109,6 @@ services:
     volumes:
       - ./autonn/autonn:/source
       - shared:/shared
-      - *vol_coco
-      - *vol_coco128
-      - *vol_imagenet
-      - *vol_voc
-      - *vol_chestxray
     hostname: autonn
     ports:
       - "8100:8100" # visualizer (vision model)
@@ -183,9 +141,6 @@ services:
       volumes:
         - ./autonn_cl/autonn_cl:/source
         - shared:/shared
-        - ./autonn_cl/autonn_cl/autonn_cl_core/datasets/coco128_seg:/shared/datasets/coco128_seg
-        - ${COCODIR:-./autonn/autonn/autonn_core/datasets/coco}:/shared/datasets/coco
-        - ${COCO128DIR:-./autonn/autonn/autonn_core/datasets/coco128}:/shared/datasets/coco128
       hostname: autonn-cl
       ports:
         - "8102:8102"
