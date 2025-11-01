@@ -53,6 +53,39 @@ GET | /status_request | Service status | `user_id`, `project_id` | 200 | `runnin
 보다 상세한 최신 API 스펙은 클라우드 배포 모듈을 구동한 후 `/docs` 경로로 접근하면 Swagger UI를 통해 확인할 수 있다. (예: http://localhost:8890/docs)
 
 
+### 환경 변수 설정
+
+클라우드 배포 모듈은 다양한 클라우드 서비스의 인증 정보 및 설정을 환경 변수로 관리한다.
+
+**`.env` 파일 사용 (권장)**
+
+매번 `export` 명령으로 환경 변수를 설정할 필요 없이, 프로젝트 루트에 `.env` 파일을 생성하여 환경 변수를 관리할 수 있다.
+
+1. `.env.example` 파일을 복사하여 `.env` 파일 생성:
+   ```bash
+   cp .env.example .env
+   ```
+
+2. `.env` 파일을 편집하여 실제 인증 정보 입력:
+   ```bash
+   # Compute Session 타입 배포 설정
+   CS_ENDPOINT=https://api.example.ai
+   CS_ACCESS_KEY=실제_액세스_키
+   CS_SECRET_KEY=실제_시크릿_키
+
+   # GCP 설정
+   GCP_PROJECT_ID=실제_프로젝트_ID
+
+   # AWS 설정
+   AWS_ACCESS_KEY_ID=실제_액세스_키
+   AWS_SECRET_ACCESS_KEY=실제_시크릿_키
+   ```
+
+3. `docker-compose.yml`이 자동으로 `.env` 파일을 읽어 컨테이너에 환경 변수 전달
+
+**참고**: `.env` 파일은 `.gitignore`에 포함되어 있어 Git 저장소에 커밋되지 않는다.
+
+
 ## 대상 타겟 장치
 
 현재, 클라우드 배포 모듈에서는 다음과 같은 클라우드 타겟 장치를 지원한다.
@@ -117,12 +150,67 @@ AWS_SECRET_ACCESS_KEY=Bq1N****
 정의해서 실행해야 한다. 특히, `deploy.type`의 값을 `aws-ecs`으로 설정한다.
 
 
-## TODO
+### Compute Session
 
-- [ ] PyTorch 기반의 추론 서비스를 배포 및 시연하기 위한 시나리오 및 이미지 개발(Stable Diffusion, 비교적 작은 LLM 모델 서비스 등)
-- [ ] 현행 [공용으로 마운트 해서 사용하는 로컬 폴더](https://github.com/ML-TANGO/TANGO/wiki/Guides-%7C-Exchanging-Data-among-Containers#volume-for-exchanging-data)는 클라우드 환경에 배포할 때 동일한 방식으로 마운트할 수 없다는 문제가 있음. 데이터가 대용량일 경우, 데이터를 매번 업로드 하는 것도 현실적인 문제가 있을 것으로 보이는데, 이 부분을 보다 효율적으로 해결할 필요가 있음.
-- GCP 클라우드
-    - [ ] 동적 이미지 빌드 및 배포 API 통합
-    - [ ] 클라우드 컨테이너 서비스에서 GPU 장치를 활용한 고속 추론 배포
-    - [ ] 서비스 상태 동기화 관리
-- [ ] 보다 다양한 클라우드 타겟 장치 및 방법 지원
+다양한 이기종 가속기(GPU, NPU, TPU)를 지원하는 Sokovan 스케줄러를 이용하는 방식.
+TANGO 클라우드 배포 매니저는 Compute Session(연산 세션) 기능을 통해 AI/ML 추론
+서비스를 배포할 수 있다.
+
+**주요 지원 가속기**
+- GPU (NVIDIA, AMD)
+- NPU (Rebellion Atom)
+- CPU
+
+**사전 준비**
+- Sokovan 계정 및 접속 정보 확보
+- Access Key 및 Secret Key 발급
+
+**환경 변수 설정**
+
+`.env` 파일에 다음 정보를 설정:
+
+```shell
+CS_ENDPOINT=https://api.example.ai
+CS_ACCESS_KEY=AKIA...
+CS_SECRET_KEY=실제_시크릿_키
+CS_DEFAULT_DOMAIN=default
+CS_DEFAULT_GROUP=default
+```
+
+**배포 예시**
+
+다음 샘플 파일들을 참고하여 YAML 스펙을 정의:
+
+1. **GPU 기반 추론 서비스**: `deploy_targets/cloud/samples/deployment_compute_session.yaml`
+2. **Rebellion Atom NPU 추론 서비스**: `deploy_targets/cloud/samples/deployment_rebellion_atom.yaml`
+
+`deploy.type`의 값을 `compute-session`으로 설정한다.
+
+**가속기 스펙 설정**
+
+Build 섹션에서 가속기를 다음과 같이 지정:
+
+```yaml
+build:
+  accelerator:
+    type: gpu          # cpu, gpu, npu, tpu
+    vendor: nvidia     # nvidia, amd, rebellion, google
+    count: 1           # 가속기 개수
+```
+
+또는 간단한 문자열 형식:
+
+```yaml
+build:
+  accelerator: "npu"  # 또는 "npu"
+deploy:
+  type: compute-session
+  service_name: Qwen25-14b
+  resources:
+    cpu: 4
+    memory: 65536
+    atom-max.device: 1
+  model_service:
+    model: Qwen25-14b
+    scaling_group: default
+```

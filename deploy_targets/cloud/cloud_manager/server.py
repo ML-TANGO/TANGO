@@ -78,7 +78,18 @@ async def start_service(user_id: str, project_id: str, bg_tasks: BackgroundTasks
     await save_service(service)
     await launch_service(user_id, project_id, deploy_yaml, bg_tasks)
 
-    return Response(content="started", status_code=200, media_type="text/plain")
+    # Retrieve service to get target_info with endpoint URL (if available)
+    service = await get_service(user_id, project_id)
+
+    response_text = "started"
+    if service and service.target_info and "url" in service.target_info:
+        endpoint_url = service.target_info.get("url")
+        if endpoint_url:
+            response_text = f"started\nEndpoint URL: {endpoint_url}"
+        else:
+            response_text = "started\nEndpoint URL: Not available yet (provisioning)"
+
+    return Response(content=response_text, status_code=200, media_type="text/plain")
 
 
 @app.get("/stop")
