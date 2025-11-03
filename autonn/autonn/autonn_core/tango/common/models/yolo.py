@@ -1257,6 +1257,22 @@ def parse_model_v9(d, ch):  # model_dict, input_channels(3)
     no = na * (nc + 5)  # number of outputs = anchors * (classes + 5)
 
     layers, save, c2 = [], [], ch[-1]  # layers, savelist, ch out
+
+    # ==========================================================================
+    # Shape tracking initialization
+    # ==========================================================================
+    imgsz = d.get('imgsz', 640)
+    input_shape = (ch[0], imgsz, imgsz) # (C, H, W)
+    shapes = [] # output shapes
+
+    def _shape_at(idx):
+        if idx == -1:
+            return shapes[-1] if shapes else input_shape
+        return shapes[idx]
+
+    # ==========================================================================
+    # Layer parsing loop
+    # ==========================================================================
     for i, (f, n, m, args) in enumerate(d['backbone'] + d['head']):  # from, number, module, args
         m = eval(m) if isinstance(m, str) else m  # eval strings
         for j, a in enumerate(args):
@@ -1264,6 +1280,15 @@ def parse_model_v9(d, ch):  # model_dict, input_channels(3)
                 args[j] = eval(a) if isinstance(a, str) else a  # eval strings
 
         n = n_ = max(round(n * gd), 1) if n > 1 else n  # depth gain
+
+        # ----------------------------------------------------------------------
+        # Input shape
+        # ----------------------------------------------------------------------
+        in_shapes = [_shape_at(x) for x in (f if isinstance(f, list) else [f])] # [(C,H,W), ...]
+
+        # ----------------------------------------------------------------------
+        # Channel propagation (determine c2 and ajust agrs)
+        # ----------------------------------------------------------------------
         if m in {
             Conv, AConv, 
             Bottleneck, SPP, SPPF, DWConv, nn.ConvTranspose2d, SPPCSPC, ADown,
@@ -1278,6 +1303,7 @@ def parse_model_v9(d, ch):  # model_dict, input_channels(3)
                 n = 1
         elif m is nn.BatchNorm2d:
             args = [ch[f]]
+            c2 = ch[f]
         elif m is Concat:
             c2 = sum(ch[x] for x in f)
         elif m is Shortcut:
@@ -1299,9 +1325,40 @@ def parse_model_v9(d, ch):  # model_dict, input_channels(3)
             c2 = ch[f] * args[0] ** 2
         elif m is Expand:
             c2 = ch[f] // args[0] ** 2
+        elif m is nn.Flatten:
+            # Normalize args to PyTorch signature: (start_dim=1, end_dim=-1)
+            # Many YAMLs mistakenly put tuples/dicts here; ignore them.
+            if len(args) == 0:
+                args = []  # use defaults
+            elif len(args) == 1:
+                logger.info('1'*100)
+                # If someone put a tuple or dict, ignore and use defaults
+                if isinstance(args[0], (tuple, list, dict)) or args[0] is None:
+                    logger.warning("Ignoring invalid Flatten arg; using defaults (start_dim=1, end_dim=-1)")
+                    args = []
+                else:
+                    # keep single int as start_dim
+                    args = [int(args[0])]
+            else:
+                logger.info('2'*100)
+                # keep first two as ints (start_dim, end_dim), drop the rest
+                args = [int(args[0]), int(args[1])]
+
+            c2 = ch[f]  # channels unchanged
+        elif m is nn.Linear:
+            if len(in_shapes) != 1:
+                logger.warning("Linear expects a single input tensor")
+            C, H, W = in_shapes[0]
+            in_features = C * H * W
+            out_features = int(args[0])
+            args = [in_features, out_features, *args[1:]]
+            c2 = out_features
         else:
             c2 = ch[f]
 
+        # ----------------------------------------------------------------------
+        # Module creation
+        # ----------------------------------------------------------------------
         m_ = nn.Sequential(*(m(*args) for _ in range(n))) if n > 1 else m(*args)  # module
         t = str(m)[8:-2].replace('__main__.', '')  # module type
         np = sum(x.numel() for x in m_.parameters())  # number params
@@ -1309,7 +1366,229 @@ def parse_model_v9(d, ch):  # model_dict, input_channels(3)
         logger.info(f'{i:>3}{str(f):>18}{n_:>3}{np:10.0f}  {t:<40}{str(args):<30}')  # print
         save.extend(x % i for x in ([f] if isinstance(f, int) else f) if x != -1)  # append to savelist
         layers.append(m_)
+
+        # ----------------------------------------------------------------------
+        # Shape propagation
+        # ----------------------------------------------------------------------
+        multi_input = len(in_shapes) > 1
+        if multi_input:
+            cur_shape = propagate_shape(m, args, in_shapes)
+        else:
+            cur_shape = in_shapes[0]
+            n_eff = n if isinstance(n, int) else 1
+            for _ in range(n_eff):
+                cur_shape = propagate_shape(m, args, [cur_shape])
+        shapes.append(cur_shape)
+
+        # ----------------------------------------------------------------------
+        # Channel update
+        # ----------------------------------------------------------------------
         if i == 0:
             ch = []
         ch.append(c2)
+
     return nn.Sequential(*layers), sorted(save)
+
+
+def propagate_shape(m, args, in_shapes):
+    """
+    Shape inference for a single application of module class `m` with constructor args `args`.
+    Works before module instantiation. Returns (C_out, H_out, W_out) when determinable,
+    otherwise returns a conservative pass-through of the first input.
+    Assumptions:
+      - For Conv-like layers, args are normalized to [inC, outC, k, s, p, d, ...]
+      - For Linear, args are normalized to [in_features, out_features, ...]
+      - For Flatten, no args needed.
+    """
+
+    # ---- helpers ----
+    def _conv_out_len(l_in, k, s, p, d=1):
+        return ((l_in + 2*p - d*(k-1) - 1) // s + 1)
+
+    def _as_hw_tuple(x, default):
+        # normalize int/tuple to (h,w)
+        if isinstance(x, (tuple, list)):
+            return int(x[0]), int(x[1])
+        return int(x), int(x)
+
+    def _same_hw(hws):
+        h0, w0 = hws[0]
+        for (h, w) in hws[1:]:
+            if h != h0 or w != w0:
+                raise ValueError(f"Multi-input H,W mismatch: {hws}")
+        return h0, w0
+    
+    def _ceil_div(a, b): 
+        return (a + b - 1) // b
+
+    single = (len(in_shapes) == 1)
+    first = in_shapes[0]
+
+    # ---- multi-input ops ----
+    if m is Concat:
+        # H,W must match; C sums
+        H, W = _same_hw([(h, w) for (_, h, w) in in_shapes])
+        C = sum(C for (C, _, _) in in_shapes)
+        return (C, H, W)
+
+    if m is Shortcut:
+        # elementwise add: all (C,H,W) identical
+        C0, H0, W0 = in_shapes[0]
+        for (C, H, W) in in_shapes[1:]:
+            if (C, H, W) != (C0, H0, W0):
+                raise ValueError(f"Shortcut shape mismatch: {in_shapes}")
+        return (C0, H0, W0)
+
+    # ---- single-input ops below ----
+    if not single:
+        # Unknown multi-input type → conservative: pass-through first
+        return first
+
+    C_in, H_in, W_in = first
+
+    # ReOrg
+    if m is ReOrg:
+        return (C_in * 4, H_in // 2, W_in // 2)
+
+    # Contract / Expand
+    if m is Contract:
+        s = args[0]
+        return (C_in * (s**2), H_in // s, W_in // s)
+
+    if m is Expand:
+        s = args[0]
+        return (C_in // (s**2), H_in * s, W_in * s)
+
+    # Flatten
+    if m is torch.nn.Flatten:
+        return (C_in * H_in * W_in, 1, 1)
+
+    # Linear (args already normalized)
+    if m is torch.nn.Linear:
+        out_features = args[1] if len(args) > 1 else args[0]
+        return (int(out_features), 1, 1)
+
+    # BatchNorm2d
+    if m is torch.nn.BatchNorm2d:
+        return (C_in, H_in, W_in)
+
+    # MaxPool2d / AvgPool2d  (args: k, s=None, p=0, ...)
+    if m in (torch.nn.MaxPool2d, torch.nn.AvgPool2d):
+        k = args[0] if len(args) > 0 else 2
+        s = args[1] if len(args) > 1 and args[1] is not None else k
+        p = args[2] if len(args) > 2 else 0
+        kh, kw = _as_hw_tuple(k, 2)
+        sh, sw = _as_hw_tuple(s, kh)
+        ph, pw = _as_hw_tuple(p, 0)
+        H_out = _conv_out_len(H_in, kh, sh, ph, 1)
+        W_out = _conv_out_len(W_in, kw, sw, pw, 1)
+        return (C_in, H_out, W_out)
+
+    # AdaptiveAvgPool2d (args[0] can be int or (H_out, W_out))
+    if m is torch.nn.AdaptiveAvgPool2d:
+        out_sz = args[0] if len(args) > 0 else 1
+        if isinstance(out_sz, int):
+            return (C_in, int(out_sz), int(out_sz))
+        return (C_in, int(out_sz[0]), int(out_sz[1]))
+
+    # Upsample (constructor may pass size= or scale_factor=. Here we read from args if present.)
+    if m is torch.nn.Upsample:
+        # best-effort: accept either kw-style dict or positional list
+        # common: kwargs dict as last arg or only arg
+        size = None
+        scale_factor = None
+        # try kwargs dict at the end
+        if args and isinstance(args[-1], dict):
+            size = args[-1].get('size')
+            scale_factor = args[-1].get('scale_factor')
+        # or positional (rare in yaml)
+        if size is None and len(args) >= 1 and isinstance(args[0], (tuple, list, int)):
+            # heuristics: treat first positional as size if provided
+            size = args[0] if not isinstance(args[0], (float,)) else None
+        if scale_factor is None and len(args) >= 1 and isinstance(args[0], (float, tuple, list)):
+            scale_factor = args[0] if isinstance(args[0], (float, tuple, list)) else None
+
+        if size is not None:
+            if isinstance(size, (tuple, list)):
+                return (C_in, int(size[0]), int(size[1]))
+            return (C_in, int(size), int(size))
+        if scale_factor is None:
+            scale_factor = 2
+        if isinstance(scale_factor, (tuple, list)):
+            sh, sw = float(scale_factor[0]), float(scale_factor[1])
+        else:
+            sh = sw = float(scale_factor)
+        return (C_in, int(round(H_in * sh)), int(round(W_in * sw)))
+
+    # ConvTranspose2d (args: inC, outC, k, s, p, out_pad, groups, bias, d)
+    if m is torch.nn.ConvTranspose2d:
+        k = args[2] if len(args) > 2 else 2
+        s = args[3] if len(args) > 3 else 2
+        p = args[4] if len(args) > 4 else 0
+        op = args[5] if len(args) > 5 else 0
+        d = args[8] if len(args) > 8 else 1
+        kh, kw = _as_hw_tuple(k, 2)
+        sh, sw = _as_hw_tuple(s, 2)
+        ph, pw = _as_hw_tuple(p, 0)
+        oph, opw = _as_hw_tuple(op, 0)
+        # (in - 1)*s - 2p + d*(k-1) + out_pad + 1
+        H_out = (H_in - 1) * sh - 2 * ph + d * (kh - 1) + oph + 1
+        W_out = (W_in - 1) * sw - 2 * pw + d * (kw - 1) + opw + 1
+        # C_out은 outC(= args[1])이지만, 여기서는 외부에서 채널 관리 가능
+        C_out = int(args[1]) if len(args) > 1 else C_in
+        return (C_out, H_out, W_out)
+
+    # Conv-like / composite blocks (treat as single conv step):
+    # Expect args like [inC, outC, k, s, p, d, ...] after your channel-prop normalization.
+    if m in (nn.Conv2d, Conv, DWConv):
+        C_out = int(args[1]) if len(args) > 1 else C_in
+        k = args[2] if len(args) > 2 else 1
+        s = args[3] if len(args) > 3 else 1
+        p = args[4] if len(args) > 4 else (k // 2 if isinstance(k, int) else 0)
+        d = args[5] if len(args) > 5 else 1
+        kh, kw = _as_hw_tuple(k, 1)
+        sh, sw = _as_hw_tuple(s, 1)
+        ph, pw = _as_hw_tuple(p, kh // 2)
+        dh, dw = _as_hw_tuple(d, 1)
+        H_out = _conv_out_len(H_in, kh, sh, ph, dh)
+        W_out = _conv_out_len(W_in, kw, sw, pw, dw)
+        return (C_out, H_out, W_out)
+
+    # Spatially preserved blocks
+    if m in (RepNCSPELAN4, ELAN1, SPPELAN, Bottleneck, SPP, SPPF, SPPCSPC):
+        C_out = int(args[1]) if len(args) > 1 else C_in
+        if m in (RepNCSPELAN4, ELAN1) and len(args) > 2 and (int(args[2]) % 2):
+            logger.warning(f"{m.__name__}: c3 must be divisible by 2 for chunk(2,1)")
+        return (C_out, H_in, W_in)
+    
+    # AConv / ADown: avg_pool2d(k=2,s=1) → H-1,W-1 → stride-2
+    if m in (AConv, ADown):
+        C_out = int(args[1]) if len(args) > 1 else C_in
+        H_mid = H_in - 1  # avg_pool2d(k=2, s=1)
+        W_mid = W_in - 1
+        H_out = _ceil_div(H_mid, 2)
+        W_out = _ceil_div(W_mid, 2)
+        return (C_out, H_out, W_out)
+    
+    # CBLinear: conv → split; track as sum of splits
+    if m is CBLinear:
+        c2s = args[1] if len(args) > 1 else []
+        if not isinstance(c2s, (list, tuple)) or len(c2s) == 0:
+            logger.warning("CBLinear: c2s must be a non-empty list/tuple.")
+            return (C_in, H_in, W_in)
+        try:
+            out_ch = int(sum(int(x) for x in c2s))
+        except Exception:
+            logger.warning(f"CBLinear: invalid c2s={c2s!r}, falling back to C_in")
+            out_ch = C_in
+        return (out_ch, H_in, W_in)
+
+    if m is CBFuse:
+        return in_shapes[-1]
+
+    # Detect-family heads: keep passthrough for backbone feature tracking
+    if m in (Detect, DDetect, DualDDetect, TripleDDetect):
+        return (C_in, H_in, W_in)
+
+    # Fallback: unknown layer → pass-through (safe default)
+    return (C_in, H_in, W_in)

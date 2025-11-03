@@ -1,0 +1,63 @@
+# VGG16: 13 conv + 3 fc
+name: vgg
+hyp: tiny
+imgsz: 224
+nc: 2
+
+backbone:
+  [[-1, 1, nn.Conv2d, [64, 3, 1, 1, 1, 1, False]], #0 - 1st conv
+   [-1, 1, nn.BatchNorm2d, [64]],
+   [-1, 1, nn.ReLU, [False]],
+   [-1, 1, nn.Conv2d, [64, 3, 1, 1, 1, 1, False]], #3 - 2nd conv
+   [-1, 1, nn.BatchNorm2d, [64]],
+   [-1, 1, nn.ReLU, [False]],
+   [-1, 1, nn.MaxPool2d, [2, 2, 0, 1, False, False]],
+   [-1, 1, nn.Conv2d, [128, 3, 1, 1, 1, 1, False]], #7 - 3rd conv
+   [-1, 1, nn.BatchNorm2d, [128]],
+   [-1, 1, nn.ReLU, [False]],
+   [-1, 1, nn.Conv2d, [128, 3, 1, 1, 1, 1, False]], #10 - 4th conv
+   [-1, 1, nn.BatchNorm2d, [128]],
+   [-1, 1, nn.ReLU, [False]],
+   [-1, 1, nn.MaxPool2d, [2, 2, 0, 1, False, False]],
+   [-1, 1, nn.Conv2d, [256, 3, 1, 1, 1, 1, False]], #14 - 5th conv
+   [-1, 1, nn.BatchNorm2d, [256]],
+   [-1, 1, nn.ReLU, [False]],
+   [-1, 1, nn.Conv2d, [256, 3, 1, 1, 1, 1, False]], #17 - 6th conv
+   [-1, 1, nn.BatchNorm2d, [256]],
+   [-1, 1, nn.ReLU, [False]],
+   [-1, 1, nn.Conv2d, [512, 3, 1, 1, 1, 1, False]], #20 - 7th conv
+   [-1, 1, nn.BatchNorm2d, [512]],
+   [-1, 1, nn.ReLU, [False]],
+   [-1, 1, nn.MaxPool2d, [2, 2, 0, 1, False, False]],
+   [-1, 1, nn.Conv2d, [512, 3, 1, 1, 1, 1, False]], #24 - 8th conv
+   [-1, 1, nn.BatchNorm2d, [512]],
+   [-1, 1, nn.ReLU, [False]],
+   [-1, 1, nn.Conv2d, [512, 3, 1, 1, 1, 1, False]], #27 - 9th conv
+   [-1, 1, nn.BatchNorm2d, [512]],
+   [-1, 1, nn.ReLU, [False]],
+   [-1, 1, nn.Conv2d, [512, 3, 1, 1, 1, 1, False]], #30 - 10th conv
+   [-1, 1, nn.BatchNorm2d, [512]],
+   [-1, 1, nn.ReLU, [False]],
+   [-1, 1, nn.MaxPool2d, [2, 2, 0, 1, False, False]],
+   [-1, 1, nn.Conv2d, [512, 3, 1, 1, 1, 1, False]], #34 - 11th conv
+   [-1, 1, nn.BatchNorm2d, [512]],
+   [-1, 1, nn.ReLU, [False]],
+   [-1, 1, nn.Conv2d, [512, 3, 1, 1, 1, 1, False]], #37 - 12th conv
+   [-1, 1, nn.BatchNorm2d, [512]],
+   [-1, 1, nn.ReLU, [False]],
+   [-1, 1, nn.Conv2d, [512, 3, 1, 1, 1, 1, False]], #40 - 13th conv
+   [-1, 1, nn.BatchNorm2d, [512]],
+   [-1, 1, nn.ReLU, [False]],
+   [-1, 1, nn.MaxPool2d, [2, 2, 0, 1, False, False]],
+  ]
+
+head:
+  [[-1, 1, nn.Flatten, []],
+   [-1, 1, nn.Linear, [4096, True]], #45 - 1st fc
+   [-1, 1, nn.ReLU, [True]],
+   [-1, 1, nn.Dropout, [0.5, False]],
+   [-1, 1, nn.Linear, [4096, True]], #48 - 2nd fc
+   [-1, 1, nn.ReLU, [True]],
+   [-1, 1, nn.Dropout, [0.5, False]],
+   [-1, 1, nn.Linear, [nc, True]], #51 - 3rd fc
+  ]

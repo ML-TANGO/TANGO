@@ -1,5 +1,3 @@
-# version: "3"
-
 services:
   #---------------------------------
   # Project Manager
@@ -26,8 +24,6 @@ services:
       - shared:/shared
       - ${configYaml:-./autonn/autonn/autonn_core/tango/common/cfg}:/configYaml
       - ./autonn_cl/autonn_cl/autonn_cl_core/tango/common/cfg:/configYaml  # configYaml 위에 autonn_cl의 cfg 폴더를 겹쳐서 마운트합니다.
-      - ${COCODIR:-./autonn/autonn/autonn_core/datasets/coco}:/shared/datasets/coco
-      - ${COCO128DIR:-./autonn/autonn/autonn_core/datasets/coco128}:/shared/datasets/coco128
       - /var/run/docker.sock:/var/run/docker.sock
 
     hostname: projectmanager
@@ -110,13 +106,9 @@ services:
                 - utility
                 - compute
                 - video
-    environment:
-      - NVIDIA_VISIBLE_DEVICES=${GPU_NUM:-all}
     volumes:
       - ./autonn/autonn:/source
       - shared:/shared
-      - ${COCODIR:-./autonn/autonn/autonn_core/datasets/coco}:/shared/datasets/coco
-      - ${COCO128DIR:-./autonn/autonn/autonn_core/datasets/coco128}:/shared/datasets/coco128
     hostname: autonn
     ports:
       - "8100:8100" # visualizer (vision model)
@@ -146,14 +138,9 @@ services:
                   - utility
                   - compute
                   - video
-      environment:
-        - NVIDIA_VISIBLE_DEVICES=${GPU_NUM:-all}
       volumes:
         - ./autonn_cl/autonn_cl:/source
         - shared:/shared
-        - ./autonn_cl/autonn_cl/autonn_cl_core/datasets/coco128_seg:/shared/datasets/coco128_seg
-        - ${COCODIR:-./autonn/autonn/autonn_core/datasets/coco}:/shared/datasets/coco
-        - ${COCO128DIR:-./autonn/autonn/autonn_core/datasets/coco128}:/shared/datasets/coco128
       hostname: autonn-cl
       ports:
         - "8102:8102"
