@@ -22,7 +22,7 @@ from tango.utils.general import (   fitness,
 import argparse
 
 
-def evolve(proj_info, hyp, opt, data):
+def evolve(proj_info, hyp, opt, data, device):
     # Hyperparameter evolution metadata (mutation scale 0-1, lower_limit, upper_limit)
     meta = {'lr0': (1, 1e-5, 1e-1),  # initial learning rate (SGD=1E-2, Adam=1E-3)
             'lrf': (1, 0.01, 1.0),  # final OneCycleLR learning rate (lr0 * lrf)
@@ -149,7 +149,9 @@ def evolve(proj_info, hyp, opt, data):
 
         # Train mutation
         opt.gen = gen
-        results = finetune_hyp(proj_info, basemodel, hyp.copy(), opt, data, tb_writer=None)
+        results = finetune_hyp(
+            proj_info, basemodel, hyp.copy(), opt, data, device, tb_writer=None
+        )
 
         # Write mutation results
         logger.info(f'\nHPO: Generation #{gen+1}/{total_gen}')

@@ -261,7 +261,7 @@ def get_optimizer(model, is_adam=False, lr=0.001, momentum=0.9, decay=1e-5):
                 f"{len(g[1])} weight(decay=0.0), {len(g[0])} weight(decay={decay}), {len(g[2])} bias")
     return optimizer
 
-def train(proj_info, hyp, opt, data_dict, tb_writer=None):
+def train(proj_info, hyp, opt, data_dict, device, tb_writer=None):
     # Options ------------------------------------------------------------------
     save_dir, epochs, user_defined_bs, weights, rank, local_rank, freeze = \
         Path(opt.save_dir), opt.epochs, opt.batch_size, opt.weights, \
@@ -271,36 +271,7 @@ def train(proj_info, hyp, opt, data_dict, tb_writer=None):
         proj_info['userid'], proj_info['project_id'], proj_info['task_type'], \
         proj_info['nas'], proj_info['target_info'], proj_info['acc']
 
-    # CUDA device --------------------------------------------------------------
-    # Respect pre-set CUDA_VISIBLE_DEVICES (e.g., "3,2,1,0")
-    # so logical cuda:0 maps to intended GPU
-    env_dev = os.environ.get('CUDA_VISIBLE_DEVICES')
-    gpu_num = torch.cuda.device_count()
-    if env_dev:
-        opt.device = str(env_dev).strip()
-    else:
-        opt.device = ",".join(str(i) for i in range(gpu_num))
-    logger.info(f'{colorstr("DEVICE:")} {opt.device}')
-    device, device_info = select_device_and_info(opt.device)
 
-    system = {}
-    system['torch'] = torch.__version__
-    system['cuda'] = torch.version.cuda
-    system['cudnn'] = torch.backends.cudnn.version() / 1000.0
-    server_gpu_mem = 0
-    for i, d in enumerate(device_info):
-        system_info = {}
-        system_info['devices'] = d[0]
-        system_info['gpu_model'] =  d[1]
-        if d[0] == 'CPU':
-            d[2] = "0.0"
-        system_info['memory'] = d[2]
-        server_gpu_mem = round(float(d[2]))
-        system[f'{i}'] = system_info
-    # system_content = json.dumps(system)
-    status_update(userid, project_id,
-                  update_id="system",
-                  update_content=system)
 
     # DDP init -----------------------------------------------------------------
     if opt.local_rank != -1: # DDP mode
@@ -460,6 +431,7 @@ def train(proj_info, hyp, opt, data_dict, tb_writer=None):
         bs_factor = 0.8
         opt.bs_factor = bs_factor
 
+    gpu_num = torch.cuda.device_count()
     world_size = int(os.environ.get("WORLD_SIZE", "1")) if rank != -1  else max(1, int(gpu_num))
     if user_defined_bs == -1:
         if rank in [-1, 0]: # process0
@@ -751,7 +723,7 @@ def train(proj_info, hyp, opt, data_dict, tb_writer=None):
                 # Anchors
                 if not opt.noautoanchor:
                     check_anchors(userid, project_id, dataset, model=model,
-                            thr=hyp['anchor_t'], imgsz=imgsz)
+                                  thr=hyp['anchor_t'], imgsz=imgsz)
                 model.half().float()  # pre-reduce anchor precision
 
                 # if plots:
@@ -861,7 +833,7 @@ def train(proj_info, hyp, opt, data_dict, tb_writer=None):
             with open(save_dir / 'opt.yaml', 'w', encoding="utf-8") as f:
                 yaml.safe_dump(_py_compat(vars(opt)), f, sort_keys=False, allow_unicode=True)
         except Exception as e:
-            logger.warn(f"[train] save settings failed: {e}")
+            logger.warning(f"[train] save settings failed: {e}")
     if is_ddp():
         dist.barrier()
     status_update(userid, project_id,

@@ -40,6 +40,7 @@ class AccuracyCalculator():
         hyp,
         opt,
         data_dict,
+        device,
         supernet,
     ):
         self.opt = opt
@@ -67,7 +68,8 @@ class AccuracyCalculator():
         #     dist.init_process_group(backend='nccl', init_method='env://')  # distributed backend
         #     assert opt.batch_size % opt.world_size == 0, '--batch-size must be multiple of CUDA device count'
         #     opt.batch_size = opt.total_batch_size // opt.world_size
-            
+        self.device = device
+
         # Hyperparameters
         # with open(opt.hyp) as f:
         #     self.hyp = hyp = yaml.load(f, Loader=yaml.SafeLoader)  # load hyps
@@ -126,7 +128,10 @@ class AccuracyCalculator():
         # finetune the subnet
         # subnet, maps = finetune(subnet, self.hyp, self.opt, self.device)
         try:
-            return finetune.finetune(self.proj_info, subnet, self.hyp, self.opt, self.data_dict, tb_writer=None)
+            return finetune.finetune(
+                self.proj_info, subnet, self.hyp, self.opt, self.data_dict, \
+                self.device, tb_writer=None
+            )
         except Exception as e:
             logger.error(f"finetune_subnet failed: {e}")
             raise

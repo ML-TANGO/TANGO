@@ -271,7 +271,10 @@ class EvolutionFinder:
         population = []  # (acc, sample, efficiency, subnet) 튜플
         best_info = None
 
-        for _ in trange(population_size, desc="Generate random population..."):
+        logger.info("Generate random population...")
+        # for _ in trange(population_size, desc="Generate random population..."):
+        for x in range(population_size):
+            logger.info(f'-----{x}/{population_size-1}')
             sample, efficiency = self.random_sample()
             subnet, acc = self.predict_accuracy_safe(sample)
             acc = finite_or_default(acc, default=0.0)
@@ -279,11 +282,13 @@ class EvolutionFinder:
 
         if verbose:
             for i, (a, s, e, n) in enumerate(population):
-                logger.info(f"[{i}] acc={a:.6f}, config={s['d']}, eff={e:.3f}, model={n}")
-            logger.info("Start Evolution...")
+                logger.info(f"\n[{i}] acc={a:.6f}, config={s['d']}, eff={e:.3f}, model={n}")
+            logger.info("\nStart Evolution...")
 
-        for it in tqdm(range(max_time_budget),
-                       desc=f"Searching with {self.constraint_type} constraint ({self.efficiency_constraint:.3f})"):
+        logger.info(f"\nSearching with {self.constraint_type} constraint ({self.efficiency_constraint:.3f})")
+        for it in range(max_time_budget):
+        # for it in tqdm(range(max_time_budget),
+        #                desc=f"Searching with {self.constraint_type} constraint ({self.efficiency_constraint:.3f})"):
             parents = sorted(population, key=lambda x: finite_or_default(x[0], -np.inf))[::-1][:parents_size]
             acc_top = finite_or_default(parents[0][0], 0.0)
             if verbose:
@@ -312,7 +317,10 @@ class EvolutionFinder:
                 child_pool.append(new_sample)
                 efficiency_pool.append(clamp_min(efficiency))
 
-            for i in trange(population_size, desc=f"[{it+1}|{max_time_budget}] Mutate and Crossover..."):
+            logger.info(f"[{it+1}|{max_time_budget}] Mutate and Crossover...")
+            for i in range(population_size):
+            # for i in trange(population_size, desc=f"[{it+1}|{max_time_budget}] Mutate and Crossover..."):
+                logger.info(f"----{i}/{population_size-1}")
                 subnet, acc = self.predict_accuracy_safe(child_pool[i])
                 acc = finite_or_default(acc, default=0.0)
                 population.append((acc, child_pool[i], efficiency_pool[i], subnet))
