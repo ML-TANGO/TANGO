@@ -1141,7 +1141,8 @@ def strip_optimizer(f='best.pt', s='', prefix=''):  # from utils.general import 
     for k in 'optimizer', 'training_results', 'best_fitness', 'ema', 'updates':  # keys
         x[k] = None
     x['epoch'] = -1
-    x['model'].half()  # to FP16
+    # x['model'].half()  # to FP16
+    x['model'].float() # to FP32
     for p in x['model'].parameters(): # to x['model'].eval()
         p.requires_grad = False
 

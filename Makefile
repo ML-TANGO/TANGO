@@ -166,32 +166,40 @@ validate-host-datasets: gen-datasets-override ## override에 포함된 데이터
 build: $(NEEDS_PREPARE) gen-datasets-override validate-host-datasets ## 이미지 빌드(필요한 데이터셋만 외부 바인딩 포함)
 	$(COMPOSE) $(COMPOSE_FILE_FLAG) $(_RUNTIME_DATASETS_FLAG) build
 
+build-%: $(NEEDS_PREPARE) gen-datasets-override validate-host-datasets
+	$(COMPOSE) $(COMPOSE_FILE_FLAG) $(_RUNTIME_DATASETS_FLAG) build $*
+
 up: $(NEEDS_PREPARE) gen-datasets-override validate-host-datasets ## 모든 서비스 시작 (-d, 자동 override 포함)
 	$(COMPOSE) $(COMPOSE_FILE_FLAG) $(_RUNTIME_DATASETS_FLAG) up -d
 
+up-%: $(NEEDS_PREPARE) gen-datasets-override validate-host-datasets
+	$(COMPOSE) $(COMPOSE_FILE_FLAG) $(_RUNTIME_DATASETS_FLAG) up -d $*
+
 down: ## 중지 및 제거
 	$(COMPOSE) $(COMPOSE_FILE_FLAG) down
-	# override 구성으로 올라간 컨테이너도 함께 내림(없으면 무시)
 	-$(COMPOSE) $(COMPOSE_FILE_FLAG) -f $(DATASETS_OVERRIDE) down
 
 restart: down up ## 재시작
 
-recreate: gen-datasets-override validate-host-datasets ## 볼륨/환경 변경 반영해 재생성(빌드X)
+recreate: $(NEEDS_PREPARE) gen-datasets-override validate-host-datasets ## 볼륨/환경 변경 반영해 재생성(빌드X)
 	$(COMPOSE) $(COMPOSE_FILE_FLAG) $(_RUNTIME_DATASETS_FLAG) up -d --force-recreate
 
 config: $(NEEDS_PREPARE) gen-datasets-override ## .env 적용된 최종 compose 확인
 	$(COMPOSE) $(COMPOSE_FILE_FLAG) $(CONFIG_ENV_FILE_FLAG) $(_RUNTIME_DATASETS_FLAG) config
 
-ps: ## 컨테이너 상태 보기
+ps: $(NEEDS_PREPARE) ## 컨테이너 상태 보기
 	$(COMPOSE) $(COMPOSE_FILE_FLAG) $(_RUNTIME_DATASETS_FLAG) ps
 
-logs: ## 전체 로그 팔로우
+logs: $(NEEDS_PREPARE) ## 전체 로그 팔로우
 	$(COMPOSE) $(COMPOSE_FILE_FLAG) $(_RUNTIME_DATASETS_FLAG) logs -f || true
 
-pm-logs: ## project_manager 로그
+logs-%: $(NEEDS_PREPARE) ## 특정 서비스 로그 (예: make logs-project_manager)
+	$(COMPOSE) $(COMPOSE_FILE_FLAG) $(_RUNTIME_DATASETS_FLAG) logs -f $* || true
+
+pm-logs: $(NEEDS_PREPARE) ## project_manager 로그
 	$(COMPOSE) $(COMPOSE_FILE_FLAG) $(_RUNTIME_DATASETS_FLAG) logs -f project_manager || true
 
-autonn-logs: ## autonn 로그
+autonn-logs: $(NEEDS_PREPARE) ## autonn 로그
 	$(COMPOSE) $(COMPOSE_FILE_FLAG) $(_RUNTIME_DATASETS_FLAG) logs -f autonn || true
 
 exec-pm: ## project_manager 쉘
@@ -199,13 +207,6 @@ exec-pm: ## project_manager 쉘
 
 exec-autonn: ## autonn 쉘
 	$(COMPOSE) $(COMPOSE_FILE_FLAG) $(_RUNTIME_DATASETS_FLAG) exec autonn bash
-
-# 패턴 타겟: make up-autonn / make logs-project_manager 처럼 사용
-up-%: gen-datasets-override validate-host-datasets ## 특정 서비스만 up (예: make up-autonn)
-	$(COMPOSE) $(COMPOSE_FILE_FLAG) $(_RUNTIME_DATASETS_FLAG) up -d $*
-
-logs-%: ## 특정 서비스 로그 (예: make logs-project_manager)
-	$(COMPOSE) $(COMPOSE_FILE_FLAG) $(_RUNTIME_DATASETS_FLAG) logs -f $* || true
 
 exec-%: ## 특정 서비스 쉘 (예: make exec-autonn)
 	$(COMPOSE) $(COMPOSE_FILE_FLAG) $(_RUNTIME_DATASETS_FLAG) exec $* bash

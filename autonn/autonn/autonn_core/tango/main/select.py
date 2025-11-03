@@ -8,6 +8,7 @@ optimization, and export for various machine learning tasks.
 import os
 import glob
 import shutil
+import tempfile
 import gc
 import argparse
 import logging
@@ -42,6 +43,7 @@ from tango.utils.general import (
 )
 from tango.utils.plots import plot_evolution
 from tango.utils.django_utils import safe_update_info, safe_get_info_values, safe_get_info_field
+from tango.utils.torch_utils import select_device_and_info
 
 # Constants
 COMMON_ROOT = Path("/shared/common")
@@ -55,7 +57,7 @@ os.environ['OLLAMA_MODELS'] = str(MODEL_ROOT)
 
 # Tasks to model mapping
 TASK_TO_MODEL_TABLE = {
-    "detection7": "yolov9",
+    "detection7": "yolov7",
     "detection": "yolov9",
     "classification": "resnet",
     "classification-c": "resnetc",
@@ -64,6 +66,16 @@ TASK_TO_MODEL_TABLE = {
 
 # Model size mapping by target
 MODEL_TO_SIZE_TABLE = {
+    "yolov7": {
+        "XXL": "-e6e",      # >  20.0G
+        "XL" : "-d6",       # <= 20.0G
+        "L"  : "-e6",       # <= 16.0G
+        "M"  : "-w6",       # <= 12.0G
+        "MS" : "x",         # <=  8.0G
+        "S"  : "",          # <=  6.0G
+        "T"  : "-tiny",     # <=  4.0G
+        "NAS": "-supernet"
+    },
     "yolov9": {
         "XXL": "-e",        # >  20.0G
         "XL" : "-e",        # <= 20.0G
@@ -105,7 +117,7 @@ MODEL_TO_SIZE_TABLE = {
 
 logger = logging.getLogger(__name__)
 
-
+# --- get config: hyperparameters, options(args)
 def get_user_requirements(userid, projid, resume=False):
     """
     Get user requirements (dataset, project, hyperparameters, arguments).
@@ -194,40 +206,49 @@ def get_user_requirements(userid, projid, resume=False):
 
     # Adjust hyperparameter based on task
     if task == 'detection':
-        basemodel_dict['hyp'] = 'p5' if basemodel_dict['hyp'] == 'tiny' else basemodel_dict['hyp']
-    else:  # classification
+        basemodel_dict['hyp'] = 'p5'
+    elif task == 'classification':
         basemodel_dict['hyp'] = 'cls'
+    elif task == 'segmentation':
+        basemodel_dict['hyp'] = 'seg'
+    else:
+        logger.warning(f'{colorstr("hyp: ")} unsupprted task: {task}')
+        basemodel_dict['hyp'] = 'p5'
 
     proj_info_dict['nas'] = True if basemodel['model_size'] == '-supernet' else False
 
     # Load hyperparameters
+    hyp_yaml_path = PROJ_PATH / "hyp.yaml"
+
+    seleted_hyp_src = None
     hyp_yaml_path = PROJ_PATH / f"hyp.scratch.{basemodel_dict['hyp']}.yaml"
+    
+    if skip_bms:
+        seleted_hyp_src = PROJ_PATH / 'autonn' / 'hyp.yaml'
+    else:
+        seleted_hyp_src = PROJ_PATH / f"hyp.scratch.{basemodel_dict['hyp']}.yaml"
+
+    if seleted_hyp_src.is_file():
+        logger.info(f'{colorstr("hyp: ")}copied hyp.yaml..')
+        _atomic_copy(seleted_hyp_src, hyp_yaml_path)
+
     logger.info(f'{colorstr("hyp: ")}hyperparameters from {hyp_yaml_path}')
 
     with open(hyp_yaml_path) as f:
         hyp_dict = yaml.safe_load(f)
-
-    hyp_dict['anchor_t'] = 5.0 # from yolov9
     
-    status_update(
-        userid, 
-        projid,
-        update_id="hyperparameter",
-        update_content=hyp_dict
-    )
-
     # Load arguments
-    # _task =  'detection' if basemodel['model_name'].lower().startswith('yolo') else task
-    # opt_yaml_path = PROJ_PATH / f'args-{_task}.yaml'
-    if basemodel['model_name'] == 'YOLOV7' or (task == 'detection' and target == 'galaxys22'):
-        opt_yaml_path = CFG_PATH / f'args-detection7.yaml'
-    else:
-        opt_yaml_path = PROJ_PATH / f'args-{task}.yaml'
+    opt_yaml_path = PROJ_PATH / 'opt.yaml'
 
+    selected_opt_src = None
     if skip_bms:
-        opt_yaml_path = str(PROJ_PATH / 'autonn' / 'opt.yaml')
-        logger.info(f'{colorstr("Project Info: ")}previous opt.yaml loading..')
-        assert os.path.isfile(opt_yaml_path)
+        selected_opt_src = PROJ_PATH / 'autonn' / 'opt.yaml'
+    else:
+        selected_opt_src = PROJ_PATH / f'args-{task}.yaml'
+
+    if selected_opt_src.is_file():
+        logger.info(f'{colorstr("arguments: ")}copied opt.yaml..')
+        _atomic_copy(selected_opt_src, opt_yaml_path)
 
     with open(opt_yaml_path, encoding='utf-8') as f:
         opt = argparse.Namespace(**yaml.safe_load(f))
@@ -236,9 +257,9 @@ def get_user_requirements(userid, projid, resume=False):
     weights = vars(opt).get('weights', None)
     if weights:
         logger.info(f'{colorstr("Project Info: ")}pretrained model = {weights}')
-
-    logger.info(f'{colorstr("Project Info: ")}CUDA OOM: resume? {resume}')
+    
     if resume:
+        logger.info(f'{colorstr("Project Info: ")}resume = {resume}')
         opt.resume = True
         prev_bs_factor = safe_get_info_field(userid, projid, "batch_multiplier")
         opt.bs_factor = prev_bs_factor - 0.1 #info.batch_multiplier - 0.1
@@ -273,7 +294,7 @@ def get_user_requirements(userid, projid, resume=False):
         elif isinstance(opt.img_size, list):
             pass
         else:
-            logger.warning(f"Unexpected argument type for img_size: {type(opt.img_size)}")
+            logger.warning(f"{colorstr('arguments: ')}Unexpected argument type for img_size: {type(opt.img_size)}")
             opt.img_size = [640, 640]
         basemodel_dict['imgsz'] = opt.img_size[0] # 파싱할 때 여기에 기재된 입력 해상도를 사용함
         with open(basemodel_yaml_path, "w") as f:
@@ -286,71 +307,43 @@ def get_user_requirements(userid, projid, resume=False):
     opt.hyp = str(hyp_yaml_path)
 
     # Update status
-    opt_content = vars(opt)
-    status_update(userid, projid, update_id="arguments", update_content=opt_content)
+    status_update(userid, projid, update_id="hyperparameter", update_content=hyp_dict)
+    status_update(userid, projid, update_id="arguments", update_content=vars(opt))
     status_update(userid, projid, update_id="basemodel", update_content=basemodel)
 
     return proj_info_dict, opt, hyp_dict, basemodel_dict, data_dict
 
+def _atomic_copy(src: Path, dst: Path):
+    dst.parent.mkdir(parents=True, exist_ok=True)
+    with tempfile.NamedTemporaryFile(dir=str(dst.parent), delete=False) as tmp:
+        tmp_path = Path(tmp.name)
+    try:
+        shutil.copy2(src, tmp_path)
+        os.replace(tmp_path, dst)
+    finally:
+        if tmp_path.exists():
+            try: tmp_path.unlink()
+            except Exception:
+                pass
 
-def handle_chat_task():
-    """
-    Handle the chat task by running Ollama server and Streamlit browser.
-    
-    Returns:
-        Tuple containing project info and None values for remaining requirements
-    """
-    logger.info(f'{colorstr("Project Info: ")}Run LLM model loader')
-    logger.info(f'{colorstr("Project Info: ")}http://localhost:11434 for Ollama server')
-    
-    cmd2 = ["ollama", "serve"]
-    p2 = subprocess.Popen(
-        cmd2,
-        stdout=subprocess.PIPE,
-        stderr=subprocess.STDOUT,
-        cwd=CORE_DIR,
-        text=True,
-        encoding='utf-8'
-    )
-    
-    logger.info(f'{colorstr("Project Info: ")}http://localhost:8101 to see Tango+Chat browser')
-    run_chat_browser = str(CORE_DIR / 'tangochat' / 'browser.py')
-    cmd = [
-        "streamlit", "run", run_chat_browser, 
-        "--server.port", "8101", 
-        "--browser.gatherUsageStats", "false"
-    ]
-    
-    p = subprocess.Popen(
-        cmd, 
-        stdout=subprocess.PIPE, 
-        stderr=subprocess.STDOUT, 
-        cwd=CORE_DIR,
-        text=True,
-        encoding='utf-8'
-    )
+def _atomic_move(src: Path, dst: Path):
+    """같은 파일시스템 내에서 rename(원자적). src가 없으면 False 반환."""
+    if not src.is_file():
+        return False
+    dst.parent.mkdir(parents=True, exist_ok=True)
+    os.replace(src, dst)
+    return True
 
-    while p.poll() is None:
-        out = p.stdout.readline()
-        out = out.split('\n')[0]
-        out2 = p2.stdout.readline()
-        out2 = out2.split('\n')[0]
-        
-        if len(out) > 0:
-            if ("streamlit" not in out) and ("Network URL" not in out):
-                logger.info(f"Chat: {out}")
-        
-        if len(out2) > 0:
-            logger.info(f"Chat: Ollama: {out2}")
-        
-        if out == 'Completed' or out2 == "Completed":
-            p2.terminate()
-            p.terminate()
-            break
-
-    return None, None, None, None, None
+def _safe_unlink(paths):
+    for p in paths:
+        try:
+            if p.is_file():
+                p.unlink()
+        except Exception as e:
+            logger.warning(f'{colorstr("Project Info: ")}skip deleting {p}: {e}')
 
 
+# --- get datasets
 def get_dataset_info(dataset_name, task):
     """
     Get dataset information from dataset.yaml file.
@@ -386,7 +379,6 @@ def get_dataset_info(dataset_name, task):
 
     return data_dict, dataset_yaml_path
 
-
 def _ensure_dataset_links(dataset_name: str) -> None:
     embedded_root = CORE_DIR / 'datasets' / dataset_name
     target_root = DATASET_ROOT / dataset_name
@@ -397,7 +389,6 @@ def _ensure_dataset_links(dataset_name: str) -> None:
     if 'coco' in dataset_name.lower():
         _ensure_coco_annotations()
 
-
 def _symlink_directory(target: Path, source: Path) -> None:
     try:
         if target.exists() or target.is_symlink():
@@ -407,7 +398,6 @@ def _symlink_directory(target: Path, source: Path) -> None:
         logger.info(f"Linked embedded dataset {source} -> {target}")
     except OSError as err:
         logger.debug(f"Failed to create symlink {target} -> {source}: {err}")
-
 
 def _ensure_coco_annotations() -> None:
     src_ann = PROJECT_DATA_ROOT / 'MS-COCO' / 'annotations' / 'instances_val2017.json'
@@ -424,7 +414,6 @@ def _ensure_coco_annotations() -> None:
             logger.info(f"Linked COCO annotation {src_ann} -> {dest}")
         except OSError as err:
             logger.debug(f"Failed to link annotation {src_ann} -> {dest}: {err}")
-
 
 def create_classification_dataset_yaml(dataset_name, yaml_path):
     """
@@ -451,6 +440,7 @@ def create_classification_dataset_yaml(dataset_name, yaml_path):
     return dataset_dict
 
 
+# --- select base model
 def base_model_select(userid, project_id, proj_info, data, manual_select=False):
     """
     Select an appropriate base model based on task and target hardware.
@@ -505,7 +495,7 @@ def base_model_select(userid, project_id, proj_info, data, manual_select=False):
 
     # Special case for Galaxy S22 + Detection / Rasberry Pi5 + Classification
     if target == 'galaxys22' and task == 'detection':
-        task_ = 'detection7'
+        # task_ = 'detection7'
         model_size = 'NAS'
     elif target == 'rasberrypi5' and task == 'classification':
         task_ = 'classification-v'
@@ -555,45 +545,7 @@ def base_model_select(userid, project_id, proj_info, data, manual_select=False):
     return target_path, basemodel
 
 
-def backup_previous_work(model):
-    """
-    Backup previous work to a new directory.
-    
-    Args:
-        model: Path to the model file
-        
-    Returns:
-        Path to the backup directory
-    """
-    logger.info(f'!!! backup previous works !!!')
-    m = Path(model)
-    cur_dir = m.parent
-    model_name = m.stem
-
-    # Find all related files
-    all_files = [x for x in glob.glob(str(cur_dir/'*')) if os.path.isfile(x)]
-    bestmodel_files = [f for f in all_files if model_name in f] # i.e, bestmodel.pt, bestmodel.onnx, ...
-
-    # Add meta file if exists
-    meta_file = cur_dir / 'neural_net_info.yaml'
-    if os.path.isfile(meta_file):
-        bestmodel_files.append(meta_file)
-
-    # Add saved model directory if exists
-    saved_model_dir = cur_dir / 'bestmodel_saved_model'
-    if os.path.isdir(saved_model_dir):
-        bestmodel_files.append(saved_model_dir)
-
-    # Create backup directory and move files
-    bak_dir = increment_path(cur_dir / 'bak', exist_ok=False) # i.e bak, bak2, bak3, ...
-    Path(bak_dir).mkdir(parents=True, exist_ok=True)
-
-    for f in bestmodel_files:
-        shutil.move(str(cur_dir/f), bak_dir)
-
-    return bak_dir
-
-
+# --- main entry point
 def run_autonn(userid, project_id, resume=False, viz2code=False, nas=False, hpo=False):
     """
     Main function to run the AutoNN workflow.
@@ -690,12 +642,37 @@ def run_autonn(userid, project_id, resume=False, viz2code=False, nas=False, hpo=
     #     except Exception as e:
     #         logger.warn(f'{prefix}Fail to load tensorbord because {e}')
 
-    # Train model
-    yaml_file = None
+    # CUDA device
+    # Respect pre-set CUDA_VISIBLE_DEVICES (e.g., "3,2,1,0")
+    # so logical cuda:0 maps to intended GPU
+    env_dev = os.environ.get('CUDA_VISIBLE_DEVICES')
+    gpu_num = 0
+    if env_dev:
+        opt.device = str(env_dev).strip()
+    else:
+        gpu_num = torch.cuda.device_count()
+        opt.device = ",".join(str(i) for i in range(gpu_num))
+    logger.info(f'{colorstr("DEVICE:")} {opt.device}')
+    device, device_info = select_device_and_info(opt.device)
 
+    system = {}
+    system['torch'] = torch.__version__
+    system['cuda'] = torch.version.cuda
+    system['cudnn'] = torch.backends.cudnn.version() / 1000.0
+    for i, d in enumerate(device_info):
+        system_info = {}
+        system_info['devices'] = d[0]
+        system_info['gpu_model'] =  d[1]
+        if d[0] == 'CPU':
+            d[2] = "0.0"
+        system_info['memory'] = d[2]
+        system[f'{i}'] = system_info
+    status_update(userid, project_id, update_id="system", update_content=system)
+
+    # Train model
     already_ddp = "WORLD_SIZE" in os.environ
-    ddp =  (torch.cuda.is_available() and torch.cuda.device_count() > 1) and not already_ddp
-    nproc = torch.cuda.device_count() if ddp else 1
+    ddp =  (torch.cuda.is_available() and gpu_num > 1) and not already_ddp
+    nproc = gpu_num if ddp else 1
     env = os.environ.copy()
     if ddp:
         env["AUTONN_ALLOW_ORM"] = "1"
@@ -705,6 +682,7 @@ def run_autonn(userid, project_id, resume=False, viz2code=False, nas=False, hpo=
             "hyp": hyp,
             "opt": vars(opt) if hasattr(opt, "__dict__") else opt,
             "data_dict": data,
+            "device": device,
         }
         
         fd_cfg, cfg_path = tempfile.mkstemp(prefix=f"train_cfg_", suffix=".json")
@@ -736,7 +714,9 @@ def run_autonn(userid, project_id, resume=False, viz2code=False, nas=False, hpo=
         os.remove(cfg_path)
         os.remove(res_path)
     else:
-        results, train_final = train(proj_info, hyp, opt, data, tb_writer)
+        results, train_final = train(
+            proj_info, hyp, opt, data, device, tb_writer
+        )
 
     # Log training results
     best_acc = results[3] if task == 'detection' else results[0]
@@ -745,9 +725,13 @@ def run_autonn(userid, project_id, resume=False, viz2code=False, nas=False, hpo=
         f' Best model saved as: {train_final}\n'
     )
 
+    yaml_file = None
+
     # Run neural architecture search if enabled
     if nas:
-        train_final, yaml_file = search(proj_info, hyp, opt, data, train_final)
+        train_final, yaml_file = search(
+            proj_info, hyp, opt, data, device, train_final
+        )
         opt.resume = True
         opt.weights = str(train_final)
         # results, train_final = train(proj_info, hyp, opt, data, tb_writer=None)
@@ -755,7 +739,7 @@ def run_autonn(userid, project_id, resume=False, viz2code=False, nas=False, hpo=
     # Run hyperparameter optimization if enabled
     if hpo:
         opt.weights = str(train_final)
-        hyp, yaml_file, txt_file = evolve(proj_info, hyp, opt, data)
+        hyp, yaml_file, txt_file = evolve(proj_info, hyp, opt, data, device)
 
         # Plot evolution results
         plot_evolution(yaml_file, txt_file)
@@ -878,6 +862,46 @@ def run_autonn(userid, project_id, resume=False, viz2code=False, nas=False, hpo=
     while True:
         time.sleep(2)
 
+def backup_previous_work(model):
+    """
+    Backup previous work to a new directory.
+    
+    Args:
+        model: Path to the model file
+        
+    Returns:
+        Path to the backup directory
+    """
+    logger.info(f'!!! backup previous works !!!')
+    m = Path(model)
+    cur_dir = m.parent
+    model_name = m.stem
+
+    # Find all related files
+    all_files = [x for x in glob.glob(str(cur_dir/'*')) if os.path.isfile(x)]
+    bestmodel_files = [f for f in all_files if model_name in f] # i.e, bestmodel.pt, bestmodel.onnx, ...
+
+    # Add meta file if exists
+    meta_file = cur_dir / 'neural_net_info.yaml'
+    if os.path.isfile(meta_file):
+        bestmodel_files.append(meta_file)
+
+    # Add saved model directory if exists
+    saved_model_dir = cur_dir / 'bestmodel_saved_model'
+    if os.path.isdir(saved_model_dir):
+        bestmodel_files.append(saved_model_dir)
+
+    # Create backup directory and move files
+    bak_dir = increment_path(cur_dir / 'bak', exist_ok=False) # i.e bak, bak2, bak3, ...
+    Path(bak_dir).mkdir(parents=True, exist_ok=True)
+
+    for f in bestmodel_files:
+        shutil.move(str(cur_dir/f), bak_dir)
+
+    return bak_dir
+
+
+# --- export model
 def export_model(userid, project_id, train_final, opt, data, basemodel, 
                 target, target_acc, target_engine, task, results):
     """
@@ -912,11 +936,11 @@ def export_model(userid, project_id, train_final, opt, data, basemodel,
     if task == 'detection':
         if target_engine == 'tensorrt':
             convert.append('onnx_end2end')
-        if target_engine == 'tflite':
-            tfmodels = ['pb', 'tflite']
-            convert.extend(tfmodels)
-            if target_acc == 'tpu':
-                convert.append('edgetpu')
+        # if target_engine == 'tflite':
+        #     tfmodels = ['pb', 'tflite']
+        #     convert.extend(tfmodels)
+        #     if target_acc == 'tpu':
+        #         convert.append('edgetpu')
 
     # Export weights to different formats
     export_weight(
@@ -943,7 +967,6 @@ def export_model(userid, project_id, train_final, opt, data, basemodel,
 
     # Print model export summary
     print_export_summary(train_final, results, convert, task, dst_nninfo_path)
-
 
 def print_export_summary(train_final, results, convert, task, dst_nninfo_path):
     """
@@ -1024,7 +1047,6 @@ def get_exported_model_info(train_final, model_type):
 
     return exported_path, mb
 
-
 def get_display_model_type(model_type):
     """
     Get a model format about an exported model for display.
@@ -1041,3 +1063,63 @@ def get_display_model_type(model_type):
         return 'tensor-rt'
     else:
         return model_type
+
+
+
+# --- task: chat
+def handle_chat_task():
+    """
+    Handle the chat task by running Ollama server and Streamlit browser.
+    
+    Returns:
+        Tuple containing project info and None values for remaining requirements
+    """
+    logger.info(f'{colorstr("Project Info: ")}Run LLM model loader')
+    logger.info(f'{colorstr("Project Info: ")}http://localhost:11434 for Ollama server')
+    
+    cmd2 = ["ollama", "serve"]
+    p2 = subprocess.Popen(
+        cmd2,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.STDOUT,
+        cwd=CORE_DIR,
+        text=True,
+        encoding='utf-8'
+    )
+    
+    logger.info(f'{colorstr("Project Info: ")}http://localhost:8101 to see Tango+Chat browser')
+    run_chat_browser = str(CORE_DIR / 'tangochat' / 'browser.py')
+    cmd = [
+        "streamlit", "run", run_chat_browser, 
+        "--server.port", "8101", 
+        "--browser.gatherUsageStats", "false"
+    ]
+    
+    p = subprocess.Popen(
+        cmd, 
+        stdout=subprocess.PIPE, 
+        stderr=subprocess.STDOUT, 
+        cwd=CORE_DIR,
+        text=True,
+        encoding='utf-8'
+    )
+
+    while p.poll() is None:
+        out = p.stdout.readline()
+        out = out.split('\n')[0]
+        out2 = p2.stdout.readline()
+        out2 = out2.split('\n')[0]
+        
+        if len(out) > 0:
+            if ("streamlit" not in out) and ("Network URL" not in out):
+                logger.info(f"Chat: {out}")
+        
+        if len(out2) > 0:
+            logger.info(f"Chat: Ollama: {out2}")
+        
+        if out == 'Completed' or out2 == "Completed":
+            p2.terminate()
+            p.terminate()
+            break
+
+    return None, None, None, None, None

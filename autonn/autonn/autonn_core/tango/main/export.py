@@ -1271,7 +1271,7 @@ def convert_yolov9(model_pt: str, cfg: str) -> Optional[str]:
         )
         return model_pt
 
-    model = DetectionModel(cfg, ch=3, nc=80, anchors=3).to(device) # create empty model
+    model = DetectionModel(cfg, ch=3, nc=80, anchors=None).to(device) # create empty model
     _ = model.eval()
 
     ckpt = torch.load(model_pt, map_location='cpu')
