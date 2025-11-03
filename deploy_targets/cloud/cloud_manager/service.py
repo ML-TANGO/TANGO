@@ -15,6 +15,7 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
+
 async def get_service(
     user_id: str, project_id: str, *, statuses: List[ServiceStatus] = None
 ) -> Optional[Service]:
@@ -91,9 +92,10 @@ async def launch_service(
         #     db.commit()
 
         logging.info("service.py launch_service - Let's start start server")
-        await target.start_service(deploy_yaml)
+        target_info = await target.start_service(deploy_yaml)
         service = await get_service(user_id, project_id)
         service.status = ServiceStatus.RUNNING
+        service.target_info = target_info  # Store endpoint info (including URL)
         await save_service(service)
     except Exception:
         service = await get_service(user_id, project_id)

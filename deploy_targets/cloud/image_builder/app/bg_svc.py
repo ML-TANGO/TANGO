@@ -1,5 +1,6 @@
 import asyncio
 import json
+
 # import os
 import tarfile
 import tempfile
@@ -17,8 +18,10 @@ from yarl import URL
 
 from . import crud
 from .config import read_from_file
-from .dockerfile_templates import (DOCKERFILE_TEMPLATE_CUSTOM_LABELS,
-                                   DOCKERFILE_TEMPLATE_DEFAULT,)
+from .dockerfile_templates import (
+    DOCKERFILE_TEMPLATE_CUSTOM_LABELS,
+    DOCKERFILE_TEMPLATE_DEFAULT,
+)
 from .exceptions import AutoPushError
 from .setting import settings
 from .utils import clear_color_char, create_logger
@@ -340,9 +343,7 @@ class Forklift:
             else:
                 dfinfo = t.gettarinfo(fileobj=dockerfile, arcname="Dockerfile")
             t.addfile(dfinfo, dockerfile)
-            t.add(
-                name=f"{path}", arcname="nn_model"
-            )
+            t.add(name=f"{path}", arcname="nn_model")
             # COPY를 할때마다 여기서 t.add로 추가해줘야함
             # TODO: COPY 명령어가 추가되었을 때, 그걸 받아서 for문으로 처리해주는게 바람직함.
             log.debug(t.getnames())

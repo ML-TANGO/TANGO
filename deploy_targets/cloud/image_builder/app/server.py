@@ -8,8 +8,7 @@ from typing import Any
 
 import bcrypt
 from fastapi import FastAPI  # BackgroundTasks
-from fastapi import (Depends, HTTPException, Request, Response,
-                     status)
+from fastapi import Depends, HTTPException, Request, Response, status
 from fastapi.encoders import jsonable_encoder
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
@@ -22,8 +21,12 @@ from starlette.responses import JSONResponse
 
 from . import crud, models, schemas
 from .auth import AuthConfig, create_access_token
-from .bg_svc import (Forklift, docker_commit, docker_container_list,
-                     generate_event_source)
+from .bg_svc import (
+    Forklift,
+    docker_commit,
+    docker_container_list,
+    generate_event_source,
+)
 from .config import read_from_file
 from .database import SessionLocal, engine
 from .exceptions import BuildLogEmptyError
@@ -137,9 +140,7 @@ async def build_preset_image(
             )
         user_input_data = ast.literal_eval(jsonable_encoder(await user_input.body()))
         current_user = user_input_data["user"]
-        prepared_data = await handle_request(
-            db, current_user, user_input_data
-        )
+        prepared_data = await handle_request(db, current_user, user_input_data)
         data = jsonable_encoder(prepared_data)
         asyncio.create_task(builder.build(db, data, current_user))
         return {

@@ -5,6 +5,7 @@ SQLAlchemy에서 model 이라는 용어를 사용하는데 이는
 Pydantic 또한 model이라는 용어를 사용하는데,
 data validation, conversion, documentaion 클래스 혹은 인스턴스를 의미한다.
 """
+
 from sqlalchemy import Boolean, Column, Enum, ForeignKey, Integer, String
 from sqlalchemy.orm import relationship
 

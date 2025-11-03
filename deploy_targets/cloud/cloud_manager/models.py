@@ -16,6 +16,7 @@ class ServiceStatus(enum.Enum):
     STOPPED = "stopped"  # normally stopped
     FAILED = "failed"  # launch failed
     COMPLETED = "completed"  # for batch-job case?
+    UNKNOWN = "unknown"  # unknown status from backend
 
 
 RunningServiceStatuses = [

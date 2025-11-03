@@ -1,6 +1,9 @@
 aiodocker
 aiohttp
 fastapi
+httpx
+pydantic
+python-dateutil
 PyYAML
 sqlmodel
 uvicorn
