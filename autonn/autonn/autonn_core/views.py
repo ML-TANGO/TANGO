@@ -260,7 +260,7 @@ def process_autonn(userid, project_id):
     3. Report status to project manager
     """
     info = Info.objects.get(userid=userid, project_id=project_id)
-    resume = info.progress == 'oom'
+    resume = (info.progress == 'oom')
 
     try:
         run_autonn(userid, project_id, resume=resume, viz2code=False, nas=False, hpo=False)
