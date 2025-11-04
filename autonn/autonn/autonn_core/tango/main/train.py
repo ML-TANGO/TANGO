@@ -1328,7 +1328,7 @@ def train(proj_info, hyp, opt, data_dict, device, tb_writer=None):
             break
 
         # Save checkpoints (rank0 only)
-        if (not opt.nosave) or (final_epoch and not opt.evolve):  # if save
+        if (not opt.nosave) or final_epoch:  # if save
             if (not is_ddp()) or is_rank0():
                 try:
                     training_results_txt = results_file.read_text(encoding="utf-8")
@@ -1352,7 +1352,7 @@ def train(proj_info, hyp, opt, data_dict, device, tb_writer=None):
                         safe_update_info(userid, project_id,
                              progress="training",
                              epoch = epoch,
-                             best_acc = (results[3] if (results and task=='detection') else float(f1))
+                             best_acc = (results[3] if (results and task=='detection') else float(fi))
                         )
                     except Exception as e:
                         logger.warning(f"safe_update_info skipped: {e}")
@@ -1435,7 +1435,6 @@ def train(proj_info, hyp, opt, data_dict, device, tb_writer=None):
         #                                    save_dir=save_dir,
         #                                    plots=False,
         #                                    half_precision=True)
-
             safe_update_info(userid, project_id, status= "test_end")
     # end testing --------------------------------------------------------------
 

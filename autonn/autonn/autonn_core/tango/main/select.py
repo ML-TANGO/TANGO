@@ -229,7 +229,6 @@ def get_user_requirements(userid, projid, resume=False):
         seleted_hyp_src = PROJ_PATH / f"hyp.scratch.{basemodel_dict['hyp']}.yaml"
 
     if seleted_hyp_src.is_file():
-        logger.info(f'{colorstr("hyp: ")}copied hyp.yaml..')
         _atomic_copy(seleted_hyp_src, hyp_yaml_path)
 
     logger.info(f'{colorstr("hyp: ")}hyperparameters from {hyp_yaml_path}')
@@ -247,8 +246,9 @@ def get_user_requirements(userid, projid, resume=False):
         selected_opt_src = PROJ_PATH / f'args-{task}.yaml'
 
     if selected_opt_src.is_file():
-        logger.info(f'{colorstr("arguments: ")}copied opt.yaml..')
         _atomic_copy(selected_opt_src, opt_yaml_path)
+
+    logger.info(f'{colorstr("arguments: ")}arguments from {opt_yaml_path}')    
 
     with open(opt_yaml_path, encoding='utf-8') as f:
         opt = argparse.Namespace(**yaml.safe_load(f))
@@ -732,14 +732,16 @@ def run_autonn(userid, project_id, resume=False, viz2code=False, nas=False, hpo=
         train_final, yaml_file = search(
             proj_info, hyp, opt, data, device, train_final
         )
-        opt.resume = True
+        # opt.resume = True
         opt.weights = str(train_final)
-        # results, train_final = train(proj_info, hyp, opt, data, tb_writer=None)
 
     # Run hyperparameter optimization if enabled
     if hpo:
+        # opt.resume = True
         opt.weights = str(train_final)
-        hyp, yaml_file, txt_file = evolve(proj_info, hyp, opt, data, device)
+        hyp, yaml_file, txt_file = evolve(
+            proj_info, hyp, opt, data, device, train_final
+        )
 
         # Plot evolution results
         plot_evolution(yaml_file, txt_file)

@@ -238,7 +238,7 @@ def safe_upsert_info(userid: str, project_id: str, **fields) -> bool:
     )
 
 def safe_get_info_values(userid: str, project_id: str, fields) -> Optional[Dict]:
-    return safe_get_value(
+    return safe_get_values(
         "autonn_core", "Info",
         {"userid": userid, "project_id": project_id},
         fields,
