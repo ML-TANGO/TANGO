@@ -49,10 +49,10 @@ COMPOSE_PROJECT_NAME ?= $(shell basename "$$(pwd)" | tr '[:upper:]' '[:lower:]')
 # --------------------------------------------
 # PHONY
 # --------------------------------------------
-.PHONY: help build up down restart logs pm-logs autonn-logs config recreate ps \
-        exec-pm exec-autonn up-% logs-% exec-% migrate seed \
-        prepare-v1-compose clean-v1-compose \
-        gen-datasets-override validate-host-datasets run
+.PHONY: help run build build-project_manager build-autonn build-autonn_cl build-labelling \
+		up up-project_manager up-autonn up-autonn_cl up-% down restart recreate config ps \
+		logs logs-pm logs-% exec-pm exec-% migrate seed prepare-v1-compose clean-v1-compose \
+        gen-datasets-override validate-host-datasets clean-labelling-db 
 
 # --------------------------------------------
 # 도움말
@@ -62,11 +62,91 @@ help: ## 사용 가능한 명령 목록
 	awk 'BEGIN{FS=":.*## "}; {printf"  \033[36m%-22s\033[0m %s\n", $$1, $$2}'
 
 # --------------------------------------------
+# 원샷 워크플로우
+# --------------------------------------------
+run: build up logs ## (자동) 빌드 → 실행 → 로그 팔로우
+
+# --------------------------------------------
+# 기본 빌드/실행 계열 (자동으로 override 병합)
+# --------------------------------------------
+build: clean-labelling-db $(NEEDS_PREPARE) gen-datasets-override validate-host-datasets ## 전체 이미지 빌드(필요한 데이터셋 외부 바인딩 포함)
+	$(COMPOSE) $(COMPOSE_FILE_FLAG) $(_RUNTIME_DATASETS_FLAG) build
+
+build-labelling: clean-labelling-db $(NEEDS_PREPARE)
+	$(COMPOSE) $(COMPOSE_FILE_FLAG) $(_RUNTIME_DATASETS_FLAG) build labelling
+
+build-project_manager: $(NEEDS_PREPARE) gen-datasets-override validate-host-datasets
+	$(COMPOSE) $(COMPOSE_FILE_FLAG) $(_RUNTIME_DATASETS_FLAG) build project_manager
+
+build-autonn: $(NEEDS_PREPARE) gen-datasets-override validate-host-datasets
+	$(COMPOSE) $(COMPOSE_FILE_FLAG) $(_RUNTIME_DATASETS_FLAG) build autonn
+
+build-autonn_cl: $(NEEDS_PREPARE) gen-datasets-override validate-host-datasets
+	$(COMPOSE) $(COMPOSE_FILE_FLAG) $(_RUNTIME_DATASETS_FLAG) build autonn_cl
+
+build-%: $(NEEDS_PREPARE) ## 특정 이미지만 빌드 (예: make build-code_gen)
+	$(COMPOSE) $(COMPOSE_FILE_FLAG) $(_RUNTIME_DATASETS_FLAG) build $*
+
+up: $(NEEDS_PREPARE) gen-datasets-override validate-host-datasets ## 모든 서비스 시작 (-d, 자동 override 포함)
+	$(COMPOSE) $(COMPOSE_FILE_FLAG) $(_RUNTIME_DATASETS_FLAG) up -d
+
+up-project_manager: $(NEEDS_PREPARE) gen-datasets-override validate-host-datasets
+	$(COMPOSE) $(COMPOSE_FILE_FLAG) $(_RUNTIME_DATASETS_FLAG) up project_manager -d
+
+up-autonn: $(NEEDS_PREPARE) gen-datasets-override validate-host-datasets
+	$(COMPOSE) $(COMPOSE_FILE_FLAG) $(_RUNTIME_DATASETS_FLAG) up autonn -d
+
+up-autonn_cl: $(NEEDS_PREPARE) gen-datasets-override validate-host-datasets
+	$(COMPOSE) $(COMPOSE_FILE_FLAG) $(_RUNTIME_DATASETS_FLAG) up autonn_cl -d
+
+up-%: $(NEEDS_PREPARE) ## 특정 서비스만 시작 (-d, 예: make up-autonn)
+	$(COMPOSE) $(COMPOSE_FILE_FLAG) $(_RUNTIME_DATASETS_FLAG) up -d $*
+
+down: ## 중지 및 제거
+	$(COMPOSE) $(COMPOSE_FILE_FLAG) down
+	-$(COMPOSE) $(COMPOSE_FILE_FLAG) -f $(DATASETS_OVERRIDE) down
+
+restart: down up ## 재시작
+
+recreate: $(NEEDS_PREPARE) gen-datasets-override validate-host-datasets ## 볼륨/환경 변경 반영해 재생성(빌드X)
+	$(COMPOSE) $(COMPOSE_FILE_FLAG) $(_RUNTIME_DATASETS_FLAG) up -d --force-recreate
+
+config: $(NEEDS_PREPARE) gen-datasets-override ## .env 적용된 최종 compose 확인
+	$(COMPOSE) $(COMPOSE_FILE_FLAG) $(CONFIG_ENV_FILE_FLAG) $(_RUNTIME_DATASETS_FLAG) config
+
+ps: $(NEEDS_PREPARE) ## 컨테이너 상태 보기
+	$(COMPOSE) $(COMPOSE_FILE_FLAG) $(_RUNTIME_DATASETS_FLAG) ps
+
+logs: $(NEEDS_PREPARE) ## 전체 로그 팔로우
+	$(COMPOSE) $(COMPOSE_FILE_FLAG) $(_RUNTIME_DATASETS_FLAG) logs -f || true
+
+logs-%: $(NEEDS_PREPARE) ## 특정 서비스 로그 (예: make logs-autonn_cl)
+	$(COMPOSE) $(COMPOSE_FILE_FLAG) $(_RUNTIME_DATASETS_FLAG) logs -f $* || true
+
+exec-%: ## 특정 서비스 쉘 (예: make exec-autonn)
+	$(COMPOSE) $(COMPOSE_FILE_FLAG) $(_RUNTIME_DATASETS_FLAG) exec $* bash
+
+logs-pm: $(NEEDS_PREPARE) ## project_manager 로그
+	$(COMPOSE) $(COMPOSE_FILE_FLAG) $(_RUNTIME_DATASETS_FLAG) logs -f project_manager || true
+
+exec-pm: ## project_manager 쉘
+	$(COMPOSE) $(COMPOSE_FILE_FLAG) $(_RUNTIME_DATASETS_FLAG) exec project_manager bash
+
+# --------------------------------------------
+# Django 보조
+# --------------------------------------------
+migrate: ## project_manager DB migrate
+	$(COMPOSE) $(COMPOSE_FILE_FLAG) $(_RUNTIME_DATASETS_FLAG) exec project_manager bash -lc 'python manage.py migrate'
+
+seed: ## project_manager loaddata
+	$(COMPOSE) $(COMPOSE_FILE_FLAG) $(_RUNTIME_DATASETS_FLAG) exec project_manager bash -lc 'python manage.py loaddata base_model_data.json'
+
+# --------------------------------------------
 # docker-compose v1용 파일 자동 생성
 # - deploy 제거, runtime: nvidia 주입, env 병합
 # - 대상 서비스: autonn | autonn_cl
 # --------------------------------------------
-prepare-v1-compose: ## docker-compose v1용 파일 자동 생성 (deploy 제거 + runtime 주입 + env 병합)
+prepare-v1-compose:
 	@echo "🛠  Generating .compose/docker-compose.v1.yml for v1 (merge env keys)..."
 	@if [ ! -f docker-compose.yml ]; then echo "❌ docker-compose.yml not found!"; exit 1; fi
 	@if [ ! -d .compose ]; then mkdir -p .compose; fi
@@ -139,8 +219,11 @@ define _RUNTIME_DATASETS_FLAG
 $(shell if grep -q '^services:' '$(DATASETS_OVERRIDE)' 2>/dev/null && grep -q 'volumes:' '$(DATASETS_OVERRIDE)' 2>/dev/null; then echo "-f $(DATASETS_OVERRIDE)"; fi)
 endef
 
-# (선택) 외부 경로 유효성 검증: 실제로 바인딩될 항목만 검사
-validate-host-datasets: gen-datasets-override ## override에 포함된 데이터셋만 .env 경로/존재 확인
+# --------------------------------------------
+# 외부 경로 유효성 검증: 실제로 바인딩될 항목만 검사
+# - override에 포함된 데이터셋만 .env 경로/존재 확인
+# --------------------------------------------
+validate-host-datasets: gen-datasets-override
 	@set -e; \
 	has_err=0; \
 	check_one() { \
@@ -161,66 +244,12 @@ validate-host-datasets: gen-datasets-override ## override에 포함된 데이터
 	echo "✅ host dataset paths OK (for the ones that will be bound)"
 
 # --------------------------------------------
-# 기본 빌드/실행 계열 (자동으로 override 병합)
+# labelling/datadb 폴더가 있으면 삭제
 # --------------------------------------------
-build: $(NEEDS_PREPARE) gen-datasets-override validate-host-datasets ## 이미지 빌드(필요한 데이터셋만 외부 바인딩 포함)
-	$(COMPOSE) $(COMPOSE_FILE_FLAG) $(_RUNTIME_DATASETS_FLAG) build
-
-build-%: $(NEEDS_PREPARE) gen-datasets-override validate-host-datasets
-	$(COMPOSE) $(COMPOSE_FILE_FLAG) $(_RUNTIME_DATASETS_FLAG) build $*
-
-up: $(NEEDS_PREPARE) gen-datasets-override validate-host-datasets ## 모든 서비스 시작 (-d, 자동 override 포함)
-	$(COMPOSE) $(COMPOSE_FILE_FLAG) $(_RUNTIME_DATASETS_FLAG) up -d
-
-up-%: $(NEEDS_PREPARE) gen-datasets-override validate-host-datasets
-	$(COMPOSE) $(COMPOSE_FILE_FLAG) $(_RUNTIME_DATASETS_FLAG) up -d $*
-
-down: ## 중지 및 제거
-	$(COMPOSE) $(COMPOSE_FILE_FLAG) down
-	-$(COMPOSE) $(COMPOSE_FILE_FLAG) -f $(DATASETS_OVERRIDE) down
-
-restart: down up ## 재시작
-
-recreate: $(NEEDS_PREPARE) gen-datasets-override validate-host-datasets ## 볼륨/환경 변경 반영해 재생성(빌드X)
-	$(COMPOSE) $(COMPOSE_FILE_FLAG) $(_RUNTIME_DATASETS_FLAG) up -d --force-recreate
-
-config: $(NEEDS_PREPARE) gen-datasets-override ## .env 적용된 최종 compose 확인
-	$(COMPOSE) $(COMPOSE_FILE_FLAG) $(CONFIG_ENV_FILE_FLAG) $(_RUNTIME_DATASETS_FLAG) config
-
-ps: $(NEEDS_PREPARE) ## 컨테이너 상태 보기
-	$(COMPOSE) $(COMPOSE_FILE_FLAG) $(_RUNTIME_DATASETS_FLAG) ps
-
-logs: $(NEEDS_PREPARE) ## 전체 로그 팔로우
-	$(COMPOSE) $(COMPOSE_FILE_FLAG) $(_RUNTIME_DATASETS_FLAG) logs -f || true
-
-logs-%: $(NEEDS_PREPARE) ## 특정 서비스 로그 (예: make logs-project_manager)
-	$(COMPOSE) $(COMPOSE_FILE_FLAG) $(_RUNTIME_DATASETS_FLAG) logs -f $* || true
-
-pm-logs: $(NEEDS_PREPARE) ## project_manager 로그
-	$(COMPOSE) $(COMPOSE_FILE_FLAG) $(_RUNTIME_DATASETS_FLAG) logs -f project_manager || true
-
-autonn-logs: $(NEEDS_PREPARE) ## autonn 로그
-	$(COMPOSE) $(COMPOSE_FILE_FLAG) $(_RUNTIME_DATASETS_FLAG) logs -f autonn || true
-
-exec-pm: ## project_manager 쉘
-	$(COMPOSE) $(COMPOSE_FILE_FLAG) $(_RUNTIME_DATASETS_FLAG) exec project_manager bash
-
-exec-autonn: ## autonn 쉘
-	$(COMPOSE) $(COMPOSE_FILE_FLAG) $(_RUNTIME_DATASETS_FLAG) exec autonn bash
-
-exec-%: ## 특정 서비스 쉘 (예: make exec-autonn)
-	$(COMPOSE) $(COMPOSE_FILE_FLAG) $(_RUNTIME_DATASETS_FLAG) exec $* bash
-
-# --------------------------------------------
-# Django 보조
-# --------------------------------------------
-migrate: ## project_manager DB migrate
-	$(COMPOSE) $(COMPOSE_FILE_FLAG) $(_RUNTIME_DATASETS_FLAG) exec project_manager bash -lc 'python manage.py migrate'
-
-seed: ## project_manager loaddata
-	$(COMPOSE) $(COMPOSE_FILE_FLAG) $(_RUNTIME_DATASETS_FLAG) exec project_manager bash -lc 'python manage.py loaddata base_model_data.json'
-
-# --------------------------------------------
-# 원샷 워크플로우
-# --------------------------------------------
-run: build up logs ## (자동) 빌드 → 실행 → 로그 팔로우
+clean-labelling-db: 
+	@if [ -d labelling/datadb ]; then \
+		echo "🧹 removing labelling/datadb"; \
+		sudo rm -rf -- labelling/datadb; \
+	else \
+		echo "✓ labelling/datadb 없음 — skip"; \
+	fi
