@@ -52,7 +52,8 @@ COMPOSE_PROJECT_NAME ?= $(shell basename "$$(pwd)" | tr '[:upper:]' '[:lower:]')
 .PHONY: help run build build-project_manager build-autonn build-autonn_cl build-labelling \
 		up up-project_manager up-autonn up-autonn_cl up-% down restart recreate config ps \
 		logs logs-pm logs-% exec-pm exec-% migrate seed prepare-v1-compose clean-v1-compose \
-        gen-datasets-override validate-host-datasets clean-labelling-db 
+        gen-datasets-override validate-host-datasets clean-labelling-db \
+		ensure-nvidia-runtime show-docker-runtime
 
 # --------------------------------------------
 # 도움말
@@ -69,34 +70,34 @@ run: build up logs ## (자동) 빌드 → 실행 → 로그 팔로우
 # --------------------------------------------
 # 기본 빌드/실행 계열 (자동으로 override 병합)
 # --------------------------------------------
-build: clean-labelling-db $(NEEDS_PREPARE) gen-datasets-override validate-host-datasets ## 전체 이미지 빌드(필요한 데이터셋 외부 바인딩 포함)
+build: ensure-nvidia-runtime clean-labelling-db $(NEEDS_PREPARE) gen-datasets-override validate-host-datasets ## 전체 이미지 빌드(필요한 데이터셋 외부 바인딩 포함)
 	$(COMPOSE) $(COMPOSE_FILE_FLAG) $(_RUNTIME_DATASETS_FLAG) build
 
-build-labelling: clean-labelling-db $(NEEDS_PREPARE)
+build-labelling: ensure-nvidia-runtime clean-labelling-db $(NEEDS_PREPARE)
 	$(COMPOSE) $(COMPOSE_FILE_FLAG) $(_RUNTIME_DATASETS_FLAG) build labelling
 
-build-project_manager: $(NEEDS_PREPARE) gen-datasets-override validate-host-datasets
+build-project_manager: ensure-nvidia-runtime $(NEEDS_PREPARE) gen-datasets-override validate-host-datasets
 	$(COMPOSE) $(COMPOSE_FILE_FLAG) $(_RUNTIME_DATASETS_FLAG) build project_manager
 
-build-autonn: $(NEEDS_PREPARE) gen-datasets-override validate-host-datasets
+build-autonn: ensure-nvidia-runtime $(NEEDS_PREPARE) gen-datasets-override validate-host-datasets
 	$(COMPOSE) $(COMPOSE_FILE_FLAG) $(_RUNTIME_DATASETS_FLAG) build autonn
 
-build-autonn_cl: $(NEEDS_PREPARE) gen-datasets-override validate-host-datasets
+build-autonn_cl: ensure-nvidia-runtime $(NEEDS_PREPARE) gen-datasets-override validate-host-datasets
 	$(COMPOSE) $(COMPOSE_FILE_FLAG) $(_RUNTIME_DATASETS_FLAG) build autonn_cl
 
-build-%: $(NEEDS_PREPARE) ## 특정 이미지만 빌드 (예: make build-code_gen)
+build-%: ensure-nvidia-runtime $(NEEDS_PREPARE) ## 특정 이미지만 빌드 (예: make build-code_gen)
 	$(COMPOSE) $(COMPOSE_FILE_FLAG) $(_RUNTIME_DATASETS_FLAG) build $*
 
-up: $(NEEDS_PREPARE) gen-datasets-override validate-host-datasets ## 모든 서비스 시작 (-d, 자동 override 포함)
+up: ensure-nvidia-runtime $(NEEDS_PREPARE) gen-datasets-override validate-host-datasets ## 모든 서비스 시작 (-d, 자동 override 포함)
 	$(COMPOSE) $(COMPOSE_FILE_FLAG) $(_RUNTIME_DATASETS_FLAG) up -d
 
-up-project_manager: $(NEEDS_PREPARE) gen-datasets-override validate-host-datasets
+up-project_manager: ensure-nvidia-runtime $(NEEDS_PREPARE) gen-datasets-override validate-host-datasets
 	$(COMPOSE) $(COMPOSE_FILE_FLAG) $(_RUNTIME_DATASETS_FLAG) up project_manager -d
 
-up-autonn: $(NEEDS_PREPARE) gen-datasets-override validate-host-datasets
+up-autonn: ensure-nvidia-runtime $(NEEDS_PREPARE) gen-datasets-override validate-host-datasets
 	$(COMPOSE) $(COMPOSE_FILE_FLAG) $(_RUNTIME_DATASETS_FLAG) up autonn -d
 
-up-autonn_cl: $(NEEDS_PREPARE) gen-datasets-override validate-host-datasets
+up-autonn_cl: ensure-nvidia-runtime $(NEEDS_PREPARE) gen-datasets-override validate-host-datasets
 	$(COMPOSE) $(COMPOSE_FILE_FLAG) $(_RUNTIME_DATASETS_FLAG) up autonn_cl -d
 
 up-%: $(NEEDS_PREPARE) ## 특정 서비스만 시작 (-d, 예: make up-autonn)
@@ -108,7 +109,7 @@ down: ## 중지 및 제거
 
 restart: down up ## 재시작
 
-recreate: $(NEEDS_PREPARE) gen-datasets-override validate-host-datasets ## 볼륨/환경 변경 반영해 재생성(빌드X)
+recreate: ensure-nvidia-runtime $(NEEDS_PREPARE) gen-datasets-override validate-host-datasets ## 볼륨/환경 변경 반영해 재생성(빌드X)
 	$(COMPOSE) $(COMPOSE_FILE_FLAG) $(_RUNTIME_DATASETS_FLAG) up -d --force-recreate
 
 config: $(NEEDS_PREPARE) gen-datasets-override ## .env 적용된 최종 compose 확인
@@ -123,13 +124,13 @@ logs: $(NEEDS_PREPARE) ## 전체 로그 팔로우
 logs-%: $(NEEDS_PREPARE) ## 특정 서비스 로그 (예: make logs-autonn_cl)
 	$(COMPOSE) $(COMPOSE_FILE_FLAG) $(_RUNTIME_DATASETS_FLAG) logs -f $* || true
 
-exec-%: ## 특정 서비스 쉘 (예: make exec-autonn)
+exec-%: ensure-nvidia-runtime ## 특정 서비스 쉘 (예: make exec-autonn)
 	$(COMPOSE) $(COMPOSE_FILE_FLAG) $(_RUNTIME_DATASETS_FLAG) exec $* bash
 
-logs-pm: $(NEEDS_PREPARE) ## project_manager 로그
+logs-pm: ensure-nvidia-runtime $(NEEDS_PREPARE) ## project_manager 로그
 	$(COMPOSE) $(COMPOSE_FILE_FLAG) $(_RUNTIME_DATASETS_FLAG) logs -f project_manager || true
 
-exec-pm: ## project_manager 쉘
+exec-pm: ensure-nvidia-runtime ## project_manager 쉘
 	$(COMPOSE) $(COMPOSE_FILE_FLAG) $(_RUNTIME_DATASETS_FLAG) exec project_manager bash
 
 # --------------------------------------------
@@ -140,6 +141,39 @@ migrate: ## project_manager DB migrate
 
 seed: ## project_manager loaddata
 	$(COMPOSE) $(COMPOSE_FILE_FLAG) $(_RUNTIME_DATASETS_FLAG) exec project_manager bash -lc 'python manage.py loaddata base_model_data.json'
+
+# --------------------------------------------
+# NVIDIA Docker runtime 보장
+# --------------------------------------------
+ensure-nvidia-runtime:
+	@set -e; \
+	if [ "$${SKIP_NVIDIA_RUNTIME_CHECK:-0}" = "1" ]; then \
+	  echo "⏭  skip ensure-nvidia-runtime (SKIP_NVIDIA_RUNTIME_CHECK=1)"; exit 0; \
+	fi; \
+	if docker info 2>/dev/null | grep -iq 'Runtimes:.*nvidia'; then \
+	  echo "✓ Docker runtime 'nvidia' already registered"; \
+	else \
+	  if command -v nvidia-ctk >/dev/null 2>&1; then \
+	    echo "→ Registering NVIDIA runtime via nvidia-ctk ..."; \
+	    sudo nvidia-ctk runtime configure --runtime=docker; \
+	    echo "→ Restarting docker ..."; \
+	    sudo systemctl restart docker; \
+	    if docker info 2>/dev/null | grep -iq 'Runtimes:.*nvidia'; then \
+	      echo "✅ Docker runtime 'nvidia' registered"; \
+	    else \
+	      echo "❌ Failed to register 'nvidia' runtime. Check docker logs: 'journalctl -u docker -n 200'"; \
+	      exit 1; \
+	    fi; \
+	  else \
+	    echo "❌ 'nvidia-ctk' not found (nvidia-container-toolkit 미설치)."; \
+	    echo "   설치 후 다시 시도: sudo apt install -y nvidia-container-toolkit && sudo nvidia-ctk runtime configure --runtime=docker && sudo systemctl restart docker"; \
+	    exit 1; \
+	  fi; \
+	fi
+
+show-docker-runtime:
+	@docker info 2>/dev/null | grep -i runtime || true
+	@echo "daemon.json:"; cat /etc/docker/daemon.json 2>/dev/null || echo "(no /etc/docker/daemon.json)"
 
 # --------------------------------------------
 # docker-compose v1용 파일 자동 생성
