@@ -271,8 +271,6 @@ def train(proj_info, hyp, opt, data_dict, device, tb_writer=None):
         proj_info['userid'], proj_info['project_id'], proj_info['task_type'], \
         proj_info['nas'], proj_info['target_info'], proj_info['acc']
 
-
-
     # DDP init -----------------------------------------------------------------
     if opt.local_rank != -1: # DDP mode
         logger.info(f'{colorstr("DDP: ")} LOCAL RANK is not -1; DDP initialize')
@@ -434,20 +432,39 @@ def train(proj_info, hyp, opt, data_dict, device, tb_writer=None):
     gpu_num = torch.cuda.device_count()
     world_size = int(os.environ.get("WORLD_SIZE", "1")) if rank != -1  else max(1, int(gpu_num))
     if user_defined_bs == -1:
-        if rank in [-1, 0]: # process0
-            autobatch_rst = get_batch_size_for_gpu(
-                userid, project_id, model, ch, imgsz, bs_factor,
-                amp_enabled=amp_enable, max_search=True
-            )
-            per_device_batch_size = max(1, int(autobatch_rst))
-            if is_ddp():
+        if is_ddp(): # multi GPUs and DDP
+            if rank == 0:
+                autobatch_rst = get_batch_size_for_gpu(
+                    userid, project_id, model, ch, imgsz, bs_factor,
+                    amp_enabled=amp_enable, max_search=True
+                )
+                per_device_batch_size = max(1, int(autobatch_rst))
+
                 bs_tensor = torch.tensor([per_device_batch_size], device=device)
-                dist.broadcast(bs_tensor, src=0)
+            else:
+                bs_tensor = torch.tensor([0], device=device)
+
+            # 모든 랭크가 브로드캐스트에 참여
+            dist.broadcast(bs_tensor, src=0)
+            per_device_batch_size = int(bs_tensor.item())
+
+            # 동기화 보장
+            dist.barrier()
+
+        else: # single GPU or DP
+            if rank in [-1, 0]: # process0
+                autobatch_rst = get_batch_size_for_gpu(
+                    userid, project_id, model, ch, imgsz, bs_factor,
+                    amp_enabled=amp_enable, max_search=True
+                )
+                per_device_batch_size = max(1, int(autobatch_rst))
+            else:
+                per_device_batch_size = 1
     else:
         if rank == -1: # single-gpu or dp
-            per_device_batch_size = user_defined_bs // world_size
+            per_device_batch_size = max(1, int(user_defined_bs // world_size))
         else: # ddp
-            per_device_batch_size = user_defined_bs
+            per_device_batch_size = max(1, int(user_defined_bs))
 
     total_batch_size = per_device_batch_size * world_size
     batch_size = per_device_batch_size if rank != -1 else total_batch_size
@@ -1348,18 +1365,18 @@ def train(proj_info, hyp, opt, data_dict, device, tb_writer=None):
                     torch.save(ckpt, best)
                     mb = os.path.getsize(best) / 1E6 # file size
                     logger.info(f"epoch {epoch} : {best} {mb:.1f} MB")
+                    best_fitness = float(fi)
                     try:
                         safe_update_info(userid, project_id,
                              progress="training",
-                             epoch = epoch,
-                             best_acc = (results[3] if (results and task=='detection') else float(fi))
+                             best_acc = (results[3] if (results and task=='detection') else float(fi)),
+                             best_net = best
                         )
                     except Exception as e:
                         logger.warning(f"safe_update_info skipped: {e}")
-                    best_fitness = float(fi)
-
                 if not opt.nosave:
                     torch.save(ckpt, last)
+                    safe_update_info(userid, project_id, epoch=epoch)
                 del ckpt
 
         # DDP sync
