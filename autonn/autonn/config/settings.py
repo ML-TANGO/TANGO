@@ -144,3 +144,18 @@ STATICFILES_DIRS = [BASE_DIR.parent / 'frontend' / 'build' / 'static',]
 # https://docs.djangoproject.com/en/5.0/ref/settings/#default-auto-field
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
+
+from django.utils.log import DEFAULT_LOGGING
+
+LOGGING = {
+    **DEFAULT_LOGGING,
+    "loggers": {
+        **DEFAULT_LOGGING["loggers"],
+        "django.server": {
+            "handlers": ["console"],
+            # INFO 대신 WARNING으로 올려서 2xx / 3xx 요청 로그 안 찍음
+            "level": "WARNING",
+            "propagate": False,
+        },
+    },
+}
