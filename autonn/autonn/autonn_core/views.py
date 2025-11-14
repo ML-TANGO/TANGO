@@ -1,5 +1,6 @@
 import os
 import random
+import logging
 import warnings
 import multiprocessing as mp
 
@@ -14,6 +15,8 @@ from .models import Info, Node, Edge, Pth
 from .serializers import InfoSerializer, NodeSerializer, EdgeSerializer, PthSerializer
 from .tango.main.select import run_autonn
 from .tango.main.visualize import export_pth, export_yml
+
+logger = logging.getLogger(__name__)
 
 DEBUG = False
 PROCESSES = {}
@@ -272,6 +275,9 @@ def process_autonn(userid, project_id):
 
     except Exception as e:
         print(f"[AutoNN process_autonn] exception: {e}")
+        logger.exception("An error occurred in run_autonn()\n")
+        print('='*80)
+        
         import torch, gc
         if torch.cuda.is_available():
             torch.cuda.empty_cache()
