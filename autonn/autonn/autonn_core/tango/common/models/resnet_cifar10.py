@@ -498,7 +498,9 @@ class ClassifyModel(nn.Module):
     def forward_once(self, x, profile=False):
         y, dt = [], []  # outputs
         for m in self.model:
-            if m.f != -1:  # if not from previous layer
+            f = getattr(m, "f", -1) # m.f 없으면 -1로 처리(DDP: syncBN 오류 우회)
+            if f != -1:
+            # if m.f != -1:  # if not from previous layer
                 x = y[m.f] if isinstance(m.f, int) else [x if j == -1 else y[j] for j in m.f]  # from earlier layers
 
             if not hasattr(self, 'traced'):
@@ -525,7 +527,9 @@ class ClassifyModel(nn.Module):
 
             x = m(x)  # run
 
-            y.append(x if m.i in self.save else None)  # save output
+            i = getattr(m, "i", -1) # m.i 없으면 -1로 처리 (DDP: syncBN 오류 우회)
+            y.append(x if i in getattr(self, "save", []) else None)
+            # y.append(x if m.i in self.save else None)  # save output
 
         if profile:
             logger.info('%.1fms total' % sum(dt))

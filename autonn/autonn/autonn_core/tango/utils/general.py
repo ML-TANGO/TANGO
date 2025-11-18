@@ -1146,7 +1146,9 @@ def strip_optimizer(f='best.pt', s='', prefix=''):  # from utils.general import 
     for p in x['model'].parameters(): # to x['model'].eval()
         p.requires_grad = False
 
-    x['model'].info() # model info
+    model = x['model']
+    if hasattr(model, "info"): # NOTE: classification model does not have info()
+        x['model'].info() # model info
     torch.save(x, s or f)
     mb = os.path.getsize(s or f) / 1E6  # filesize
     logger.info(f'\n{prefix}Optimizer stripped as {s or f}({mb:.1f}MB)')

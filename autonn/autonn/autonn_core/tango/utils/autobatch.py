@@ -1,9 +1,11 @@
 # Simplified Version of autobatch.py of Yolov5, AGPL-3.0 license
-import torch
+import random
 import gc
 import logging
-
 from copy import deepcopy
+
+import torch
+
 from tango.main import status_update
 from tango.common.models.yolo import DualDDetect, TripleDDetect 
 from tango.utils.general import colorstr
@@ -15,15 +17,169 @@ PREFIX = colorstr('AutoBatch: ')
 logger = logging.getLogger(__name__)
 
 class TestFuncGen:
-    def __init__(self, model, ch, imgsz, v9):
+    def __init__(self, model, ch, imgsz, v9, num_classes=80, max_boxes=30, amp=False):
+        """
+        model: torch.nn.Module (detection model)
+        ch: input channels
+        imgsz: square input size
+        v9: YOLOv9 계열 여부(dual/triple head 대비)
+        num_classes: 학습 시 클래스 수(대체 로스 경로에서 필요)
+        max_boxes: 이미지당 생성할 최대 박스 수(랜덤 0~max)
+        amp: autocast 테스트 여부
+        """
         self.model = model
         self.ch = ch
         self.imgsz = imgsz
         self.v9 = v9
+        self.num_classes = num_classes
+        self.max_boxes = max_boxes
+        self.amp = amp
+
+        # fake loss for testing
+        self.bce = torch.nn.BCEWithLogitsLoss(reduction="mean")
+        self.l1  = torch.nn.SmoothL1Loss(beta=1.0, reduction="mean")
+
+    def _make_fake_targets(self, batch_size, device):
+        """
+        YOLO 계열에서 흔히 쓰는 형식: (N, 6) = [img_idx, cls, x, y, w, h], 모두 0~1 정규화
+        배치별로 가변 수의 박스를 만든 뒤 이어붙임
+        """
+        all_tgts = []
+        for b in range(batch_size):
+            n = random.randint(0, self.max_boxes)  # 0~max_boxes
+            if n == 0:
+                continue
+            cls = torch.randint(0, self.num_classes, (n, 1), device=device).float()
+            xywh = torch.rand(n, 4, device=device)  # 0~1 정규화
+            img_idx = torch.full((n, 1), float(b), device=device)
+            tgts = torch.cat([img_idx, cls, xywh], dim=1)  # (n,6)
+            all_tgts.append(tgts)
+        if len(all_tgts) == 0:
+            # 박스가 하나도 없는 경우도 실제로 생기므로, 빈 텐서 반환
+            return torch.zeros(0, 6, device=device)
+        return torch.cat(all_tgts, dim=0)
+
+    def _try_real_loss(self, preds, targets):
+        """
+        모델에 실제 loss 함수가 있으면 그걸 최대한 사용
+            - 우선순위: model.compute_loss → model.criterion → preds가 dict이고 'loss' 키 보유
+            - 반환: (loss_tensor or None)
+        """
+        # (1) YOLOv5/YOLOv8 계열: compute_loss(preds, targets)
+        if hasattr(self.model, "compute_loss") and callable(getattr(self.model, "compute_loss")):
+            try:
+                out = self.model.compute_loss(preds, targets)
+                # 일부 구현은 (loss, items) 튜플로 반환
+                return out[0] if isinstance(out, (tuple, list)) else out
+            except Exception:
+                pass
+
+        # (2) criterion(preds, targets)
+        if hasattr(self.model, "criterion") and callable(getattr(self.model, "criterion")):
+            try:
+                out = self.model.criterion(preds, targets)
+                return out[0] if isinstance(out, (tuple, list)) else out
+            except Exception:
+                pass
+
+        # (3) preds 가 dict로 loss를 포함하는 경우
+        if isinstance(preds, dict) and "loss" in preds:
+            loss_val = preds["loss"]
+            if torch.is_tensor(loss_val):
+                return loss_val
+
+        return None
+
+    def _synthetic_det_loss(self, preds, batch_size):
+        """
+        실제 손실이 없을 때, detection head의 텐서 구조를 이용해
+        obj(BCE), cls(CE), box(L1) 성분을 '대충' 흉내 내서 메모리 경로를 활성화
+            - preds: list/tuple of heads or single tensor
+            - 각 head 텐서를 [B, A, H, W, C] 혹은 [B, HW*A, C] 형태로 가정하고,
+              C >= 5(+num_classes)라면 [tx, ty, tw, th, obj, cls...]로 분할
+        """
+        if not isinstance(preds, (list, tuple)):
+            preds = [preds]
+
+        total_loss = 0.0
+        for p in preds:
+            # 다양한 구현을 커버하기 위해 2가지 대표 케이스만 핸들
+            if p.dim() == 5:
+                # [B, A, H, W, C]
+                B, A, H, W, C = p.shape
+                P = p.view(B, A*H*W, C)  # [B, N, C]
+            elif p.dim() == 3:
+                # [B, N, C]
+                B, N, C = p.shape
+                P = p
+            else:
+                # 알 수 없는 형태면 그냥 평균 제곱으로라도 경로 열기
+                total_loss = total_loss + (p ** 2).mean()
+                continue
+
+            # C 판단: 최소 5(ch: bbox4 + obj1) + cls
+            if C >= 6:
+                num_cls = max(1, C - 5)
+            else:
+                num_cls = 1  # 아주 작은 C면 억지로 obj만 있다고 가정
+
+            # 분할 (가능하면)
+            if C >= 5:
+                box = P[..., 0:4]                # bbox 회귀
+                obj = P[..., 4:5]                # objectness
+                cls = P[..., 5:5+num_cls] if C >= 6 else None
+            else:
+                # 분할 불가: 그냥 전체를 제곱합
+                total_loss = total_loss + (P ** 2).mean()
+                continue
+
+            # 랜덤한 '양성' 위치를 이미지당 소량 생성 → obj/cls가 제대로 활성화되도록
+            # 이미지마다 서로 다른 양의 샘플 개수로 메모리 경로를 다양화
+            pos_per_img = max(1, P.shape[1] // 2000)  # 넉넉하지 않게 소수만
+            pos_idx = []
+            for b in range(batch_size):
+                choice = torch.randperm(P.shape[1], device=P.device)[:pos_per_img]
+                pos_idx.append(choice)
+            # obj 타깃: 기본 0, 양성 위치만 1
+            obj_t = torch.zeros_like(obj)
+            for b in range(batch_size):
+                obj_t[b, pos_idx[b], 0] = 1.0
+
+            # cls 타깃: one-hot on positives만(있으면)
+            if cls is not None and cls.numel() > 0:
+                cls_t = torch.zeros_like(cls)
+                for b in range(batch_size):
+                    # 무작위 클래스 할당
+                    rand_cls = torch.randint(0, cls.shape[-1], (pos_per_img,), device=cls.device)
+                    cls_t[b, pos_idx[b], :] = 0.0
+                    cls_t[b, pos_idx[b], :].scatter_(1, rand_cls.view(-1,1), 1.0)
+                # BCE with logits over one-hot
+                cls_loss = self.bce(cls, cls_t)
+            else:
+                cls_loss = 0.0
+
+            # box 타깃: 0~1 정규화 랜덤, 양성 위치만 비교
+            box_t = torch.rand_like(box)
+            # 양성 위치만 마스크해서 L1
+            mask = torch.zeros_like(obj)
+            for b in range(batch_size):
+                mask[b, pos_idx[b], 0] = 1.0
+            mask4 = mask.expand_as(box)
+            if mask4.sum() > 0:
+                box_loss = self.l1(box[mask4.bool()].view(-1,4), box_t[mask4.bool()].view(-1,4))
+            else:
+                box_loss = 0.0
+
+            obj_loss = self.bce(obj, obj_t)
+            total_loss = total_loss + (obj_loss + cls_loss + box_loss)
+
+        return total_loss
 
     def __call__(self, batch_size):
+        device = next(self.model.parameters()).device
         img = torch.zeros(batch_size, self.ch, self.imgsz, self.imgsz).float()
-        img = img.to(next(self.model.parameters()).device)
+        img = img.to(device)
+        targets = self._make_fake_targets(batch_size, device)
 
         try:
             y = self.model(img)
@@ -31,9 +187,25 @@ class TestFuncGen:
             if self.v9:
                 y = y[-1] if isinstance(y, list) else y # one more time (just in case dual or triple heads: yolov9)
             # loss = y.mean()
-            loss = (sum(yi.sum() for yi in y) if isinstance(y, list) else y).sum() # from yolov9 code
+            # loss = (sum(yi.sum() for yi in y) if isinstance(y, list) else y).sum() # from yolov9 code
+            # 1) 실제 loss가 있으면 그걸 우선 사용
+            loss = self._try_real_loss(y, targets)
+            # 2) 실제 loss 없으면, detection 구조를 흉내 낸 합성 loss 사용
+            if loss is None:
+                _pred_list = None
+                if isinstance(y, dict):
+                    for k in ["preds", "head_outs", "outputs"]:
+                        if k in y:
+                            _pred_list = y[k]
+                            break
+                    if _pred_list is None:
+                        _pred_list = list(y.values())
+                else:
+                    _pred_list = y
+                loss = self._synthetic_det_loss(_pred_list, batch_size)
+
             loss.backward() # need to free the variables of the graph
-            del img
+            del img, targets, y, loss
             return True
         except RuntimeError as e:
             del img

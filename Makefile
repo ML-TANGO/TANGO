@@ -27,7 +27,7 @@ ifeq ($(COMPOSE),docker compose)
 COMPOSE_FILE_FLAG := -f docker-compose.yml
 CONFIG_ENV_FILE_FLAG := --env-file .env
 else
-COMPOSE_FILE_FLAG := -f .compose/docker-compose.v1.yml
+COMPOSE_FILE_FLAG := -f docker-compose.yml -f .compose/docker-compose.v1.yml
 CONFIG_ENV_FILE_FLAG :=
 NEEDS_PREPARE := prepare-v1-compose
 endif
@@ -49,11 +49,11 @@ COMPOSE_PROJECT_NAME ?= $(shell basename "$$(pwd)" | tr '[:upper:]' '[:lower:]')
 # --------------------------------------------
 # PHONY
 # --------------------------------------------
-.PHONY: help build up down restart logs pm-logs autonn-logs config recreate ps \
-        exec-pm exec-autonn up-% logs-% exec-% migrate seed \
-        prepare-v1-compose clean-v1-compose \
-        gen-datasets-override validate-host-datasets run
-
+.PHONY: help run build build-project_manager build-autonn build-autonn_cl build-labelling \
+		up up-project_manager up-autonn up-autonn_cl up-% down restart recreate config ps \
+		logs logs-pm logs-% exec-pm exec-% migrate seed prepare-v1-compose clean-dot-compose \
+        gen-datasets-override validate-host-datasets clean-labelling-db \
+		ensure-nvidia-runtime show-docker-runtime check-gpu
 # --------------------------------------------
 # 도움말
 # --------------------------------------------
@@ -62,69 +62,139 @@ help: ## 사용 가능한 명령 목록
 	awk 'BEGIN{FS=":.*## "}; {printf"  \033[36m%-22s\033[0m %s\n", $$1, $$2}'
 
 # --------------------------------------------
-# docker-compose v1용 파일 자동 생성
-# - deploy 제거, runtime: nvidia 주입, env 병합
+# 원샷 워크플로우
+# --------------------------------------------
+run: build up logs ## (자동) 빌드 → 실행 → 로그 팔로우
+
+# --------------------------------------------
+# 기본 빌드/실행 계열 (자동으로 override 병합)
+# --------------------------------------------
+build: ensure-nvidia-runtime clean-labelling-db check-gpu $(NEEDS_PREPARE) gen-datasets-override validate-host-datasets ## 전체 이미지 빌드(필요한 데이터셋 외부 바인딩 포함)
+	$(COMPOSE) $(COMPOSE_FILE_FLAG) $(COMPOSE_CU130_FLAG) $(_RUNTIME_DATASETS_FLAG) build
+
+build-labelling: ensure-nvidia-runtime clean-labelling-db check-gpu $(NEEDS_PREPARE)
+	$(COMPOSE) $(COMPOSE_FILE_FLAG) $(COMPOSE_CU130_FLAG) $(_RUNTIME_DATASETS_FLAG) build labelling
+
+build-project_manager: ensure-nvidia-runtime check-gpu $(NEEDS_PREPARE) gen-datasets-override validate-host-datasets
+	$(COMPOSE) $(COMPOSE_FILE_FLAG) $(COMPOSE_CU130_FLAG) $(_RUNTIME_DATASETS_FLAG) build project_manager
+
+build-autonn: ensure-nvidia-runtime check-gpu $(NEEDS_PREPARE) gen-datasets-override validate-host-datasets
+	$(COMPOSE) $(COMPOSE_FILE_FLAG) $(COMPOSE_CU130_FLAG) $(_RUNTIME_DATASETS_FLAG) build autonn
+
+build-autonn_cl: ensure-nvidia-runtime check-gpu $(NEEDS_PREPARE) gen-datasets-override validate-host-datasets
+	$(COMPOSE) $(COMPOSE_FILE_FLAG) $(COMPOSE_CU130_FLAG) $(_RUNTIME_DATASETS_FLAG) build autonn_cl
+
+build-%: ensure-nvidia-runtime check-gpu $(NEEDS_PREPARE) ## 특정 이미지만 빌드 (예: make build-code_gen)
+	$(COMPOSE) $(COMPOSE_FILE_FLAG) $(COMPOSE_CU130_FLAG) $(_RUNTIME_DATASETS_FLAG) build $*
+
+up: ensure-nvidia-runtime clean-labelling-db check-gpu $(NEEDS_PREPARE) gen-datasets-override validate-host-datasets ## 모든 서비스 시작 (-d, 자동 override 포함)
+	$(COMPOSE) $(COMPOSE_FILE_FLAG) $(COMPOSE_CU130_FLAG) $(_RUNTIME_DATASETS_FLAG) up -d
+
+up-project_manager: ensure-nvidia-runtime check-gpu $(NEEDS_PREPARE) gen-datasets-override validate-host-datasets
+	$(COMPOSE) $(COMPOSE_FILE_FLAG) $(COMPOSE_CU130_FLAG) $(_RUNTIME_DATASETS_FLAG) up project_manager -d
+
+up-autonn: ensure-nvidia-runtime check-gpu $(NEEDS_PREPARE) gen-datasets-override validate-host-datasets
+	$(COMPOSE) $(COMPOSE_FILE_FLAG) $(COMPOSE_CU130_FLAG) $(_RUNTIME_DATASETS_FLAG) up autonn -d
+
+up-autonn_cl: ensure-nvidia-runtime check-gpu $(NEEDS_PREPARE) gen-datasets-override validate-host-datasets
+	$(COMPOSE) $(COMPOSE_FILE_FLAG) $(COMPOSE_CU130_FLAG) $(_RUNTIME_DATASETS_FLAG) up autonn_cl -d
+
+up-%: check-gpu $(NEEDS_PREPARE) ## 특정 서비스만 시작 (-d, 예: make up-autonn)
+	$(COMPOSE) $(COMPOSE_FILE_FLAG) $(COMPOSE_CU130_FLAG) $(_RUNTIME_DATASETS_FLAG) up -d $*
+
+down: ## 중지 및 제거
+	$(COMPOSE) $(COMPOSE_FILE_FLAG) $(COMPOSE_CU130_FLAG) $(_RUNTIME_DATASETS_FLAG) down
+
+restart: down up ## 재시작
+
+recreate: ensure-nvidia-runtime check-gpu $(NEEDS_PREPARE) gen-datasets-override validate-host-datasets ## 볼륨/환경 변경 반영해 재생성(빌드X)
+	$(COMPOSE) $(COMPOSE_FILE_FLAG) $(COMPOSE_CU130_FLAG) $(_RUNTIME_DATASETS_FLAG) up -d --force-recreate
+
+config: check-gpu $(NEEDS_PREPARE) gen-datasets-override ## .env 적용된 최종 compose 확인
+	$(COMPOSE) $(COMPOSE_FILE_FLAG) $(COMPOSE_CU130_FLAG) $(CONFIG_ENV_FILE_FLAG) $(_RUNTIME_DATASETS_FLAG) config
+
+ps: check-gpu $(NEEDS_PREPARE) ## 컨테이너 상태 보기
+	$(COMPOSE) $(COMPOSE_FILE_FLAG) $(COMPOSE_CU130_FLAG) $(_RUNTIME_DATASETS_FLAG) ps
+
+logs: check-gpu $(NEEDS_PREPARE) ## 전체 로그 팔로우
+	$(COMPOSE) $(COMPOSE_FILE_FLAG) $(COMPOSE_CU130_FLAG) $(_RUNTIME_DATASETS_FLAG) logs -f || true
+
+logs-%: check-gpu $(NEEDS_PREPARE) ## 특정 서비스 로그 (예: make logs-autonn_cl)
+	$(COMPOSE) $(COMPOSE_FILE_FLAG) $(COMPOSE_CU130_FLAG) $(_RUNTIME_DATASETS_FLAG) logs -f $* || true
+
+exec-%: ensure-nvidia-runtime check-gpu ## 특정 서비스 쉘 (예: make exec-autonn)
+	$(COMPOSE) $(COMPOSE_FILE_FLAG) $(COMPOSE_CU130_FLAG) $(_RUNTIME_DATASETS_FLAG) exec $* bash
+
+logs-pm: ensure-nvidia-runtime check-gpu $(NEEDS_PREPARE) ## project_manager 로그
+	$(COMPOSE) $(COMPOSE_FILE_FLAG) $(COMPOSE_CU130_FLAG) $(_RUNTIME_DATASETS_FLAG) logs -f project_manager || true
+
+exec-pm: ensure-nvidia-runtime check-gpu ## project_manager 쉘
+	$(COMPOSE) $(COMPOSE_FILE_FLAG) $(COMPOSE_CU130_FLAG) $(_RUNTIME_DATASETS_FLAG) exec project_manager bash
+
+
+# --------------------------------------------
+# Django 보조
+# --------------------------------------------
+migrate: ## project_manager DB migrate
+	$(COMPOSE) $(COMPOSE_FILE_FLAG) $(_RUNTIME_DATASETS_FLAG) exec project_manager bash -lc 'python manage.py migrate'
+
+seed: ## project_manager loaddata
+	$(COMPOSE) $(COMPOSE_FILE_FLAG) $(_RUNTIME_DATASETS_FLAG) exec project_manager bash -lc 'python manage.py loaddata base_model_data.json'
+
+# --------------------------------------------
+# Blackwell GPU 여부 확인
+# --------------------------------------------
+check-gpu:
+	@bash scripts/check_blackwell_gpu.sh
+
+# cu130 override 파일 존재하면 compose에 자동 포함
+COMPOSE_CU130_FLAG = $(shell if [ -f .compose/docker-compose.cu130.yml ]; then echo "-f .compose/docker-compose.cu130.yml"; fi)
+
+# --------------------------------------------
+# NVIDIA Docker runtime 보장
+# --------------------------------------------
+ensure-nvidia-runtime:
+	@set -e; \
+	if [ "$${SKIP_NVIDIA_RUNTIME_CHECK:-0}" = "1" ]; then \
+	  echo "⏭  skip ensure-nvidia-runtime (SKIP_NVIDIA_RUNTIME_CHECK=1)"; exit 0; \
+	fi; \
+	if docker info 2>/dev/null | grep -iq 'Runtimes:.*nvidia'; then \
+	  echo "✓ Docker runtime 'nvidia' already registered"; \
+	else \
+	  if command -v nvidia-ctk >/dev/null 2>&1; then \
+	    echo "→ Registering NVIDIA runtime via nvidia-ctk ..."; \
+	    sudo nvidia-ctk runtime configure --runtime=docker; \
+	    echo "→ Restarting docker ..."; \
+	    sudo systemctl restart docker; \
+	    if docker info 2>/dev/null | grep -iq 'Runtimes:.*nvidia'; then \
+	      echo "✅ Docker runtime 'nvidia' registered"; \
+	    else \
+	      echo "❌ Failed to register 'nvidia' runtime. Check docker logs: 'journalctl -u docker -n 200'"; \
+	      exit 1; \
+	    fi; \
+	  else \
+	    echo "❌ 'nvidia-ctk' not found (nvidia-container-toolkit 미설치)."; \
+	    echo "   설치 후 다시 시도: sudo apt install -y nvidia-container-toolkit && sudo nvidia-ctk runtime configure --runtime=docker && sudo systemctl restart docker"; \
+	    exit 1; \
+	  fi; \
+	fi
+
+show-docker-runtime:
+	@docker info 2>/dev/null | grep -i runtime || true
+	@echo "daemon.json:"; cat /etc/docker/daemon.json 2>/dev/null || echo "(no /etc/docker/daemon.json)"
+
+# --------------------------------------------
+# docker-compose v1용 override 파일 자동 생성
+# - check_docker_compose.sh가 ..
 # - 대상 서비스: autonn | autonn_cl
 # --------------------------------------------
-prepare-v1-compose: ## docker-compose v1용 파일 자동 생성 (deploy 제거 + runtime 주입 + env 병합)
-	@echo "🛠  Generating .compose/docker-compose.v1.yml for v1 (merge env keys)..."
-	@if [ ! -f docker-compose.yml ]; then echo "❌ docker-compose.yml not found!"; exit 1; fi
-	@if [ ! -d .compose ]; then mkdir -p .compose; fi
-	@awk '\
-	  function is_target_service(line){ return match(line,/^  (autonn|autonn_cl):/); } \
-	  BEGIN{ in_svc=0; in_deploy=0; in_env=0; seen_env=0; need_env=0; found_vis=0; found_caps=0; } \
-	  { \
-	    if (is_target_service($$0)) { in_svc=1; in_deploy=0; in_env=0; seen_env=0; need_env=0; found_vis=0; found_caps=0; } \
-	    else if (in_svc && $$0 ~ /^  [^[:space:]].*:/ && !is_target_service($$0)) { \
-	      if (in_env){ \
-	        if (!found_vis)  print "      - NVIDIA_VISIBLE_DEVICES=$${NVIDIA_VISIBLE_DEVICES:-all}"; \
-	        if (!found_caps) print "      - NVIDIA_DRIVER_CAPABILITIES=compute,utility"; \
-	        in_env=0; \
-	      } \
-	      if (need_env && !seen_env){ \
-	        print "    environment:"; \
-	        print "      - NVIDIA_VISIBLE_DEVICES=$${NVIDIA_VISIBLE_DEVICES:-all}"; \
-	        print "      - NVIDIA_DRIVER_CAPABILITIES=compute,utility"; \
-	      } \
-	      in_svc=0; in_deploy=0; \
-	    } \
-	    if (in_svc) { \
-	      if ($$0 ~ /^[[:space:]]{4}deploy:/){ print "    runtime: nvidia"; need_env=1; in_deploy=1; next; } \
-	      if (in_deploy){ match($$0,/^[[:space:]]*/); if (RLENGTH <= 4){ in_deploy=0; } else { next; } } \
-	      if ($$0 ~ /^[[:space:]]+gpus:/){ next; } \
-	      if ($$0 ~ /^[[:space:]]{4}environment:/){ in_env=1; seen_env=1; print $$0; next; } \
-	      if (in_env){ \
-	        if ($$0 ~ /^[[:space:]]{4}[^[:space:]]/){ \
-	          if (!found_vis)  print "      - NVIDIA_VISIBLE_DEVICES=$${NVIDIA_VISIBLE_DEVICES:-all}"; \
-	          if (!found_caps) print "      - NVIDIA_DRIVER_CAPABILITIES=compute,utility"; \
-	          in_env=0; \
-	        } else { \
-	          if ($$0 ~ /^[[:space:]]{6}-[[:space:]]*NVIDIA_VISIBLE_DEVICES=/) { found_vis=1; } \
-	          if ($$0 ~ /^[[:space:]]{6}-[[:space:]]*NVIDIA_DRIVER_CAPABILITIES=/) { found_caps=1; } \
-	          print $$0; next; \
-	        } \
-	      } \
-	    } \
-	    print $$0; \
-	  } \
-	  END{ \
-	    if (in_env){ \
-	      if (!found_vis)  print "      - NVIDIA_VISIBLE_DEVICES=$${NVIDIA_VISIBLE_DEVICES:-all}"; \
-	      if (!found_caps) print "      - NVIDIA_DRIVER_CAPABILITIES=compute,utility"; \
-	    } \
-	    if (in_svc && need_env && !seen_env){ \
-	      print "    environment:"; \
-	      print "      - NVIDIA_VISIBLE_DEVICES=$${NVIDIA_VISIBLE_DEVICES:-all}"; \
-	      print "      - NVIDIA_DRIVER_CAPABILITIES=compute,utility"; \
-	    } \
-	  }' docker-compose.yml > .compose/docker-compose.v1.yml
-	@echo "✅ .compose/docker-compose.v1.yml 생성 완료 (deploy 제거 + runtime 주입 + env 병합)"
-
-clean-v1-compose:
-	@if [ -f .compose/docker-compose.v1.yml ]; then rm -f .compose/docker-compose.v1.yml && echo "🧹 removed .compose/docker-compose.v1.yml"; else echo "✓ no temp file"; fi
+prepare-v1-compose:
+	@echo "🛠  Generating v1 override compose (.compose/docker-compose.v1.yml)..."
+	@mkdir -p .compose
+	@scripts/check_docker_compose.sh '.compose/docker-compose.v1.yml'
 
 # --------------------------------------------
-# 데이터셋 자동판단 override 생성
+# 외부 데이터셋 override 파일 자동 생성
 # - check_shared_datasets.sh 가 $(DATASETS_OVERRIDE) 생성
 # - 비어있는 /shared/datasets/* 만 *vol_* 앵커로 외부 바인딩
 # --------------------------------------------
@@ -139,8 +209,11 @@ define _RUNTIME_DATASETS_FLAG
 $(shell if grep -q '^services:' '$(DATASETS_OVERRIDE)' 2>/dev/null && grep -q 'volumes:' '$(DATASETS_OVERRIDE)' 2>/dev/null; then echo "-f $(DATASETS_OVERRIDE)"; fi)
 endef
 
-# (선택) 외부 경로 유효성 검증: 실제로 바인딩될 항목만 검사
-validate-host-datasets: gen-datasets-override ## override에 포함된 데이터셋만 .env 경로/존재 확인
+# --------------------------------------------
+# 외부 경로 유효성 검증: 실제로 바인딩될 항목만 검사
+# - override에 포함된 데이터셋만 .env 경로/존재 확인
+# --------------------------------------------
+validate-host-datasets: gen-datasets-override
 	@set -e; \
 	has_err=0; \
 	check_one() { \
@@ -161,66 +234,31 @@ validate-host-datasets: gen-datasets-override ## override에 포함된 데이터
 	echo "✅ host dataset paths OK (for the ones that will be bound)"
 
 # --------------------------------------------
-# 기본 빌드/실행 계열 (자동으로 override 병합)
+# override compose 파일 정리
+# - .compose/docker-compose.v1.yml
+# - $(DATASETS_OVERRIDE) (.compose/docker-compose.datasets.yml)
 # --------------------------------------------
-build: $(NEEDS_PREPARE) gen-datasets-override validate-host-datasets ## 이미지 빌드(필요한 데이터셋만 외부 바인딩 포함)
-	$(COMPOSE) $(COMPOSE_FILE_FLAG) $(_RUNTIME_DATASETS_FLAG) build
-
-build-%: $(NEEDS_PREPARE) gen-datasets-override validate-host-datasets
-	$(COMPOSE) $(COMPOSE_FILE_FLAG) $(_RUNTIME_DATASETS_FLAG) build $*
-
-up: $(NEEDS_PREPARE) gen-datasets-override validate-host-datasets ## 모든 서비스 시작 (-d, 자동 override 포함)
-	$(COMPOSE) $(COMPOSE_FILE_FLAG) $(_RUNTIME_DATASETS_FLAG) up -d
-
-up-%: $(NEEDS_PREPARE) gen-datasets-override validate-host-datasets
-	$(COMPOSE) $(COMPOSE_FILE_FLAG) $(_RUNTIME_DATASETS_FLAG) up -d $*
-
-down: ## 중지 및 제거
-	$(COMPOSE) $(COMPOSE_FILE_FLAG) down
-	-$(COMPOSE) $(COMPOSE_FILE_FLAG) -f $(DATASETS_OVERRIDE) down
-
-restart: down up ## 재시작
-
-recreate: $(NEEDS_PREPARE) gen-datasets-override validate-host-datasets ## 볼륨/환경 변경 반영해 재생성(빌드X)
-	$(COMPOSE) $(COMPOSE_FILE_FLAG) $(_RUNTIME_DATASETS_FLAG) up -d --force-recreate
-
-config: $(NEEDS_PREPARE) gen-datasets-override ## .env 적용된 최종 compose 확인
-	$(COMPOSE) $(COMPOSE_FILE_FLAG) $(CONFIG_ENV_FILE_FLAG) $(_RUNTIME_DATASETS_FLAG) config
-
-ps: $(NEEDS_PREPARE) ## 컨테이너 상태 보기
-	$(COMPOSE) $(COMPOSE_FILE_FLAG) $(_RUNTIME_DATASETS_FLAG) ps
-
-logs: $(NEEDS_PREPARE) ## 전체 로그 팔로우
-	$(COMPOSE) $(COMPOSE_FILE_FLAG) $(_RUNTIME_DATASETS_FLAG) logs -f || true
-
-logs-%: $(NEEDS_PREPARE) ## 특정 서비스 로그 (예: make logs-project_manager)
-	$(COMPOSE) $(COMPOSE_FILE_FLAG) $(_RUNTIME_DATASETS_FLAG) logs -f $* || true
-
-pm-logs: $(NEEDS_PREPARE) ## project_manager 로그
-	$(COMPOSE) $(COMPOSE_FILE_FLAG) $(_RUNTIME_DATASETS_FLAG) logs -f project_manager || true
-
-autonn-logs: $(NEEDS_PREPARE) ## autonn 로그
-	$(COMPOSE) $(COMPOSE_FILE_FLAG) $(_RUNTIME_DATASETS_FLAG) logs -f autonn || true
-
-exec-pm: ## project_manager 쉘
-	$(COMPOSE) $(COMPOSE_FILE_FLAG) $(_RUNTIME_DATASETS_FLAG) exec project_manager bash
-
-exec-autonn: ## autonn 쉘
-	$(COMPOSE) $(COMPOSE_FILE_FLAG) $(_RUNTIME_DATASETS_FLAG) exec autonn bash
-
-exec-%: ## 특정 서비스 쉘 (예: make exec-autonn)
-	$(COMPOSE) $(COMPOSE_FILE_FLAG) $(_RUNTIME_DATASETS_FLAG) exec $* bash
+clean-dot-compose:
+	@echo "🧹 Cleaning v1 & dataset override files under .compose ..."
+	@if [ -f .compose/docker-compose.v1.yml ]; then \
+		rm -f .compose/docker-compose.v1.yml && echo "  - removed .compose/docker-compose.v1.yml"; \
+	else \
+		echo "  - .compose/docker-compose.v1.yml not found (skip)"; \
+	fi
+	@if [ -f '$(DATASETS_OVERRIDE)' ]; then \
+		rm -f '$(DATASETS_OVERRIDE)' && echo "  - removed $(DATASETS_OVERRIDE)"; \
+	else \
+		echo "  - $(DATASETS_OVERRIDE) not found (skip)"; \
+	fi
+	@rmdir .compose 2>/dev/null && echo "  - removed empty .compose directory" || true
 
 # --------------------------------------------
-# Django 보조
+# labelling/datadb 폴더가 있으면 삭제
 # --------------------------------------------
-migrate: ## project_manager DB migrate
-	$(COMPOSE) $(COMPOSE_FILE_FLAG) $(_RUNTIME_DATASETS_FLAG) exec project_manager bash -lc 'python manage.py migrate'
-
-seed: ## project_manager loaddata
-	$(COMPOSE) $(COMPOSE_FILE_FLAG) $(_RUNTIME_DATASETS_FLAG) exec project_manager bash -lc 'python manage.py loaddata base_model_data.json'
-
-# --------------------------------------------
-# 원샷 워크플로우
-# --------------------------------------------
-run: build up logs ## (자동) 빌드 → 실행 → 로그 팔로우
+clean-labelling-db: 
+	@if [ -d labelling/datadb ]; then \
+		echo "🧹 removing labelling/datadb"; \
+		sudo rm -rf -- labelling/datadb; \
+	else \
+		echo "✓ labelling/datadb 없음 — skip"; \
+	fi

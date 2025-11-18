@@ -153,25 +153,34 @@ def get_user_requirements(userid, projid, resume=False):
     lt = proj_info_dict['learning_type'].lower()
     skip_bms = False
    
-    best_model_file = safe_get_info_field(userid, projid, "best_net")
-    if isinstance(best_model_file, str) and os.path.isfile(best_model_file):
+    best_ckpt = safe_get_info_field(userid, projid, "best_net")
+    last_ckpt = get_latest_run(COMMON_ROOT / userid / projid)
+    last_epoch = safe_get_info_field(userid, projid, "epoch")
+    if isinstance(best_ckpt, str) and os.path.isfile(best_ckpt):
         if lt in ['incremental', 'transfer', 'finetune', 'hpo']:
             logger.info(
-                f'{colorstr("Project Info: ")}Pretrained model {best_model_file} exists.\n'
+                f'{colorstr("Project Info: ")}Pretrained model {best_ckpt} exists.\n'
                 f'              BMS will be skipped.'
             )
             skip_bms = True
         elif lt == 'normal':
-            bak_dir = backup_previous_work(best_model_file)
-            logger.info(
-                f'{colorstr("Project Info: ")}Pretrained model {best_model_file}\n'
-                f'              moved to {bak_dir}/...'
-            )
-            # ORM update (2/4)
-            safe_update_info(userid, projid, best_net='')
+            if not resume:
+                bak_dir = backup_previous_work(best_ckpt)
+                logger.info(
+                    f'{colorstr("Project Info: ")}Pretrained model {best_ckpt}\n'
+                    f'              moved to {bak_dir}/...'
+                )
+                # ORM update (2/4)
+                safe_update_info(userid, projid, best_net='')
+            else:
+                logger.info(
+                    f'{colorstr("Project Info: ")}Last epoch = {last_epoch}\n'
+                    f'              Last checkpoint = {last_ckpt}'
+                )
+                skip_bms = True
         else:
             logger.warning(
-                f'{colorstr("Project Info: ")}Pretrained model {best_model_file} exists.\n'
+                f'{colorstr("Project Info: ")}Pretrained model {best_ckpt} exists.\n'
                 f'              But learning type {lt} is unknown, '
                 f'so it will be overwritten by the end of training.'
             )
@@ -231,7 +240,7 @@ def get_user_requirements(userid, projid, resume=False):
     if seleted_hyp_src.is_file():
         _atomic_copy(seleted_hyp_src, hyp_yaml_path)
 
-    logger.info(f'{colorstr("hyp: ")}hyperparameters from {hyp_yaml_path}')
+    logger.info(f'{colorstr("Project Info: ")}hyperparameters from {hyp_yaml_path}')
 
     with open(hyp_yaml_path) as f:
         hyp_dict = yaml.safe_load(f)
@@ -248,7 +257,7 @@ def get_user_requirements(userid, projid, resume=False):
     if selected_opt_src.is_file():
         _atomic_copy(selected_opt_src, opt_yaml_path)
 
-    logger.info(f'{colorstr("arguments: ")}arguments from {opt_yaml_path}')    
+    logger.info(f'{colorstr("Project Info: ")}arguments from {opt_yaml_path}')    
 
     with open(opt_yaml_path, encoding='utf-8') as f:
         opt = argparse.Namespace(**yaml.safe_load(f))
@@ -256,13 +265,16 @@ def get_user_requirements(userid, projid, resume=False):
     # Check for weights and resume state
     weights = vars(opt).get('weights', None)
     if weights:
-        logger.info(f'{colorstr("Project Info: ")}pretrained model = {weights}')
+        logger.info(f'{colorstr("Project Info: ")}transfer learning/fine-tuning from pretrained model[{weights}]')
     
     if resume:
-        logger.info(f'{colorstr("Project Info: ")}resume = {resume}')
-        opt.resume = True
+        opt.oom = True
+        opt.resume = str(last_ckpt) #True
+        opt.last_epoch = last_epoch
         prev_bs_factor = safe_get_info_field(userid, projid, "batch_multiplier")
         opt.bs_factor = prev_bs_factor - 0.1 #info.batch_multiplier - 0.1
+        opt.batch_size = -1 # ensure autobatch
+        logger.info(f'{colorstr("Project Info: ")}resuming from last ckpt[{opt.resume}] @ epoch #{last_epoch:>3}')
 
     # Check for incremental learning
     if lt == 'incremental':
@@ -606,7 +618,7 @@ def run_autonn(userid, project_id, resume=False, viz2code=False, nas=False, hpo=
     gc.collect()
 
     # Handle large image size models
-    if basemodel['imgsz']==1280:
+    if basemodel['imgsz']==1280 and ("YOLOv7" in basemodel['name'].upper()):
         opt.loss_name = 'AuxOTA'
 
     # Check options
@@ -629,7 +641,7 @@ def run_autonn(userid, project_id, resume=False, viz2code=False, nas=False, hpo=
 
         if os.path.isfile(ckpt):
             opt.weights = ckpt
-            logger.info(f'{colorstr("Project Info: ")}Resuming training from %s' % ckpt)
+            logger.info(f'{colorstr("Project Info: ")}Resuming training {ckpt} from epoch {opt.last_epoch}')
 
     # Initialize tensorboard writer 
     tb_writer = None  # init loggers

@@ -5,14 +5,6 @@ services:
   project_manager:
     build:
       context: ./project_manager
-    # command: >
-    #   sh -c "chmod 777 ./wait_for_postgres.sh &&
-    #          ./wait_for_postgres.sh &&
-    #          python manage.py makemigrations tango &&
-    #          python manage.py makemigrations datasets &&
-    #          python manage.py makemigrations targets &&
-    #          python manage.py migrate &&
-    #          python manage.py runserver 0.0.0.0:8085"
     command: >
       sh -c "chmod 777 ./wait_for_postgres.sh &&
              ./wait_for_postgres.sh &&
@@ -20,10 +12,8 @@ services:
              python manage.py loaddata base_model_data.json &&
              python manage.py runserver 0.0.0.0:8085"
     volumes:
-      # - ./project_manager:/code
       - shared:/shared
       - ${configYaml:-./autonn/autonn/autonn_core/tango/common/cfg}:/configYaml
-      - ./autonn_cl/autonn_cl/autonn_cl_core/tango/common/cfg:/configYaml  # configYaml 위에 autonn_cl의 cfg 폴더를 겹쳐서 마운트합니다.
       - /var/run/docker.sock:/var/run/docker.sock
 
     hostname: projectmanager
@@ -49,25 +39,6 @@ services:
       - POSTGRES_NAME=postgres
       - POSTGRES_USER=postgres
       - POSTGRES_PASSWORD=postgres
-
-  #---------------------------------
-  # DB for labelling tool
-  #---------------------------------
-  # mariadb:
-  #   container_name: "mariadb"
-  #   image: mariadb:10
-  #   ports:
-  #     - 3306:3306
-  #   volumes:
-  #     - "./labelling/Deployment/db/my.cnf:/etc/mysql/my.cnf"
-  #     - "./labelling/data:/var/lib/mysql"
-  #     - "./labelling/Deployment/test/:/docker-entrypoint-initdb.d/"
-  #   environment:
-  #     MARIADB_DATABASE: labelling
-  #     MARIADB_USER: username
-  #     MARIADB_PASSWORD: password
-  #     MARIADB_ROOT_PASSWORD: password
-  #   restart: always
 
   #---------------------------------
   # Labelling tool
@@ -112,198 +83,36 @@ services:
     hostname: autonn
     ports:
       - "8100:8100" # visualizer (vision model)
-      - "8101:8101" # streamlit  (llm)
-
 
   #---------------------------------
   # AutoNN_CL: AutoNN_CL (중앙대 개발 - 기본 구조 제공)
   #---------------------------------
   autonn_cl:
-      build:
-        context: ./autonn_cl/autonn_cl
-      shm_size: "256M"
-      ipc: host
-      command: >
-        sh -c "python manage.py makemigrations &&
-               python manage.py migrate &&
-               python manage.py runserver 0.0.0.0:8102"
-      deploy:
-        resources:
-          reservations:
-            devices:
-              - driver: nvidia
-                count: all
-                capabilities:
-                  - gpu
-                  - utility
-                  - compute
-                  - video
-      volumes:
-        - ./autonn_cl/autonn_cl:/source
-        - shared:/shared
-      hostname: autonn-cl
-      ports:
-        - "8102:8102"
-
-  #---------------------------------
-  # Base Model Selector
-  #---------------------------------
-  # bms:
-  #   build:
-  #     context: ./base_model_select
-  #   shm_size: "256M"
-  #   command: >
-  #     sh -c "python manage.py makemigrations &&
-  #            python manage.py migrate --run-syncdb &&
-  #            python manage.py runserver 0.0.0.0:8081"
-  #   deploy:
-  #     resources:
-  #       reservations:
-  #         devices:
-  #           - driver: nvidia
-  #             capabilities:
-  #               - gpu
-  #               - utility
-  #               - compute
-  #               - video
-  #   environment:
-  #     - NVIDIA_VISIBLE_DEVICES=${GPU_NUM:-all}
-  #   hostname: bms
-  #   volumes:
-  #     - ./base_model_select:/source
-  #     - shared:/shared
-  #   ports:
-  #     - "8081:8081"
-
-  # #---------------------------------
-  # # AutoNN: Bakcbone-NAS
-  # #---------------------------------
-  # autonn_bb:
-  #   build:
-  #     context: ./autonn/backbone_nas
-  #   shm_size: '256M'
-  #   ipc: host
-  #   command: >
-  #     sh -c "python manage.py makemigrations &&
-  #            python manage.py migrate &&
-  #            python manage.py runserver 0.0.0.0:8087"
-  #   # use the below lines commented out if you want to use gpu
-  #   # deploy:
-  #   #   resources:
-  #   #     reservations:
-  #   #       devices:
-  #   #         - driver: nvidia
-  #   #           capabilities:
-  #   #             - gpu
-  #   #             - utility
-  #   #             - compute
-  #   #             - video
-  #   # environment:
-  #   #   - NVIDIA_VISIBLE_DEVICES=all
-  #   volumes:
-  #     - ./autonn/backbone_nas:/source
-  #     - shared:/shared
-  #   ports:
-  #     - "8087:8087"
-
-  # #---------------------------------
-  # # AutoNN: Neck-NAS
-  # #---------------------------------
-  # autonn_nk:
-  #   build:
-  #     context: ./autonn/neck_nas
-  #   shm_size: '256M'
-  #   ipc: host
-  #   command: >
-  #     sh -c "python manage.py makemigrations &&
-  #            python manage.py migrate &&
-  #            python manage.py runserver 0.0.0.0:8089"
-  #   # use the below lines commented out if you want to use gpu
-  #   # deploy:
-  #   #   resources:
-  #   #     reservations:
-  #   #       devices:
-  #   #         - driver: nvidia
-  #   #           capabilities:
-  #   #             - gpu
-  #   #             - utility
-  #   #             - compute
-  #   #             - video
-  #   # environment:
-  #   #   - NVIDIA_VISIBLE_DEVICES=all
-  #   volumes:
-  #     - ./autonn/neck_nas:/source
-  #     - shared:/shared
-  #     # - /Data:/shared/datasets # for local tests
-  #   ports:
-  #     - "8089:8089"
-
-  #---------------------------------
-  # AutoNN: YoloE
-  #---------------------------------
-  # autonn_yoloe:
-  #   build:
-  #     context: ./autonn/YoloE
-  #   shm_size: "256M"
-  #   ipc: host
-  #   command: >
-  #     sh -c "python manage.py pretrained_supernet &&
-  #            python manage.py makemigrations &&
-  #            python manage.py migrate &&
-  #            python manage.py runserver 0.0.0.0:8090"
-  #   # use the below lines commented out if you want to use gpu
-  #   deploy:
-  #     resources:
-  #       reservations:
-  #         devices:
-  #           - driver: nvidia
-  #             capabilities:
-  #               - gpu
-  #               - utility
-  #               - compute
-  #               - video
-  #   environment:
-  #     - NVIDIA_VISIBLE_DEVICES=${GPU_NUM:-all}
-  #   volumes:
-  #     - ./autonn/YoloE:/source
-  #     - shared:/shared
-  #     - ./autonn/YoloE/sample_yaml/dataset.yaml:/shared/datasets/coco/dataset.yaml # TEMP FILE UNTIL LABELLING MODULE WORKING
-  #     - ${COCODIR:-./autonn/YoloE/sample_data/coco128}:/shared/datasets/coco # TEMP FILE UNTIL LABELLING MODULE WORKING
-  #   hostname: yoloe
-  #   ports:
-  #     - "8090:8090"
-
-  #---------------------------------
-  # AutoNN: ResNet
-  #---------------------------------
-  # autonn_resnet:
-  #   build:
-  #     context: ./autonn/ResNet
-  #   shm_size: "256M"
-  #   ipc: host
-  #   command: >
-  #     sh -c "python manage.py makemigrations &&
-  #            python manage.py migrate &&
-  #            python manage.py runserver 0.0.0.0:8092"
-  #   # use the below lines commented out if you want to use gpu
-  #   deploy:
-  #     resources:
-  #       reservations:
-  #         devices:
-  #           - driver: nvidia
-  #             capabilities:
-  #               - gpu
-  #               - utility
-  #               - compute
-  #               - video
-  #   environment:
-  #     - NVIDIA_VISIBLE_DEVICES=all
-  #   volumes:
-  #     - ./autonn/ResNet:/source
-  #     - shared:/shared
-  #   hostname: autonn-resnet
-  #   ports:
-  #     - "8092:8092"
+    build:
+      context: ./autonn_cl/autonn_cl
+    shm_size: "256M"
+    ipc: host
+    command: >
+      sh -c "python manage.py makemigrations &&
+              python manage.py migrate &&
+              python manage.py runserver 0.0.0.0:8102"
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities:
+                - gpu
+                - utility
+                - compute
+                - video
+    volumes:
+      - ./autonn_cl/autonn_cl:/source
+      - shared:/shared
+    hostname: autonn-cl
+    ports:
+      - "8102:8102"
 
   #---------------------------------
   # code_gen Build
@@ -327,9 +136,6 @@ services:
     hostname: cloud-deploy
     build:
       context: ./deploy_targets/cloud
-    # -- command is not requred in favor of s6-overlay supervisor
-    # command: >
-    #   sh -c "python main.py"
     environment:
       - CLOUD_MANAGER_PORT=8088
       # GCP auth settings
@@ -346,37 +152,6 @@ services:
       - "8890:8890" # cloud manager
 
   #---------------------------------
-  # K8S deploy
-  #---------------------------------
-  # kube_deploy:
-  #   hostname: kube-deploy
-  #   build:
-  #     context: ./deploy_targets/k8s
-  #   container_name: "tango_k8s"
-  #   privileged: true
-  #   command: bash -c "cd /app && python3 k8s_deploy.py"
-  #   volumes:
-  #     - $HOME/.kube:/home/root/.kube
-  #     - shared:/app/tango
-  #     - ./deploy_targets/k8s:/app
-  #     - /var/run/docker.sock:/var/run/docker.sock
-  #   environment:
-  #     - "HOME=/home/root"
-  #   ports:
-  #     - "8901:8901"
-
-  #---------------------------------
-  # K8S docker registry(image manager)
-  #---------------------------------
-  # registry:
-  #   image: registry
-  #   container_name: registry
-  #   volumes:
-  #     - registry_data:/var/lib/registry/docker/registry/v2
-  #   ports:
-  #     - "8903:5000"
-
-  #---------------------------------
   # ondevice_deploy Build
   #---------------------------------
   ondevice_deploy:
@@ -390,27 +165,6 @@ services:
       sh -c "cd /app && python3 ondevice_deploy.py"
     ports:
       - 8891:8891
-  #---------------------------------
-  # Visualizer
-  #---------------------------------
-  # viz2code:
-  #   hostname: viz2code
-  #   build:
-  #     context: ./visualization
-  #   command: >
-  #     sh -c "cd ./visualization/frontend &&
-  #            npm run build &&
-  #            cd ..
-  #            python manage.py makemigrations &&
-  #            python manage.py migrate &&
-  #            python manage.py runserver react 0.0.0.0:8091"
-  #   volumes:
-  #     - ./visualization:/source
-  #     - shared:/shared
-  #   ports:
-  #     - "8091:8091"
-  # #   depends_on:
-  # #     - postgresql
 
   #---------------------------------
   # Volumes
