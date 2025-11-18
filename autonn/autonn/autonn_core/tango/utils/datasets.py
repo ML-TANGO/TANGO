@@ -1,5 +1,8 @@
 # Dataset utils and dataloaders
 
+# ----------------------------------------------------------------------
+# 표준 라이브러리
+# ----------------------------------------------------------------------
 import glob
 import logging
 import math
@@ -7,55 +10,79 @@ import os
 import random
 import shutil
 import time
-import cv2
-import numpy as np
-from PIL import Image, ImageOps, ExifTags
-from tqdm import tqdm
-from typing import Any, Callable, cast, Dict, List, Optional, Tuple, Union
 from itertools import repeat
 from multiprocessing.pool import ThreadPool, Pool
 from threading import Thread
 from pathlib import Path
 
+# ----------------------------------------------------------------------
+# 타입 힌트
+# ----------------------------------------------------------------------
+from typing import (
+    Any,
+    Callable,
+    Dict,
+    List,
+    Optional,
+    Tuple,
+    Union,
+    cast,
+)
+
+# ----------------------------------------------------------------------
+# 외부 라이브러리 (이미지/수치/진행바)
+# ----------------------------------------------------------------------
+import cv2
+import numpy as np
+from PIL import Image, ImageOps, ExifTags
+from tqdm import tqdm
+
+# ----------------------------------------------------------------------
+# PyTorch & TorchVision
+# ----------------------------------------------------------------------
 import torch
 import torch.nn.functional as F
 from torch.utils.data import Dataset, DataLoader
-from torchvision.utils import save_image
-from torchvision.ops import roi_pool, roi_align, ps_roi_pool, ps_roi_align
 from torchvision.datasets import DatasetFolder
 
+# ----------------------------------------------------------------------
+# 프로젝트 내부 모듈
+# ----------------------------------------------------------------------
 from tango.main import status_update
-from tango.utils.general import (check_requirements,
-                                 check_version,
-                                 xyxy2xywh,
-                                 xyxy2xywh_v9,
-                                 xyxy2xywhn,
-                                 xywh2xyxy,
-                                 xywh2xyxy_v9,
-                                 xywhn2xyxy,
-                                 xywhn2xyxy_v9,
-                                 xyn2xy,
-                                 xyn2xy_v9,
-                                 segment2box,
-                                 segments2boxes,
-                                 resample_segments,
-                                 clean_str,
-                                 colorstr,
-                                )
+from tango.utils.general import (
+    check_requirements,
+    check_version,
+    xyxy2xywh,
+    xyxy2xywhn,
+    xywh2xyxy,
+    xywh2xyxy_v9,
+    xywhn2xyxy,
+    xywhn2xyxy_v9,
+    xyn2xy,
+    xyn2xy_v9,
+    segment2box,
+    segments2boxes,
+    resample_segments,
+    clean_str,
+    colorstr,
+)
 from tango.utils.torch_utils import torch_distributed_zero_first
+
 
 # Parameters
 help_url = 'https://github.com/ML-TANGO/TANGO/wiki'
 img_formats = ['bmp', 'jpg', 'jpeg', 'png', 'tif', 'tiff', 'dng', 'webp', 'mpo']  # acceptable image suffixes
 vid_formats = ['mov', 'avi', 'mp4', 'mpg', 'mpeg', 'm4v', 'wmv', 'mkv']  # acceptable video suffixes
-GLOBAL_RANK = int(os.getenv('GLOBAL_RANK', -1))
+
+GLOBAL_RANK = int(os.getenv('RANK', -1))
+LOCAL_RANK  = int(os.getenv('LOCAL_RANK', -1))
 NUM_THREADS = min(8, max(1, os.cpu_count() - 1))
-''' 
-Suppose we run our training in 2 nodes and each node has 4 GPUs. 
-- The WORLD_SIZE is 4*2=8. 
-- The GLOBAL_RANK for the processes will be [0, 1, 2, 3, 4, 5, 6, 7]. 
-- In each node, the LOCAL_RANK will be [0, 1, 2, 3].
-'''
+# ──────────────────────────────────────────────
+# Suppose we run our training in 2 nodes and each node has 4 GPUs. 
+# - The WORLD_SIZE is 4*2=8. 
+# - The GLOBAL_RANK for the processes will be [0, 1, 2, 3, 4, 5, 6, 7]. 
+# - In each node, the LOCAL_RANK will be [0, 1, 2, 3].
+# ──────────────────────────────────────────────
 
 logger = logging.getLogger(__name__)
 
@@ -822,10 +849,13 @@ class LoadImagesAndLabels_v9(Dataset):
         nm, nf, ne, nc, msgs = 0, 0, 0, 0, []  # number missing, found, empty, corrupt, messages
         dataset_info = {}
         dataset_info['total'] = len(self.im_files)
-        desc = f'\n{colorstr(f"{prefix}_dataset: ")}Scanning {path.parent / path.stem}...'
-        logger.info(desc)
-        title_s =('%10s' * 4) % ('found', 'missing', 'empty', 'corrupted')
-        logger.info(f'\n{title_s}')
+
+        if GLOBAL_RANK in [-1, 0]:
+            desc = f'\n{colorstr(f"{prefix}_dataset: ")}Scanning {path.parent / path.stem}...'
+            logger.info(desc)
+            title_s =('%10s' * 4) % ('found', 'missing', 'empty', 'corrupted')
+            logger.info(f'\n{title_s}')
+
         with Pool(NUM_THREADS) as pool:
             # pbar = tqdm(pool.imap(verify_image_label, zip(self.im_files, self.label_files, repeat(prefix))),
             #             desc=desc,
@@ -841,48 +871,53 @@ class LoadImagesAndLabels_v9(Dataset):
                     x[im_file] = [lb, shape, segments]
                 if msg:
                     msgs.append(msg)
-                # pbar.desc = f"{desc} {nf} images, {nm + ne} backgrounds, {nc} corrupt"
-                ten_percent_cnt = int((i+1)/len(self.im_files)*10+0.5)
-                bar = '|'+ '#'*ten_percent_cnt + ' '*(10-ten_percent_cnt)+'|'
-                s = f'{nf:10.0f}{nm:10.0f}{ne:10.0f}{nc:10.0f}'
-                s += (f'{bar} {(i+1)/len(self.im_files)*100:3.0f}% {i+1:6.0f}/{len(self.im_files):6.0f}')
-                if (i+1) % 5000 == 0:
-                    logger.info(s)
-                    dataset_info['current'] = i+1
-                    dataset_info['found'] = nf
-                    dataset_info['missing'] = nm
-                    dataset_info['empty'] = ne
-                    dataset_info['corrupted'] = nc
-                    if self.userid != None and self.project_id != None:
-                        status_update(self.userid, self.project_id,
-                                    update_id=f"{prefix}_dataset",
-                                    update_content=dataset_info)
-        # pbar.close()
-        if (i+1) % 5000 != 0:
-            logger.info(s)
-            dataset_info['current'] = i+1
-            dataset_info['found'] = nf
-            dataset_info['missing'] = nm
-            dataset_info['empty'] = ne
-            dataset_info['corrupted'] = nc
-            if self.userid != None and self.project_id != None:
-                status_update(self.userid, self.project_id,
-                            update_id=f"{prefix}_dataset",
-                            update_content=dataset_info)
-        if msgs:
-            logger.info('\n'.join(msgs))
-        if nf == 0:
-            logger.warning(f'{colorstr(f"{prefix}_dataset: ")}WARNING ⚠️ No labels found in {path}.')
+
+                # in-loop logging
+                if GLOBAL_RANK in [-1, 0]:
+                    # pbar.desc = f"{desc} {nf} images, {nm + ne} backgrounds, {nc} corrupt"
+                    ten_percent_cnt = int((i+1)/len(self.im_files)*10+0.5)
+                    bar = '|'+ '#'*ten_percent_cnt + ' '*(10-ten_percent_cnt)+'|'
+                    s = f'{nf:10.0f}{nm:10.0f}{ne:10.0f}{nc:10.0f}'
+                    s += (f'{bar} {(i+1)/len(self.im_files)*100:3.0f}% {i+1:6.0f}/{len(self.im_files):6.0f}')
+                    if (i+1) % 5000 == 0:
+                        logger.info(s)
+                        dataset_info.update(dict(
+                            current=i+1, found=nf, missing=nm, empty=ne, corrupted=nc
+                        ))
+                        if self.userid != None and self.project_id != None:
+                            status_update(self.userid, self.project_id,
+                                          update_id=f"{prefix}_dataset",
+                                          update_content=dataset_info)
+        # end-of-loop logging
+        if GLOBAL_RANK in [-1, 0]:
+            # pbar.close()
+            if (i+1) % 5000 != 0:
+                logger.info(s)
+                dataset_info.update(dict(
+                    current=i+1, found=nf, missing=nm, empty=ne, corrupted=nc
+                ))
+                if self.userid != None and self.project_id != None:
+                    status_update(self.userid, self.project_id,
+                                  update_id=f"{prefix}_dataset",
+                                  update_content=dataset_info)
+            if msgs:
+                logger.info('\n'.join(msgs))
+            if nf == 0:
+                logger.warning(f'{colorstr(f"{prefix}_dataset: ")}WARNING ⚠️ No labels found in {path}.')
+        
         x['hash'] = get_hash_v9(self.label_files + self.im_files)
         x['results'] = nf, nm, ne, nc, len(self.im_files)
         x['msgs'] = msgs  # warnings
         x['version'] = self.cache_version  # cache version
-        try:
-            np.save(path, x)  # save cache for next time
-            path.with_suffix('.cache.npy').rename(path)  # remove .npy suffix
-            logger.info(f'{colorstr(f"{prefix}_dataset: ")}New cache created: {path}')
-        except Exception as e:
-            logger.warning(f'{colorstr(f"{prefix}_dataset: ")}WARNING ⚠️ Cache directory {path.parent} is not writeable: {e}')  # not writeable
+
+        # Cache 저장도 process-0에서만
+        if GLOBAL_RANK in [-1, 0]:
+            try:
+                np.save(path, x)  # save cache for next time
+                path.with_suffix('.cache.npy').rename(path)  # remove .npy suffix
+                logger.info(f'{colorstr(f"{prefix}_dataset: ")}New cache created: {path}')
+            except Exception as e:
+                logger.warning(f'{colorstr(f"{prefix}_dataset: ")}WARNING ⚠️ Cache directory {path.parent} is not writeable: {e}')  # not writeable
         return x
 
     def __len__(self):

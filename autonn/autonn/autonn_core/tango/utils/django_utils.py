@@ -251,51 +251,6 @@ def safe_get_info_field(userid: str, project_id: str, field: str) -> Optional[An
         field,
     )
 
-#def safe_update_info(
-#    userid: str,
-#    project_id: str,
-#    *,
-#    rank0_only: bool = True,
-#    create_if_missing: bool = False,
-#    **fields,  # status=..., progress=..., batch_size=..., epoch=..., best_acc=..., best_net=...
-#) -> bool:
-#    """
-#    Info 레코드에서 지정된 필드만 부분 업데이트
-#        - DDP(WORLD_SIZE>1)면 rank0에서만 실행(rank0_only=True)하거나 아무것도 하지 않음
-#        - 환경변수 AUTONN_ALLOW_ORM != "1" 으로 설정하면 아무것도 하지 않음
-#        - Info 존재하면 원자적 update, 없으면 create_if_missing=True일 때 Info 생성
-#    반환값: True(뭔가 변경/생성), False(스킵 혹은 없음)
-#    """
-#    if is_distributed() and not (rank0_only and is_rank0()):
-#        return False
-#    if os.environ.get("AUTONN_ALLOW_ARM", "1") != "1":
-#        return False
-#    if not _ensure_django_ready():
-#        return False
-#
-#    Info = _get_model("autonn_core", "Info")
-#    if Info is None:
-#        return False
-#
-#    # 모델 실제 필드만 필터링 (+ 보호필드 제외)
-#    model_fields = {f.name for f in Info._meta.get_fields() if getattr(f, "concrete", False)}
-#    protected = {"id", "userid", "project_id"}
-#    updates = {k: v for k, v in fields.items() if k in model_fields and k not in protected}
-#    if not updates:
-#        return False
-#
-#    rows = Info.objects.filter(userid=userid, project_id=project_id).update(**updates)
-#    if rows > 0:
-#        return True
-#
-#    if create_if_missing:
-#        payload = {"userid": userid, "project_id": project_id}
-#        payload.update(updates)
-#        with suppress(Exception):
-#            Info.objects.create(**payload)
-#            return True
-#    return False
-
 # thin wrappers for 'Node' and 'Edge'
 def safe_update_node(*, order: int, **fields) -> bool:
     return safe_partial_update(

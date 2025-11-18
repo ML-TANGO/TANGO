@@ -6,12 +6,17 @@ import random
 import time
 import datetime
 import shutil
+import json
 from copy import deepcopy
 from pathlib import Path
-from threading import Thread
-import json
-import copy
+import warnings
+import yaml
 
+warnings.filterwarnings(action='ignore', message='.*_all_gather_base.*')
+
+# ----------------------------------------------------------------------
+# Numeric & PyTorch libs
+# ----------------------------------------------------------------------
 import numpy as np
 import torch
 import torch.distributed as dist
@@ -19,69 +24,69 @@ import torch.nn as nn
 import torch.nn.functional as F
 import torch.optim as optim
 import torch.optim.lr_scheduler as lr_scheduler
-# import torch.utils.data
-import yaml
 from torch.cuda import amp
 from torch.nn.parallel import DistributedDataParallel as DDP
-from tqdm import tqdm
 
-from . import status_update  #Info
-from . import test  # import test.py to get mAP or val_accuracy after each epoch
-from tango.common.models.experimental import attempt_load
-from tango.common.models.yolo               import Model, DetectionModel
-from tango.common.models.resnet_cifar10     import ClassifyModel
-from tango.common.models.supernet_yolov9    import NASModel as NASModelV9
-# from tango.common.models import *
-from tango.utils.django_utils import safe_update_info
-from tango.utils.autoanchor import check_anchors
-from tango.utils.autobatch import get_batch_size_for_gpu
-from tango.utils.datasets import (  create_dataloader,
-                                    create_dataloader_v9,
-                                    create_dataloader_cls,
-                                    AlbumentationDatasetImageFolder
-                                 )
-from tango.utils.general import (   DEBUG,
-                                    set_logging,
-                                    labels_to_class_weights,
-                                    labels_to_class_weights_v9,
-                                    labels_to_image_weights,
-                                    init_seeds,
-                                    init_seeds_v9,
-                                    fitness,
-                                    strip_optimizer,
-                                    check_dataset,
-                                    check_img_size,
-                                    check_amp,
-                                    one_cycle,
-                                    colorstr,
-                                    TQDM_BAR_FORMAT,
-                                    TqdmLogger,
-                                    save_csv,
-                                    save_npy,
-                                )
+# ----------------------------------------------------------------------
+# 프로젝트 내부 모듈 (tango.*) & 현재 패키지 내 모듈
+# ----------------------------------------------------------------------
+from . import status_update          # Info 상태 업데이트 관련
+from . import test                   # 학습 후 mAP / val_accuracy 평가
+
+from tango.common.models.experimental     import attempt_load
+from tango.common.models.yolo             import Model, DetectionModel
+from tango.common.models.resnet_cifar10   import ClassifyModel
+from tango.common.models.supernet_yolov9  import NASModel as NASModelV9
+
+from tango.utils.django_utils  import safe_update_info
+from tango.utils.autoanchor    import check_anchors
+from tango.utils.autobatch     import get_batch_size_for_gpu
+
+from tango.utils.datasets import (
+    create_dataloader,
+    create_dataloader_v9,
+    create_dataloader_cls,
+    AlbumentationDatasetImageFolder,
+)
+
+from tango.utils.general import (
+    set_logging,
+    labels_to_class_weights,
+    labels_to_class_weights_v9,
+    labels_to_image_weights,
+    init_seeds,
+    init_seeds_v9,
+    fitness,
+    strip_optimizer,
+    check_dataset,
+    check_img_size,
+    check_amp,
+    one_cycle,
+    colorstr,
+)
+
 from tango.utils.google_utils import attempt_download
-from tango.utils.loss import    (   ComputeLoss,
-                                    ComputeLossOTA,
-                                    ComputeLossAuxOTA,
-                                    ComputeLossTAL,
-                                    ComputeLoss_v9,
-                                    FocalLossCE
-                                )
-from tango.utils.plots import   (   plot_images,
-                                    plot_labels,
-                                    plot_results,
-                                    plot_cls_results,
-                                    plot_lr_scheduler
-                                )
-from tango.utils.torch_utils import (   ModelEMA,
-                                        EarlyStopping,
-                                        select_device_and_info,
-                                        intersect_dicts,
-                                        torch_distributed_zero_first,
-                                        is_parallel,
-                                        de_parallel,
-                                        time_synchronized
-                                    )
+
+from tango.utils.loss import (
+    ComputeLoss,
+    ComputeLossOTA,
+    ComputeLossAuxOTA,
+    ComputeLoss_v9,
+    FocalLossCE,
+)
+
+from tango.utils.plots import (
+    plot_results,
+    plot_cls_results,
+)
+
+from tango.utils.torch_utils import (
+    ModelEMA,
+    EarlyStopping,
+    intersect_dicts,
+    torch_distributed_zero_first,
+    de_parallel,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -281,18 +286,16 @@ def train(proj_info, hyp, opt, data_dict, device, tb_writer=None):
         dist.init_process_group(backend='nccl', init_method='env://')  # distributed backend
 
     # Directories --------------------------------------------------------------
-    # if not opt.resume and opt.lt != 'incremental' and opt.lt != 'transfer':
-    #     logger.warn(f'FileSystem: {save_dir} already exists. It will deleted and remade')
-    #     shutil.rmtree(opt.save_dir)
+    # !! resume 혹은 transfer learning을 위해 디렉토리를 무조건 지우면 안됨 !!
     # DDP 여부를 확인하기 위해 순서를 DDP setup 이후로 놓음
     if is_ddp():
         if is_rank0():
-            if save_dir.is_dir():
+            if save_dir.is_dir() and not (opt.resume or weights):
                 shutil.rmtree(save_dir) # remove 'autonn' dir
             (save_dir / "weights").mkdir(parents=True, exist_ok=True)
         dist.barrier()
     else:
-        if save_dir.is_dir():
+        if save_dir.is_dir() and not (opt.resume or weights):
             shutil.rmtree(save_dir)
         (save_dir / "weights").mkdir(parents=True, exist_ok=True)
     wdir = save_dir / 'weights'
@@ -420,7 +423,7 @@ def train(proj_info, hyp, opt, data_dict, device, tb_writer=None):
         imgsz, imgsz_test = [check_img_size(x, gs) for x in opt.img_size]
 
     # Batch size ---------------------------------------------------------------
-    if getattr(opt, "resume", False):
+    if getattr(opt, "oom", False):
         logger.info('='*100)
         bs_factor = opt.bs_factor # it would be 0.1 less than previous one
         logger.info(f"{colorstr('Autobatch: ')}bs_factor = {bs_factor}")
@@ -1077,7 +1080,6 @@ def train(proj_info, hyp, opt, data_dict, device, tb_writer=None):
                 if rank in [-1, 0]:
                     mem = '%.3gG' % (torch.cuda.memory_reserved() / 1E9 if torch.cuda.is_available() else 0)  # (GB)
 
-
                     if not is_missing_value:
                         mloss = (mloss * i + loss_items) / (i + 1)  # update mean losses
 
@@ -1130,7 +1132,7 @@ def train(proj_info, hyp, opt, data_dict, device, tb_writer=None):
                     #         tb_writer.add_image(f, result, dataformats='HWC', global_step=epoch)
                     #         tb_writer.add_graph(torch.jit.trace(model, imgs, strict=False), [])  # add model graph
         elif task == 'classification':
-            logger.info(('\n' + '%10s' * 6) % ('TrainEpoch', 'GPU_Mem', 'Batch', 'mLoss', 'mAcc', '=correct/all'))
+            logger.info(('\n' + '%12s' * 6) % ('TrainEpoch', 'GPU_Mem', 'Batch', 'mLoss', 'mAcc', '=correct/all'))
             accumulated_imgs_cnt = 0
             tacc = 0
             for i, (imgs, targets) in pbar:
@@ -1195,7 +1197,7 @@ def train(proj_info, hyp, opt, data_dict, device, tb_writer=None):
                     tacc += acc.item()
                     accumulated_imgs_cnt += len(imgs)
 
-                    s = ('%10s' * 2 + '%10.4g' * 3 + '%10s') % (
+                    s = ('%12s' * 2 + '%12.4g' * 3 + '%12s') % (
                         '%g/%g' % (epoch, epochs - 1), mem,     # epoch/total, gpu_mem
                         targets.shape[0], mloss, macc,          # labels, loss, acc
                         '%g/%g' % (tacc, accumulated_imgs_cnt)  # correct/all
@@ -1345,39 +1347,67 @@ def train(proj_info, hyp, opt, data_dict, device, tb_writer=None):
             break
 
         # Save checkpoints (rank0 only)
-        if (not opt.nosave) or final_epoch:  # if save
-            if (not is_ddp()) or is_rank0():
-                try:
-                    training_results_txt = results_file.read_text(encoding="utf-8")
-                except Exception:
-                    training_results_txt = ""
-                ckpt = {
-                    'epoch': epoch,
-                    'best_fitness': best_fitness,
-                    'training_results': training_results_txt, #results_file.read_text(),
-                    'model': deepcopy(de_parallel(model)).half(),
-                    'ema': deepcopy(ema.ema).half(),
-                    'updates': ema.updates,
-                    'optimizer': optimizer.state_dict(),
+        should_save = (not opt.nosave) or final_epoch
+        if not should_save:
+            pass
+        elif is_ddp() and not is_rank0():
+            pass
+        else:
+            try:
+                training_results_txt = results_file.read_text(encoding="utf-8")
+            except Exception:
+                training_results_txt = ""
+
+            ckpt = {
+                "epoch": epoch,
+                "best_fitness": best_fitness,
+                "training_results": training_results_txt,
+                "model": deepcopy(de_parallel(model)).half(),
+                "ema": deepcopy(ema.ema).half(),
+                "updates": ema.updates,
+                "optimizer": optimizer.state_dict(),
+            }
+
+            hit_best = False
+            if fi is not None and fi >= best_fitness:
+                torch.save(ckpt, best)
+                mb = os.path.getsize(best) / 1e6  # file size (MB)
+                logger.info(f"epoch {epoch} : {best} {mb:.1f} MB")
+
+                best_fitness = float(fi)
+                hit_best = True
+
+                best_acc_value = (
+                    results[3] if (results and task == "detection") else float(fi)
+                )
+
+            if not opt.nosave:
+                torch.save(ckpt, last)
+
+            try:
+                update_kwargs = {
+                    "userid": userid,
+                    "project_id": project_id,
+                    "progress": "training",
+                    "epoch": epoch,
                 }
 
-                if fi is not None and fi > best_fitness:
-                    torch.save(ckpt, best)
-                    mb = os.path.getsize(best) / 1E6 # file size
-                    logger.info(f"epoch {epoch} : {best} {mb:.1f} MB")
-                    best_fitness = float(fi)
-                    try:
-                        safe_update_info(userid, project_id,
-                             progress="training",
-                             best_acc = (results[3] if (results and task=='detection') else float(fi)),
-                             best_net = best
-                        )
-                    except Exception as e:
-                        logger.warning(f"safe_update_info skipped: {e}")
-                if not opt.nosave:
-                    torch.save(ckpt, last)
-                    safe_update_info(userid, project_id, epoch=epoch)
-                del ckpt
+                if hit_best:
+                    best_acc_value = (
+                        results[3] if (results and task == "detection") else float(fi)
+                    )
+                    update_kwargs.update(
+                        {
+                            "best_acc": best_acc_value,
+                            "best_net": best,
+                        }
+                    )
+
+                safe_update_info(**update_kwargs)
+            except Exception as e:
+                logger.warning(f"safe_update_info skipped: {e}")
+
+            del ckpt
 
         # DDP sync
         if is_ddp(): dist.barrier()

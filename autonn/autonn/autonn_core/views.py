@@ -284,9 +284,11 @@ def process_autonn(userid, project_id):
         gc.collect()
 
         info = Info.objects.get(userid=userid, project_id=project_id)
-        if 'CUDA' in str(e):
-            print(f"[AutoNN process_autonn] CUDA OOM, retry with reduced batch size next time")
+        if 'CUDA out of memory' in str(e):
+            print(f"[AutoNN process_autonn] CUDA Out of Memory, retry with reduced batch size next time")
             info.progress = "oom"
+            info.print()
+            print('='*80)
         else:
             print(f"[AutoNN process_autonn] General failure")
 
