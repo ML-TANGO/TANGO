@@ -222,6 +222,7 @@ TANGO
 * [2022 TANGO 커뮤니티 제1회 컨퍼런스 발표자료](https://github.com/ML-TANGO/TANGO/tree/main/docs/2022_Fall_Community_Conference)
 * [2023 TANGO 커뮤니티 제2회 컨퍼런스 발표자료](https://github.com/ML-TANGO/TANGO/tree/main/docs/2023_Fall_Community_Conference)
 * [2024 TANGO 커뮤니티 제3회 컨퍼런스 발표자료](https://github.com/ML-TANGO/TANGO/tree/main/docs/2024_Fall_Community_Conference)
+* [2024 TANGO 커뮤니티 제4회 컨퍼런스 발표자료](https://github.com/ML-TANGO/TANGO/tree/main/docs/2025_Fall_Community_Conference)
 
 ----
 
