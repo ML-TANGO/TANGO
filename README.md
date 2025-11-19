@@ -179,7 +179,35 @@ The neural network deployment module provides a convenient deployment feature th
 
 ## How to build images and run containers <a name="img_build_container_run"></a>
 
-refer to TANGO wiki [HowTo | TANGO Image Build and Run](https://github.com/ML-TANGO/TANGO/wiki/HowTo-%7C-TANGO-Image-Build-and-Run)
+You can use `make` based command as folllows:
+```
+$ cd TANGO
+$ make run
+```
+The `make` based command supports followings commands:
+```
+$ make 
+  help                   사용 가능한 명령 목록
+  run                    (자동) 빌드 → 실행 → 로그 팔로우
+  build                  전체 이미지 빌드(필요한 데이터셋 외부 바인딩 포함)
+  build-%                특정 이미지만 빌드 (예: make build-code_gen)
+  up                     모든 서비스 시작 (-d, 자동 override 포함)
+  up-%                   특정 서비스만 시작 (-d, 예: make up-autonn)
+  down                   중지 및 제거
+  restart                재시작
+  recreate               볼륨/환경 변경 반영해 재생성(빌드X)
+  config                 .env 적용된 최종 compose 확인
+  ps                     컨테이너 상태 보기
+  logs                   전체 로그 팔로우
+  logs-%                 특정 서비스 로그 (예: make logs-autonn_cl)
+  exec-%                 특정 서비스 쉘 (예: make exec-autonn)
+  logs-pm                project_manager 로그
+  exec-pm                project_manager 쉘
+  migrate                project_manager DB migrate
+  seed                   project_manager loaddata
+```
+
+refer to TANGO wiki [HowTo | TANGO Image Build and Run](https://github.com/ML-TANGO/TANGO/wiki/HowTo-%7C-TANGO-Image-Build-and-Run) for `docker compose` based commands
 
 
 ----
