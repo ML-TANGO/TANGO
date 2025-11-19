@@ -699,8 +699,9 @@ def run_autonn(userid, project_id, resume=False, viz2code=False, nas=False, hpo=
         
         fd_cfg, cfg_path = tempfile.mkstemp(prefix=f"train_cfg_", suffix=".json")
         os.close(fd_cfg)
+        json_cfg = to_jsonable(cfg)
         with open(cfg_path, "w", encoding="utf-8") as f:
-            json.dump(cfg, f, ensure_ascii=False, indent=2)
+            json.dump(json_cfg, f, ensure_ascii=False, indent=2)
         
         fd_res, res_path = tempfile.mkstemp(prefix="train_result_", suffix=".json")
         os.close(fd_res)
@@ -914,6 +915,50 @@ def backup_previous_work(model):
 
     return bak_dir
 
+def to_jsonable(obj):
+    import enum
+    from datetime import datetime, date
+
+    # 기본 타입은 그대로
+    if obj is None or isinstance(obj, (bool, int, float, str)):
+        return obj
+
+    # torch.device -> 문자열 (예: "cuda:0" 또는 "cpu")
+    if isinstance(obj, torch.device):
+        return str(obj)  # f"{obj.type}:{obj.index}" 도 가능
+
+    # torch.dtype -> 문자열 (예: "torch.float32")
+    if isinstance(obj, torch.dtype):
+        return str(obj)
+
+    # torch.Tensor -> 리스트 또는 스칼라
+    if isinstance(obj, torch.Tensor):
+        if obj.ndim == 0:
+            return obj.item()
+        return obj.tolist()
+
+    # numpy 스칼라/배열
+    if isinstance(obj, (np.integer, np.floating, np.bool_)):
+        return obj.item()
+    if isinstance(obj, np.ndarray):
+        return obj.tolist()
+
+    # 경로, 날짜/시간, Enum
+    if isinstance(obj, Path):
+        return str(obj)
+    if isinstance(obj, (datetime, date)):
+        return obj.isoformat()
+    if isinstance(obj, enum.Enum):
+        return obj.value
+
+    # 시퀀스/매핑
+    if isinstance(obj, (list, tuple, set)):
+        return [to_jsonable(x) for x in obj]
+    if isinstance(obj, dict):
+        return {str(k): to_jsonable(v) for k, v in obj.items()}
+
+    # 그 외는 표현 문자열로 대체
+    return repr(obj)
 
 # --- export model
 def export_model(userid, project_id, train_final, opt, data, basemodel, 

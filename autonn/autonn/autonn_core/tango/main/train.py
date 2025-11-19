@@ -1524,9 +1524,10 @@ if __name__ == "__main__":
 
     opt.local_rank = int(os.environ.get("LOCAL_RANK", "-1"))
     opt.global_rank= int(os.environ.get("RANK", "-1"))
+    device = torch.device(cfg.get("device", "cpu"))
 
     try:
-        results, train_final = train(proj_info, hyp, opt, data_dict, tb_writer=None)
+        results, train_final = train(proj_info, hyp, opt, data_dict, device, tb_writer=None)
 
         rank = int(os.environ.get("RANK", "0"))
         if rank == 0:
