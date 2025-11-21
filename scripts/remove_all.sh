@@ -2,15 +2,12 @@
 set -eu
 
 # ----------------------------------------
-# Detect docker compose command (v2 > v1)
+# Load .env (if exists) so COMPOSE_PROJECT_NAME is available
 # ----------------------------------------
-if docker compose version >/dev/null 2>&1; then
-  COMPOSE_CMD="docker compose"
-elif docker-compose version >/dev/null 2>&1; then
-  COMPOSE_CMD="docker-compose"
-else
-  echo "❌ Neither 'docker compose' nor 'docker-compose' is available."
-  exit 1
+if [ -f .env ]; then
+  set -a
+  . ./.env
+  set +a
 fi
 
 # ----------------------------------------
@@ -19,6 +16,20 @@ fi
 # This script also respects an exported env var if set.
 # ----------------------------------------
 PROJECT_NAME="${COMPOSE_PROJECT_NAME:-tango}"
+
+# ----------------------------------------
+# Detect docker compose command (v2 > v1)
+# ----------------------------------------
+if docker compose version >/dev/null 2>&1; then
+  COMPOSE_CMD="docker compose"
+  IMAGE_PREFIX="${PROJECT_NAME}-"
+elif docker-compose version >/dev/null 2>&1; then
+  COMPOSE_CMD="docker-compose"
+  IMAGE_PREFIX="${PROJECT_NAME}_"
+else
+  echo "❌ Neither 'docker compose' nor 'docker-compose' is available."
+  exit 1
+fi
 COMPOSE="${COMPOSE_CMD} --project-name ${PROJECT_NAME}"
 
 echo "==> Using compose: ${COMPOSE_CMD}"
@@ -38,20 +49,20 @@ ${COMPOSE} down --rmi local --volumes --remove-orphans
 
 # ----------------------------------------
 # 2) Extra safety cleanup by explicit name filters
-#    - Images   : ${PROJECT_NAME}_* 레퍼런스만
-#    - Volumes  : 이름에 ${PROJECT_NAME}_ 포함만
-#    - Networks : 이름에 ${PROJECT_NAME}_ 포함만
+#    - Images   : ${IMAGE_PREFIX}* 레퍼런스만
+#    - Volumes  : 이름에 ${IMAGE_PREFIX} 포함만
+#    - Networks : 이름에 ${IMAGE_PREFIX} 포함만
 # ----------------------------------------
-echo "==> Removing dangling images with reference '${PROJECT_NAME}_*' (if any)"
-IMG_IDS="$(docker images --filter="reference=${PROJECT_NAME}_*" -q || true)"
+echo "==> Removing dangling images with reference '${IMAGE_PREFIX}*' (if any)"
+IMG_IDS="$(docker images --filter="reference=${IMAGE_PREFIX}*" -q || true)"
 [ -n "${IMG_IDS}" ] && docker rmi -f ${IMG_IDS} || echo "No extra images to remove."
 
-echo "==> Removing leftover volumes named '*${PROJECT_NAME}_*' (if any)"
-VOL_IDS="$(docker volume ls -q --filter "name=${PROJECT_NAME}_")"
+echo "==> Removing leftover volumes named '*${IMAGE_PREFIX}*' (if any)"
+VOL_IDS="$(docker volume ls -q --filter "name=${IMAGE_PREFIX}")"
 [ -n "${VOL_IDS}" ] && docker volume rm ${VOL_IDS} || echo "No extra volumes to remove."
 
-echo "==> Removing leftover networks named '*${PROJECT_NAME}_*' (if any)"
-NET_IDS="$(docker network ls -q --filter "name=${PROJECT_NAME}_")"
+echo "==> Removing leftover networks named '*${IMAGE_PREFIX}*' (if any)"
+NET_IDS="$(docker network ls -q --filter "name=${IMAGE_PREFIX}")"
 [ -n "${NET_IDS}" ] && docker network rm ${NET_IDS} || echo "No extra networks to remove."
 
 # ----------------------------------------
@@ -59,7 +70,6 @@ NET_IDS="$(docker network ls -q --filter "name=${PROJECT_NAME}_")"
 #    - 빌더가 없으면 생성(--use로 현재 세션 기본 빌더로 설정)
 #    - 캐시 필터:
 #        --filter "until=24h"            : 24시간 이전 캐시만
-#        --filter "type=source.local"    : 로컬 소스 캐시만
 #        --filter "type!=exec.cachemount": 런타임 캐시마운트 제외
 #    - --keep-storage로 상한 유지 (10GB)
 # ----------------------------------------

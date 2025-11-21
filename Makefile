@@ -99,7 +99,7 @@ up-autonn: ensure-nvidia-runtime check-gpu $(NEEDS_PREPARE) gen-datasets-overrid
 up-autonn_cl: ensure-nvidia-runtime check-gpu $(NEEDS_PREPARE) gen-datasets-override validate-host-datasets
 	$(COMPOSE) $(COMPOSE_FILE_FLAG) $(COMPOSE_CU130_FLAG) $(_RUNTIME_DATASETS_FLAG) up autonn_cl -d
 
-up-%: check-gpu $(NEEDS_PREPARE) ## 특정 서비스만 시작 (-d, 예: make up-autonn)
+up-%: ensure-nvidia-runtime check-gpu $(NEEDS_PREPARE) ## 특정 서비스만 시작 (-d, 예: make up-autonn)
 	$(COMPOSE) $(COMPOSE_FILE_FLAG) $(COMPOSE_CU130_FLAG) $(_RUNTIME_DATASETS_FLAG) up -d $*
 
 down: ## 중지 및 제거
@@ -136,10 +136,10 @@ exec-pm: ensure-nvidia-runtime check-gpu ## project_manager 쉘
 # Django 보조
 # --------------------------------------------
 migrate: ## project_manager DB migrate
-	$(COMPOSE) $(COMPOSE_FILE_FLAG) $(_RUNTIME_DATASETS_FLAG) exec project_manager bash -lc 'python manage.py migrate'
+	$(COMPOSE) $(COMPOSE_FILE_FLAG) $(COMPOSE_CU130_FLAG) $(_RUNTIME_DATASETS_FLAG) exec project_manager bash -lc 'python manage.py migrate'
 
 seed: ## project_manager loaddata
-	$(COMPOSE) $(COMPOSE_FILE_FLAG) $(_RUNTIME_DATASETS_FLAG) exec project_manager bash -lc 'python manage.py loaddata base_model_data.json'
+	$(COMPOSE) $(COMPOSE_FILE_FLAG) $(COMPOSE_CU130_FLAG) $(_RUNTIME_DATASETS_FLAG) exec project_manager bash -lc 'python manage.py loaddata base_model_data.json'
 
 # --------------------------------------------
 # Blackwell GPU 여부 확인
@@ -213,7 +213,7 @@ endef
 # 외부 경로 유효성 검증: 실제로 바인딩될 항목만 검사
 # - override에 포함된 데이터셋만 .env 경로/존재 확인
 # --------------------------------------------
-validate-host-datasets: gen-datasets-override
+validate-host-datasets:
 	@set -e; \
 	has_err=0; \
 	check_one() { \
