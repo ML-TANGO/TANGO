@@ -658,9 +658,16 @@ def run_autonn(userid, project_id, resume=False, viz2code=False, nas=False, hpo=
     # Respect pre-set CUDA_VISIBLE_DEVICES (e.g., "3,2,1,0")
     # so logical cuda:0 maps to intended GPU
     env_dev = os.environ.get('CUDA_VISIBLE_DEVICES')
+    user_opt_device = getattr(opt, "device", None)
+    if user_opt_device is not None:
+        user_opt_device = str(user_opt_device).strip()
+        if user_opt_device == "":
+            user_opt_device = None
     gpu_num = 0
     if env_dev:
         opt.device = str(env_dev).strip()
+    elif user_opt_device:
+        opt.device = user_opt_device
     else:
         gpu_num = torch.cuda.device_count()
         opt.device = ",".join(str(i) for i in range(gpu_num))
