@@ -668,6 +668,11 @@ def run_autonn(userid, project_id, resume=False, viz2code=False, nas=False, hpo=
         opt.device = str(env_dev).strip()
     elif user_opt_device:
         opt.device = user_opt_device
+        parsed_devices = [
+            d.strip() for d in user_opt_device.split(",")
+            if d.strip().isdigit()
+        ]
+        gpu_num = len(parsed_devices)
     else:
         gpu_num = torch.cuda.device_count()
         opt.device = ",".join(str(i) for i in range(gpu_num))
