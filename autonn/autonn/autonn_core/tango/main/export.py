@@ -1286,6 +1286,12 @@ def convert_yolov9(model_pt: str, cfg: str) -> Optional[str]:
     else: #if 'yolov9-e' in cfg_name:
         model = convert_large_model(model, ckpt)
 
+    # export 모드로 전환해 inference 시 (pred, feat) 튜플이 아닌 pred만 반환하도록 설정
+    if hasattr(model, "model") and len(model.model):
+        head = model.model[-1]
+        if hasattr(head, "export"):
+            head.export = True
+
     reparamed_model = {
         'model' : model.half(),
         'optimizer': None, #ckpt['optimizer'],
@@ -1364,5 +1370,4 @@ if __name__ == '__main__':
 
     elif args.cmd == 'convert':
         convert_yolov9(args.weights, args.cfg)
-
 
