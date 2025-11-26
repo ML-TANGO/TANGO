@@ -12,7 +12,9 @@ import tempfile
 import gc
 import argparse
 import logging
+import signal
 import subprocess
+import threading
 from pathlib import Path
 
 # Standard library imports
@@ -558,7 +560,7 @@ def base_model_select(userid, project_id, proj_info, data, manual_select=False):
 
 
 # --- main entry point
-def run_autonn(userid, project_id, resume=False, viz2code=False, nas=False, hpo=False):
+def run_autonn(userid, project_id, resume=False, viz2code=False, nas=False, hpo=False, stop_event=None):
     """
     Main function to run the AutoNN workflow.
     
@@ -569,10 +571,40 @@ def run_autonn(userid, project_id, resume=False, viz2code=False, nas=False, hpo=
         viz2code: Whether to visualize to code
         nas: Whether to run neural architecture search
         hpo: Whether to run hyperparameter optimization
-        
-    Returns:
-        None
     """
+    stop_flag_path = None
+
+    def stop_requested():
+        file_flag = bool(stop_flag_path and Path(stop_flag_path).exists())
+        return bool(stop_event and stop_event.is_set()) or file_flag
+
+    def start_stop_flag_watcher(path, proc=None):
+        if not stop_event or not path:
+            return
+
+        def _watch():
+            stop_event.wait()
+            try:
+                Path(path).write_text("stop", encoding="utf-8")
+            except Exception as exc:  # noqa: BLE001
+                logger.warning("Failed to write stop flag: %s", exc)
+            if proc:
+                try:
+                    if hasattr(os, "killpg"):
+                        os.killpg(os.getpgid(proc.pid), signal.SIGTERM)
+                    else:
+                        proc.terminate()
+                    proc.wait(timeout=30)
+                except Exception as exc:  # noqa: BLE001
+                    logger.warning("Failed to terminate ddp subprocess: %s", exc)
+                    try:
+                        proc.kill()
+                    except Exception:
+                        pass
+
+        t = threading.Thread(target=_watch, daemon=True)
+        t.start()
+
     # Set logging
     set_logging(int(os.environ['RANK']) if 'RANK' in os.environ else -1)
 
@@ -582,6 +614,10 @@ def run_autonn(userid, project_id, resume=False, viz2code=False, nas=False, hpo=
     # Handle missing project information
     if proj_info is None:
         return
+
+    if stop_requested():
+        safe_update_info(userid, project_id, status="stopped", progress="stopped")
+        return True
 
     # Extract project information
     target = proj_info['target_info'] # PC, Galaxy_S22, etc.
@@ -720,6 +756,9 @@ def run_autonn(userid, project_id, resume=False, viz2code=False, nas=False, hpo=
         with open(res_path, "w", encoding="utf-8") as f:
             json.dump({}, f)
         
+        stop_flag_path = tempfile.mktemp(prefix="autonn_stop_", suffix=".flag")
+        env["STOP_FLAG_PATH"] = stop_flag_path
+
         env["TRAIN_CONFIG"] = cfg_path
         env["RESULT_PATH"] = res_path
         
@@ -729,19 +768,44 @@ def run_autonn(userid, project_id, resume=False, viz2code=False, nas=False, hpo=
             f"--nproc_per_node={nproc}",
             "-m", MODULE
         ]
-        subprocess.run(cmd, check=True, env=env, cwd=str(CORE_DIR))
+        preexec_fn = os.setsid if hasattr(os, "setsid") else None
+        ddp_proc = subprocess.Popen(cmd, env=env, cwd=str(CORE_DIR), preexec_fn=preexec_fn)
+        start_stop_flag_watcher(stop_flag_path, ddp_proc)
+        ret = ddp_proc.wait()
     
-        with open(res_path, "r", encoding="utf-8") as f:
-            payload = json.load(f)
-        results = payload.get("results")
-        train_final = payload.get("train_final")
+        if stop_requested():
+            logger.info("[AutoNN] Stop requested during DDP run; skipping export")
+            safe_update_info(userid, project_id, status="stopped", progress="stopped")
+            # 결과가 있다면 읽어 두되, 이후 단계는 중단
+            if os.path.exists(res_path):
+                with open(res_path, "r", encoding="utf-8") as f:
+                    payload = json.load(f)
+                results = payload.get("results")
+                train_final = payload.get("train_final")
+            else:
+                results = None
+                train_final = None
+        else:
+            if ret != 0:
+                raise subprocess.CalledProcessError(ret, cmd)
+            with open(res_path, "r", encoding="utf-8") as f:
+                payload = json.load(f)
+            results = payload.get("results")
+            train_final = payload.get("train_final")
 
         os.remove(cfg_path)
         os.remove(res_path)
+        if stop_flag_path and Path(stop_flag_path).exists():
+            Path(stop_flag_path).unlink(missing_ok=True)
     else:
         results, train_final = train(
-            proj_info, hyp, opt, data, device, tb_writer
+            proj_info, hyp, opt, data, device, tb_writer, stop_event=stop_event, stop_flag_path=stop_flag_path
         )
+
+    if stop_requested() or results is None or train_final is None:
+        logger.info("[AutoNN] Stop requested after training; skipping export")
+        safe_update_info(userid, project_id, status="stopped", progress="stopped")
+        return True
 
     # Log training results
     best_acc = results[3] if task == 'detection' else results[0]
@@ -757,6 +821,11 @@ def run_autonn(userid, project_id, resume=False, viz2code=False, nas=False, hpo=
         train_final, yaml_file = search(
             proj_info, hyp, opt, data, device, train_final
         )
+
+        if stop_requested():
+            logger.info("[AutoNN] Stop requested after NAS; skipping further steps")
+            safe_update_info(userid, project_id, status="stopped", progress="stopped")
+            return True
         # opt.resume = True
         opt.weights = str(train_final)
 
@@ -767,6 +836,11 @@ def run_autonn(userid, project_id, resume=False, viz2code=False, nas=False, hpo=
         hyp, yaml_file, txt_file = evolve(
             proj_info, hyp, opt, data, device, train_final
         )
+
+        if stop_requested():
+            logger.info("[AutoNN] Stop requested after HPO; skipping further steps")
+            safe_update_info(userid, project_id, status="stopped", progress="stopped")
+            return True
 
         # Plot evolution results
         plot_evolution(yaml_file, txt_file)
@@ -884,10 +958,7 @@ def run_autonn(userid, project_id, resume=False, viz2code=False, nas=False, hpo=
     export_model(userid, project_id, final_out, opt, data, basemodel, 
                  target, target_acc, target_engine, task, results)
 
-    # Wait until 'stop' signal
-    import time
-    while True:
-        time.sleep(2)
+    return bool(stop_event and stop_event.is_set())
 
 def backup_previous_work(model):
     """
