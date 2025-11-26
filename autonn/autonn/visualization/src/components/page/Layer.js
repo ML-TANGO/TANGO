@@ -46,7 +46,7 @@ import GenerateButton from "../GenerateButton";
 import Tab from "../sidebar/Tab";
 import LayerToggle from "../sidebar/LayerToggle";
 import NetworkInformation from "../sidebar/NetworkInformation";
-import InitialArch from "../../InitialArch"; // 수정된 InitialArch.js
+import useInitialArch from "../../InitialArch"; // 수정된 InitialArch.js
 import arange_icon from "../../img/swap.png";
 
 // 추가된 이미지 import 구문
@@ -80,10 +80,11 @@ let sortList = [];
 let clickedNodeList = [];
 let clickedNodeIdList = [];
 
-function LayerList() {
-  const [isYolo, setIsYolo] = useState(false); // YOLO 모드를 위한 상태 추가
-  const [taskType, setTaskType] = useState(""); // task_type을 처리하기 위한 상태
-  const [isInitialLoading, setIsInitialLoading] = useState(true); // 로딩 상태 추가
+function LayerList({ isYolo, onChangeIsYolo }) {
+  console.log('[LayerList] render, isYolo =', isYolo); 
+  // const [isYolo, setIsYolo] = useState(false); // YOLO 모드를 위한 상태 추가
+  // const [taskType, setTaskType] = useState(""); // task_type을 처리하기 위한 상태
+  // const [isInitialLoading, setIsInitialLoading] = useState(true); // 로딩 상태 추가
   const reactFlowWrapper = useRef(null);
   const [reactFlowInstance, setReactFlowInstance] = useState(null);
   const [modalOpen, setModalOpen] = useState(false);
@@ -97,40 +98,34 @@ function LayerList() {
   const [selectedLayer, setSelectedLayer] = useState(null);
   const [hoverImage, setHoverImage] = useState(null);
 
-  useEffect(() => {
-    // task_type에 따라 isYolo 설정 (서버에서 task_type을 가져와 설정)
-    const fetchTaskType = async () => {
-      try {
-        const response = await axios.get("/api/info/"); // /api/info/ 에서 task 값 가져옴
-        //const taskType = response.data[response.data.length - 1].task;
-        const taskType = response.data[response.data.length - 1].model_type;
-        setTaskType(taskType);
-        //setIsYolo(taskType.toLowerCase() === "detection");
-        setIsYolo(taskType.toLowerCase() === "yolov9");
-      } catch (error) {
-        console.error("Error fetching task_type:", error);
-      }
-    };
+  // useEffect(() => {
+  //   // task_type에 따라 isYolo 설정 (서버에서 task_type을 가져와 설정)
+  //   const fetchTaskType = async () => {
+  //     try {
+  //       const response = await axios.get("/api/info/"); // /api/info/ 에서 task 값 가져옴
+  //       //const taskType = response.data[response.data.length - 1].task;
+  //       const taskType = response.data[response.data.length - 1].model_type;
+  //       setTaskType(taskType);
+  //       //setIsYolo(taskType.toLowerCase() === "detection");
+  //       setIsYolo(taskType.toLowerCase() === "yolov9");
+  //     } catch (error) {
+  //       console.error("Error fetching task_type:", error);
+  //     }
+  //   };
 
-    fetchTaskType();
-  }, []);
+  //   fetchTaskType();
+  // }, []);
 
   // 노드 및 엣지 데이터를 가져오는 부분 (isYolo, taskType 상태에 따른 처리)
-  const [elements, setElements, isLoading] = InitialArch(
-    level,
-    group,
-    setGroup,
-    ungroup,
-    setUngroup,
-    isSort,
-    setIsSort,
-    isYolo
+  const [elements, setElements, isLoading] = useInitialArch(
+    level, group, ungroup, isSort, isYolo,
   );
 
   useEffect(() => {
     const get_params = async () => {
       try {
-        if (String(idState) != "") {
+        // if (String(idState) != "") {
+        if (idState != null && String(idState).trim() !== "") {
           await axios
             .get("/api/node/".concat(String(idState)).concat("/"))
             .then((response) => {
@@ -158,8 +153,10 @@ function LayerList() {
     };
 
     const cedge = await get_edge();
-    var maxId = 0;
-    for (var i = 0; i < cedge.data.length; i++) {
+    // var maxId = 0;
+    let maxId = 0;
+    // for (var i = 0; i < cedge.data.length; i++) {
+    for (let i = 0; i < cedge.data.length; i++) {
       if (maxId < cedge.data[i].id) {
         maxId = cedge.data[i].id;
       }
@@ -203,9 +200,12 @@ function LayerList() {
     setModalOpen(false);
   };
 
-  const onNodeClick = async (event, node) => {
-    await setState(node.data.label);
-    await setIdState(node.id);
+  // const onNodeClick = async (event, node) => {
+  //   await setState(node.data.label);
+  //   await setIdState(node.id);
+  const onNodeClick = (event, node) => {
+    setState(node.data.label)
+    setIdState(node.id)
 
     switch (node.data.label) {
       case "SPPELAN":
@@ -292,7 +292,7 @@ function LayerList() {
       <div className="Sidebar">
         <Tab tabOnClick={tabOnClick} />
         {tabToggle === 1 ? (
-          <LayerToggle isYolo={isYolo} setIsYolo={setIsYolo} />
+          <LayerToggle isYolo={isYolo} setIsYolo={onChangeIsYolo} />
         ) : (
           <NetworkInformation />
         )}
@@ -306,6 +306,7 @@ function LayerList() {
         <ReactFlowProvider>
           <div className="reactflow-wrapper" ref={reactFlowWrapper}>
             <ReactFlow
+              key={isYolo ? 'rf-yolo': 'rf-plain'}
               onConnect={onConnect}
               elements={elements}
               onLoad={setReactFlowInstance}
@@ -313,7 +314,7 @@ function LayerList() {
               onElementsRemove={onElementsRemove}
               edgeTypes={edgeTypes}
               nodeTypes={nodeTypes}
-              key="edges"
+              // key="edges"
             >
               <Controls showZoom showInteractive showFitView>
                 <ControlButton title="Sort">
@@ -369,7 +370,7 @@ function LayerList() {
   );
 }
 
-export default function Layer() {
-  return <LayerList />;
+export default function Layer(props) {
+  return <LayerList {...props} />;
 }
 

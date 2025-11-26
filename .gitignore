@@ -173,6 +173,9 @@ cython_debug/
 # Visual Studio Code
 .vscode/
 
+# Docker compose
+.compose/
+
 # labeling_weda
 !labelling/Deployment/lib
 !labelling/Deployment/lib/oracle/lib/
@@ -215,3 +218,4 @@ target_image_build/sql_app.db
 !project_manager/frontend/src/*
 !project_manager/frontend/src/modules/*
 # project_manager/static
+

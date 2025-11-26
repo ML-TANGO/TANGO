@@ -16,14 +16,16 @@ logger = logging.getLogger(__name__)
 
 
 class AWSConfig:
-    REGION = os.getenv("AWS_REGION")
+    REGION = os.getenv("AWS_REGION") or os.getenv("AWS_DEFAULT_REGION")
     ACCESS_KEY_ID = os.getenv("AWS_ACCESS_KEY_ID")
     SECRET_ACCESS_KEY = os.getenv("AWS_SECRET_ACCESS_KEY")
 
     @classmethod
     def validate(cls):
         if not all([cls.REGION, cls.ACCESS_KEY_ID, cls.SECRET_ACCESS_KEY]):
-            logger.error(f"region: {cls.REGION}, access key: {cls.ACCESS_KEY_ID}, secret key: {cls.SECRET_ACCESS_KEY}")
+            logger.error(
+                f"region: {cls.REGION}, access key: {cls.ACCESS_KEY_ID}, secret key: {cls.SECRET_ACCESS_KEY}"
+            )
             logger.error("AWS credentials not set")
             raise ValueError("AWS credentials not set")
 
@@ -122,11 +124,10 @@ class AWSECS(CloudTargetBase):
     def _create_task_definition(self, deploy_yaml) -> Dict[str, Any]:
         logger.info("Creating task definition")
 
-        execution_role_arn = getattr(deploy_yaml.deploy, 'execution_role_arn', None)
+        execution_role_arn = getattr(deploy_yaml.deploy, "execution_role_arn", None)
 
         task_definition = {
             "family": deploy_yaml.deploy.service_name,
-            "executionRoleArn": deploy_yaml.deploy.execution_role_arn,
             "containerDefinitions": [
                 {
                     "name": deploy_yaml.deploy.service_name,
@@ -144,13 +145,13 @@ class AWSECS(CloudTargetBase):
                             "hostPort": deploy_yaml.deploy.network.service_host_port,
                             "protocol": "tcp",
                         }
-                    ]
+                    ],
                 }
             ],
             "requiresCompatibilities": ["FARGATE"],
             "networkMode": "awsvpc",  # awsvpc, bridge
             "cpu": str(deploy_yaml.deploy.resources.cpu * 1024),
-            "memory": str(deploy_yaml.deploy.resources.memory)
+            "memory": str(deploy_yaml.deploy.resources.memory),
         }
 
         if execution_role_arn:
@@ -170,7 +171,9 @@ class AWSECS(CloudTargetBase):
 
     def _create_ecs_service(self, deploy_yaml) -> Dict[str, str]:
         logger.info(f"Creating ECS service for {deploy_yaml.deploy.service_name}")
-        cluster_name = deploy_yaml.deploy.service_name + "_" + self.user_id + "_" + self.project_id
+        cluster_name = (
+            deploy_yaml.deploy.service_name + "_" + self.user_id + "_" + self.project_id
+        )
         logging.info(f"deploy yaml: {deploy_yaml}")
         self.ecs_client.create_service(
             cluster=cluster_name,
@@ -180,9 +183,9 @@ class AWSECS(CloudTargetBase):
             # TODO: Harded-coded network configs for FARGATE type
             networkConfiguration={
                 "awsvpcConfiguration": {
-                    "assignPublicIp": deploy_yaml.deploy.awsvpc['assign_publicip'],
-                    "subnets": deploy_yaml.deploy.awsvpc['subnets'],
-                    "securityGroups": deploy_yaml.deploy.awsvpc['security_groups'],
+                    "assignPublicIp": deploy_yaml.deploy.awsvpc["assign_publicip"],
+                    "subnets": deploy_yaml.deploy.awsvpc["subnets"],
+                    "securityGroups": deploy_yaml.deploy.awsvpc["security_groups"],
                 }
             },
             launchType="FARGATE",
@@ -327,12 +330,10 @@ class AWSECS(CloudTargetBase):
     def _list_clusters(self) -> Dict[str, Any]:
         logger.info(f"get cluster list ")
         response = self.ecs_client.list_clusters()
-        cluster_names = [arn.split('/')[-1] for arn in response['clusterArns']]
+        cluster_names = [arn.split("/")[-1] for arn in response["clusterArns"]]
         return cluster_names
 
     def _create_ecs_cluster(self, cluster_name: str) -> Dict[str, Any]:
         logger.info(f"create cluster : {cluster_name}")
-        response = self.ecs_client.create_cluster(
-            clusterName = cluster_name
-        )
+        response = self.ecs_client.create_cluster(clusterName=cluster_name)
         return response

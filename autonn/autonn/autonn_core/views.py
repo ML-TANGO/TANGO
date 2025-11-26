@@ -1,5 +1,6 @@
 import os
 import random
+import logging
 import warnings
 import multiprocessing as mp
 
@@ -14,6 +15,8 @@ from .models import Info, Node, Edge, Pth
 from .serializers import InfoSerializer, NodeSerializer, EdgeSerializer, PthSerializer
 from .tango.main.select import run_autonn
 from .tango.main.visualize import export_pth, export_yml
+
+logger = logging.getLogger(__name__)
 
 DEBUG = False
 PROCESSES = {}
@@ -60,6 +63,31 @@ def pth_list(request):
             return Response(serializer.data, status=status.HTTP_201_CREATED)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
+# 돌아가는 중으로 간주할 상태들(원하는 대로 조정)
+ACTIVE_STATUSES = ["started", "running", "resumed", "failed"]
+
+@api_view(['GET'])
+def active_info(request):
+    # 1) 우선 '돌아가는 중' 상태 중에서 가장 최근(updated_at 우선, 그다음 id) 하나
+    qs = Info.objects.filter(status__in=ACTIVE_STATUSES).order_by('-updated_at', '-id')
+    info = qs.first()
+
+    # 2) 그런 게 없으면 전체 중에서 가장 최근 하나
+    if not info:
+        info = Info.objects.order_by('-updated_at', '-id').first()
+
+    if not info:
+        return Response({"exists": False}, status=status.HTTP_200_OK)
+
+    return Response({
+        "exists": True,
+        "userid": info.userid,
+        "project_id": info.project_id,
+        "status": info.status,
+        "progress": info.progress,
+        "model_type": info.model_type,
+        "is_yolo": (info.model_type == "yolov9"),
+    }, status=status.HTTP_200_OK)
 
 @api_view(['GET'])
 def start(request):
@@ -235,7 +263,7 @@ def process_autonn(userid, project_id):
     3. Report status to project manager
     """
     info = Info.objects.get(userid=userid, project_id=project_id)
-    resume = info.progress == 'oom'
+    resume = (info.progress == 'oom')
 
     try:
         run_autonn(userid, project_id, resume=resume, viz2code=False, nas=False, hpo=False)
@@ -247,15 +275,20 @@ def process_autonn(userid, project_id):
 
     except Exception as e:
         print(f"[AutoNN process_autonn] exception: {e}")
+        logger.exception("An error occurred in run_autonn()\n")
+        print('='*80)
+        
         import torch, gc
         if torch.cuda.is_available():
             torch.cuda.empty_cache()
         gc.collect()
 
         info = Info.objects.get(userid=userid, project_id=project_id)
-        if 'CUDA' in str(e):
-            print(f"[AutoNN process_autonn] CUDA OOM, retry with reduced batch size next time")
+        if 'CUDA out of memory' in str(e):
+            print(f"[AutoNN process_autonn] CUDA Out of Memory, retry with reduced batch size next time")
             info.progress = "oom"
+            info.print()
+            print('='*80)
         else:
             print(f"[AutoNN process_autonn] General failure")
 

@@ -1,50 +1,11 @@
-'''
-[TEANCE] TODO: since this finetune.py is almost the same to trian.py,
-         it should be merged by one file.
-         - similarities and differences -
-         =======================================================================
-         procedure    |         train           |         finetune
-         -----------------------------------------------------------------------
-         options      |         same            |           same
-         directories  |  last.pt, best.pt       |       subnet_bbbbhhhh.pt
-                      |     results.txt         |             X
-         device       |         same            |           same
-         configure    |         same            |           same
-         model        |   from parsing yaml     |    from input argument
-         freeze       |           O             |             X
-         img size     |         same            |           same
-         batch size   |      autobatch          |    from input argument
-         dataset chk  |         same            |           same
-         optimizer    |         same            |           same
-         scheduler    |         same            |           same
-         ema          |         same            |           same
-         resume       |           O             |             X
-         dp mode      |         same            |           same
-         sync bn      |         same            |           same
-         dataloader   |         same            |           same
-         testloader   |         same            |           same
-         ddp mode     |         same            |           same
-         model param  |      update hyp         |         fixed hyp
-         save args    |           O             |             X
-         loss func    |         same            |           same
-         amp          |          use            |         not use
-         train        |         same            |           same
-         test         |  conf=0.001, iou=0.6    |    conf=0.001, iou=0.7
-         save best    |  incl. train results    |    w/o train results
-         test fused   |  conf=0.001, iou=0.7    |             X
-         strip optim. |           O             |             O
-         =======================================================================
-'''
-
+import gc
 import logging
 import math
 import os
-import gc
 import random
 import time
 from copy import deepcopy
 from pathlib import Path
-from threading import Thread
 
 import numpy as np
 import torch
@@ -53,113 +14,95 @@ import torch.nn as nn
 import torch.nn.functional as F
 import torch.optim as optim
 import torch.optim.lr_scheduler as lr_scheduler
-# import torch.utils.data
-import yaml
-from torch.cuda import amp
 from torch.nn.parallel import DistributedDataParallel as DDP
-# from torch.utils.tensorboard import SummaryWriter
-from tqdm import tqdm
 
-from . import status_update, Info
-from . import test
+from tango.common.models.yolo import Model
+from tango.common.models.supernet_yolov7 import NASModel as NASModelV7
+from tango.common.models.supernet_yolov9 import NASModel as NASModelV9
+from tango.common.models.resnet_cifar10 import ClassifyModel
 from tango.common.models.experimental import attempt_load
-from tango.common.models.yolo               import Model
-from tango.common.models.supernet_yolov9    import NASModel as NASModelV9
-from tango.common.models.resnet_cifar10     import ClassifyModel
-# from tango.common.models import *
+
 from tango.utils.autoanchor import check_anchors
 from tango.utils.autobatch import get_batch_size_for_gpu
-from tango.utils.datasets import create_dataloader
-from tango.utils.general import (   labels_to_class_weights,
-                                    labels_to_image_weights,
-                                    init_seeds,
-                                    fitness,
-                                    strip_optimizer,
-                                    check_dataset,
-                                    check_img_size,
-                                    one_cycle,
-                                    colorstr
-                                )
-from tango.utils.loss import    (   ComputeLoss,
-                                    ComputeLossOTA,
-                                    ComputeLossAuxOTA,
-                                    ComputeLossTAL,
-                                    FocalLossCE
-                                )
-from tango.utils.plots import   (   plot_images,
-                                    plot_labels,
-                                    plot_results,
-                                    plot_evolution
-                                )
-from tango.utils.torch_utils import (   ModelEMA,
-                                        select_device,
-                                        intersect_dicts,
-                                        torch_distributed_zero_first,
-                                        is_parallel
-                                    )
+from tango.utils.django_utils import safe_update_info
+from tango.utils.datasets import create_dataloader, create_dataloader_v9
+from tango.utils.general import (
+    labels_to_class_weights,
+    labels_to_class_weights_v9,
+    labels_to_image_weights,
+    init_seeds,
+    init_seeds_v9,
+    fitness,
+    strip_optimizer,
+    check_dataset,
+    check_img_size,
+    one_cycle,
+    colorstr,
+)
+from tango.utils.loss import (
+    ComputeLoss,
+    ComputeLossOTA,
+    ComputeLossAuxOTA,
+    ComputeLossTAL,
+    ComputeLoss_v9,
+    FocalLossCE,
+)
+from tango.utils.torch_utils import (
+    ModelEMA,
+    intersect_dicts,
+    torch_distributed_zero_first,
+    is_parallel,
+    de_parallel,
+)
+
+from . import test
 
 
 logger = logging.getLogger(__name__)
 
 
-def finetune(proj_info, subnet, hyp, opt, data_dict, tb_writer=None):
+def finetune(proj_info, subnet, hyp, opt, data_dict, device, tb_writer=None):
     # Options ------------------------------------------------------------------
-    save_dir, epochs, batch_size, total_batch_size, weights, rank = \
-        Path(opt.save_dir), opt.finetune_epochs, opt.batch_size, opt.total_batch_size, opt.weights, opt.global_rank
+    save_dir, epochs, total_batch_size, world_size, rank, local_rank = \
+        Path(opt.save_dir), opt.finetune_epochs, opt.batch_size, \
+        opt.world_size, opt.global_rank, opt.local_rank
 
-    userid, project_id, task, nas, hpo, target, target_acc = \
-        proj_info['userid'], proj_info['project_id'], proj_info['task_type'], \
-        proj_info['nas'], proj_info['hpo'], proj_info['target_info'], proj_info['acc']
-
-    info = Info.objects.get(userid=userid, project_id=project_id)
+    userid, project_id = proj_info['userid'], proj_info['project_id']
+    is_v9 = (opt.loss_name == 'TAL')
 
     # Directories --------------------------------------------------------------
-    wdir = save_dir / 'weights'
+    wdir = save_dir / 'nas' / 'weights'
     wdir.mkdir(parents=True, exist_ok=True)  # make dir
     d_str = '_'
     for d in subnet.yaml['depth_list']:
         d_str += str(d)
     search_best = wdir / f'subnet{d_str}.pt'
 
-    # Device -------------------------------------------------------------------
-    device = select_device(opt.device)
-
     # Configure ----------------------------------------------------------------
-    # plots = not opt.evolve  # create plots
-    plots = False  # create plots
     cuda = device.type != 'cpu'
-    # init_seeds(2 + rank)
-    init_seeds(opt.seed + 1 + rank, deterministic=True) # from yolov9
-
+    seed = opt.seed if opt.seed else 0
+    if is_v9:
+        init_seeds_v9(seed + 1 + rank, deterministic=True) # from yolov9
+    else:
+        init_seeds(2 + rank)
     nc = 1 if opt.single_cls else int(data_dict['nc'])  # number of classes
-    ch = int(data_dict.get('ch', 3))
     names = ['item'] if opt.single_cls and len(data_dict['names']) != 1 else data_dict['names']  # class names
     assert len(names) == nc, '%g names found for nc=%g dataset in %s' % (len(names), nc, opt.data)  # check
     
     # Model --------------------------------------------------------------------
     subnet.to(device)
 
-    # import pprint
-    # pprint.pprint(torch.cuda.memory_stats(device=device))
-
     # Image sizes --------------------------------------------------------------
     gs = max(int(subnet.stride.max()), 32)  # grid size (max stride)
     imgsz, imgsz_test = [check_img_size(x, gs) for x in opt.img_size]  # verify imgsz are gs-multiples
 
     # Batch size ---------------------------------------------------------------
-    autobatch_rst = get_batch_size_for_gpu( userid,
-                                            project_id,
-                                            subnet,
-                                            ch,
-                                            imgsz,
-                                            amp_enabled=False,
-                                            max_search=False )
-    if autobatch_rst:
-        new_bs = max(int(round(autobatch_rst)), 1)
-        batch_size = total_batch_size = new_bs
-        opt.batch_size = new_bs
-        opt.total_batch_size = new_bs
-    logger.info(f"autobatch result = {autobatch_rst}, supernet_batchsize = {batch_size}")
+    batch_size = total_batch_size // max(world_size, 1)
+
+    # SyncBatchNorm ------------------------------------------------------------
+    if opt.sync_bn and cuda and rank != -1:
+        subnet = torch.nn.SyncBatchNorm.convert_sync_batchnorm(subnet).to(device)
+        logger.info('Using SyncBatchNorm()')
 
     # Dataset ------------------------------------------------------------------
     with torch_distributed_zero_first(rank):
@@ -169,9 +112,9 @@ def finetune(proj_info, subnet, hyp, opt, data_dict, tb_writer=None):
     is_coco = True if data_dict['dataset_name'] == 'coco' and 'coco' in train_path else False
 
     # Optimizer ----------------------------------------------------------------
-    nbs = 64  # nominal batch size
-    accumulate = max(round(nbs / max(total_batch_size, 1)), 1)  # accumulate loss before optimizing
-    hyp['weight_decay'] *= total_batch_size * accumulate / nbs  # scale weight_decay
+    nbs = 96  # nominal batch size
+    accumulate = max(round(nbs / max(batch_size, 1)), 1)  # accumulate loss before optimizing
+    hyp['weight_decay'] *= batch_size * accumulate / nbs  # scale weight_decay
     logger.info(f"Scaled weight_decay = {hyp['weight_decay']}")
 
     pg0, pg1, pg2 = [], [], []  # optimizer parameter groups
@@ -253,11 +196,10 @@ def finetune(proj_info, subnet, hyp, opt, data_dict, tb_writer=None):
     # https://arxiv.org/pdf/1812.01187.pdf
     # https://pytorch.org/docs/stable/_modules/torch/optim/lr_scheduler.html#OneCycleLR
     if opt.linear_lr:
-        lf = lambda x: (1 - x / (epochs - 1)) * (1.0 - hyp['lrf']) + hyp['lrf']  # linear
+        lf = lambda x: (1 - x / epochs) * (1.0 - hyp['lrf']) + hyp['lrf']  # linear
     else:
         lf = one_cycle(1, hyp['lrf'], epochs)  # cosine 1->hyp['lrf']
     scheduler = lr_scheduler.LambdaLR(optimizer, lr_lambda=lf)
-    # plot_lr_scheduler(optimizer, scheduler, epochs)
 
     # EMA ----------------------------------------------------------------------
     ema = ModelEMA(subnet) if rank in [-1, 0] else None
@@ -266,108 +208,161 @@ def finetune(proj_info, subnet, hyp, opt, data_dict, tb_writer=None):
     # DP mode ------------------------------------------------------------------
     if cuda and rank == -1 and torch.cuda.device_count() > 1:
         subnet = torch.nn.DataParallel(subnet)
-        logger.info('Using DataParallel()')
-
-    # SyncBatchNorm ------------------------------------------------------------
-    if opt.sync_bn and cuda and rank != -1:
-        subnet = torch.nn.SyncBatchNorm.convert_sync_batchnorm(subnet).to(device)
-        logger.info('Using SyncBatchNorm()')
+        logger.info('Using DataParallel(): not recommended, use DDP instead.')
         
     # Trainloader --------------------------------------------------------------
-    dataloader, dataset = create_dataloader(
-                                        userid,
-                                        project_id,
-                                        train_path,
-                                        imgsz,
-                                        batch_size,
-                                        gs,
-                                        opt,
-                                        hyp=hyp,
-                                        augment=True,
-                                        cache=opt.cache_images,
-                                        rect=opt.rect,
-                                        rank=rank,
-                                        world_size=opt.world_size,
-                                        workers=opt.workers,
-                                        image_weights=opt.image_weights,
-                                        quad=opt.quad,
-                                        prefix='train')
+    if is_v9: # v9
+        dataloader, dataset = create_dataloader_v9(
+            train_path,
+            imgsz,
+            batch_size, # Single or DP -> total, DDP -> per-GPU
+            gs,
+            opt.single_cls,
+            hyp=hyp,
+            augment=True,
+            cache=opt.cache_images,
+            rect=opt.rect,
+            rank=local_rank,
+            workers=opt.workers,
+            image_weights=opt.image_weights,
+            close_mosaic=opt.close_mosaic != 0,
+            quad=opt.quad,
+            prefix='train',
+            shuffle=True,
+            min_items=0, #opt.min_items,
+            uid=userid,
+            pid=project_id,
+        )
+    else:
+        dataloader, dataset = create_dataloader(
+            userid,
+            project_id,
+            train_path,
+            imgsz,
+            batch_size,
+            gs,
+            opt,
+            hyp=hyp,
+            augment=True,
+            cache=opt.cache_images,
+            rect=opt.rect,
+            rank=rank, # local_rank?
+            world_size=opt.world_size,
+            workers=opt.workers,
+            image_weights=opt.image_weights,
+            quad=opt.quad,
+            prefix='train'
+        )
     mlc = np.concatenate(dataset.labels, 0)[:, 0].max()  # max label class
-    nb = len(dataloader)  # number of batches
     assert mlc < nc, 'Label class %g exceeds nc=%g in %s. Possible class labels are 0-%g' % (mlc, nc, opt.data, nc - 1)
 
     # Process 0 (TestDataLoader) -----------------------------------------------
     if rank in [-1, 0]:
-        testloader = create_dataloader(
-                                    userid,
-                                    project_id,
-                                    test_path,
-                                    imgsz_test,
-                                    batch_size, # * 2,
-                                    gs,
-                                    opt,
-                                    hyp=hyp,
-                                    cache=opt.cache_images and not opt.notest,
-                                    rect=True,
-                                    rank=-1,
-                                    world_size=opt.world_size,
-                                    workers=opt.workers,
-                                    pad=0.5,
-                                    prefix='val')[0]
+        if is_v9: #v9
+            testloader = create_dataloader_v9(
+                test_path,
+                imgsz,
+                batch_size * 2, # * 2 may lead out-of-memory
+                gs,
+                opt.single_cls,
+                hyp=hyp,
+                cache=opt.cache_images and not opt.notest,
+                rect=True,
+                rank=-1,
+                workers=opt.workers * 2,
+                pad=0.5,
+                close_mosaic=True, # always use torch.utils.data.Dataloader
+                prefix='val',
+                shuffle=False,
+                uid=userid,
+                pid=project_id,
+            )[0]
+        else:
+            testloader = create_dataloader(
+                userid,
+                project_id,
+                test_path,
+                imgsz_test,
+                batch_size, # * 2,
+                gs,
+                opt,
+                hyp=hyp,
+                cache=opt.cache_images and not opt.notest,
+                rect=True,
+                rank=-1,
+                world_size=opt.world_size,
+                workers=opt.workers,
+                pad=0.5,
+                prefix='val'
+            )[0]
 
         labels = np.concatenate(dataset.labels, 0)
         c = torch.tensor(labels[:, 0])  # classes
         # cf = torch.bincount(c.long(), minlength=nc) + 1.  # frequency
         # model._initialize_biases(cf.to(device))
-        # if plots:
-        #     plot_labels(labels, names, save_dir, loggers)
-        #     if tb_writer:
-        #         tb_writer.add_histogram('classes', c, 0)
                 
         # Anchors
         if not opt.noautoanchor:
-            check_anchors(userid, project_id, dataset, model=subnet, thr=hyp['anchor_t'], imgsz=imgsz)
+            check_anchors(userid, project_id, dataset, model=subnet,
+                          thr=hyp['anchor_t'], imgsz=imgsz)
         subnet.half().float()  # pre-reduce anchor precision
         
     # DDP mode -----------------------------------------------------------------
     if cuda and rank != -1:
-        subnet = DDP(subnet, device_ids=[opt.local_rank], output_device=opt.local_rank,
-                    # nn.MultiheadAttention incompatibility with DDP https://github.com/pytorch/pytorch/issues/26698
-                    find_unused_parameters=any(isinstance(layer, nn.MultiheadAttention) for layer in subnet.modules()))
+        subnet = DDP(subnet, device_ids=[opt.local_rank], 
+                     output_device=opt.local_rank, 
+                     find_unused_parameters=True)
 
     # Model parameters ---------------------------------------------------------
-    # nl = subnet.model[-1].nl  # number of detection layers (used for scaling hyp['obj'])
-    # hyp['box'] *= 3. / nl  # scale to layers
-    # hyp['cls'] *= nc / 80. * 3. / nl  # scale to classes and layers
-    # hyp['obj'] *= (imgsz / 640) ** 2 * 3. / nl  # scale to image size and layers
-    # hyp['label_smoothing'] = opt.label_smoothing
-    subnet.nc = nc  # attach number of classes to model
-    subnet.hyp = hyp  # attach hyperparameters to model
-    subnet.gr = 1.0  # iou loss ratio (obj_loss = 1.0 or iou)
-    subnet.class_weights = labels_to_class_weights(dataset.labels, nc).to(device) * nc  # attach class weights
-    subnet.names = names
+    base = de_parallel(subnet)
+    if is_v9: # v9
+        class_weights = labels_to_class_weights_v9(dataset.labels, nc).to(device) * nc  # attach class weights
+    else: # v7
+        logger.info(f'loss = {opt.loss_name}')
+        nl = base.model[-1].nl
+        hyp['box'] *= 3. / nl  # scale to layers
+        hyp['cls'] *= nc / 80. * 3. / nl  # scale to classes and layers
+        hyp['obj'] *= (imgsz / 640) ** 2 * 3. / nl  # scale to image size and layers
+        class_weights = labels_to_class_weights(dataset.labels, nc).to(device) * nc  # attach class weights
+        gr = 1.0  # iou loss ratio (obj_loss = 1.0 or iou)
+        base.gr = subnet.gr = gr
+    hyp['label_smoothing'] = opt.label_smoothing
+
+    base.nc = subnet.nc = nc  # attach number of classes to model
+    base.hyp = subnet.hyp = hyp  # attach hyperparameters to model
+    base.class_weights = subnet.class_weights = class_weights
+    base.names = subnet.names = names
     
     # loss function ------------------------------------------------------------
-    compute_loss_ota = ComputeLossOTA(subnet)  # init loss class
-    compute_loss = ComputeLoss(subnet)  # init loss class
+    if opt.loss_name == 'TAL':
+        compute_loss = ComputeLoss_v9(subnet)
+    else:
+        if opt.loss_name == 'OTA':
+            compute_loss_ota = ComputeLossOTA(subnet)  # init loss class
+        elif opt.loss_name == 'AuxOTA':
+            compute_loss_ota = ComputeLossAuxOTA(subnet)  # init loss class
+        else:
+            compute_loss_ota = None
+        compute_loss = ComputeLoss(subnet)  # init loss class
 
     # Start fine tuning --------------------------------------------------------
 
     start_epoch, best_fitness = 0, 0.0
-    # Start training
-    t0 = time.time()
+
+    nb = len(dataloader)  # number of batches == steps per epoch
     nw = max(round(hyp['warmup_epochs'] * nb), 1000)  # number of warmup iterations, max(3 epochs, 1k iterations)
     nw = min(nw, (epochs - start_epoch) / 2 * nb)  # limit warmup to < 1/2 of training
+
     maps = np.zeros(nc)  # mAP per class
     results = (0, 0, 0, 0, 0, 0, 0)  # P, R, mAP@.5, mAP@.5-.95, val_loss(box, obj, cls)
+
     scheduler.last_epoch = start_epoch - 1  # do not move
-    # scaler = amp.GradScaler(enabled=cuda)
 
     logger.info(f'Image sizes {imgsz} train, {imgsz_test} test\n'
                 f'Using {dataloader.num_workers} dataloader workers\n'
-                # f'Logging results to {save_dir}\n'
-                f'Starting finetuing for {epochs} epochs...')
-    # torch.save(model, wdir / 'init.pt')
+                f'       Starting training for {epochs} epochs...\n'
+                f'       Warming up for the first {nw} iters({nw//nb} epochs)')
+    
     for epoch in range(start_epoch, epochs):
         subnet.train()
 
@@ -385,12 +380,16 @@ def finetune(proj_info, subnet, hyp, opt, data_dict, tb_writer=None):
                 if rank != 0:
                     dataset.indices = indices.cpu().numpy()
     
-        # Update mosaic border
-        # b = int(random.uniform(0.25 * imgsz, 0.75 * imgsz + gs) // gs * gs)
-        # dataset.mosaic_border = [b - imgsz, -b]  # height, width borders
+        # Stop mosaic augmentation
+        if is_v9 and epoch == (epochs - opt.close_mosaic):
+            logger.info("Closing dataloader mosaic")
+            dataset.mosaic = False
     
         # mean loss
-        mloss = torch.zeros(4, device=device)  # mean losses
+        if is_v9:
+            mloss = torch.zeros(3, device=device)
+        else:
+            mloss = torch.zeros(4, device=device)  # mean losses
 
         # distribute data
         if rank != -1:
@@ -398,13 +397,18 @@ def finetune(proj_info, subnet, hyp, opt, data_dict, tb_writer=None):
 
         # progress bar
         pbar = enumerate(dataloader)
-        # logger.info(('\n' + '%10s' * 8) % ('Epoch', 'gpu_mem', 'box', 'obj', 'cls', 'total', 'labels', 'img_size'))
-        # if rank in [-1, 0]:
-        #     pbar = tqdm(pbar, total=nb)  # progress bar
+        if is_v9:
+            title_s = ('\n' + '%11s' * 7) % (
+                'Epoch', 'GPU_Mem', 'box', 'cls', 'dfl', 'Labels', 'Img_Size'
+            )
+        else: # v7
+            title_s = ('\n' + '%11s' * 8) % (
+                'Epoch', 'GPU_Mem', 'Box', 'Obj', 'Cls', 'Total', 'Labels', 'Img_Size'
+            )
 
-        # optimizer.zero_grad()
+        optimizer.zero_grad()
         # finetuing batches start ==============================================
-        for i, (imgs, targets, paths, _) in pbar:
+        for i, (imgs, targets, _, _) in pbar:
             ni = i + nb * epoch  # number integrated batches (since train start)
             imgs = imgs.to(device, non_blocking=True).float() / 255.0  # uint8 to float32, 0-255 to 0.0-1.0
     
@@ -412,7 +416,7 @@ def finetune(proj_info, subnet, hyp, opt, data_dict, tb_writer=None):
             if ni <= nw:
                 xi = [0, nw]  # x interp
                 # model.gr = np.interp(ni, xi, [0.0, 1.0])  # iou loss ratio (obj_loss = 1.0 or iou)
-                accumulate = max(1, np.interp(ni, xi, [1, nbs / max(total_batch_size, 1)]).round())
+                accumulate = max(1, np.interp(ni, xi, [1, nbs / max(batch_size, 1)]).round())
                 for j, x in enumerate(optimizer.param_groups):
                     # bias lr falls from 0.1 to lr0, all other lrs rise from 0.0 to lr0
                     x['lr'] = np.interp(ni, xi, [hyp['warmup_bias_lr'] if j == 2 else 0.0, x['initial_lr'] * lf(epoch)])
@@ -428,9 +432,8 @@ def finetune(proj_info, subnet, hyp, opt, data_dict, tb_writer=None):
                     imgs = F.interpolate(imgs, size=ns, mode='bilinear', align_corners=False)     
                     
             # Forward
-            # with amp.autocast(enabled=cuda):
             pred = subnet(imgs)  # forward
-            if 'loss_ota' not in hyp or hyp['loss_ota'] == 1:
+            if opt.loss_name == "OTA":
                 loss, loss_items = compute_loss_ota(pred, targets.to(device), imgs)  # loss scaled by batch_size
             else:
                 loss, loss_items = compute_loss(pred, targets.to(device))  # loss scaled by batch_size
@@ -440,193 +443,212 @@ def finetune(proj_info, subnet, hyp, opt, data_dict, tb_writer=None):
                 loss *= 4.    
             
             # Backward
-            # scaler.scale(loss).backward()
             loss.requires_grad_(True)
             loss.backward()
 
             # Optimize
             if ni % accumulate == 0:
-                # scaler.step(optimizer)  # optimizer.step
-                # scaler.update()
                 optimizer.step()
                 optimizer.zero_grad()
                 if ema:
-                    ema.update(subnet)
+                    ema.update(de_parallel(subnet))
                     
             # Print
             if rank in [-1, 0]:
                 mloss = (mloss * i + loss_items) / (i + 1)  # update mean losses
                 mem = '%.3gG' % (torch.cuda.memory_reserved() / 1E9 if torch.cuda.is_available() else 0)  # (GB)
-                s = ('%10s' * 2 + '%10.4g' * 6) % (
-                    '%g/%g' % (epoch, epochs - 1), mem, *mloss, targets.shape[0], imgs.shape[-1])
-                # pbar.set_description(s)
+                if is_v9:
+                    s = ('%11s' * 2 + '%11.4g' * 5) % (
+                        '%g/%g' % (epoch, epochs - 1), mem,         # epoch/total, gpu_mem
+                        *mloss, targets.shape[0], imgs.shape[-1]    # box, dfl, cls, labels, imgsz
+                    )
+                else:
+                    s = ('%10s' * 2 + '%11.4f' * 4 + '%11.0f' * 2) % (
+                        '%g/%g' % (epoch, epochs - 1), mem,         # epoch/total, gpu_mem
+                        *mloss, targets.shape[0], imgs.shape[-1]    # box, obj, cls, total, labels, imgsz
+                    )                
+                ten_percent_cnt = int((i+1)/nb*10+0.5)
+                bar = '|'+ '#'*ten_percent_cnt + ' '*(10-ten_percent_cnt)+'|'
+                content_s = s + (f'{bar}{(i+1)/nb*100:3.0f}% {i+1:4.0f}/{nb:4.0f}')
+                if (i % 50) == 0:
+                    logger.info(title_s)
+                logger.info(content_s)
         # finetuning batches end ===============================================
         
         # Scheduler
-        lr = [x['lr'] for x in optimizer.param_groups]  # for tensorboard
         scheduler.step()
         
         # DDP process 0 or single-GPU test =====================================
         if rank in [-1, 0]:
             # mAP
-            ema.update_attr(subnet, include=['yaml', 'nc', 'hyp', 'gr', 'names', 'stride', 'class_weights'])
-            final_epoch = epoch + 1 == epochs
+            if is_v9:
+                ema.update_attr(de_parallel(subnet),
+                        include=['yaml', 'nc', 'hyp', 'names', 'stride', 'class_weights'])
+            else:
+                ema.update_attr(de_parallel(subnet),
+                        include=['yaml', 'nc', 'hyp', 'gr', 'names', 'stride', 'class_weights'])
+            
+            final_epoch = (epoch + 1 == epochs)
+
+            results = None
             if not opt.notest or final_epoch:  # Calculate mAP
-                # wandb_logger.current_epoch = epoch + 1
-                results, maps, times =  test.test(proj_info,
-                                                  data_dict,
-                                                  batch_size=opt.batch_size, # * 2,
-                                                  imgsz=imgsz_test,
-                                                  model=ema.ema,
-                                                  conf_thres=0.001,
-                                                  iou_thres=0.7,
-                                                  single_cls=opt.single_cls,
-                                                  dataloader=testloader,
-                                                  verbose=nc < 50 and final_epoch,
-                                                  # save_dir=save_dir,
-                                                  save_json=False,
-                                                  plots=False,
-                                                  is_coco=is_coco,
-                                                  metric=opt.metric)
+                results, maps, _ =  test.test(
+                    proj_info,
+                    data_dict,
+                    batch_size=opt.batch_size * 2,
+                    imgsz=imgsz_test,
+                    model=ema.ema,
+                    conf_thres=0.001,
+                    iou_thres=0.7,
+                    single_cls=opt.single_cls,
+                    dataloader=testloader,
+                    verbose=nc < 50 and final_epoch,
+                    plots=False,
+                    half_precision = False,
+                    compute_loss=None,
+                    save_json=False,
+                    is_coco=is_coco,
+                    metric=opt.metric
+                )
             # Update best mAP
-            fi = fitness(np.array(results).reshape(1, -1))  # weighted combination of [P, R, mAP@.5, mAP@.5-.95]
-            if fi > best_fitness:
-                best_fitness = fi
-                
-            if best_fitness == fi:
-                ckpt = {'epoch': epoch,
-                        'best_fitness': best_fitness,
-                        # 'training_results': results_file.read_text(),
-                        'model': deepcopy(subnet.module if is_parallel(subnet) else subnet).half(),
-                        'ema': deepcopy(ema.ema).half(),
-                        'updates': ema.updates,
-                        'optimizer': optimizer.state_dict()}
-                torch.save(ckpt, search_best)
-                del ckpt
+            fi = None
+            if results is not None:
+                fi = fitness(np.array(results).reshape(1, -1))  # weighted combination of [P, R, mAP@.5, mAP@.5-.95]
+        
+            if not opt.nosave or final_epoch:
+                if fi is not None and fi > best_fitness:
+                    ckpt = {'epoch': epoch,
+                            'best_fitness': best_fitness,
+                            'model': deepcopy(de_parallel(subnet)).half(),
+                            'ema': deepcopy(ema.ema).half(),
+                            'updates': ema.updates,
+                            'optimizer': optimizer.state_dict()}
+                    torch.save(ckpt, search_best)
+                    del ckpt
+
+                    mb = os.path.getsize(search_best) / 1E6 # file size
+                    logger.info(f"epoch {epoch} : {search_best} {mb:.1f} MB")
+
+                    best_fitness = float(fi)
+
+        # DDP Sync
+        if dist.is_available() and dist.is_initialized(): 
+            dist.barrier()
         # end validation =======================================================
-
+    
     # end finetuning -----------------------------------------------------------
-    if not rank in [-1, 0]:
-        dist.destroy_process_group()
 
-    # delete Model -------------------------------------------------------------
-    del subnet
-    torch.cuda.empty_cache()
-    gc.collect()
+    subnet_pt = search_best if search_best.exists() else None
+
+    if rank in [-1, 0]:
+        if not search_best.exists():
+            logger.warning(
+                f'{colorstr("NAS: ")}No best subnet checkpoint saved; writing current weights to {search_best}'
+            )
+            ckpt = {
+                'epoch': epochs,
+                'best_fitness': best_fitness,
+                'model': deepcopy(de_parallel(subnet)).half(),
+                'ema': deepcopy(ema.ema).half() if ema else None,
+                'updates': ema.updates if ema else None,
+                'optimizer': optimizer.state_dict(),
+            }
+            torch.save(ckpt, search_best)
+            del ckpt
+            subnet_pt = search_best
 
     # strip optimizer ----------------------------------------------------------
     # [TENACE] what does strip_optimizer do:
     # 1. load .pt
     # 2. 'model' <- 'ema'
-    # 3. 'ema', 'optimizer', 'training_results', 'wandb_id', 'updates' -> None
+    # 3. 'ema', 'optimizer', 'training_results', 'updates' -> None
     # 4. 'epoch' -> -1
     # 5. model.half()   *** removed by tenace ***
     # 6. requires_grad -> False
     # 7. save .pt
-    subnet_pt = search_best if search_best.exists() else None
-    if subnet_pt is None:
-        logger.warning(
-            f'{colorstr("NAS: ")}No best subnet checkpoint saved; writing current weights to {search_best}'
-        )
-        ckpt = {
-            'epoch': epochs,
-            'best_fitness': best_fitness,
-            'model': deepcopy(subnet.module if is_parallel(subnet) else subnet).half(),
-            'ema': deepcopy(ema.ema).half() if ema else None,
-            'updates': ema.updates if ema else None,
-            'optimizer': optimizer.state_dict(),
-        }
-        torch.save(ckpt, search_best)
-        del ckpt
-        subnet_pt = search_best
-    if subnet_pt:
-        strip_optimizer(subnet_pt)
+    # if subnet_pt:
+    #     strip_optimizer(subnet_pt)
+
+    # cleanup ------------------------------------------------------------------
+    del ema
+    del optimizer
+    del subnet
+    torch.cuda.empty_cache()
+    gc.collect()
+    if dist.is_available() and dist.is_initialized(): 
+        dist.destroy_process_group()
 
     return str(subnet_pt) if subnet_pt else None, results
 
-def finetune_hyp(proj_info, basemodel, hyp, opt, data_dict, tb_writer=None):
-    # Options ------------------------------------------------------------------
-    save_dir, epochs, batch_size, total_batch_size, rank, gen = \
-        Path(opt.save_dir), opt.finetune_epochs, opt.batch_size, opt.total_batch_size, opt.global_rank, opt.gen
 
+def finetune_hyp(proj_info, basemodel, hyp, opt, data_dict, device, tb_writer=None):
+    # Options ------------------------------------------------------------------
+    save_dir, epochs, total_batch_size, world_size, rank, local_rank, gen = \
+        Path(opt.save_dir), opt.finetune_epochs, opt.batch_size, \
+        opt.world_size, opt.global_rank, opt.local_rank, opt.gen
+    
     userid, project_id, task, lt, nas, hpo, target, target_acc = \
         proj_info['userid'], proj_info['project_id'], proj_info['task_type'], proj_info['learning_type'], \
         proj_info['nas'], proj_info['hpo'], proj_info['target_info'], proj_info['acc']
-
     assert hpo and lt == 'HPO', f'HPO: project information mismatch. Learning type {lt}, HPO ? {hpo}'
-    info = Info.objects.get(userid=userid, project_id=project_id)
+    is_v9 = (opt.loss_name == 'TAL')
 
     # Directories --------------------------------------------------------------
-    wdir = save_dir / 'weights'
+    wdir = save_dir / 'hpo' / 'weights'
     wdir.mkdir(parents=True, exist_ok=True)  # make dir
     search_best = wdir / f'hyp_{gen:04d}.pt'
 
     # Device -------------------------------------------------------------------
-    device = select_device(opt.device)
+    # device = select_device(opt.device)
 
     # Configure ----------------------------------------------------------------
-    # plots = not opt.evolve  # create plots
-    plots = False  # create plots
     cuda = device.type != 'cpu'
-    # init_seeds(2 + rank)
-    init_seeds(opt.seed + 1 + rank, deterministic=True) # from yolov9
-
+    seed = opt.seed if opt.seed else 0
+    if is_v9:
+        init_seeds_v9(seed + 1 + rank, deterministic=True) # from yolov9
+    else:
+        init_seeds(2 + rank)
     nc = 1 if opt.single_cls else int(data_dict['nc'])  # number of classes
-    ch = int(data_dict.get('ch', 3))
+    # ch = int(data_dict.get('ch', 3))
     names = ['item'] if opt.single_cls and len(data_dict['names']) != 1 else data_dict['names']  # class names
     assert len(names) == nc, '%g names found for nc=%g dataset in %s' % (len(names), nc, opt.data)  # check
-    
+
     # Model --------------------------------------------------------------------
     if basemodel:
         opt.weights = str(basemodel)
+    net = attempt_load(opt.weights, map_location=device, fused=False) # make sure it is not a fused model
+    # ckpt = torch.load(opt.weights, map_location='cpu')  # load checkpoint
+    # exclude = []
+    # if task == 'classification':
+    #     net = ClassifyModel(opt.cfg or ckpt['model'].yaml, ch=ch, nc=nc)
+    # elif task == 'detection':
+    #     if nas or target == 'Galaxy_S22':
+    #         if is_v9:
+    #             net = NASModelV9(opt.cfg or ckpt['model'].yaml, ch=ch, nc=nc, anchors=hyp.get('anchors'))
+    #         else:
+    #             net = NASModelV7(opt.cfg or ckpt['model'].yaml, ch=ch, nc=nc, anchors=hyp.get('anchors'))
+    #     else:
+    #         net = Model(opt.cfg or ckpt['model'].yaml, ch=ch, nc=nc, anchors=hyp.get('anchors'))
+    #     exclude = ['anchor'] if (opt.cfg or hyp.get('anchors')) and not opt.resume else []  # exclude keys
 
-    # net = attempt_load(opt.weights, map_location='cpu', fused=False) # make sure it is not a fused model
+    # logger.info(f'HPO: Loading and overwrite weights from the basemodel...')
+    # state_dict = ckpt['model'].float().state_dict()  # to FP32
+    # state_dict = intersect_dicts(state_dict, net.state_dict(), exclude=exclude)  # intersect
+    # net.load_state_dict(state_dict, strict=False)  # load
     # net.to(device)
-
-
-    ckpt = torch.load(opt.weights, map_location='cpu')  # load checkpoint
-    exclude = []
-
-    if task == 'classification':
-        net = ClassifyModel(opt.cfg or ckpt['model'].yaml, ch=ch, nc=nc)
-    elif task == 'detection':
-        if nas or target == 'Galaxy_S22':
-            net = NASModelV9(opt.cfg or ckpt['model'].yaml, ch=ch, nc=nc, anchors=hyp.get('anchors'))  # create
-        else:
-            net = Model(opt.cfg or ckpt['model'].yaml, ch=ch, nc=nc, anchors=hyp.get('anchors'))  # create
-        exclude = ['anchor'] if (opt.cfg or hyp.get('anchors')) and not opt.resume else []  # exclude keys
-
-    logger.info(f'HPO: Loading and overwrite weights from the basemodel...')
-    state_dict = ckpt['model'].float().state_dict()  # to FP32
-    state_dict = intersect_dicts(state_dict, net.state_dict(), exclude=exclude)  # intersect
-    net.load_state_dict(state_dict, strict=False)  # load
-    net.to(device)
-    logger.info('HPO: Transferred %g/%g items from %s' % (len(state_dict), len(net.state_dict()), opt.weights))  # report
-
-
-
-    # import pprint
-    # pprint.pprint(torch.cuda.memory_stats(device=device))
+    # logger.info('HPO: Transferred %g/%g items from %s' % (len(state_dict), len(net.state_dict()), opt.weights))  # report
 
     # Image sizes --------------------------------------------------------------
     gs = max(int(net.stride.max()), 32)  # grid size (max stride)
     imgsz, imgsz_test = [check_img_size(x, gs) for x in opt.img_size]  # verify imgsz are gs-multiples
 
     # Batch size ---------------------------------------------------------------
-    # not use it, use opt.batch_size instead
-    autobatch_rst = get_batch_size_for_gpu( userid,
-                                            project_id,
-                                            net,
-                                            ch,
-                                            imgsz,
-                                            amp_enabled=False,
-                                            max_search=False )
-    if autobatch_rst:
-        new_bs = max(int(round(autobatch_rst)), 1)
-        batch_size = total_batch_size = new_bs
-        opt.batch_size = new_bs
-        opt.total_batch_size = new_bs
-    logger.info(f"autobatch result = {autobatch_rst}, basemodel_batchsize = {batch_size}")
+    batch_size = total_batch_size // max(world_size, 1)
+
+    # SyncBatchNorm ------------------------------------------------------------
+    if opt.sync_bn and cuda and rank != -1:
+        net = torch.nn.SyncBatchNorm.convert_sync_batchnorm(net).to(device)
+        logger.info('Using SyncBatchNorm()')
 
     # Dataset ------------------------------------------------------------------
     with torch_distributed_zero_first(rank):
@@ -637,8 +659,8 @@ def finetune_hyp(proj_info, basemodel, hyp, opt, data_dict, tb_writer=None):
 
     # Optimizer ----------------------------------------------------------------
     nbs = 64  # nominal batch size
-    accumulate = max(round(nbs / max(total_batch_size, 1)), 1)  # accumulate loss before optimizing
-    hyp['weight_decay'] *= total_batch_size * accumulate / nbs  # scale weight_decay
+    accumulate = max(round(nbs / max(batch_size, 1)), 1)  # accumulate loss before optimizing
+    hyp['weight_decay'] *= batch_size * accumulate / nbs  # scale weight_decay
     logger.info(f"Scaled weight_decay = {hyp['weight_decay']}")
 
     pg0, pg1, pg2 = [], [], []  # optimizer parameter groups
@@ -720,11 +742,10 @@ def finetune_hyp(proj_info, basemodel, hyp, opt, data_dict, tb_writer=None):
     # https://arxiv.org/pdf/1812.01187.pdf
     # https://pytorch.org/docs/stable/_modules/torch/optim/lr_scheduler.html#OneCycleLR
     if opt.linear_lr:
-        lf = lambda x: (1 - x / (epochs - 1)) * (1.0 - hyp['lrf']) + hyp['lrf']  # linear
+        lf = lambda x: (1 - x / epochs) * (1.0 - hyp['lrf']) + hyp['lrf']  # linear
     else:
         lf = one_cycle(1, hyp['lrf'], epochs)  # cosine 1->hyp['lrf']
     scheduler = lr_scheduler.LambdaLR(optimizer, lr_lambda=lf)
-    # plot_lr_scheduler(optimizer, scheduler, epochs)
 
     # EMA ----------------------------------------------------------------------
     ema = ModelEMA(net) if rank in [-1, 0] else None
@@ -733,86 +754,130 @@ def finetune_hyp(proj_info, basemodel, hyp, opt, data_dict, tb_writer=None):
     # DP mode ------------------------------------------------------------------
     if cuda and rank == -1 and torch.cuda.device_count() > 1:
         net = torch.nn.DataParallel(net)
-        logger.info('Using DataParallel()')
-
-    # SyncBatchNorm ------------------------------------------------------------
-    if opt.sync_bn and cuda and rank != -1:
-        net = torch.nn.SyncBatchNorm.convert_sync_batchnorm(net).to(device)
-        logger.info('Using SyncBatchNorm()')
+        logger.info('Using DataParallel(): not recommended, use DDP instead.')
         
     # Trainloader --------------------------------------------------------------
-    dataloader, dataset = create_dataloader(
-                                        userid,
-                                        project_id,
-                                        train_path,
-                                        imgsz,
-                                        batch_size,
-                                        gs,
-                                        opt,
-                                        hyp=hyp,
-                                        augment=True,
-                                        cache=opt.cache_images,
-                                        rect=opt.rect,
-                                        rank=rank,
-                                        world_size=opt.world_size,
-                                        workers=opt.workers,
-                                        image_weights=opt.image_weights,
-                                        quad=opt.quad,
-                                        prefix='train')
+    if is_v9: # v9
+        dataloader, dataset = create_dataloader_v9(
+            train_path,
+            imgsz,
+            batch_size, # Single or DP -> total, DDP -> per-GPU
+            gs,
+            opt.single_cls,
+            hyp=hyp,
+            augment=True,
+            cache=opt.cache_images,
+            rect=opt.rect,
+            rank=local_rank,
+            workers=opt.workers,
+            image_weights=opt.image_weights,
+            close_mosaic=opt.close_mosaic != 0,
+            quad=opt.quad,
+            prefix='train',
+            shuffle=True,
+            min_items=0, #opt.min_items,
+            uid=userid,
+            pid=project_id,
+        )
+    else:
+        dataloader, dataset = create_dataloader(
+            userid,
+            project_id,
+            train_path,
+            imgsz,
+            batch_size,
+            gs,
+            opt,
+            hyp=hyp,
+            augment=True,
+            cache=opt.cache_images,
+            rect=opt.rect,
+            rank=rank,
+            world_size=opt.world_size,
+            workers=opt.workers,
+            image_weights=opt.image_weights,
+            quad=opt.quad,
+            prefix='train'
+        )
     mlc = np.concatenate(dataset.labels, 0)[:, 0].max()  # max label class
-    nb = len(dataloader)  # number of batches
     assert mlc < nc, 'Label class %g exceeds nc=%g in %s. Possible class labels are 0-%g' % (mlc, nc, opt.data, nc - 1)
 
     # Process 0 (TestDataLoader) -----------------------------------------------
     if rank in [-1, 0]:
-        testloader = create_dataloader(
-                                    userid,
-                                    project_id,
-                                    test_path,
-                                    imgsz_test,
-                                    batch_size, # * 2,
-                                    gs,
-                                    opt,
-                                    hyp=hyp,
-                                    cache=opt.cache_images and not opt.notest,
-                                    rect=True,
-                                    rank=-1,
-                                    world_size=opt.world_size,
-                                    workers=opt.workers,
-                                    pad=0.5,
-                                    prefix='val')[0]
+        if is_v9: # v9
+            testloader = create_dataloader_v9(
+                test_path,
+                imgsz,
+                batch_size * 2, # * 2 may lead out-of-memory
+                gs,
+                opt.single_cls,
+                hyp=hyp,
+                cache=opt.cache_images and not opt.notest,
+                rect=True,
+                rank=-1,
+                workers=opt.workers * 2,
+                pad=0.5,
+                close_mosaic=True, # always use torch.utils.data.Dataloader
+                prefix='val',
+                shuffle=False,
+                uid=userid,
+                pid=project_id,
+            )[0]
+        else:
+            testloader = create_dataloader(
+                userid,
+                project_id,
+                test_path,
+                imgsz_test,
+                batch_size, # * 2,
+                gs,
+                opt,
+                hyp=hyp,
+                cache=opt.cache_images and not opt.notest,
+                rect=True,
+                rank=-1,
+                world_size=opt.world_size,
+                workers=opt.workers,
+                pad=0.5,
+                prefix='val'
+            )[0]
 
         labels = np.concatenate(dataset.labels, 0)
         c = torch.tensor(labels[:, 0])  # classes
         # cf = torch.bincount(c.long(), minlength=nc) + 1.  # frequency
         # model._initialize_biases(cf.to(device))
-        # if plots:
-        #     plot_labels(labels, names, save_dir, loggers)
-        #     if tb_writer:
-        #         tb_writer.add_histogram('classes', c, 0)
                 
         # Anchors
         if not opt.noautoanchor:
-            check_anchors(userid, project_id, dataset, model=net, thr=hyp['anchor_t'], imgsz=imgsz)
+            check_anchors(userid, project_id, dataset, model=net, 
+                          thr=hyp['anchor_t'], imgsz=imgsz)
         net.half().float()  # pre-reduce anchor precision
         
     # DDP mode -----------------------------------------------------------------
     if cuda and rank != -1:
-        net = DDP(net, device_ids=[opt.local_rank], output_device=opt.local_rank,
-                    # nn.MultiheadAttention incompatibility with DDP https://github.com/pytorch/pytorch/issues/26698
-                    find_unused_parameters=any(isinstance(layer, nn.MultiheadAttention) for layer in net.modules()))
+        net = DDP(net, device_ids=[opt.local_rank], 
+                  output_device=opt.local_rank,
+                  find_unused_parameters=True)
 
     # Model parameters ---------------------------------------------------------
-    # nl = net.model[-1].nl  # number of detection layers (used for scaling hyp['obj'])
-    # hyp['box'] *= 3. / nl  # scale to layers
-    # hyp['cls'] *= nc / 80. * 3. / nl  # scale to classes and layers
-    # hyp['obj'] *= (imgsz / 640) ** 2 * 3. / nl  # scale to image size and layers
-    # hyp['label_smoothing'] = opt.label_smoothing
-    net.nc = nc  # attach number of classes to model
-    net.hyp = hyp  # attach hyperparameters to model
-    net.gr = 1.0  # iou loss ratio (obj_loss = 1.0 or iou)
-    net.class_weights = labels_to_class_weights(dataset.labels, nc).to(device) * nc  # attach class weights
-    net.names = names
+    base = de_parallel(net)
+    if is_v9: # v9
+        class_weights = labels_to_class_weights_v9(dataset.labels, nc).to(device) * nc  # attach class weights
+    else: # v7
+        logger.info(f'loss = {opt.loss_name}')
+        nl = base.model[-1].nl
+        hyp['box'] *= 3. / nl  # scale to layers
+        hyp['cls'] *= nc / 80. * 3. / nl  # scale to classes and layers
+        hyp['obj'] *= (imgsz / 640) ** 2 * 3. / nl  # scale to image size and layers
+        class_weights = labels_to_class_weights(dataset.labels, nc).to(device) * nc  # attach class weights
+        gr = 1.0  # iou loss ratio (obj_loss = 1.0 or iou)
+        base.gr = net.gr = gr
+    hyp['label_smoothing'] = opt.label_smoothing
+
+    base.nc = net.nc = nc  # attach number of classes to model
+    base.hyp = net.hyp = hyp  # attach hyperparameters to model
+    base.class_weights = net.class_weights = class_weights
+    base.names = net.names = names
     
     # loss function ------------------------------------------------------------
     if task == 'classification':
@@ -821,7 +886,7 @@ def finetune_hyp(proj_info, basemodel, hyp, opt, data_dict, tb_writer=None):
         elif opt.loss_name == 'FL':
             compute_loss = FocalLossCE()
         else:
-            logger.warn(f'not supported loss function {opt.loss_name}')
+            logger.warning(f'not supported loss function {opt.loss_name}')
     else: # if task == 'detection':
         if opt.loss_name == 'TAL':
             compute_loss = ComputeLossTAL(net)
@@ -837,20 +902,21 @@ def finetune_hyp(proj_info, basemodel, hyp, opt, data_dict, tb_writer=None):
     # Start fine tuning --------------------------------------------------------
 
     start_epoch, best_fitness = 0, 0.0
-    # Start training
     t0 = time.time()
+    nb = len(dataloader)  # number of batches == steps per epoch
     nw = max(round(hyp['warmup_epochs'] * nb), 1000)  # number of warmup iterations, max(3 epochs, 1k iterations)
     nw = min(nw, (epochs - start_epoch) / 2 * nb)  # limit warmup to < 1/2 of training
+
     maps = np.zeros(nc)  # mAP per class
     results = (0, 0, 0, 0, 0, 0, 0)  # P, R, mAP@.5, mAP@.5-.95, val_loss(box, obj, cls)
+
     scheduler.last_epoch = start_epoch - 1  # do not move
-    # scaler = amp.GradScaler(enabled=cuda)
 
     logger.info(f'Image sizes {imgsz} train, {imgsz_test} test\n'
                 f'Using {dataloader.num_workers} dataloader workers\n'
-                # f'Logging results to {save_dir}\n'
-                f'Starting finetuing for {epochs} epochs...')
-    # torch.save(model, wdir / 'init.pt')
+                f'       Starting training for {epochs} epochs...\n'
+                f'       Warming up for the first {nw} iters({nw//nb} epochs)')
+
     for epoch in range(start_epoch, epochs):
         net.train()
 
@@ -868,12 +934,16 @@ def finetune_hyp(proj_info, basemodel, hyp, opt, data_dict, tb_writer=None):
                 if rank != 0:
                     dataset.indices = indices.cpu().numpy()
     
-        # Update mosaic border
-        # b = int(random.uniform(0.25 * imgsz, 0.75 * imgsz + gs) // gs * gs)
-        # dataset.mosaic_border = [b - imgsz, -b]  # height, width borders
+        # Stop mosaic augmentation
+        if is_v9 and epoch == (epochs - opt.close_mosaic):
+            logger.info("Closing dataloader mosaic")
+            dataset.mosaic = False
     
         # mean loss
-        mloss = torch.zeros(4, device=device)  # mean losses
+        if is_v9:
+            mloss = torch.zeros(3, device=device)
+        else:
+            mloss = torch.zeros(4, device=device)  # mean losses
 
         # distribute data
         if rank != -1:
@@ -881,11 +951,16 @@ def finetune_hyp(proj_info, basemodel, hyp, opt, data_dict, tb_writer=None):
 
         # progress bar
         pbar = enumerate(dataloader)
-        # logger.info(('\n' + '%10s' * 8) % ('Epoch', 'gpu_mem', 'box', 'obj', 'cls', 'total', 'labels', 'img_size'))
-        # if rank in [-1, 0]:
-        #     pbar = tqdm(pbar, total=nb)  # progress bar
+        if is_v9:
+            title_s = ('\n' + '%11s' * 7) % (
+                'Epoch', 'GPU_Mem', 'box', 'cls', 'dfl', 'Labels', 'Img_Size'
+            )
+        else: # v7
+            title_s = ('\n' + '%11s' * 8) % (
+                'Epoch', 'GPU_Mem', 'Box', 'Obj', 'Cls', 'Total', 'Labels', 'Img_Size'
+            )
 
-        # optimizer.zero_grad()
+        optimizer.zero_grad()
         # finetuing batches start ==============================================
         for i, (imgs, targets, paths, _) in pbar:
             ni = i + nb * epoch  # number integrated batches (since train start)
@@ -895,7 +970,7 @@ def finetune_hyp(proj_info, basemodel, hyp, opt, data_dict, tb_writer=None):
             if ni <= nw:
                 xi = [0, nw]  # x interp
                 # model.gr = np.interp(ni, xi, [0.0, 1.0])  # iou loss ratio (obj_loss = 1.0 or iou)
-                accumulate = max(1, np.interp(ni, xi, [1, nbs / max(total_batch_size, 1)]).round())
+                accumulate = max(1, np.interp(ni, xi, [1, nbs / max(batch_size, 1)]).round())
                 for j, x in enumerate(optimizer.param_groups):
                     # bias lr falls from 0.1 to lr0, all other lrs rise from 0.0 to lr0
                     x['lr'] = np.interp(ni, xi, [hyp['warmup_bias_lr'] if j == 2 else 0.0, x['initial_lr'] * lf(epoch)])
@@ -911,8 +986,7 @@ def finetune_hyp(proj_info, basemodel, hyp, opt, data_dict, tb_writer=None):
                     imgs = F.interpolate(imgs, size=ns, mode='bilinear', align_corners=False)     
                     
             # Forward
-            optimizer.zero_grad()
-            # with amp.autocast(enabled=cuda):
+            # optimizer.zero_grad()
             pred = net(imgs)  # forward
             # if 'loss_ota' not in hyp or hyp['loss_ota'] == 1:
             if 'OTA' in opt.loss_name: #opt.loss_name == 'OTA':
@@ -925,92 +999,122 @@ def finetune_hyp(proj_info, basemodel, hyp, opt, data_dict, tb_writer=None):
                 loss *= 4.    
             
             # Backward
-            # scaler.scale(loss).backward()
             loss.requires_grad_(True)
             loss.backward()
 
             # Optimize
             if ni % accumulate == 0:
-                # scaler.step(optimizer)  # optimizer.step
-                # scaler.update()
                 optimizer.step()
                 optimizer.zero_grad()
                 if ema:
-                    ema.update(net)
+                    ema.update(de_parallel(net))
                     
             # Print
             if rank in [-1, 0]:
                 mloss = (mloss * i + loss_items) / (i + 1)  # update mean losses
                 mem = '%.3gG' % (torch.cuda.memory_reserved() / 1E9 if torch.cuda.is_available() else 0)  # (GB)
-                s = ('%10s' * 2 + '%10.4g' * 6) % (
-                    '%g/%g' % (epoch, epochs - 1), mem, *mloss, targets.shape[0], imgs.shape[-1])
-                # pbar.set_description(s)
+                if is_v9:
+                    s = ('%11s' * 2 + '%11.4g' * 5) % (
+                        '%g/%g' % (epoch, epochs - 1), mem,         # epoch/total, gpu_mem
+                        *mloss, targets.shape[0], imgs.shape[-1]    # box, dfl, cls, labels, imgsz
+                    )
+                else:
+                    s = ('%10s' * 2 + '%11.4f' * 4 + '%11.0f' * 2) % (
+                        '%g/%g' % (epoch, epochs - 1), mem,         # epoch/total, gpu_mem
+                        *mloss, targets.shape[0], imgs.shape[-1]    # box, obj, cls, total, labels, imgsz
+                    )
+                ten_percent_cnt = int((i+1)/nb*10+0.5)
+                bar = '|'+ '#'*ten_percent_cnt + ' '*(10-ten_percent_cnt)+'|'
+                content_s = s + (f'{bar}{(i+1)/nb*100:3.0f}% {i+1:4.0f}/{nb:4.0f}')
+                if (i % 50) == 0:
+                    logger.info(title_s)
+                logger.info(content_s)
         # finetuning batches end ===============================================
         
         # Scheduler
-        lr = [x['lr'] for x in optimizer.param_groups]  # for tensorboard
         scheduler.step()
         
         # DDP process 0 or single-GPU test =====================================
         if rank in [-1, 0]:
             # mAP
-            ema.update_attr(net, include=['yaml', 'nc', 'hyp', 'gr', 'names', 'stride', 'class_weights'])
-            final_epoch = epoch + 1 == epochs
+            if is_v9:
+                ema.update_attr(de_parallel(net),
+                        include=['yaml', 'nc', 'hyp', 'names', 'stride', 'class_weights'])
+            else:
+                ema.update_attr(de_parallel(net),
+                        include=['yaml', 'nc', 'hyp', 'gr', 'names', 'stride', 'class_weights'])
+
+            final_epoch = (epoch + 1 == epochs)
+
+            results = None
             if not opt.notest or final_epoch:  # Calculate mAP
-                # wandb_logger.current_epoch = epoch + 1
-                results, maps, times =  test.test(proj_info,
-                                                  data_dict,
-                                                  batch_size=opt.batch_size, # * 2,
-                                                  imgsz=imgsz_test,
-                                                  model=ema.ema,
-                                                  conf_thres=0.001,
-                                                  iou_thres=0.7,
-                                                  single_cls=opt.single_cls,
-                                                  dataloader=testloader,
-                                                  verbose=nc < 50 and final_epoch,
-                                                  # save_dir=save_dir,
-                                                  save_json=False,
-                                                  plots=False,
-                                                  is_coco=is_coco,
-                                                  metric=opt.metric)
+                results, maps, times =  test.test(
+                    proj_info,
+                    data_dict,
+                    batch_size=opt.batch_size, # * 2,
+                    imgsz=imgsz_test,
+                    model=ema.ema,
+                    conf_thres=0.001,
+                    iou_thres=0.7,
+                    single_cls=opt.single_cls,
+                    dataloader=testloader,
+                    verbose=nc < 50 and final_epoch,
+                    plots=False,
+                    half_precision=False,
+                    compute_loss=None,
+                    save_json=False,
+                    is_coco=is_coco,
+                    metric=opt.metric
+                )
             # Update best mAP
-            fi = fitness(np.array(results).reshape(1, -1))  # weighted combination of [P, R, mAP@.5, mAP@.5-.95]
-            if fi > best_fitness:
-                best_fitness = fi
-                
-            if best_fitness == fi:
-                ckpt = {'epoch': epoch,
-                        'best_fitness': best_fitness,
-                        # 'training_results': results_file.read_text(),
-                        'model': deepcopy(net.module if is_parallel(net) else net).half(),
-                        'ema': deepcopy(ema.ema).half(),
-                        'updates': ema.updates,
-                        'optimizer': optimizer.state_dict()}
-                torch.save(ckpt, search_best)
-                del ckpt
+            fi = None
+            if results is not None:
+                fi = fitness(np.array(results).reshape(1, -1))  # weighted combination of [P, R, mAP@.5, mAP@.5-.95]
+
+            if not opt.nosave or final_epoch:
+                if fi is not None and fi > best_fitness:
+                    ckpt = {'epoch': epoch,
+                            'best_fitness': best_fitness,
+                            'model': deepcopy(de_parallel(net)).half(),
+                            'ema': deepcopy(ema.ema).half(),
+                            'updates': ema.updates,
+                            'optimizer': optimizer.state_dict()}
+                    torch.save(ckpt, search_best)
+                    del ckpt
+
+                    mb = os.path.getsize(search_best) / 1E6 # file size
+                    logger.info(f"epoch {epoch} : {search_best} {mb:.1f} MB")
+
+                    best_fitness = float(fi)
+
+        # DDP Sync
+        if dist.is_available() and dist.is_initialized(): 
+            dist.barrier()
         # end validation =======================================================
 
     # end finetuning -----------------------------------------------------------
-    if not rank in [-1, 0]:
-        dist.destroy_process_group()
 
-    # delete Model -------------------------------------------------------------
-    del net
-    torch.cuda.empty_cache()
-    gc.collect()
+    # net_pt = search_best if search_best.exists() else None
 
     # strip optimizer ----------------------------------------------------------
     # [TENACE] what does strip_optimizer do:
     # 1. load .pt
     # 2. 'model' <- 'ema'
-    # 3. 'ema', 'optimizer', 'training_results', 'wandb_id', 'updates' -> None
+    # 3. 'ema', 'optimizer', 'training_results', 'updates' -> None
     # 4. 'epoch' -> -1
     # 5. model.half()   *** removed by tenace ***
     # 6. requires_grad -> False
     # 7. save .pt
-    subnet_pt = search_best if search_best.exists() else None
-    # if subnet_pt:
-    #     strip_optimizer(subnet_pt)
+    # if net_pt:
+    #     strip_optimizer(net_pt)
 
-    # return str(subnet_pt), results
+    # cleanup ------------------------------------------------------------------
+    del ema
+    del optimizer
+    del net
+    torch.cuda.empty_cache()
+    gc.collect()
+    if dist.is_available() and dist.is_initialized(): 
+        dist.destroy_process_group()
+
     return results

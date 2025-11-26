@@ -1,0 +1,67 @@
+# =======================
+# Frontend: Node 20 + React
+# =======================
+
+FROM node:20-alpine AS frontend_builder
+
+WORKDIR /frontend
+
+# 의존성 설치
+COPY ./visualization/package.json ./
+RUN npm install --force
+
+# 소스 빌드
+COPY ./visualization ./
+RUN npm run build
+
+
+# =======================
+# Backend: CUDA 13.0 + Python 3.10
+# =======================
+FROM nvidia/cuda:13.0.0-cudnn-runtime-ubuntu22.04
+
+ENV DEBIAN_FRONTEND=noninteractive \
+    PIP_DEFAULT_TIMEOUT=1000 \
+    PYTORCH_SDP_DISABLE_FLASH_ATTENTION=1 \
+    TORCH_CUDA_ARCH_LIST="12.0+PTX;9.0;8.9;8.6;8.0;7.0" \
+    PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1
+
+WORKDIR /source
+
+# -------- Edge-TPU(옵션, 필요시 해제) --------
+# RUN curl https://packages.cloud.google.com/apt/doc/apt-key.gpg | apt-key add -
+# RUN echo "deb https://packages.cloud.google.com/apt coral-edgetpu-stable main" | tee /etc/apt/sources.list.d/coral-edgetpu.list
+
+# -------- 시스템 의존성 --------
+RUN apt-get update && apt-get upgrade -y && \
+    apt-get install -y --no-install-recommends \
+      python3.10 python3.10-distutils \
+      python3-pip python3-dev build-essential git curl ca-certificates \
+      libgl1-mesa-glx libglib2.0-0 && \
+    ln -s /usr/bin/python3.10 /usr/bin/python && \
+    rm -rf /var/lib/apt/lists/*
+
+# pip 최신화
+RUN python3 -m pip install --upgrade pip setuptools wheel
+
+# -------- PyTorch (CUDA 13.0, cu130) --------
+RUN rm -rf /root/.cache/torch_extensions
+
+RUN pip install --no-cache-dir \
+    --index-url https://download.pytorch.org/whl/cu130 \
+    torch torchvision torchaudio
+
+# -------- 나머지 파이썬 의존성 --------
+COPY requirements.cu130.txt ./requirements.txt
+RUN pip install --no-cache-dir -r requirements.txt
+
+# -------- 앱 소스 복사 --------
+COPY . .
+
+# 프론트엔드 빌드 결과 복사
+COPY --from=frontend_builder /frontend /frontend
+
+# Django 포트
+EXPOSE 8100
+

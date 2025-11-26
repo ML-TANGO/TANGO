@@ -1,9 +1,9 @@
 import os
+
 # import shutil
 import sys
 from pathlib import Path
-from typing import (Any, Dict, Mapping, MutableMapping, Optional, Tuple, Union,
-                    cast)
+from typing import Any, Dict, Mapping, MutableMapping, Optional, Tuple, Union, cast
 
 import toml
 import trafaret as t
@@ -20,7 +20,6 @@ __all__ = (
 
 
 class ConfigurationError(Exception):
-
     invalid_data: Mapping[str, Any]
 
     def __init__(self, invalid_data: Mapping[str, Any]) -> None:

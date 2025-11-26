@@ -1,0 +1,15 @@
+build:
+  architecture: x86
+  accelerator: npu
+  image_uri: bai-repo:7080/bai/atom-runtime:latest
+
+deploy:
+  type: compute-session
+  service_name: tango-atom-inference
+  resources:
+    cpu: 8
+    memory: 32768  # MB
+    atom-max.device: 1
+  model_service:
+    model: Qwen25-14b
+    scaling_group: atom-max

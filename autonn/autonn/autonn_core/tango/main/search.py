@@ -23,7 +23,7 @@ from tango.nas.predictors.accuracy_predictor import AccuracyCalculator
 
 logger = logging.getLogger(__name__)
 
-def search(proj_info, hyp, opt, data_dict, model):
+def search(proj_info, hyp, opt, data_dict, device, model):
     # project information ------------------------------------------------------
     userid = proj_info['userid']
     project_id = proj_info['project_id']
@@ -49,7 +49,7 @@ def search(proj_info, hyp, opt, data_dict, model):
     opt = argparse.Namespace(**opt)
 
     # device -------------------------------------------------------------------
-    device = select_device(opt.device)
+    # device = select_device(opt.device)
 
     # create model -------------------------------------------------------------
     if model:
@@ -62,7 +62,9 @@ def search(proj_info, hyp, opt, data_dict, model):
     efficiency_predictor = LatencyPredictor(target=target, target_acc=acc, device=device)
 
     # build accuracy predictor -------------------------------------------------
-    accuracy_predictor = AccuracyCalculator(proj_info, hyp, opt, data_dict, supernet)
+    accuracy_predictor = AccuracyCalculator(
+        proj_info, hyp, opt, data_dict, device, supernet
+    )
 
     # build the evolution finder -----------------------------------------------
     finder = EvolutionFinder(

@@ -10,13 +10,6 @@ services:
     # -- command is not requred in favor of s6-overlay supervisor
     # command: >
     #   ./entrypoint.sh
-    environment:
-      - CLOUD_MANAGER_DEBUG=1
-      - CLOUD_MANAGER_PORT=8890
-      # Google Cloud configurartion
-      - GOOGLE_APPLICATION_CREDENTIALS=/source/cloud_manager/service-account-file.json
-      - GCP_REGION=asia-northeast3
-      - GCP_PROJECT_ID=backendai-testbed
     env_file:
       # Should fill AWS configurations
       - .env

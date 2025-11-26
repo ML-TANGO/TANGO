@@ -17,6 +17,7 @@ urlpatterns = [
     # API endpoints
     path('api/', include(router.urls)),
     path('api/pth/', views.pth_list, name='PthList'),
+    path('api/active-info/', views.active_info, name='ActiveInfo'),
 
     # Actions
     path('start', views.start, name='StartAutoNN'),

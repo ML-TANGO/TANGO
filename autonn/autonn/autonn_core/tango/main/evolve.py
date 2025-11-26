@@ -15,14 +15,16 @@ logger = logging.getLogger(__name__)
 
 from . import status_update
 from .finetune import finetune_hyp
-from tango.utils.general import (   fitness,
-                                    print_mutation
-                                )
+from tango.utils.general import (   
+    fitness,
+    print_mutation,
+    colorstr,
+)
 
 import argparse
 
 
-def evolve(proj_info, hyp, opt, data):
+def evolve(proj_info, hyp, opt, data, device, basemodel):
     # Hyperparameter evolution metadata (mutation scale 0-1, lower_limit, upper_limit)
     meta = {'lr0': (1, 1e-5, 1e-1),  # initial learning rate (SGD=1E-2, Adam=1E-3)
             'lrf': (1, 0.01, 1.0),  # final OneCycleLR learning rate (lr0 * lrf)
@@ -68,10 +70,11 @@ def evolve(proj_info, hyp, opt, data):
     hpo_yaml = str(CFG_PATH / 'args-hpo.yaml')
     with open(hpo_yaml, 'r') as f:
         hpo_opt = yaml.safe_load(f)
-    logger.info(f'HPO: With pretrained model {opt.weights}')
+    logger.info(f'{colorstr("HPO: ")}With pretrained model {opt.weights}')
     assert opt.local_rank == -1, 'DDP mode not implemented for --evolve'
     
-    opt.notest, opt.nosave = True, True  # only test/save final epoch
+    # user_defined_notest, user_defined_nosave = opt.notest, opt.nosave
+    # opt.notest, opt.nosave = True, True  # only test/save final epoch
     opt = vars(opt)
     opt = {**opt, **hpo_opt}
     opt = argparse.Namespace(**opt)
@@ -80,26 +83,21 @@ def evolve(proj_info, hyp, opt, data):
     opt.finetune_epochs = vars(opt).get('finetune_epochs', 1)
     basemodel = vars(opt).get('weights', None)
 
-    # hyperparameters ----------------------------------------------------------
-    # with open(opt.hyp, errors='ignore') as f:
-    #     hyp = yaml.safe_load(f)  # load hyps dict
-    #     if 'anchors' not in hyp:  # anchors commented in hyp.yaml
-    #         hyp['anchors'] = 3
-    hyp_ev = {}
-    hyp_ev['lr0'] = hyp['lr0']
-    hyp_ev['lrf'] = hyp['lrf']
-    hyp_ev['momentum'] = hyp['momentum']
-    hyp_ev['weight_decay'] = hyp['weight_decay']
-    hyp_ev['warmup_epochs'] = hyp['warmup_epochs']
-    hyp_ev['warmup_momentum'] = hyp['warmup_momentum']
-    hyp_ev['warmup_bias_lr'] = hyp['warmup_bias_lr']
+    # hyperparameters evolved --------------------------------------------------
+    hyp_ev = {
+        'lr0': hyp['lr0'],                          # 초기 학습률 (initial learning rate)
+        'lrf': hyp['lrf'],                          # 최종 학습률 (final learning rate)
+        'momentum': hyp['momentum'],                # 모멘텀
+        'weight_decay': hyp['weight_decay'],        # 가중치 감쇠
+        'warmup_epochs': hyp['warmup_epochs'],      # 워밍업 기간 (에폭 수)
+        'warmup_momentum': hyp['warmup_momentum'],  # 워밍업 시 모멘텀
+        'warmup_bias_lr': hyp['warmup_bias_lr']     # 워밍업 시 바이어스의 학습률
+    }
 
     # set files to be saved  ---------------------------------------------------
     # ei = [isinstance(x, (int, float)) for x in hyp.values()]  # evolvable indices
     yml_file = Path(opt.save_dir) / 'hyp_evolved.yaml'  # save best result here
     txt_file = Path(opt.save_dir) / 'evolve.txt'
-    if opt.bucket:
-        os.system('gsutil cp gs://%s/evolve.txt .' % opt.bucket)  # download evolve.txt if exists
 
     # optimal hyperparameters searching ----------------------------------------
     for gen in range(total_gen):  # generations to evolve
@@ -130,11 +128,11 @@ def evolve(proj_info, hyp, opt, data):
         
         # Constrain to limits
         for k, v in meta.items():
-            hyp_ev[k] = max(hyp_ev[k], v[1])  # lower limit
-            hyp_ev[k] = min(hyp_ev[k], v[2])  # upper limit
-            hyp_ev[k] = round(hyp_ev[k], 5)  # significant digits
+            # logger.info(f"param: (mutation scale, init, final) {k:^15}:{v}")
+            hyp_ev[k] = max(hyp_ev[k], v[1])    # lower limit
+            hyp_ev[k] = min(hyp_ev[k], v[2])    # upper limit
+            hyp_ev[k] = round(hyp_ev[k], 5)     # significant digits
 
-        # Report
         hyp['lr0'] = hyp_ev['lr0']
         hyp['lrf'] = hyp_ev['lrf']
         hyp['momentum'] = hyp_ev['momentum']
@@ -143,18 +141,22 @@ def evolve(proj_info, hyp, opt, data):
         hyp['warmup_momentum'] = hyp_ev['warmup_momentum']
         hyp['warmup_bias_lr'] = hyp_ev['warmup_bias_lr']
 
+        # Report
         status_update(userid, project_id,
                       update_id='hyperparameter',
                       update_content=hyp.copy())
 
         # Train mutation
         opt.gen = gen
-        results = finetune_hyp(proj_info, basemodel, hyp.copy(), opt, data, tb_writer=None)
+        results = finetune_hyp(
+            proj_info, basemodel, hyp.copy(), opt, data, device, tb_writer=None
+        )
 
         # Write mutation results
-        logger.info(f'\nHPO: Generation #{gen+1}/{total_gen}')
+        logger.info(f'\n{colorstr("HPO: ")}Generation #{gen+1}/{total_gen}')
         logger.info('_'*150)
         print_mutation(hyp_ev.copy(), results, str(yml_file), str(txt_file)) #, opt.bucket)
         logger.info('_'*150)
 
+    # opt.notest, opt.nosave = user_defined_notest, user_defined_nosave  # roll back to user-defiend values
     return hyp_ev.copy(), yml_file, txt_file

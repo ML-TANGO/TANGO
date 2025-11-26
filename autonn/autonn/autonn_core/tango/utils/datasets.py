@@ -1,5 +1,8 @@
 # Dataset utils and dataloaders
 
+# ----------------------------------------------------------------------
+# 표준 라이브러리
+# ----------------------------------------------------------------------
 import glob
 import logging
 import math
@@ -7,55 +10,79 @@ import os
 import random
 import shutil
 import time
-import cv2
-import numpy as np
-from PIL import Image, ImageOps, ExifTags
-from tqdm import tqdm
-from typing import Any, Callable, cast, Dict, List, Optional, Tuple, Union
 from itertools import repeat
 from multiprocessing.pool import ThreadPool, Pool
 from threading import Thread
 from pathlib import Path
 
+# ----------------------------------------------------------------------
+# 타입 힌트
+# ----------------------------------------------------------------------
+from typing import (
+    Any,
+    Callable,
+    Dict,
+    List,
+    Optional,
+    Tuple,
+    Union,
+    cast,
+)
+
+# ----------------------------------------------------------------------
+# 외부 라이브러리 (이미지/수치/진행바)
+# ----------------------------------------------------------------------
+import cv2
+import numpy as np
+from PIL import Image, ImageOps, ExifTags
+from tqdm import tqdm
+
+# ----------------------------------------------------------------------
+# PyTorch & TorchVision
+# ----------------------------------------------------------------------
 import torch
 import torch.nn.functional as F
-from torch.utils.data import Dataset
-from torchvision.utils import save_image
-from torchvision.ops import roi_pool, roi_align, ps_roi_pool, ps_roi_align
+from torch.utils.data import Dataset, DataLoader
 from torchvision.datasets import DatasetFolder
 
+# ----------------------------------------------------------------------
+# 프로젝트 내부 모듈
+# ----------------------------------------------------------------------
 from tango.main import status_update
-from tango.utils.general import (check_requirements,
-                                 check_version,
-                                 xyxy2xywh,
-                                 xyxy2xywh_v9,
-                                 xyxy2xywhn,
-                                 xywh2xyxy,
-                                 xywh2xyxy_v9,
-                                 xywhn2xyxy,
-                                 xywhn2xyxy_v9,
-                                 xyn2xy,
-                                 xyn2xy_v9,
-                                 segment2box,
-                                 segments2boxes,
-                                 resample_segments,
-                                 clean_str,
-                                 colorstr,
-                                )
+from tango.utils.general import (
+    check_requirements,
+    check_version,
+    xyxy2xywh,
+    xyxy2xywhn,
+    xywh2xyxy,
+    xywh2xyxy_v9,
+    xywhn2xyxy,
+    xywhn2xyxy_v9,
+    xyn2xy,
+    xyn2xy_v9,
+    segment2box,
+    segments2boxes,
+    resample_segments,
+    clean_str,
+    colorstr,
+)
 from tango.utils.torch_utils import torch_distributed_zero_first
+
 
 # Parameters
 help_url = 'https://github.com/ML-TANGO/TANGO/wiki'
 img_formats = ['bmp', 'jpg', 'jpeg', 'png', 'tif', 'tiff', 'dng', 'webp', 'mpo']  # acceptable image suffixes
 vid_formats = ['mov', 'avi', 'mp4', 'mpg', 'mpeg', 'm4v', 'wmv', 'mkv']  # acceptable video suffixes
-GLOBAL_RANK = int(os.getenv('GLOBAL_RANK', -1))
+
+GLOBAL_RANK = int(os.getenv('RANK', -1))
+LOCAL_RANK  = int(os.getenv('LOCAL_RANK', -1))
 NUM_THREADS = min(8, max(1, os.cpu_count() - 1))
-''' 
-Suppose we run our training in 2 nodes and each node has 4 GPUs. 
-- The WORLD_SIZE is 4*2=8. 
-- The GLOBAL_RANK for the processes will be [0, 1, 2, 3, 4, 5, 6, 7]. 
-- In each node, the LOCAL_RANK will be [0, 1, 2, 3].
-'''
+# ──────────────────────────────────────────────
+# Suppose we run our training in 2 nodes and each node has 4 GPUs. 
+# - The WORLD_SIZE is 4*2=8. 
+# - The GLOBAL_RANK for the processes will be [0, 1, 2, 3, 4, 5, 6, 7]. 
+# - In each node, the LOCAL_RANK will be [0, 1, 2, 3].
+# ──────────────────────────────────────────────
 
 logger = logging.getLogger(__name__)
 
@@ -151,6 +178,93 @@ def seed_worker(worker_id):
     random.seed(worker_seed)
 
 
+def create_dataloader_cls(
+    dataset,
+    batch_size,
+    rank: int = -1,
+    workers: int = 8,
+    drop_last: bool = True,
+    pin_memory: bool = True,
+    prefix: str = '',
+    shuffle: bool = False
+):
+    # --- Basic validation
+    n_samples = len(dataset)
+    if n_samples == 0:
+        logger.warning("Dataset is empty!")
+    batch_size = min(batch_size, n_samples)
+
+    # --- Determine number of workers
+    # Use at most the available CPU cores, the batch size, and the user-defineds limit
+    max_workers = os.cpu_count() or 1
+    nw = min([max_workers, batch_size if batch_size > 1 else 0, workers])
+
+    # -- Set mode-dependent options
+    # Training mode: shuffle and drop imcomplete batch
+    # Validation/Test mode: no shuffle and keep all samples
+    is_train = (prefix == "train")
+    drop_last = True if is_train else False
+
+    # --- Create sampler
+    sampler = None if rank == -1 else torch.utils.data.distributed.DistributedSampler(
+        dataset,
+        shuffle=shuffle,
+        drop_last=drop_last
+    )
+
+    # --- Enable pin_memory only if CUDA is available
+    pin_memory = pin_memory and torch.cuda.is_available()
+
+    # --- Build Dataloader for classification
+    return DataLoader(
+        dataset,
+        batch_size=batch_size,
+        shuffle=shuffle and sampler is None,
+        sampler=sampler,
+        num_workers=nw,
+        drop_last=drop_last,
+        pin_memory=pin_memory,
+        persistent_workers=(nw > 0),
+    )
+
+
+# ──────────────────────────────────────────────
+# Dataloader & Sampler configuration summary
+# ──────────────────────────────────────────────
+# TRAIN + Single GPU (non-DDP)
+#   - DataLoader.shuffle      = True
+#   - DataLoader.drop_last    = True
+#   - Sampler                 = None
+#   - Sampler.shuffle         = N/A
+#   - Sampler.drop_last       = N/A
+#   → Random shuffling handled by DataLoader itself
+#     and last incomplete batch is dropped for stability.
+#
+# TRAIN + DDP
+#   - DataLoader.shuffle      = False
+#   - DataLoader.drop_last    = True
+#   - Sampler                 = DistributedSampler
+#   - Sampler.shuffle         = True
+#   - Sampler.drop_last       = True
+#   → DistributedSampler handles shuffling.
+#     Must call sampler.set_epoch(epoch) each epoch.
+#
+# VAL/TEST + Single GPU
+#   - DataLoader.shuffle      = False
+#   - DataLoader.drop_last    = False
+#   - Sampler                 = None
+#   - Sampler.shuffle         = N/A
+#   - Sampler.drop_last       = N/A
+#   → No shuffling; evaluate on all samples.
+#
+# VAL/TEST + DDP
+#   - DataLoader.shuffle      = False
+#   - DataLoader.drop_last    = False
+#   - Sampler                 = DistributedSampler
+#   - Sampler.shuffle         = False
+#   - Sampler.drop_last       = False
+#   → Each process gets a subset of data; no shuffle.
+# ──────────────────────────────────────────────
 def create_dataloader_v9(path,
                       imgsz,
                       batch_size,
@@ -195,9 +309,13 @@ def create_dataloader_v9(path,
         )
 
     batch_size = min(batch_size, len(dataset))
-    nd = torch.cuda.device_count()  # number of CUDA devices
+    nd = torch.cuda.device_count() if prefix == 'train' else 1  # number of CUDA devices
     nw = min([os.cpu_count() // max(nd, 1), batch_size if batch_size > 1 else 0, workers])  # number of workers
-    sampler = None if rank == -1 else torch.utils.data.distributed.DistributedSampler(dataset, shuffle=shuffle)
+    sampler = None if rank == -1 else torch.utils.data.distributed.DistributedSampler(
+        dataset,
+        shuffle=shuffle,
+        drop_last=True if prefix == 'train' else False
+    )
     #loader = DataLoader if image_weights else InfiniteDataLoader  # only DataLoader allows for attribute updates
     loader = torch.utils.data.DataLoader if image_weights or close_mosaic else InfiniteDataLoader
     generator = torch.Generator()
@@ -731,10 +849,13 @@ class LoadImagesAndLabels_v9(Dataset):
         nm, nf, ne, nc, msgs = 0, 0, 0, 0, []  # number missing, found, empty, corrupt, messages
         dataset_info = {}
         dataset_info['total'] = len(self.im_files)
-        desc = f'\n{colorstr(f"{prefix}_dataset: ")}Scanning {path.parent / path.stem}...'
-        logger.info(desc)
-        title_s =('%10s' * 4) % ('found', 'missing', 'empty', 'corrupted')
-        logger.info(f'\n{title_s}')
+
+        if GLOBAL_RANK in [-1, 0]:
+            desc = f'\n{colorstr(f"{prefix}_dataset: ")}Scanning {path.parent / path.stem}...'
+            logger.info(desc)
+            title_s =('%10s' * 4) % ('found', 'missing', 'empty', 'corrupted')
+            logger.info(f'\n{title_s}')
+
         with Pool(NUM_THREADS) as pool:
             # pbar = tqdm(pool.imap(verify_image_label, zip(self.im_files, self.label_files, repeat(prefix))),
             #             desc=desc,
@@ -750,48 +871,53 @@ class LoadImagesAndLabels_v9(Dataset):
                     x[im_file] = [lb, shape, segments]
                 if msg:
                     msgs.append(msg)
-                # pbar.desc = f"{desc} {nf} images, {nm + ne} backgrounds, {nc} corrupt"
-                ten_percent_cnt = int((i+1)/len(self.im_files)*10+0.5)
-                bar = '|'+ '#'*ten_percent_cnt + ' '*(10-ten_percent_cnt)+'|'
-                s = f'{nf:10.0f}{nm:10.0f}{ne:10.0f}{nc:10.0f}'
-                s += (f'{bar} {(i+1)/len(self.im_files)*100:3.0f}% {i+1:6.0f}/{len(self.im_files):6.0f}')
-                if (i+1) % 5000 == 0:
-                    logger.info(s)
-                    dataset_info['current'] = i+1
-                    dataset_info['found'] = nf
-                    dataset_info['missing'] = nm
-                    dataset_info['empty'] = ne
-                    dataset_info['corrupted'] = nc
-                    if self.userid != None and self.project_id != None:
-                        status_update(self.userid, self.project_id,
-                                    update_id=f"{prefix}_dataset",
-                                    update_content=dataset_info)
-        # pbar.close()
-        if (i+1) % 5000 != 0:
-            logger.info(s)
-            dataset_info['current'] = i+1
-            dataset_info['found'] = nf
-            dataset_info['missing'] = nm
-            dataset_info['empty'] = ne
-            dataset_info['corrupted'] = nc
-            if self.userid != None and self.project_id != None:
-                status_update(self.userid, self.project_id,
-                            update_id=f"{prefix}_dataset",
-                            update_content=dataset_info)
-        if msgs:
-            logger.info('\n'.join(msgs))
-        if nf == 0:
-            logger.warning(f'{colorstr(f"{prefix}_dataset: ")}WARNING ⚠️ No labels found in {path}.')
+
+                # in-loop logging
+                if GLOBAL_RANK in [-1, 0]:
+                    # pbar.desc = f"{desc} {nf} images, {nm + ne} backgrounds, {nc} corrupt"
+                    ten_percent_cnt = int((i+1)/len(self.im_files)*10+0.5)
+                    bar = '|'+ '#'*ten_percent_cnt + ' '*(10-ten_percent_cnt)+'|'
+                    s = f'{nf:10.0f}{nm:10.0f}{ne:10.0f}{nc:10.0f}'
+                    s += (f'{bar} {(i+1)/len(self.im_files)*100:3.0f}% {i+1:6.0f}/{len(self.im_files):6.0f}')
+                    if (i+1) % 5000 == 0:
+                        logger.info(s)
+                        dataset_info.update(dict(
+                            current=i+1, found=nf, missing=nm, empty=ne, corrupted=nc
+                        ))
+                        if self.userid != None and self.project_id != None:
+                            status_update(self.userid, self.project_id,
+                                          update_id=f"{prefix}_dataset",
+                                          update_content=dataset_info)
+        # end-of-loop logging
+        if GLOBAL_RANK in [-1, 0]:
+            # pbar.close()
+            if (i+1) % 5000 != 0:
+                logger.info(s)
+                dataset_info.update(dict(
+                    current=i+1, found=nf, missing=nm, empty=ne, corrupted=nc
+                ))
+                if self.userid != None and self.project_id != None:
+                    status_update(self.userid, self.project_id,
+                                  update_id=f"{prefix}_dataset",
+                                  update_content=dataset_info)
+            if msgs:
+                logger.info('\n'.join(msgs))
+            if nf == 0:
+                logger.warning(f'{colorstr(f"{prefix}_dataset: ")}WARNING ⚠️ No labels found in {path}.')
+        
         x['hash'] = get_hash_v9(self.label_files + self.im_files)
         x['results'] = nf, nm, ne, nc, len(self.im_files)
         x['msgs'] = msgs  # warnings
         x['version'] = self.cache_version  # cache version
-        try:
-            np.save(path, x)  # save cache for next time
-            path.with_suffix('.cache.npy').rename(path)  # remove .npy suffix
-            logger.info(f'{colorstr(f"{prefix}_dataset: ")}New cache created: {path}')
-        except Exception as e:
-            logger.warning(f'{colorstr(f"{prefix}_dataset: ")}WARNING ⚠️ Cache directory {path.parent} is not writeable: {e}')  # not writeable
+
+        # Cache 저장도 process-0에서만
+        if GLOBAL_RANK in [-1, 0]:
+            try:
+                np.save(path, x)  # save cache for next time
+                path.with_suffix('.cache.npy').rename(path)  # remove .npy suffix
+                logger.info(f'{colorstr(f"{prefix}_dataset: ")}New cache created: {path}')
+            except Exception as e:
+                logger.warning(f'{colorstr(f"{prefix}_dataset: ")}WARNING ⚠️ Cache directory {path.parent} is not writeable: {e}')  # not writeable
         return x
 
     def __len__(self):
@@ -2013,7 +2139,7 @@ def copy_paste_v9(im, labels, segments, p=0.5):
 
         # calculate ioa first then select indexes randomly
         boxes = np.stack([w - labels[:, 3], labels[:, 2], w - labels[:, 1], labels[:, 4]], axis=-1)  # (n, 4)
-        ioa = bbox_ioa(boxes, labels[:, 1:5])  # intersection over area
+        ioa = bbox_ioa_v9(boxes, labels[:, 1:5])  # intersection over area
         indexes = np.nonzero((ioa < 0.30).all(1))[0]  # (N, )
         n = len(indexes)
         for j in random.sample(list(indexes), k=round(p * n)):
@@ -2416,6 +2542,28 @@ def bbox_ioa(box1, box2):
     # Intersection over box2 area
     return inter_area / box2_area
     
+
+def bbox_ioa_v9(box1, box2):
+    """Returns the intersection over box2 area given box1, box2. Boxes are x1y1x2y2
+    box1:       np.array of shape(nx4)
+    box2:       np.array of shape(mx4)
+    returns:    np.array of shape(nxm)
+    """
+
+    # Get the coordinates of bounding boxes
+    b1_x1, b1_y1, b1_x2, b1_y2 = box1.T
+    b2_x1, b2_y1, b2_x2, b2_y2 = box2.T
+
+    # Intersection area
+    inter_area = (np.minimum(b1_x2[:, None], b2_x2) - np.maximum(b1_x1[:, None], b2_x1)).clip(0) * \
+                 (np.minimum(b1_y2[:, None], b2_y2) - np.maximum(b1_y1[:, None], b2_y1)).clip(0)
+
+    # box2 area
+    box2_area = (b2_x2 - b2_x1) * (b2_y2 - b2_y1) + 1e-7
+
+    # Intersection over box2 area
+    return inter_area / box2_area
+
 
 def cutout(image, labels):
     # Applies image cutout augmentation https://arxiv.org/abs/1708.04552

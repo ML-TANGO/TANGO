@@ -141,7 +141,9 @@ def create_task(db: Session, user_input, dockerfile_contents, current_user_id):
             requested_target_img=user_input["build"]["target_name"],
             requested_labels=None,
             # requested_env_commands=user_input["deployment"]["build"]["components"]["custom_packages"]["environments"],
-            requested_custom_pkg_commands=user_input["build"]["components"]["custom_packages"],
+            requested_custom_pkg_commands=user_input["build"]["components"][
+                "custom_packages"
+            ],
             requested_dockerfile_contents=dockerfile_contents,
             requested_auto_push=False,
             user_id=current_user_id,

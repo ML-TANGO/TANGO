@@ -1,0 +1,111 @@
+###############################
+# Core Django / API
+###############################
+asgiref==3.5.0
+Django==3.2.25
+django-cors-headers==3.11.0
+djangorestframework==3.15.0
+djangorestframework-jwt==1.11.0
+psycopg2-binary==2.9.3
+sqlparse==0.4.2
+pytz==2022.1
+
+###############################
+# Core Python / Utils
+###############################
+blobfile==3.0.0
+certifi==2021.10.8
+charset-normalizer==2.0.12
+idna==3.3
+requests==2.28.0
+urllib3==1.26.7
+PyYAML==6.0
+setuptools==59.5.0
+typing_extensions==4.12.2
+easydict==1.10
+tqdm==4.65.0
+
+###############################
+# Numeric / Plotting / Data
+###############################
+numpy==1.23.5
+scipy==1.15.3
+pandas==1.4.2
+matplotlib==3.10.7
+seaborn==0.13.2
+Pillow==11.3.0
+
+###############################
+# PyTorch Stack
+###############################
+# torch==2.9.1+cu130
+# torchvision==0.24.1+cu130
+# torchaudio==2.9.1+cu130
+# pytorch-lightning==0.8.3
+thop==0.1.1.post2209072238
+tensorboardX==2.6
+
+###############################
+# CV / Dataset Utils
+###############################
+opencv-python==4.7.0.72
+pycocotools==2.0.10
+albumentations==1.0.3   # 필요하면 --no-binary qudida,albumentations 옵션 사용
+
+###############################
+# Dask / Distributed (현재 컨테이너와 맞춤)
+###############################
+# dask==2024.10.0
+distributed==2024.10.0
+# fsspec==2025.9.0
+# partd==1.4.2
+# toolz==1.1.0
+# zict==3.0.0
+# sortedcontainers==2.4.0
+# msgpack==1.1.2
+
+###############################
+# ONNX Toolchain
+###############################
+onnx==1.17.0                 # ONNX model export (IR v10)
+onnxruntime==1.23.2          # ONNXRuntime (IR v10 + FP16 지원)
+onnx-simplifier==0.4.36      # onnx-simplifier (내부적으로 onnxsim 사용)
+onnxscript==0.5.0
+ml_dtypes==0.5.3             # float8_e8m0fnu 에러 해결용 (PyTorch/ONNX 기준)
+protobuf==3.20.3             # ONNX / TF 호환 안정 버전
+
+###############################
+# ONNX - TF Conversion (옵션, 필요 시 해제)
+###############################
+# onnx-graphsurgeon==0.5.2
+# onnx2tf==1.22.3
+# sng4onnx==1.0.4
+
+###############################
+# TensorFlow / TFLite Stack (옵션, 필요 시 해제)
+###############################
+# tensorflow==2.16.1
+# tf_keras==2.16.0
+# keras==3.6.0
+# flatbuffers==24.3.25         # TFLite metadata
+# tensorflow-io-gcs-filesystem==0.37.1
+# tflite_support==0.4.4        # TFLite metadata
+# tensorboard==2.16.2
+# tensorboard-data-server==0.7.2
+
+###############################
+# TangoChat (옵션, 필요 시 해제)
+###############################
+# beautifulsoup4==4.12.2
+# chromadb==0.3.29
+# git-lfs==1.6
+# huggingface_hub
+# langchain==0.2.17
+# langchain-community==0.2.19
+# ollama==0.3.3
+# streamlit>=1.31.0
+
+###############################
+# TensorRT (옵션, 필요 시 해제)
+###############################
+# nvidia-tensorrt==8.4.1.5   # tensorrt model export

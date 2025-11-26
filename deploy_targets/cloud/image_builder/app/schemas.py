@@ -5,6 +5,7 @@ SQLAlchemy의 model을 사용하는 파일은 models.py로 구성
 SQLAlchemy에서는 정의할 때 '='
 Pydantic에서는 정의할 때 ':'
 """
+
 from enum import Enum
 from typing import Dict, List, Optional, Union
 
@@ -31,15 +32,12 @@ class DeploymentTaskBody(BaseModel):
         "components": {
             "custom_packages": {"apt": [], "pypi": []},
         },
-        "workdir": ""
+        "workdir": "",
     }
     deploy: Optional[Dict] = {
         "entrypoint": [],
         "mount": [
-            {
-                "src": "",
-                "dst": ""
-            },
+            {"src": "", "dst": ""},
         ],
         "network": {
             "service_host_ip": "",

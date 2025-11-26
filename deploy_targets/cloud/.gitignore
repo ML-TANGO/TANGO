@@ -12,3 +12,7 @@ shared
 
 # GCP
 service-account-file.json
+
+# Environment variables
+.env
+.env.local
