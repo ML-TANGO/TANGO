@@ -76,6 +76,14 @@ def pth_list(request):
 # States considered as "active" (adjust as needed)
 ACTIVE_STATUSES = ["started", "running", "resumed", "failed"]
 
+def get_user_and_project(request):
+    if request.method == 'GET':
+        params = request.query_params
+    else: # POST
+        params = request.data
+    userid = params.get('user_id') or params.get('userid')
+    project_id = params.get('project_id')
+    return userid, project_id
 
 @api_view(['GET'])
 def active_info(request):
@@ -106,12 +114,10 @@ def active_info(request):
     )
 
 
-@api_view(['GET'])
+@api_view(['GET', 'POST'])
 def start(request):
     """API for project manager having autonn start."""
-    params = request.query_params
-    userid = params.get('user_id')
-    project_id = params.get('project_id')
+    userid, project_id = get_user_and_project(request)
 
     synchronize_project_manager_db(userid)
 
@@ -130,15 +136,15 @@ def start(request):
                 logger.info("[AutoNN GET/start] Best model exists: %s", info.best_net)
             previous_pid = info.process_id
 
-        if str(info.process_id) in PROCESSES:
+        entry = PROCESSES.pop(str(previous_pid), None)
+        if entry:
             logger.info(
-                "[AutoNN GET/start] Terminating previous process #%s",
-                previous_pid,
+                "[AutoNN %s/start] Terminating previous process #%s",
+                request.method, previous_pid,
             )
-            zombie_entry = PROCESSES.pop(str(previous_pid))
-            zombie_proc = zombie_entry.get("process")
-            if zombie_entry.get("stop_event"):
-                zombie_entry["stop_event"].set()
+            zombie_proc = entry.get("process")
+            if entry.get("stop_event"):
+                entry["stop_event"].set()
             if zombie_proc and zombie_proc.is_alive():
                 zombie_proc.terminate()
                 zombie_proc.join()
@@ -158,18 +164,16 @@ def start(request):
 
         return Response("started", status=status.HTTP_200_OK)
     except Exception as e:
-        logger.warning("[AutoNN GET/start] exception: %s", e)
+        logger.warning("[AutoNN %s/start] exception: %s", request.method, e)
         info.status = "failed"
-        info.save()
+        info.save(update_fields=["status"])
         return Response("failed", status=status.HTTP_400_BAD_REQUEST)
 
 
-@api_view(['GET'])
+@api_view(['GET', 'POST'])
 def resume(request):
     """API for project manager having autonn resumed."""
-    params = request.query_params
-    userid = params.get('user_id')
-    project_id = params.get('project_id')
+    userid, project_id = get_user_and_project(request)
 
     synchronize_project_manager_db(userid)
 
@@ -182,12 +186,15 @@ def resume(request):
                 return Response("failed", status=status.HTTP_200_OK)
             previous_pid = info.process_id
 
-        if str(previous_pid) in PROCESSES:
-            logger.info("[AutoNN GET/resume] Terminating previous process #%s", previous_pid)
-            zombie_entry = PROCESSES.pop(str(previous_pid))
-            zombie_proc = zombie_entry.get("process")
-            if zombie_entry.get("stop_event"):
-                zombie_entry["stop_event"].set()
+        entry = PROCESSES.pop(str(previous_pid), None)
+        if entry:
+            logger.info(
+                "[AutoNN %s/resume] Terminating previous process #%s",
+                request.method, previous_pid
+            )
+            zombie_proc = entry.get("process")
+            if entry.get("stop_event"):
+                entry["stop_event"].set()
             if zombie_proc and zombie_proc.is_alive():
                 zombie_proc.terminate()
                 zombie_proc.join()
@@ -206,18 +213,16 @@ def resume(request):
 
         return Response("started", status=status.HTTP_200_OK)
     except Exception as e:
-        logger.warning("[AutoNN GET/resume] exception: %s", e)
+        logger.warning("[AutoNN %s/resume] exception: %s", request.method, e)
         info.status = "failed"
         info.save()
         return Response("failed", status=status.HTTP_400_BAD_REQUEST)
 
 
-@api_view(['GET'])
+@api_view(['GET', 'POST'])
 def stop(request):
     """API for project manager having autonn clean."""
-    params = request.query_params
-    userid = params.get('user_id')
-    project_id = params.get('project_id')
+    userid, project_id = get_user_and_project(request)
 
     synchronize_project_manager_db(userid)
 
@@ -233,12 +238,15 @@ def stop(request):
             if proc:
                 proc.join(timeout=30)
                 if proc.is_alive():
-                    logger.warning("[AutoNN Get/stop] force terminating process #%s", info.process_id)
+                    logger.warning(
+                        "[AutoNN %s/stop] force terminating process #%s",
+                        request.method, info.process_id
+                    )
                     proc.terminate()
                     proc.join()
-        logger.info("[AutoNN Get/stop] Requested graceful stop")
+        logger.info("[AutoNN %s/stop] Requested graceful stop", request.method)
     except Info.DoesNotExist:
-        logger.warning("[AutoNN GET/stop] Requested process does not exist")
+        logger.warning("[AutoNN %s/stop] Requested process does not exist", request.method)
 
     return Response("success", status=status.HTTP_200_OK)
 
