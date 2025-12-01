@@ -7,6 +7,7 @@ import datetime
 from threading import Thread
 import argparse
 from pathlib import Path
+import sys
 import cv2
 import torch
 import torchvision
@@ -15,31 +16,35 @@ import numpy as np
 import yaml
 import json
 
+# If packaged as a wheel (recommended), the modules will be importable without sys.path hacks.
+# If running from source checkout, uncomment below to add autonn_core/tango to sys.path.
+# ROOT = Path(__file__).resolve().parents[2]
+# if str(ROOT) not in sys.path:
+#     sys.path.insert(0, str(ROOT))
 
-def run(weights='bestmodel.torchscript', source='horses.jpg', view_img=True, save_img=False, save_txt=False, save_dir='results'):
+
+def run(weights='bestmodel.torchscript', source='horses.jpg', view_img=True, save_img=False, save_txt=False, save_dir='results', imgsz=640):
     # options ------------------------------------------------------------------
     weights = check_file(weights)     
-    # source = './horses.jpg'
-    imgsz = 640
-    # view_img = False                                                
-    # save_img = True
-    # save_txt = True
     save_dir = Path(save_dir)
+    save_dir.mkdir(parents=True, exist_ok=True)
     source = str(source)                                                
     webcam = source.isnumeric()
 
     # Initialize ---------------------------------------------------------------
     device = select_device()
-    half = False # device.type != 'cpu'  # half precision only supported on CUDA
+    half = device.type != 'cpu'  # half precision only supported on CUDA
           
     # Load model ---------------------------------------------------------------
-    model = LoadModel(weights=weights, device=device)  # load FP32 model
+    model = LoadModel(weights=weights, device=device, fp16=half)  # load FP32/FP16 model
     stride = model.stride
     imgsz = check_img_size(imgsz, s=stride)  # check img_size
 
-    # if half:
-    #     print(f"model precision : half(fp16)")
-    #     model.half()  # to FP16
+    # If model.half() failed inside LoadModel, force fallback
+    if half and model.device.type == 'cuda' and model.fp16:
+        print(f"model precision : half(fp16)")
+    else:
+        half = False
 
     # Set Dataloader -----------------------------------------------------------
     vid_path, vid_writer = None, None
@@ -59,35 +64,69 @@ def run(weights='bestmodel.torchscript', source='horses.jpg', view_img=True, sav
     # warmup -------------------------------------------------------------------
     print('.'*50+'warmup'+'.'*50)
     model.warmup(imgsz=(1, 3, imgsz, imgsz))
+    print('.'*106)
 
-    t0 = time.time()
     # Run inference ============================================================
     for path, img, im0s, vid_cap in dataset:
         # Image tensor ---------------------------------------------------------
+        t0 = time.time()
         img = torch.from_numpy(img).to(device)
         img = img.half() if half else img.float()  # uint8 to fp16/32
         img /= 255.0  # 0 - 255 to 0.0 - 1.0
         if img.ndimension() == 3:
             img = img.unsqueeze(0) # make a tensor with bs=1 
+        t1 = time.time()
 
         # Inference ------------------------------------------------------------
-        t1 = time_synchronized()
+        # t1 = time_synchronized()
         with torch.no_grad():   # Calculating gradients would cause a GPU memory leak
             # pred = model(img, augment=opt.augment)[0]
+            t2 = time.time()
             pred = model(img)
+            t3 = time.time()
             if isinstance(pred, (list, tuple)):
-                pred = pred[-1] # for dual or triple heads
-        print(f"\t1. predict  : {pred.shape}")
-        t2 = time_synchronized()
+                # Show list/tuple lengths across nesting levels for debugging multi-head outputs
+                def _shape_list(x, depth=0):
+                    indent = "  " * depth
+                    if isinstance(x, (list, tuple)):
+                        if len(x) == 0:
+                            return f"{indent}[]"
+                        inner = "\n".join(_shape_list(xi, depth + 1) for xi in x[:3])
+                        more = "..." if len(x) > 3 else ""
+                        return f"{indent}len={len(x)}\n{inner}\n{indent}{more}"
+                    try:
+                        return f"{indent}{getattr(x, 'shape', type(x))}"
+                    except Exception:
+                        return f"{indent}{type(x)}"
+                print("pred (list/tuple) structure:\n" + _shape_list(pred))
+                # Prefer the first tensor-like element (YOLO heads often return (pred, features))
+                chosen = None
+                for item in pred:
+                    if hasattr(item, "shape"):
+                        chosen = item
+                        break
+                pred = chosen if chosen is not None else pred[-1]
+        try:
+            shape_info = pred.shape  # tensor
+        except Exception:
+            shape_info = f"list(len={len(pred)})"
+        print(f"\t1. predict  : {shape_info}")
+        # t2 = time_synchronized()
 
         # Apply NMS ------------------------------------------------------------
+        t4 = time.time()
         pred = non_max_suppression_v9(pred) #, opt.conf_thres, opt.iou_thres, classes=opt.classes, agnostic=opt.agnostic_nms)
-        print(f"\t2. nms      : {len(pred)}, {pred[0].shape}")
-        t3 = time_synchronized()
+        t5 = time.time()
+        try:
+            nms_shape = pred[0].shape
+        except Exception:
+            nms_shape = "unknown"
+        print(f"\t2. nms      : {len(pred)}, {nms_shape}")
+        # t3 = time_synchronized()
         
         # Process detections ---------------------------------------------------
         for i, det in enumerate(pred):  # detections per image
-            print(f"\t3. draw boxes: {det}")
+            # print(f"\t3. draw boxes: {det}")
             if webcam:  # batch_size >= 1
                 p, s, im0, frame = path[i], '%g: ' % i, im0s[i].copy(), dataset.count
             else:
@@ -103,9 +142,12 @@ def run(weights='bestmodel.torchscript', source='horses.jpg', view_img=True, sav
                 det[:, :4] = scale_coords(img.shape[2:], det[:, :4], im0.shape).round()
 
                 # Print results
+                cls_counts = []
                 for c in det[:, -1].unique():
                     n = (det[:, -1] == c).sum()  # detections per class
-                    s += f"{n} {names[int(c)]}{'s' * (n > 1)}, "  # add to string
+                    cls_counts.append(f"{n} {names[int(c)]}{'s' * (n > 1)}")
+                if cls_counts:
+                    s += ", ".join(cls_counts)
 
                 # Write results
                 for *xyxy, conf, cls in reversed(det):
@@ -118,10 +160,11 @@ def run(weights='bestmodel.torchscript', source='horses.jpg', view_img=True, sav
 
                     if save_img or view_img:  # Add bbox to image
                         label = f'{names[int(cls)]} {conf:.2f}'
-                        plot_one_box(xyxy, im0, label=label, color=colors[int(cls)], line_thickness=1)
+                        plot_one_box(xyxy, im0, label=label, color=colors[int(cls)], line_thickness=3)
 
             # Print time (inference + NMS) -------------------------------------
-            print(f'{s}Done. ({(1E3 * (t2 - t1)):.1f}ms) Inference, ({(1E3 * (t3 - t2)):.1f}ms) NMS')
+            # print(f'{s}Done. ({(1E3 * (t2 - t1)):.1f}ms) Inference, ({(1E3 * (t3 - t2)):.1f}ms) NMS')
+            print(f'{s} detected. pre-process({(1E3 * (t1 - t0)):.1f}ms) inference({(1E3 * (t3 - t2)):.1f}ms) nms({(1E3 * (t5 - t4)):.1f}ms)')
 
             # Stream results ---------------------------------------------------
             if view_img:
@@ -132,7 +175,7 @@ def run(weights='bestmodel.torchscript', source='horses.jpg', view_img=True, sav
             if save_img:
                 if dataset.mode == 'image':
                     cv2.imwrite(save_path, im0)
-                    print(f" The image with the result is saved in: {save_path}")
+                    print(f"output image: {save_path}")
                 else:  # 'video' or 'stream'
                     if vid_path != save_path:  # new video
                         vid_path = save_path
@@ -151,6 +194,7 @@ def run(weights='bestmodel.torchscript', source='horses.jpg', view_img=True, sav
 
     if save_txt or save_img:
         s = f"\n{len(list(save_dir.glob('*.txt')))} labels saved to {save_dir}" if save_txt else ''
+        print('.'*106)
         print(f"Results saved to {save_dir}{s}")
 
     print(f'Done. ({time.time() - t0:.3f}s)')
@@ -290,7 +334,7 @@ def non_max_suppression_v9(
     assert 0 <= conf_thres <= 1, f'Invalid Confidence threshold {conf_thres}, valid values are between 0.0 and 1.0'
     assert 0 <= iou_thres <= 1, f'Invalid IoU {iou_thres}, valid values are between 0.0 and 1.0'
 
-    print(f"bs={bs}, nc={nc}, mi={mi}, xc={xc}")
+    # print(f"bs={bs}, nc={nc}, mi={mi}, xc={xc}")
     # Settings
     # min_wh = 2  # (pixels) minimum box width and height
     max_wh = 7680  # (pixels) maximum box width and height
@@ -371,7 +415,6 @@ def non_max_suppression_v9(
 
 def time_synchronized():
     # pytorch-accurate time
-    print('~'*100)
     if torch.cuda.is_available():
         torch.cuda.synchronize()
     return time.time()
@@ -443,12 +486,12 @@ def box_iou(box1, box2):
 def plot_one_box(x, img, color=None, label=None, line_thickness=3):
     # Plots one bounding box on image img
     tl = line_thickness or round(0.002 * (img.shape[0] + img.shape[1]) / 2) + 1  # line/font thickness
-    color = color or [np.random.randint(0, 255) for _ in range(3)]
+    color = [np.random.randint(0, 255) for _ in range(3)]
     c1, c2 = (int(x[0]), int(x[1])), (int(x[2]), int(x[3]))
     cv2.rectangle(img, c1, c2, color, thickness=tl, lineType=cv2.LINE_AA)
     if label:
-        tf = max(tl - 1, 1)  # font thickness
-        t_size = cv2.getTextSize(label, 0, fontScale=tl / 3, thickness=tf)[0]
+        tf = max(tl - 2, 1)  # font thickness
+        t_size = cv2.getTextSize(label, 0, fontScale=1, thickness=tf)[0]
         c2 = c1[0] + t_size[0], c1[1] - t_size[1] - 3
         cv2.rectangle(img, c1, c2, color, -1, cv2.LINE_AA)  # filled
         cv2.putText(img, label, (c1[0], c1[1] - 2), 0, tl / 3, [225, 255, 255], thickness=tf, lineType=cv2.LINE_AA)
@@ -456,30 +499,78 @@ def plot_one_box(x, img, color=None, label=None, line_thickness=3):
 
 # model loader -----------------------------------------------------------------
 class LoadModel(nn.Module):
-    def __init__(self, weights='bestmodel.torchscript', device=torch.device('cpu')):
+    def __init__(self, weights='bestmodel.torchscript', device=torch.device('cpu'), fp16=False):
         super().__init__()
         w = str(weights[0] if isinstance(weights, list) else weights)
-        fp16 = False
         stride = 32  # default stride
         cuda = torch.cuda.is_available() and device.type != 'cpu'  # use CUDA
-        print(f'Loading {w} for TorchScript inference...')
-        extra_files = {'config.txt': ''}  # model metadata
-        model = torch.jit.load(w, _extra_files=extra_files, map_location=device)
-        # model.half() if fp16 else model.float()
-        model.float()
-        if extra_files['config.txt']:  # load metadata dict
-            d = json.loads(extra_files['config.txt'],
-                            object_hook=lambda d: {int(k) if k.isdigit() else k: v
-                                                    for k, v in d.items()})
-            stride, names = int(d['stride']), d['names']
+        suffix = Path(w).suffix.lower()
+        self.fp16 = bool(fp16)
+        def _to_int_stride(val, default):
+            try:
+                import torch as _t
+                if isinstance(val, _t.Tensor):
+                    return int(val.flatten()[0].item())
+            except Exception:
+                pass
+            if isinstance(val, (list, tuple)) and len(val):
+                try:
+                    return int(val[0])
+                except Exception:
+                    return default
+            try:
+                return int(val)
+            except Exception:
+                return default
+
+        if suffix in {'.torchscript', '.ts'}:
+            print(f'Loading {w} for TorchScript inference...')
+            extra_files = {'config.txt': ''}  # model metadata
+            model = torch.jit.load(w, _extra_files=extra_files, map_location=device)
+            if fp16 and cuda:
+                model.half()
+            else:
+                model.float()
+            if extra_files['config.txt']:  # load metadata dict
+                d = json.loads(
+                    extra_files['config.txt'],
+                    object_hook=lambda d: {
+                        int(k) if k.isdigit() else k: v for k, v in d.items()
+                    },
+                )
+                stride, names = int(d['stride']), d['names']
+            else:
+                names = getattr(model, "names", [])
+        else:
+            print(f'Loading {w} (torch.save pickle)...')
+            # torch 2.6+ default is weights_only=True; allow full load for trusted checkpoints
+            model = torch.load(w, map_location=device, weights_only=False)
+            if isinstance(model, dict):
+                # Common patterns: {'ema': model}, {'model': model}, YOLO-style checkpoints
+                for key in ("ema", "model", "net", "module"):
+                    candidate = model.get(key)
+                    if hasattr(candidate, "float"):
+                        model = candidate
+                        break
+                else:
+                    raise TypeError(f"Unsupported checkpoint dict keys: {list(model.keys())}")
+            if fp16 and cuda:
+                model.half()
+            else:
+                model.float()
+            names = getattr(model, "names", [])
+            stride = _to_int_stride(getattr(model, "stride", stride), stride)
+
         model.eval()
         self.__dict__.update(locals())  # assign all variables to self
 
     def forward(self, im):
-        if self.fp16 and im.dtype != torch.float16:
+        if self.fp16 and self.cuda and im.dtype != torch.float16:
             im = im.half()  # to FP16
-
-        print('model forward: torchscript model')
+        if self.suffix in {'.torchscript', '.ts'}:
+            print('model forward: torchscript model')
+        else:
+            print('model forward: pytorch model')
         y = self.model(im)
 
         if isinstance(y, (list, tuple)):
@@ -494,7 +585,7 @@ class LoadModel(nn.Module):
         # Warmup model by running inference once
         # warmup_types = self.pt, self.jit, self.onnx, self.engine, self.saved_model, self.pb, self.triton
         # if any(warmup_types) and (self.device.type != 'cpu' or self.triton):
-        im = torch.empty(*imgsz, dtype=torch.half if self.fp16 else torch.float, device=self.device)  # input
+        im = torch.empty(*imgsz, dtype=torch.half if self.fp16 and self.cuda else torch.float, device=self.device)  # input
         for _ in range(2): # if self.jit else 1): 
             self.forward(im)  # warmup
 
@@ -712,7 +803,7 @@ class LoadImages:  # for inference
             self.count += 1
             img0 = cv2.imread(path)  # BGR
             assert img0 is not None, 'Image Not Found ' + path
-            print(f'image {self.count}/{self.nf} {path}: ', end='')
+            print(f'input image {self.count}/{self.nf} {path}: ', end='')
 
         # Padded resize
         img = letterbox(img0, self.img_size, stride=self.stride, auto=self.auto)[0]
@@ -877,6 +968,7 @@ def parse_opt():
     parser = argparse.ArgumentParser()
     parser.add_argument('--weights', type=str, default='bestmodel.torchscript', help='bestmodel.torchscript path')
     parser.add_argument('--source', type=str, default=0, help='path/to/img or 0(webcam)')
+    parser.add_argument('--imgsz', type=int, default=640, help='inference image size')
     parser.add_argument('--view-img', action='store_true', help='show results')
     parser.add_argument('--save-img', action='store_true', help='save result images')
     parser.add_argument('--save-txt', action='store_true', help='save results to .txt')
