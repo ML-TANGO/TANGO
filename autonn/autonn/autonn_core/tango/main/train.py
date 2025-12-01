@@ -266,7 +266,7 @@ def get_optimizer(model, is_adam=False, lr=0.001, momentum=0.9, decay=1e-5):
                 f"{len(g[1])} weight(decay=0.0), {len(g[0])} weight(decay={decay}), {len(g[2])} bias")
     return optimizer
 
-def train(proj_info, hyp, opt, data_dict, device, tb_writer=None, stop_event=None):
+def train(proj_info, hyp, opt, data_dict, device, tb_writer=None, stop_event=None, stop_flag_path=None):
     # Options ------------------------------------------------------------------
     save_dir, epochs, user_defined_bs, weights, rank, local_rank, freeze = \
         Path(opt.save_dir), opt.epochs, opt.batch_size, opt.weights, \
@@ -277,7 +277,8 @@ def train(proj_info, hyp, opt, data_dict, device, tb_writer=None, stop_event=Non
         proj_info['nas'], proj_info['target_info'], proj_info['acc']
 
     def should_stop():
-        local_stop = bool(stop_event and stop_event.is_set())
+        file_stop = bool(stop_flag_path and Path(stop_flag_path).exists())
+        local_stop = bool(stop_event and stop_event.is_set()) or file_stop
         return _ddp_all_stop_flag(local_stop, device)
 
     # DDP init -----------------------------------------------------------------
