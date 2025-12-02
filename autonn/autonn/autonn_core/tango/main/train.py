@@ -266,7 +266,7 @@ def get_optimizer(model, is_adam=False, lr=0.001, momentum=0.9, decay=1e-5):
                 f"{len(g[1])} weight(decay=0.0), {len(g[0])} weight(decay={decay}), {len(g[2])} bias")
     return optimizer
 
-def train(proj_info, hyp, opt, data_dict, device, tb_writer=None):
+def train(proj_info, hyp, opt, data_dict, device, tb_writer=None, stop_event=None, stop_flag_path=None):
     # Options ------------------------------------------------------------------
     save_dir, epochs, user_defined_bs, weights, rank, local_rank, freeze = \
         Path(opt.save_dir), opt.epochs, opt.batch_size, opt.weights, \
@@ -275,6 +275,11 @@ def train(proj_info, hyp, opt, data_dict, device, tb_writer=None):
     userid, project_id, task, nas, target, target_acc = \
         proj_info['userid'], proj_info['project_id'], proj_info['task_type'], \
         proj_info['nas'], proj_info['target_info'], proj_info['acc']
+
+    def should_stop():
+        file_stop = bool(stop_flag_path and Path(stop_flag_path).exists())
+        local_stop = bool(stop_event and stop_event.is_set()) or file_stop
+        return _ddp_all_stop_flag(local_stop, device)
 
     # DDP init -----------------------------------------------------------------
     if opt.local_rank != -1: # DDP mode
@@ -923,7 +928,13 @@ def train(proj_info, hyp, opt, data_dict, device, tb_writer=None):
                 f' final epoch = {epochs-1}')
 
     # torch.save(model, wdir / 'init.pt')
+    stop_flag = False
+
     for epoch in range(start_epoch, epochs):
+        if should_stop():
+            stop_flag = True
+            logger.info("[Train] Stop requested before epoch %s; exiting loop", epoch)
+            break
         t_epoch = time.time() #time_synchronized()
         model.train()
 
@@ -994,6 +1005,10 @@ def train(proj_info, hyp, opt, data_dict, device, tb_writer=None):
         # training batches start ===============================================
         if task == 'detection':
             for i, (imgs, targets, paths, _) in pbar:
+                if should_stop():
+                    stop_flag = True
+                    logger.info("[Train] Stop requested during training (epoch %s : step %s)", epoch, i)
+                    break
                 # logger.info(f'step-{i} start')
                 t_batch = time.time() #time_synchronized()
                 ni = i + nb * epoch  # number integrated batches (since train start)
@@ -1136,6 +1151,10 @@ def train(proj_info, hyp, opt, data_dict, device, tb_writer=None):
             accumulated_imgs_cnt = 0
             tacc = 0
             for i, (imgs, targets) in pbar:
+                if should_stop():
+                    stop_flag = True
+                    logger.info("[Train] Stop requested during classification loop (epoch %s)", epoch)
+                    break
                 t_batch = time.time() #time_synchronized()
                 ni = i + nb * epoch  # number integrated batches (since train start)
                 imgs = imgs.float().to(device, non_blocking=True)
@@ -1223,6 +1242,9 @@ def train(proj_info, hyp, opt, data_dict, device, tb_writer=None):
                     # if len(dataloader) -1 == i:
                     logger.info(f'{s}')
         # training epoch end ===================================================
+
+        if stop_flag:
+            break
 
         # Scheduler update -----------------------------------------------------
         lr = [x['lr'] for x in optimizer.param_groups]  # for tensorboard
@@ -1413,6 +1435,16 @@ def train(proj_info, hyp, opt, data_dict, device, tb_writer=None):
         if is_ddp(): dist.barrier()
         # end validation =======================================================
 
+    if stop_flag:
+        logger.info(f"[Train] Stop requested; cleaning up and exiting early ")
+        if epoch > 0:
+            logger.info(f"\tckpt@epoch#{epoch-1} : {str(last)}")
+        safe_update_info(userid, project_id, status="stopped", progress="stopped")
+        final_model = best if best.exists() else last
+        if is_ddp():
+            ddp_cleanup()
+        return results, final_model
+
     logger.info(f'\n{colorstr("Train: ")}'
                 f'{epoch-start_epoch+1} epochs completed({(time.time() - t0) / 60:.3f} min).')
     safe_update_info(userid, project_id, status = "train_end")
@@ -1523,19 +1555,36 @@ if __name__ == "__main__":
         )
 
     opt.local_rank = int(os.environ.get("LOCAL_RANK", "-1"))
-    opt.global_rank= int(os.environ.get("RANK", "-1"))
+    opt.global_rank = int(os.environ.get("RANK", "-1"))
+    device = torch.device(cfg.get("device", "cpu"))
+    stop_flag_path = os.environ.get("STOP_FLAG_PATH")
 
     try:
-        results, train_final = train(proj_info, hyp, opt, data_dict, tb_writer=None)
+        results, train_final = train(
+            proj_info,
+            hyp,
+            opt,
+            data_dict,
+            device,
+            tb_writer=None,
+            stop_flag_path=stop_flag_path,
+        )
 
         rank = int(os.environ.get("RANK", "0"))
         if rank == 0:
             res_path = os.environ.get("RESULT_PATH")
             if res_path:
+                payload = {
+                    "results": results if results is not None else {},
+                    "train_final": str(train_final) if train_final is not None else None,
+                }
                 with open(res_path, "w", encoding="utf-8") as f:
                     json.dump(
-                        {"results": results,  "train_final": train_final},
-                        f, ensure_ascii=False, indent=2, default=str,
+                        payload,
+                        f,
+                        ensure_ascii=False,
+                        indent=2,
+                        default=str,
                     )
     finally:
         if is_ddp():

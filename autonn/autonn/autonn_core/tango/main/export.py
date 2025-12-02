@@ -66,6 +66,20 @@ Example (CLI):
 Example (Python):
     from export import convert_yolov9
     convert_yolov9("yolov9-s.pt", "cfg/yolov9-s-converted.yaml")
+
+
+4. fuse — Fuse conv+bn (or split convs) into a single conv
+-------------------------------------------------------------
+Fuse layers
+
+Example (CLI):
+    cd /source/autonn_core
+    python -m tango.main.export  fuse \
+        --weights yolov9-s.pt
+
+Example (Python):
+    from tango.utils.general import fuse_layers
+    fuse_layers("yolov9-t.pt)
 """
 
 
@@ -102,6 +116,7 @@ from tango.utils.general import (
     check_img_size,
     check_requirements,
     colorstr,
+    fuse_layers,
 )
 
 # ——— Constants / paths
@@ -1286,6 +1301,12 @@ def convert_yolov9(model_pt: str, cfg: str) -> Optional[str]:
     else: #if 'yolov9-e' in cfg_name:
         model = convert_large_model(model, ckpt)
 
+    # export 모드로 전환해 inference 시 (pred, feat) 튜플이 아닌 pred만 반환하도록 설정
+    if hasattr(model, "model") and len(model.model):
+        head = model.model[-1]
+        head.export = True
+        head.format = "pytorch"
+
     reparamed_model = {
         'model' : model.half(),
         'optimizer': None, #ckpt['optimizer'],
@@ -1345,6 +1366,10 @@ if __name__ == '__main__':
     p_cvt.add_argument('--weights', required=True)
     p_cvt.add_argument('--cfg', required=True)
 
+    # fuse
+    p_fuse = sub.add_parser('fuse')
+    p_fuse.add_argument('--weights', required=True)
+
     args = parser.parse_args()
 
     if args.cmd == 'export':
@@ -1364,5 +1389,6 @@ if __name__ == '__main__':
 
     elif args.cmd == 'convert':
         convert_yolov9(args.weights, args.cfg)
-
-
+    
+    elif args.cmd == 'fuse':
+        fuse_layers(args.weights)

@@ -12,6 +12,12 @@ import time
 import cv2
 import numpy as np
 import pandas as pd
+import warnings
+warnings.filterwarnings(
+    "ignore",
+    category=UserWarning,
+    message="pkg_resources is deprecated as an API.*",
+)
 import pkg_resources as pkg
 import yaml
 from pathlib import Path

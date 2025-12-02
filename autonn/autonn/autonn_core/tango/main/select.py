@@ -12,7 +12,9 @@ import tempfile
 import gc
 import argparse
 import logging
+import signal
 import subprocess
+import threading
 from pathlib import Path
 
 # Standard library imports
@@ -558,7 +560,7 @@ def base_model_select(userid, project_id, proj_info, data, manual_select=False):
 
 
 # --- main entry point
-def run_autonn(userid, project_id, resume=False, viz2code=False, nas=False, hpo=False):
+def run_autonn(userid, project_id, resume=False, viz2code=False, nas=False, hpo=False, stop_event=None):
     """
     Main function to run the AutoNN workflow.
     
@@ -569,10 +571,40 @@ def run_autonn(userid, project_id, resume=False, viz2code=False, nas=False, hpo=
         viz2code: Whether to visualize to code
         nas: Whether to run neural architecture search
         hpo: Whether to run hyperparameter optimization
-        
-    Returns:
-        None
     """
+    stop_flag_path = None
+
+    def stop_requested():
+        file_flag = bool(stop_flag_path and Path(stop_flag_path).exists())
+        return bool(stop_event and stop_event.is_set()) or file_flag
+
+    def start_stop_flag_watcher(path, proc=None):
+        if not stop_event or not path:
+            return
+
+        def _watch():
+            stop_event.wait()
+            try:
+                Path(path).write_text("stop", encoding="utf-8")
+            except Exception as exc:  # noqa: BLE001
+                logger.warning("Failed to write stop flag: %s", exc)
+            if proc:
+                try:
+                    if hasattr(os, "killpg"):
+                        os.killpg(os.getpgid(proc.pid), signal.SIGTERM)
+                    else:
+                        proc.terminate()
+                    proc.wait(timeout=30)
+                except Exception as exc:  # noqa: BLE001
+                    logger.warning("Failed to terminate ddp subprocess: %s", exc)
+                    try:
+                        proc.kill()
+                    except Exception:
+                        pass
+
+        t = threading.Thread(target=_watch, daemon=True)
+        t.start()
+
     # Set logging
     set_logging(int(os.environ['RANK']) if 'RANK' in os.environ else -1)
 
@@ -582,6 +614,10 @@ def run_autonn(userid, project_id, resume=False, viz2code=False, nas=False, hpo=
     # Handle missing project information
     if proj_info is None:
         return
+
+    if stop_requested():
+        safe_update_info(userid, project_id, status="stopped", progress="stopped")
+        return True
 
     # Extract project information
     target = proj_info['target_info'] # PC, Galaxy_S22, etc.
@@ -658,9 +694,21 @@ def run_autonn(userid, project_id, resume=False, viz2code=False, nas=False, hpo=
     # Respect pre-set CUDA_VISIBLE_DEVICES (e.g., "3,2,1,0")
     # so logical cuda:0 maps to intended GPU
     env_dev = os.environ.get('CUDA_VISIBLE_DEVICES')
+    user_opt_device = getattr(opt, "device", None)
+    if user_opt_device is not None:
+        user_opt_device = str(user_opt_device).strip()
+        if user_opt_device == "":
+            user_opt_device = None
     gpu_num = 0
     if env_dev:
         opt.device = str(env_dev).strip()
+    elif user_opt_device:
+        opt.device = user_opt_device
+        parsed_devices = [
+            d.strip() for d in user_opt_device.split(",")
+            if d.strip().isdigit()
+        ]
+        gpu_num = len(parsed_devices)
     else:
         gpu_num = torch.cuda.device_count()
         opt.device = ",".join(str(i) for i in range(gpu_num))
@@ -699,14 +747,18 @@ def run_autonn(userid, project_id, resume=False, viz2code=False, nas=False, hpo=
         
         fd_cfg, cfg_path = tempfile.mkstemp(prefix=f"train_cfg_", suffix=".json")
         os.close(fd_cfg)
+        json_cfg = to_jsonable(cfg)
         with open(cfg_path, "w", encoding="utf-8") as f:
-            json.dump(cfg, f, ensure_ascii=False, indent=2)
+            json.dump(json_cfg, f, ensure_ascii=False, indent=2)
         
         fd_res, res_path = tempfile.mkstemp(prefix="train_result_", suffix=".json")
         os.close(fd_res)
         with open(res_path, "w", encoding="utf-8") as f:
             json.dump({}, f)
         
+        stop_flag_path = tempfile.mktemp(prefix="autonn_stop_", suffix=".flag")
+        env["STOP_FLAG_PATH"] = stop_flag_path
+
         env["TRAIN_CONFIG"] = cfg_path
         env["RESULT_PATH"] = res_path
         
@@ -716,19 +768,44 @@ def run_autonn(userid, project_id, resume=False, viz2code=False, nas=False, hpo=
             f"--nproc_per_node={nproc}",
             "-m", MODULE
         ]
-        subprocess.run(cmd, check=True, env=env, cwd=str(CORE_DIR))
+        preexec_fn = os.setsid if hasattr(os, "setsid") else None
+        ddp_proc = subprocess.Popen(cmd, env=env, cwd=str(CORE_DIR), preexec_fn=preexec_fn)
+        start_stop_flag_watcher(stop_flag_path, ddp_proc)
+        ret = ddp_proc.wait()
     
-        with open(res_path, "r", encoding="utf-8") as f:
-            payload = json.load(f)
-        results = payload.get("results")
-        train_final = payload.get("train_final")
+        if stop_requested():
+            logger.info("[AutoNN] Stop requested during DDP run; skipping export")
+            safe_update_info(userid, project_id, status="stopped", progress="stopped")
+            # 결과가 있다면 읽어 두되, 이후 단계는 중단
+            if os.path.exists(res_path):
+                with open(res_path, "r", encoding="utf-8") as f:
+                    payload = json.load(f)
+                results = payload.get("results")
+                train_final = payload.get("train_final")
+            else:
+                results = None
+                train_final = None
+        else:
+            if ret != 0:
+                raise subprocess.CalledProcessError(ret, cmd)
+            with open(res_path, "r", encoding="utf-8") as f:
+                payload = json.load(f)
+            results = payload.get("results")
+            train_final = payload.get("train_final")
 
         os.remove(cfg_path)
         os.remove(res_path)
+        if stop_flag_path and Path(stop_flag_path).exists():
+            Path(stop_flag_path).unlink(missing_ok=True)
     else:
         results, train_final = train(
-            proj_info, hyp, opt, data, device, tb_writer
+            proj_info, hyp, opt, data, device, tb_writer, stop_event=stop_event, stop_flag_path=stop_flag_path
         )
+
+    if stop_requested() or results is None or train_final is None:
+        logger.info("[AutoNN] Stop requested after training; skipping export")
+        safe_update_info(userid, project_id, status="stopped", progress="stopped")
+        return True
 
     # Log training results
     best_acc = results[3] if task == 'detection' else results[0]
@@ -744,6 +821,11 @@ def run_autonn(userid, project_id, resume=False, viz2code=False, nas=False, hpo=
         train_final, yaml_file = search(
             proj_info, hyp, opt, data, device, train_final
         )
+
+        if stop_requested():
+            logger.info("[AutoNN] Stop requested after NAS; skipping further steps")
+            safe_update_info(userid, project_id, status="stopped", progress="stopped")
+            return True
         # opt.resume = True
         opt.weights = str(train_final)
 
@@ -754,6 +836,11 @@ def run_autonn(userid, project_id, resume=False, viz2code=False, nas=False, hpo=
         hyp, yaml_file, txt_file = evolve(
             proj_info, hyp, opt, data, device, train_final
         )
+
+        if stop_requested():
+            logger.info("[AutoNN] Stop requested after HPO; skipping further steps")
+            safe_update_info(userid, project_id, status="stopped", progress="stopped")
+            return True
 
         # Plot evolution results
         plot_evolution(yaml_file, txt_file)
@@ -871,10 +958,7 @@ def run_autonn(userid, project_id, resume=False, viz2code=False, nas=False, hpo=
     export_model(userid, project_id, final_out, opt, data, basemodel, 
                  target, target_acc, target_engine, task, results)
 
-    # Wait until 'stop' signal
-    import time
-    while True:
-        time.sleep(2)
+    return bool(stop_event and stop_event.is_set())
 
 def backup_previous_work(model):
     """
@@ -914,6 +998,50 @@ def backup_previous_work(model):
 
     return bak_dir
 
+def to_jsonable(obj):
+    import enum
+    from datetime import datetime, date
+
+    # 기본 타입은 그대로
+    if obj is None or isinstance(obj, (bool, int, float, str)):
+        return obj
+
+    # torch.device -> 문자열 (예: "cuda:0" 또는 "cpu")
+    if isinstance(obj, torch.device):
+        return str(obj)  # f"{obj.type}:{obj.index}" 도 가능
+
+    # torch.dtype -> 문자열 (예: "torch.float32")
+    if isinstance(obj, torch.dtype):
+        return str(obj)
+
+    # torch.Tensor -> 리스트 또는 스칼라
+    if isinstance(obj, torch.Tensor):
+        if obj.ndim == 0:
+            return obj.item()
+        return obj.tolist()
+
+    # numpy 스칼라/배열
+    if isinstance(obj, (np.integer, np.floating, np.bool_)):
+        return obj.item()
+    if isinstance(obj, np.ndarray):
+        return obj.tolist()
+
+    # 경로, 날짜/시간, Enum
+    if isinstance(obj, Path):
+        return str(obj)
+    if isinstance(obj, (datetime, date)):
+        return obj.isoformat()
+    if isinstance(obj, enum.Enum):
+        return obj.value
+
+    # 시퀀스/매핑
+    if isinstance(obj, (list, tuple, set)):
+        return [to_jsonable(x) for x in obj]
+    if isinstance(obj, dict):
+        return {str(k): to_jsonable(v) for k, v in obj.items()}
+
+    # 그 외는 표현 문자열로 대체
+    return repr(obj)
 
 # --- export model
 def export_model(userid, project_id, train_final, opt, data, basemodel, 
