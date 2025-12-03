@@ -12,6 +12,7 @@ services:
              python manage.py loaddata base_model_data.json &&
              python manage.py runserver 0.0.0.0:8085"
     volumes:
+      - ./project_manager:/code
       - shared:/shared
       - ${configYaml:-./autonn/autonn/autonn_core/tango/common/cfg}:/configYaml
       - /var/run/docker.sock:/var/run/docker.sock

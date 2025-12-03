@@ -94,7 +94,7 @@ import { ProjectNamespace, ProjectMutations } from "@/store/modules/project";
 import ProjectCreateDialog from "@/modules/project/ProjectCreateDialogV2.vue";
 
 import { deleteProject, getTargetInfo, getDatasetListTango } from "@/api";
-import { TaskType } from "@/shared/enums";
+import { TaskType, LearningType } from "@/shared/enums";
 export default {
   components: { ProjectCreateDialog },
 
@@ -177,21 +177,29 @@ export default {
       const info = this.projectInfo;
       console.log("프로젝트 네비게이션 시작:", info);
       
-      // Segmentation 프로젝트는 별도의 검증 규칙 적용
-      if (info.task_type === TaskType.SEGMENTATION) {
-        console.log("Segmentation 프로젝트 검증 시작");
+      // Auto NN CL (Segmentation + Continual Learning) 프로젝트는 별도의 검증 규칙 적용
+      const isAutoNNCL =
+        info.task_type === TaskType.SEGMENTATION &&
+        info.learning_type === LearningType.CONTINUAL_LEARNING;
+      
+      if (isAutoNNCL) {
+        console.log("Auto NN CL 프로젝트 검증 시작");
         status = this.validateSegmentationProject(info);
       } else {
         // 기존 검증 로직 (Detection, Classification, Chat)
-        if (info.task_type !== TaskType.CHAT && (!info?.dataset || info?.dataset === "")) status = false;
+        if (info.task_type !== TaskType.CHAT && (!info?.dataset || info?.dataset === ""))
+          status = false;
         else if (!info?.target_id || !info?.target_info) status = false;
         else if (!info?.target_id || info?.target_id === "") status = false;
         else if (!info?.task_type || info?.task_type === "") status = false;
         else if (!info?.nas_type || info?.nas_type === "") status = false;
-        else if (!info?.deploy_weight_level || info?.deploy_weight_level === "") status = false;
-        else if (!info?.deploy_precision_level || info?.deploy_precision_level === "") status = false;
+        else if (!info?.deploy_weight_level || info?.deploy_weight_level === "")
+          status = false;
+        else if (!info?.deploy_precision_level || info?.deploy_precision_level === "")
+          status = false;
         else if (!info?.deploy_user_edit || info?.deploy_user_edit === "") status = false;
-        else if (!info?.deploy_output_method || info?.deploy_output_method === "") status = false;
+        else if (!info?.deploy_output_method || info?.deploy_output_method === "")
+          status = false;
       }
 
       if (status) {

@@ -60,6 +60,38 @@ def call_api_handler(container, path, user_id, project_id, target_info):
         # return None
         raise
 
+# def call_container_api(host, path, user_id, project_id):
+#     """
+#     Request container API
+
+#     Args:
+#         host : hostname (Defined in docker-compose.yml) 
+#         user_id : user_id
+#         project_id : project_id
+
+#     Returns:
+#         request info
+#     """
+#     try:
+#         url = 'http://' + host + '/' + path
+#         headers = {
+#             'Content-Type' : 'text/plain'
+#         }
+#         payload = {
+#             'user_id' : user_id,
+#             'project_id' : project_id,
+#         }
+#         response = requests.get(url, headers=headers, params=payload, timeout = 5)
+        
+#         if response.status_code == 404:
+#             print("404 ERROR")
+#             raise Exception("not found")
+        
+#         print_roundtrip_text = print_roundtrip(response, path, host)
+#         return json.dumps({'response': str(response.content, 'utf-8').replace('"',''), 'request_info': str(print_roundtrip_text)})
+#     except Exception:
+#         print("CALL ERROR ---------------------------------------")
+#         raise
 def call_container_api(host, path, user_id, project_id):
     """
     Request container API
@@ -88,9 +120,22 @@ def call_container_api(host, path, user_id, project_id):
             raise Exception("not found")
         
         print_roundtrip_text = print_roundtrip(response, path, host)
-        return json.dumps({'response': str(response.content, 'utf-8').replace('"',''), 'request_info': str(print_roundtrip_text)})
-    except Exception:
+        return json.dumps({'response': str(response.content, 'utf-8').replace('"',''), 
+                          'request_info': str(print_roundtrip_text)})
+    except requests.exceptions.ConnectionError as e:
+        container_name = host.split(':')[0]
+        error_msg = (f"컨테이너 '{container_name}'에 연결할 수 없습니다. "
+                    f"컨테이너가 실행 중이지 않습니다.")
+        print(f"[ERROR] {error_msg}")
+        raise Exception(error_msg)
+    except requests.exceptions.Timeout as e:
+        container_name = host.split(':')[0]
+        error_msg = f"컨테이너 '{container_name}' 응답 시간 초과"
+        print(f"[ERROR] {error_msg}")
+        raise Exception(error_msg)
+    except Exception as e:
         print("CALL ERROR ---------------------------------------")
+        print(f"Error: {str(e)}")
         raise
 
 #endregion
@@ -106,21 +151,49 @@ def get_docker_log_handler(container, last_logs_timestamp):
         last_logs_timestamp(int) : Finally, the time stamp that received the docker log
 
     Returns:
-        docker log
+        docker log (string): 로그 문자열 또는 에러 메시지
     """
-
-    client = docker.from_env()
-    dockerContainerName = CONTAINER_INFO[container].docker_name
-    containerList = client.containers.list()
-    container = next(item for item in containerList if dockerContainerName in str(item.name))
-    logs = ''
-    if int(last_logs_timestamp) == 0:
-        logs = container.logs(timestamps = True)
-    else:
-        logs = container.logs(timestamps = True, since = int(last_logs_timestamp))
-    if logs == None:
-        return ''
-    return logs.decode('utf-8')
+    try:
+        client = docker.from_env()
+        dockerContainerName = CONTAINER_INFO[container].docker_name
+        
+        # 중지된 컨테이너도 포함하여 검색, 없으면 None 반환
+        container_obj = next(
+            (c for c in client.containers.list(all=True) 
+             if dockerContainerName in str(c.name)), 
+            None
+        )
+        
+        if container_obj is None:
+            print(f"[WARN] Container '{dockerContainerName}' not found.")
+            return f"[Container Not Found] '{dockerContainerName}'"
+        
+        # 컨테이너가 중지된 경우 체크
+        if container_obj.status != 'running':
+            print(f"[WARN] Container '{dockerContainerName}' " + 
+                  f"is not running (status: {container_obj.status}).")
+            return (f"[Container Not Running] '{dockerContainerName}' " +
+                    f"status: {container_obj.status}")
+        
+        logs = ''
+        if int(last_logs_timestamp) == 0:
+            logs = container_obj.logs(timestamps=True)
+        else:
+            logs = container_obj.logs(timestamps=True, 
+                                     since=int(last_logs_timestamp))
+        
+        if logs is None:
+            return ''
+        return logs.decode('utf-8')
+        
+    except KeyError as e:
+        error_msg = f"Container key not found in CONTAINER_INFO: {container}"
+        print(f"[ERROR] {error_msg}")
+        return f"[Config Error] {error_msg}"
+    except Exception as e:
+        error_msg = f"Error getting docker logs: {str(e)}"
+        print(f"[ERROR] {error_msg}")
+        return f"[Error] {error_msg}"
 #endregion
 
 #region Get Container Info ............................................................................................

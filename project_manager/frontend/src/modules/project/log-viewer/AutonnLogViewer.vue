@@ -3,7 +3,8 @@
     <v-tabs v-model="tab" color="#eee">
       <v-tabs-slider color="transparent"></v-tabs-slider>
       <v-tab :key="'train'" :style="{ backgroundColor: getColor(0) }" class="mr-0 tab-border"> Train </v-tab>
-      <v-tab :key="'model'" :style="{ backgroundColor: getColor(1) }" class="ml-1 tab-border"> Model </v-tab>
+      <v-tab :key="'model'" :style="{ backgroundColor: getColor(1) }" class="ml-1 mr-0 tab-border"> Model </v-tab>
+      <v-tab :key="'log'" :style="{ backgroundColor: getColor(2) }" class="ml-1 tab-border"> Log </v-tab>
     </v-tabs>
 
     <v-card class="pa-1 mt-2" color="#ddd">
@@ -14,15 +15,19 @@
         <v-tab-item :key="'model'">
           <ModelViewer />
         </v-tab-item>
+        <v-tab-item :key="'log'">
+          <LogWithText />
+        </v-tab-item>
       </v-tabs-items>
     </v-card>
   </div>
 </template>
 <script>
 import LogWithChart from "./LogWithChart.vue";
+import LogWithText from "./LogWithText.vue";
 import ModelViewer from "@/modules/project/model-viewer/ModelViewer.vue";
 export default {
-  components: { LogWithChart, ModelViewer },
+  components: { LogWithChart, LogWithText, ModelViewer },
 
   props: {
     data: {
