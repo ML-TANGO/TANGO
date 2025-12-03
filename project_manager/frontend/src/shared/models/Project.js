@@ -1,4 +1,4 @@
-import { ProjectRequiredColumn, TaskType } from "@/shared/enums";
+import { ProjectRequiredColumn, TaskType, LearningType } from "@/shared/enums";
 import { ProjectType } from "@/shared/consts";
 
 import { getDatasetInfo, getDatasetFolderSize, getDatasetFileCount, updateProjectType } from "@/api";
@@ -45,8 +45,13 @@ export class Project {
    */
   validation() {
     try {
-      // Segmentation 프로젝트는 별도의 검증 규칙 적용
-      if (this.task_type === TaskType.SEGMENTATION) {
+      // Auto NN CL (Segmentation + Continual Learning) 프로젝트는
+      // 별도의 검증 규칙 적용
+      const isAutoNNCL =
+        this.task_type === TaskType.SEGMENTATION &&
+        this.learning_type === LearningType.CONTINUAL_LEARNING;
+      
+      if (isAutoNNCL) {
         return this.validateSegmentationProject();
       }
 
@@ -56,7 +61,8 @@ export class Project {
         }
       }
 
-      if (this.task_type !== TaskType.CHAT && (!this.dataset || this.dataset === "")) return false;
+      if (this.task_type !== TaskType.CHAT && (!this.dataset || this.dataset === ""))
+        return false;
 
       return true;
     } catch (err) {
@@ -118,11 +124,17 @@ export class Project {
    * dataset load
    */
   async load() {
-    // Segmentation 프로젝트는 dataset 로딩 생략
-    if (this.task_type === TaskType.SEGMENTATION) {
-      console.log("Segmentation project: skipping dataset load");
+    // Auto NN CL (Segmentation + Continual Learning) 프로젝트는
+    // dataset 로딩 생략
+    const isAutoNNCL =
+      this.task_type === TaskType.SEGMENTATION &&
+      this.learning_type === LearningType.CONTINUAL_LEARNING;
+    
+    if (isAutoNNCL) {
+      console.log("Auto NN CL project: skipping dataset load");
       if (!this.project_type) {
-        await updateProjectType(this.id, ProjectType.AUTO); // Segmentation은 AUTO 타입으로 설정
+        // Auto NN CL은 AUTO 타입으로 설정
+        await updateProjectType(this.id, ProjectType.AUTO);
         this.project_type = ProjectType.AUTO;
       }
       return;

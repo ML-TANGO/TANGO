@@ -204,7 +204,9 @@ autonn/autonn/autonn_core/migrations
 autonn/autonn/runs/
 autonn/autonn/autonn_core/datasets/coco128/labels/*.cache
 autonn/autonn/autonn_core/.chroma
-
+**/datasets/coco/images/
+**/datasets/coco/annotations/
+**/datasets/coco/labels/
 # BMS
 base_model_select/backend/migrations
 

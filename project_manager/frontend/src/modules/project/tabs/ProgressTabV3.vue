@@ -242,9 +242,54 @@ export default {
     },
 
     async containerStartRequest(container) {
-      const res = await containerStart(container, this.projectInfo.create_user, this.projectInfo.id);
-      this.$EventBus.$emit("logUpdate", { message: res.message });
-      this.$EventBus.$emit("logUpdate", { message: res.response });
+      try {
+        const res = await containerStart(container, this.projectInfo.create_user, this.projectInfo.id);
+        
+        // 정상 응답
+        this.$EventBus.$emit("logUpdate", { message: res.message });
+        this.$EventBus.$emit("logUpdate", { message: res.response });
+      } catch (error) {
+        console.error("Container start error:", error);
+        
+        // axios 에러 처리
+        let errorMessage = "알 수 없는 오류";
+        let solution = "";
+        
+        if (error.response && error.response.data) {
+          // 백엔드에서 반환한 에러 정보
+          errorMessage = error.response.data.error || error.response.data.message || errorMessage;
+          solution = error.response.data.solution || "";
+        } else if (error.message) {
+          errorMessage = error.message;
+        }
+        
+        // 로그에 에러 메시지 표시
+        this.$EventBus.$emit("logUpdate", { 
+          message: `❌ ${errorMessage}${solution ? '\n\n' + solution : ''}` 
+        });
+        
+        // 사용자에게 알림 다이얼로그 표시
+        Swal.fire({
+          title: "컨테이너 시작 실패",
+          
+          html: `<div class="d-flex flex-column" style="gap: 10px;">
+            <div style="text-align: center; white-space: pre-line;">
+              <p><strong>오류:</strong> ${errorMessage}</p>
+            </div>
+            <div style="text-align: center;">
+              <p><strong>컨테이너 동작상태를 확인하고 다시 시도해주세요.</strong></p>
+            </div>
+          </div>
+          `,
+          icon: "error",
+          confirmButtonText: "확인",
+          width: "600px"
+        });
+        
+        this.SET_PROJECT({
+          container_status: ProjectStatus.FAILED
+        });
+      }
     },
 
     onNextPipeline() {

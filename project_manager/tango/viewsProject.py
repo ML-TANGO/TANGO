@@ -246,16 +246,8 @@ def start_autonn_cl_container(user_id, project_id, project_info):
             target_info = project_info.target.target_info
         
         # 기존 AutoNN과 동일한 방식으로 API 호출
-        try:
-            response = call_api_handler(ContainerId.autonn_cl, "start", user_id, project_id, target_info)
-            # → GET http://autonn-cl:8102/start?user_id=xxx&project_id=xxx
-        except Exception as api_error:
-            print(f"[AutoNN_CL] API 호출 실패, 더미 응답 사용: {api_error}")
-            # API 호출 실패 시 더미 응답 생성 (로그 테스트용)
-            response = json.dumps({
-                'response': 'started', 
-                'request_info': '[AutoNN_CL] API 호출 시뮬레이션 - 실제 컨테이너 연결 실패로 더미 응답 사용'
-            })
+        response = call_api_handler(ContainerId.autonn_cl, "start", user_id, project_id, target_info)
+        # → GET http://autonn-cl:8102/start?user_id=xxx&project_id=xxx
         
         # API 응답 수신 로그 추가
         api_response_log = f"[AutoNN_CL] API 응답 수신 완료 - 상태: 정상"
@@ -517,22 +509,33 @@ def container_start(request):
             print(error_msg)
             
             # 컨테이너가 실행되지 않은 경우 더 명확한 에러 메시지 제공
-            if "배포 타입" in error_msg or "실행 중이지 않습니다" in error_msg:
+            if "배포 타입" in error_msg or "실행 중이지 않습니다" in error_msg or "연결할 수 없습니다" in error_msg:
                 response_data = {
                     'status': 503,
                     'message': f'{container_id} 컨테이너 시작 실패',
                     'error': error_msg,
-                    'solution': '해당 배포 타입의 컨테이너가 실행되지 않았습니다. docker-compose.yml에서 해당 서비스의 주석을 해제하고 "docker compose up -d [서비스명]"으로 컨테이너를 실행해주세요.'
+                    'solution': f'"{container_id}" 컨테이너가 실행되지 않았습니다.\n\n터미널에서 다음 명령어를 실행하세요:\ndocker compose up -d {container_id}'
                 }
+                project_info.container_status = ContainerStatus.FAILED
+                project_info.save()
+                return HttpResponse(
+                    json.dumps(response_data), 
+                    status=503,
+                    content_type='application/json'
+                )
             else:
                 response_data = {
                     'status': 500,
                     'message': f'{container_id} 컨테이너 시작 실패',
                     'error': error_msg
                 }
-            
-            project_info.save()
-            return HttpResponse(json.dumps(response_data))
+                project_info.container_status = ContainerStatus.FAILED
+                project_info.save()
+                return HttpResponse(
+                    json.dumps(response_data),
+                    status=500,
+                    content_type='application/json'
+                )
 
         project_info.container = container_id
         project_info.container_status = ContainerStatus.STARTED

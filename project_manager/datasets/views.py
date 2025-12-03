@@ -765,10 +765,10 @@ def is_download_complete_dataset(folder_path):
     file_count = 0
     for path, dirs, files in os.walk(folder_path):
         file_count += len(files)
-        if file_count > 2:
+        if file_count > 5:
             return True
     
-    if file_count > 2:
+    if file_count > 5:
         return True
     else: 
         return False
