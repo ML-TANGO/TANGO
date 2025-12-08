@@ -1,5 +1,5 @@
 <template>
-  <div style="width: 100%; height: 100%">
+  <div class="log-viewer-shell">
     <LogWithText v-if="viewerMode === ViewerMode.TEXT" />
     <AutonnChatViewer v-else-if="viewerMode === ViewerMode.CHAT" />
     <AutonnLogViewer v-else :data="autonn_status"></AutonnLogViewer>
@@ -52,4 +52,9 @@ export default {
   }
 };
 </script>
-<style lang=""></style>
+<style>
+.log-viewer-shell {
+  width: 100%;
+  min-height: 0;
+}
+</style>

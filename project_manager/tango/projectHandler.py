@@ -5,6 +5,7 @@ import docker
 import shutil
 import json
 import textwrap
+from datetime import datetime, timedelta, timezone
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 root_path = os.path.dirname(os.path.dirname(BASE_DIR))
@@ -157,44 +158,165 @@ def get_docker_log_handler(container, last_logs_timestamp):
         client = docker.from_env()
         dockerContainerName = CONTAINER_INFO[container].docker_name
         
+        def _match_container(c):
+            # Prefer compose service label to avoid substring collisions
+            labels = getattr(c, "labels", None) or {}
+            service_name = labels.get('com.docker.compose.service')
+            if service_name:
+                return service_name == dockerContainerName
+            name = str(c.name)
+            return (
+                name == dockerContainerName
+                or name.endswith(f"_{dockerContainerName}_1")
+                or name.endswith(f"-{dockerContainerName}-1")
+            )
+
         # 중지된 컨테이너도 포함하여 검색, 없으면 None 반환
         container_obj = next(
-            (c for c in client.containers.list(all=True) 
-             if dockerContainerName in str(c.name)), 
+            (c for c in client.containers.list(all=True) if _match_container(c)),
             None
         )
         
         if container_obj is None:
             print(f"[WARN] Container '{dockerContainerName}' not found.")
-            return f"[Container Not Found] '{dockerContainerName}'"
+            return f"[Container Not Found] '{dockerContainerName}'", last_logs_timestamp
         
         # 컨테이너가 중지된 경우 체크
         if container_obj.status != 'running':
             print(f"[WARN] Container '{dockerContainerName}' " + 
                   f"is not running (status: {container_obj.status}).")
             return (f"[Container Not Running] '{dockerContainerName}' " +
-                    f"status: {container_obj.status}")
+                    f"status: {container_obj.status}"), last_logs_timestamp
         
         logs = ''
-        if int(last_logs_timestamp) == 0:
-            logs = container_obj.logs(timestamps=True)
+        start_ts = float(last_logs_timestamp or 0)
+        if start_ts <= 0:
+            logs = container_obj.logs(timestamps=True, stream=False)
         else:
-            logs = container_obj.logs(timestamps=True, 
-                                     since=int(last_logs_timestamp))
+            logs = container_obj.logs(timestamps=True, since=start_ts, stream=False)
+            # If nothing came back, retry from the beginning once to resync
+            if not logs:
+                logs = container_obj.logs(timestamps=True, stream=False)
         
         if logs is None:
-            return ''
-        return logs.decode('utf-8')
+            return '', last_logs_timestamp
+
+        formatted, latest_ts = format_logs_with_kst(
+            logs.decode('utf-8'), dockerContainerName, last_logs_timestamp
+        )
+        return formatted, latest_ts
         
     except KeyError as e:
         error_msg = f"Container key not found in CONTAINER_INFO: {container}"
         print(f"[ERROR] {error_msg}")
-        return f"[Config Error] {error_msg}"
+        return f"[Config Error] {error_msg}", last_logs_timestamp
     except Exception as e:
         error_msg = f"Error getting docker logs: {str(e)}"
         print(f"[ERROR] {error_msg}")
-        return f"[Error] {error_msg}"
+        return f"[Error] {error_msg}", last_logs_timestamp
 #endregion
+
+
+def format_logs_with_kst(raw_logs: str, container_name: str, last_ts: float):
+    """Convert docker log timestamps to KST (for cursor only) and output without timestamp.
+    Returns: (formatted_logs, latest_timestamp_for_cursor)
+    """
+    if not raw_logs:
+        return "", last_ts
+
+    lines = raw_logs.splitlines()
+    formatted = []
+    latest_ts = last_ts or 0
+    cutoff_ts = last_ts or 0
+    for line in lines:
+        formatted_line, ts_epoch = _format_log_line(line, container_name)
+        # Skip lines older than the stored cursor (e.g., previous project runs)
+        if ts_epoch and ts_epoch < cutoff_ts:
+            continue
+        formatted.append(formatted_line)
+        if ts_epoch:
+            latest_ts = max(latest_ts, ts_epoch)
+    # If no timestamp was parsed, advance using current time to avoid replaying the same chunk
+    if latest_ts == (last_ts or 0):
+        latest_ts = datetime.now(timezone.utc).timestamp()
+    return "\n".join(formatted), latest_ts
+
+
+def _format_log_line(line: str, container_name: str):
+    """
+    Remove the leading docker timestamp for display, keep the remainder intact.
+    """
+    # Preserve leading spaces/content except a trailing newline
+    line_raw = line.rstrip('\n')
+    if not line_raw:
+        return line_raw, None
+    import re
+
+    # Match a timestamp prefix but preserve all following whitespace/content verbatim
+    m = re.match(r'^(?P<ts>\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?Z)', line_raw)
+    if m:
+        ts_raw = m.group("ts")
+        remainder = line_raw[m.end():]  # keep leading spaces/tabs after timestamp exactly
+        try:
+            dt_utc = _parse_docker_ts(ts_raw)
+            decorated = f"{container_name} |{remainder}" if remainder else container_name
+            return decorated, dt_utc.timestamp()
+        except Exception:
+            # Even if parsing fails, drop the ts and keep the remainder
+            now_utc = datetime.now(timezone.utc)
+            decorated = f"{container_name} |{remainder}" if remainder else container_name
+            return decorated, now_utc.timestamp()
+
+    # Fallback: no timestamp detected; keep the line as-is
+    now_utc = datetime.now(timezone.utc)
+    decorated = f"{container_name} |{line_raw}" if line_raw else container_name
+    return decorated, now_utc.timestamp()
+
+
+def _parse_docker_ts(ts_raw: str) -> datetime:
+    """
+    Parse docker timestamps such as:
+      2025-12-08T07:29:40.12345678Z
+      2025-12-08T07:29:40.123Z
+      2025-12-08T07:29:40Z
+    Return UTC datetime.
+    """
+    # Separate fractional and timezone
+    # Match date + time, optional fraction, optional tz
+    import re
+
+    m = re.match(
+        r'^(?P<base>\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2})'
+        r'(?P<frac>\.\d+)?'
+        r'(?P<tz>Z|[+-]\d{2}:?\d{2})?$',
+        ts_raw
+    )
+    if not m:
+        raise ValueError("unrecognized timestamp")
+
+    base = m.group("base")
+    frac = m.group("frac") or ""
+    tz = m.group("tz") or "+00:00"
+
+    # Normalize fraction to microseconds (6 digits)
+    if frac:
+        digits = frac[1:]  # drop leading dot
+        if len(digits) > 6:
+            digits = digits[:6]
+        digits = digits.ljust(6, "0")
+        frac_norm = f".{digits}"
+    else:
+        frac_norm = ".000000"
+
+    # Normalize timezone to ±HH:MM
+    if tz == "Z":
+        tz = "+00:00"
+    elif len(tz) == 5 and tz[3] != ":":
+        # e.g. +0900 -> +09:00
+        tz = f"{tz[:3]}:{tz[3:]}"
+
+    iso_str = f"{base}{frac_norm}{tz}"
+    return datetime.fromisoformat(iso_str)
 
 #region Get Container Info ............................................................................................
 def get_deploy_container(deploy_type):
@@ -417,5 +539,3 @@ def status_report_to_log_text(request, project_info):
     log_str += '\nstatus : '+ str(result)
     log_str += '\n----------------------------------------'
     log_str += '\n\n'
-
-

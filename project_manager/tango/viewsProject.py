@@ -500,6 +500,25 @@ def container_start(request):
             copy_train_file_for_version(5)
         
 
+        # 새 시작 시 이전 로그/포인터를 초기화 (UI에서 오래된 로그가 섞이지 않도록)
+        project_info.current_log = ''
+        # 시작 시점을 기준으로 이후 로그만 가져오도록 커서를 현재 시각으로 설정
+        # 약간 앞당겨서 초기 몇 줄을 놓치지 않게 1초 이전으로 설정
+        project_info.last_logs_timestamp = time.time() - 1
+        project_info.last_log_container = container_id
+        # shared/common/<user>/<project>/log.txt도 비워준다.
+        try:
+            log_file_path = os.path.join(
+                root_path,
+                f"shared/common/{str(user_id)}/{str(project_id)}/log.txt"
+            )
+            os.makedirs(os.path.dirname(log_file_path), exist_ok=True)
+            with open(log_file_path, 'w') as f:
+                f.write('')
+        except Exception as e:
+            # 파일 초기화 실패는 시작을 막지 않도록 로그만 남김
+            print(f"[WARN] Failed to reset log file: {e}")
+
         log = ''
         try:
             log = start_container(user_id, project_id, project_info, container_id)
@@ -539,6 +558,9 @@ def container_start(request):
 
         project_info.container = container_id
         project_info.container_status = ContainerStatus.STARTED
+        # Reset log cursor when (re)starting a container to avoid stale timestamps
+        project_info.last_logs_timestamp = 0
+        project_info.last_log_container = ''
         project_info.save()
         
         # Segmentation 프로젝트인 경우 추가 로그 메시지
@@ -552,7 +574,12 @@ def container_start(request):
             full_log = str(project_info.current_log) + "\n" + log
             return HttpResponse(json.dumps({'status': 200, 'message': str(container_id) + ' 시작 요청\n' + additional_message, 'response' : full_log}))
         else:
-            return HttpResponse(json.dumps({'status': 200, 'message': str(container_id) + ' 시작 요청\n' + additional_message, 'response' : log}))
+            # AutoNN도 API 호출/응답을 current_log에 누적해 동일한 UX 제공
+            project_info.current_log = str(project_info.current_log) + "\n" + f"[AutoNN] 시작 요청: {container_id}"
+            project_info.current_log = str(project_info.current_log) + "\n" + f"[AutoNN] 응답: {log}"
+            project_info.save(update_fields=["current_log"])
+            full_log = str(project_info.current_log)
+            return HttpResponse(json.dumps({'status': 200, 'message': str(container_id) + ' 시작 요청\n' + additional_message, 'response' : full_log}))
     except Project.DoesNotExist:
         print(f"project_id : {project_id}를 찾을 수 없음.")
         return HttpResponse(error)
@@ -631,28 +658,25 @@ def status_request(request):
             project_info.save()
             return HttpResponse(json.dumps({'container': container_id, 'container_status': project_info.container_status, 'message':  container_info.display_name + ": status_request - Error\n"}))
         
-        # 현재 container의 status를 log에 표시
-        if container_id == ContainerId.autonn_cl:
-            response_log = str(project_info.current_log) + f"\n[AutoNN_CL] 현재 상태: {response['response']}"
-        else:
-            response_log = str(project_info.current_log) + str(container_id) + '- status_request response : ' + str(response['response'])
+        # 로그에는 docker 로그만 노출하고 상태 응답 문구는 제외
+        response_log = str(project_info.current_log)
+        # 이미 전송된 호출 로그가 다음 응답에 중복으로 실리지 않도록 한 번 소비하면 비워준다.
+        project_info.current_log = ''
         
         # docker의 log를 가져옴
         if container_id != ContainerId.imagedeploy:
-            logs = get_docker_log_handler(project_info.container, project_info.last_logs_timestamp)
+            logs, latest_ts = get_docker_log_handler(project_info.container, project_info.last_logs_timestamp)
         else:
-            logs = get_docker_log_handler(get_deploy_container(project_info.target.target_info), project_info.last_logs_timestamp)
+            logs, latest_ts = get_docker_log_handler(get_deploy_container(project_info.target.target_info), project_info.last_logs_timestamp)
         
         # log를 가지고 온 마지막 timestamp와 실행 컨테이너를 저장
-        project_info.last_logs_timestamp = time.mktime(datetime.now().timetuple()) + 1.0
+        if latest_ts:
+            # advance slightly so same-second logs are not replayed
+            project_info.last_logs_timestamp = latest_ts + 1e-4
         project_info.last_log_container = project_info.container
 
         response_log += '\n' + str(logs)
         
-        # AutoNN_CL의 경우 current_log를 보존 (API 호출 로그 유지)
-        if container_id != ContainerId.autonn_cl:
-            project_info.current_log = ''
-
         if response['response'] == ContainerStatus.COMPLETED:
             response_log += container_info.display_name + " 완료\n"
 
