@@ -677,7 +677,8 @@ def convert_small_model(model, ckpt):
             while True:
                 idx += 1
                 ten_percent_cnt = int((cnt+1)/max*10+0.5)
-                bar = '|'+ '🟩'*ten_percent_cnt + ' '*(20-ten_percent_cnt*2)+'|'
+                filled = min(10, ten_percent_cnt)  # single-width blocks; total width 10
+                bar = '|' + colorstr('green', '█' * filled) + ' ' * (10 - filled) + '|'
                 s = f'model.{idx:2.0f} weights transferring...'
                 s += (f'{bar} {(cnt+1)/max*100:3.0f}% {cnt+1:6.0f}/{max:6.0f}')
                 logger.info(s)
@@ -736,7 +737,8 @@ def convert_medium_model(model, ckpt):
             while True:
                 idx += 1
                 ten_percent_cnt = int((cnt+1)/max*10+0.5)
-                bar = '|'+ '🟩'*ten_percent_cnt + ' '*(20-ten_percent_cnt*2)+'|'
+                filled = min(10, ten_percent_cnt)
+                bar = '|' + colorstr('green', '█' * filled) + ' ' * (10 - filled) + '|'
                 s = f'model.{idx:2.0f} weights transferring...'
                 s += (f'{bar} {(cnt+1)/max*100:3.0f}% {cnt+1:6.0f}/{max:6.0f}')
                 logger.debug(s)
@@ -800,7 +802,8 @@ def convert_large_model(model, ckpt):
             while True:
                 idx += 1
                 ten_percent_cnt = int((cnt+1)/max*10+0.5)
-                bar = '|'+ '🟩'*ten_percent_cnt + ' '*(20-ten_percent_cnt*2)+'|'
+                filled = min(10, ten_percent_cnt)
+                bar = '|' + colorstr('green', '█' * filled) + ' ' * (10 - filled) + '|'
                 s = f'model.{idx:2.0f} weights transferring...'
                 s += (f'{bar} {(cnt+1)/max*100:3.0f}% {cnt+1:6.0f}/{max:6.0f}')
                 logger.info(s)
