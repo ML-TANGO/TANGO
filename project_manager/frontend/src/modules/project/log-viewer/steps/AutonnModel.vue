@@ -1,9 +1,9 @@
 <template>
-  <StepContainer primaryColor="#5d239d" :isCompleted="isCompleted">
+  <StepContainer class="model-typography" primaryColor="#5d239d" :isCompleted="isCompleted">
     <template #step-icon> <v-icon color="white">mdi-calculator-variant-outline</v-icon> </template>
     <template #step-title> MODEL </template>
     <template #step-description>
-      <div class="pl-3">{{ baseModel?.["model_name"] || "" }} {{ baseModel?.["model_size"] || "" }}</div>
+      <div class="pl-3 model-desc">{{ baseModel?.["model_name"] || "" }} {{ baseModel?.["model_size"] || "" }}</div>
     </template>
     <template #items>
       <StepItem titleColor="#9363b7" contentColor="#b797cf" v-for="(item, index) in dispalyItems" :key="index">
@@ -49,4 +49,16 @@ export default {
   }
 };
 </script>
-<style></style>
+<style scoped>
+@import url("https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@600;700&display=swap");
+
+.model-typography :deep(.default-item),
+.model-desc {
+  font-family: "IBM Plex Sans", "Noto Sans KR", "Helvetica Neue", Arial, sans-serif;
+  font-variant-numeric: tabular-nums;
+  font-feature-settings: "tnum";
+  font-weight: 700;
+  font-size: 14px;
+  letter-spacing: 0.2px;
+}
+</style>

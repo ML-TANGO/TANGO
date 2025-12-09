@@ -1,5 +1,5 @@
 <template>
-  <StepContainer primaryColor="#6a913f" :isCompleted="isCompleted">
+  <StepContainer class="setting-typography" primaryColor="#6a913f" :isCompleted="isCompleted">
     <template #step-icon> <v-icon color="white">mdi-cog-outline</v-icon> </template>
     <template #step-title> SETTINGS </template>
     <template #divider>
@@ -60,4 +60,15 @@ export default {
   }
 };
 </script>
-<style></style>
+<style scoped>
+@import url("https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@600;700&display=swap");
+
+.setting-typography :deep(.default-item) {
+  font-family: "IBM Plex Sans", "Noto Sans KR", "Helvetica Neue", Arial, sans-serif;
+  font-variant-numeric: tabular-nums;
+  font-feature-settings: "tnum";
+  font-weight: 700;
+  font-size: 14px;
+  letter-spacing: 0.2px;
+}
+</style>

@@ -1,13 +1,17 @@
 <template>
-  <div class="d-flex align-end" style="gap: 8px; width: 100%">
+  <div class="d-flex align-end train-container" style="gap: 8px; width: 100%">
     <div>
       <div class="rect" :style="{ backgroundColor: primaryColor, color: 'white' }">{{ data.summary.first.title }}</div>
-      <div class="rect mt-1" :style="{ border: `3px solid ${primaryColor}` }">{{ data.summary.first.value }}</div>
+      <div class="rect mt-1 train-number" :style="{ border: `3px solid ${primaryColor}` }">
+        {{ data.summary.first.value }}
+      </div>
     </div>
 
     <div>
       <div class="rect" :style="{ backgroundColor: primaryColor, color: 'white' }">{{ data.summary.second.title }}</div>
-      <div class="rect mt-1" :style="{ border: `3px solid ${primaryColor}` }">{{ data.summary.second.value }}</div>
+      <div class="rect mt-1 train-number" :style="{ border: `3px solid ${primaryColor}` }">
+        {{ data.summary.second.value }}
+      </div>
     </div>
 
     <div style="width: 60%">
@@ -43,27 +47,29 @@
         :style="{ border: `2px solid ${primaryColor}` }"
       >
         <div class="d-flex" style="width: 100%">
-          <div class="rounded-rect inner bottom first" :style="{ border: `2px solid ${primaryColor}` }">
+          <div class="rounded-rect inner bottom first train-number" :style="{ border: `2px solid ${primaryColor}` }">
             {{ data.info.left.value }}
           </div>
-          <div class="rounded-rect inner bottom" :style="{ border: `2px solid ${primaryColor}` }">
+          <div class="rounded-rect inner bottom train-number" :style="{ border: `2px solid ${primaryColor}` }">
             {{ data.info.center.value }}
           </div>
-          <div class="rounded-rect inner bottom" :style="{ border: `2px solid ${primaryColor}` }">
+          <div class="rounded-rect inner bottom train-number" :style="{ border: `2px solid ${primaryColor}` }">
             {{ data.info.right.value }}
           </div>
         </div>
 
-        <div style="text-align: right; width: 80px" class="mr-3">{{ data.info.result.value }}</div>
+        <div style="text-align: right; width: 80px" class="mr-3 train-number">{{ data.info.result.value }}</div>
       </div>
     </div>
 
     <div style="width: 40%" class="d-flex align-end px-3">
       <div class="d-flex align-center" style="width: 100%; gap: 20px">
         <v-progress-linear :value="data.progressPercent" height="30" rounded>
-          {{ data.progressPercent }}%
+          <span class="train-progress-number">{{ data.progressPercent }}%</span>
         </v-progress-linear>
-        <div style="width: 230px; text-align: right">{{ data.progressTime }} / iter</div>
+        <div style="width: 230px; text-align: right" class="train-progress-number train-number--sm">
+          {{ data.progressTime }} / iter
+        </div>
       </div>
     </div>
   </div>
@@ -101,6 +107,14 @@ export default {
 };
 </script>
 <style>
+@import url("https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@500;600&display=swap");
+
+.train-container {
+  font-family: "IBM Plex Sans", "Noto Sans KR", "Helvetica Neue", Arial, sans-serif;
+  font-variant-numeric: tabular-nums;
+  font-feature-settings: "tnum";
+}
+
 .rect {
   border-radius: 8px;
   height: 30px;
@@ -145,5 +159,28 @@ export default {
 
 .inner.bottom.first {
   margin-left: -2px;
+}
+
+.train-number {
+  font-family: "IBM Plex Sans", "Noto Sans KR", "Helvetica Neue", Arial, sans-serif;
+  font-variant-numeric: tabular-nums;
+  font-feature-settings: "tnum";
+  font-weight: 700;
+  font-size: 16px;
+  letter-spacing: 0.2px;
+}
+
+.train-number--sm {
+  font-size: 15px;
+  font-weight: 700;
+}
+
+.train-progress-number {
+  font-family: "IBM Plex Sans", "Noto Sans KR", "Helvetica Neue", Arial, sans-serif;
+  font-variant-numeric: tabular-nums;
+  font-feature-settings: "tnum";
+  font-weight: 700;
+  font-size: 16px;
+  letter-spacing: 0.2px;
 }
 </style>

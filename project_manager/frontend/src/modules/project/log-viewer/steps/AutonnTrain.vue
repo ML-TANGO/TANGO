@@ -358,6 +358,8 @@ export default {
 };
 </script>
 <style lang="css" scoped>
+@import url("https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@500;600&display=swap");
+
 .train-grid {
   display: grid;
 
@@ -366,5 +368,27 @@ export default {
 
   grid-row-gap: 32px;
   grid-column-gap: 8px;
+
+  font-family: "IBM Plex Sans", "Noto Sans KR", "Helvetica Neue", Arial, sans-serif;
+  font-variant-numeric: tabular-nums;
+  font-feature-settings: "tnum";
+}
+
+.train-grid :deep(.v-progress-circular__info) {
+  font-family: "IBM Plex Sans", "Noto Sans KR", "Helvetica Neue", Arial, sans-serif;
+  font-variant-numeric: tabular-nums;
+  font-feature-settings: "tnum";
+  font-weight: 700;
+  font-size: 20px;
+  letter-spacing: 0.2px;
+}
+
+.train-grid :deep(.v-progress-linear__content) {
+  font-family: "IBM Plex Sans", "Noto Sans KR", "Helvetica Neue", Arial, sans-serif;
+  font-variant-numeric: tabular-nums;
+  font-feature-settings: "tnum";
+  font-weight: 700;
+  font-size: 16px;
+  letter-spacing: 0.2px;
 }
 </style>
