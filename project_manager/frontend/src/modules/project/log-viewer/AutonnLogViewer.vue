@@ -26,6 +26,7 @@
 import LogWithChart from "./LogWithChart.vue";
 import LogWithText from "./LogWithText.vue";
 import ModelViewer from "@/modules/project/model-viewer/ModelViewer.vue";
+import { AutonnStatus } from "@/shared/enums";
 export default {
   components: { LogWithChart, LogWithText, ModelViewer },
 
@@ -37,7 +38,9 @@ export default {
 
   data() {
     return {
-      tab: null
+      tab: null,
+      AutonnStatus,
+      autoLogShown: false
     };
   },
 
@@ -47,6 +50,20 @@ export default {
         if (this.tab === currTab) return "#4a80ff";
         else return "#eee";
       };
+    }
+  },
+
+  watch: {
+    // 학습 종료(train_end) 시 한 번만 Log 탭으로 전환(이후는 추론용 모델로 변환하는 과정)
+    "data.progress": {
+      handler(val) {
+        const numericVal = Number(val);
+        if (!Number.isNaN(numericVal) && !this.autoLogShown && numericVal >= AutonnStatus.TRAIN_END) {
+          this.tab = 2;
+          this.autoLogShown = true;
+        }
+      },
+      immediate: true
     }
   }
 };

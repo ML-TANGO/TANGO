@@ -224,8 +224,11 @@ export const ViewerMode = Object.freeze({
 export const AutonnStatus = Object.freeze({
   PROJECT_INFO: 0,
   SYSTEM: 1,
-  MODEL: 2,
-  DATASET: 3
+  MODEL: 1.5, // model_summary
+  DATASET: 2, // train_dataset
+  ANCHOR: 3, // anchors
+  TRAIN_END: 4,
+  FINETUNE_END: 5
 });
 
 export const AutonnLogTitle = Object.freeze({

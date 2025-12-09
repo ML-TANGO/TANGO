@@ -177,6 +177,27 @@ def delete_autonn_status(project_info):
         is_use = True
     ).delete()   
 
+
+def get_container_log_prefix(container_id, project_info):
+    """
+    Return a display-friendly log prefix for the requested container.
+    Falls back to the raw container_id when lookup fails.
+    """
+    try:
+        container_key = container_id
+        if container_id == ContainerId.imagedeploy and project_info and project_info.target:
+            deploy_target = get_deploy_container(project_info.target.target_info)
+            container_key = deploy_target if deploy_target else container_id
+
+        container_info = CONTAINER_INFO.get(container_key)
+        if container_info:
+            return f"[{container_info.display_name}]"
+    except Exception as e:
+        print(f"[WARN] Failed to resolve container log prefix: {e}")
+
+    return f"[{container_id}]"
+
+
 def start_container(user_id, project_id, project_info, container_id):
     """
     컨테이너 시작 함수
@@ -574,9 +595,10 @@ def container_start(request):
             full_log = str(project_info.current_log) + "\n" + log
             return HttpResponse(json.dumps({'status': 200, 'message': str(container_id) + ' 시작 요청\n' + additional_message, 'response' : full_log}))
         else:
-            # AutoNN도 API 호출/응답을 current_log에 누적해 동일한 UX 제공
-            project_info.current_log = str(project_info.current_log) + "\n" + f"[AutoNN] 시작 요청: {container_id}"
-            project_info.current_log = str(project_info.current_log) + "\n" + f"[AutoNN] 응답: {log}"
+            # 컨테이너 API 호출/응답을 current_log에 누적해 동일한 UX 제공
+            log_prefix = get_container_log_prefix(container_id, project_info)
+            project_info.current_log = str(project_info.current_log) + "\n" + f"{log_prefix} 시작 요청: {container_id}"
+            project_info.current_log = str(project_info.current_log) + "\n" + f"{log_prefix} 응답: {log}"
             project_info.save(update_fields=["current_log"])
             full_log = str(project_info.current_log)
             return HttpResponse(json.dumps({'status': 200, 'message': str(container_id) + ' 시작 요청\n' + additional_message, 'response' : full_log}))
@@ -678,7 +700,7 @@ def status_request(request):
         response_log += '\n' + str(logs)
         
         if response['response'] == ContainerStatus.COMPLETED:
-            response_log += container_info.display_name + " 완료\n"
+            response_log += "\n" + container_info.display_name + " 완료\n"
 
         project_info.container_status = response['response']
 

@@ -30,17 +30,21 @@ export default {
     ...mapState(ProjectNamespace, ["project", "autonn_status"]),
 
     viewerMode() {
+      const isAutoNN = this.project.container === ContainerName.AUTO_NN;
+
+      // Non-AutoNN 컨테이너는 완료/중지 상태에서 TEXT 뷰 유지
       if (
-        this.project.container_status === ProjectStatus.STARTED ||
-        this.project.container_status === ProjectStatus.STOPPED ||
-        this.project.container_status === ProjectStatus.COMPLETED
+        !isAutoNN &&
+        (this.project.container_status === ProjectStatus.STARTED ||
+          this.project.container_status === ProjectStatus.STOPPED ||
+          this.project.container_status === ProjectStatus.COMPLETED)
       ) {
         return ViewerMode.TEXT;
       }
-      if (this.project.container === ContainerName.AUTO_NN) {
+      if (isAutoNN) {
         if (this.project.task_type === TaskType.CHAT) {
           return ViewerMode.CHAT;
-        } else if (this.autonn_status?.progress >= 1 && this.autonn_status?.progress <= 1) {
+        } else if (this.autonn_status?.progress >= 1 && this.autonn_status?.progress <= 2) {
           return ViewerMode.MODEL_VIEW;
           // return ViewerMode.CHART;
         } else {
