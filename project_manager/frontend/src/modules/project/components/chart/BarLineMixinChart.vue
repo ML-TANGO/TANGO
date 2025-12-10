@@ -88,6 +88,18 @@ export default {
           }
         ]
       })
+    },
+    useDualAxis: {
+      type: Boolean,
+      default: false
+    },
+    secondaryYTitle: {
+      type: String,
+      default: ""
+    },
+    showLegend: {
+      type: Boolean,
+      default: false
     }
   },
   data() {
@@ -96,12 +108,51 @@ export default {
 
   computed: {
     chartOptions() {
+      const dualAxisScales = {
+        x: {
+          title: {
+            display: true,
+            text: this.xTitle,
+            align: "end"
+          }
+        },
+        epochTime: {
+          position: "left",
+          min: 0,
+          title: {
+            display: true,
+            text: this.yTitle,
+            align: "end"
+          },
+          grid: {
+            drawOnChartArea: true
+          }
+        },
+        totalTime: {
+          position: "right",
+          min: 0,
+          title: {
+            display: true,
+            text: this.secondaryYTitle || this.yTitle,
+            align: "start"
+          },
+          grid: {
+            drawOnChartArea: false
+          }
+        }
+      };
+
       return {
         responsive: true,
         maintainAspectRatio: false,
         plugins: {
           legend: {
-            display: false
+            display: this.showLegend,
+            position: "bottom",
+            labels: {
+              boxWidth: 12,
+              boxHeight: 12
+            }
           },
           tooltip: {
             callbacks: {
@@ -122,22 +173,25 @@ export default {
           }
         },
         scales: {
-          x: {
-            title: {
-              display: true,
-              text: this.xTitle,
-              align: "end"
-            }
-          },
-          y: {
-            // max: 1,
-            min: 0,
-            title: {
-              display: true,
-              text: this.yTitle,
-              align: "end"
-            }
-          }
+          ...(this.useDualAxis
+            ? dualAxisScales
+            : {
+                x: {
+                  title: {
+                    display: true,
+                    text: this.xTitle,
+                    align: "end"
+                  }
+                },
+                y: {
+                  min: 0,
+                  title: {
+                    display: true,
+                    text: this.yTitle,
+                    align: "end"
+                  }
+                }
+              })
         }
       };
     }
