@@ -1,17 +1,14 @@
 <template>
   <div class="train-grid">
-    <div class="d-flex align-end" style="width: 100%">
-      <div
-        class="px-3 py-1 d-flex align-center justify-center"
-        style="border-radius: 100px; background-color: #ef3e2b; color: white; width: 100%"
-      >
+    <div class="grid-badge train-badge">
+      <div class="badge-chip badge-train">
         TRAIN
       </div>
     </div>
     <div style="grid-row: 1/2; grid-column: 2/5">
       <TrainContainer primaryColor="#f79f95" secondaryColor="#f36f60" :data="trainLossLog" />
     </div>
-    <div style="grid-row: 1/2; grid-column: 5/6">
+    <div class="gauge-wrapper" style="grid-row: 1/2; grid-column: 5/6">
       <div class="text-center">
         <v-progress-circular :rotate="-90" :size="160" :width="10" :value="epochProgress" color="#625e63">
           EPOCH #{{ train?.epoch || 0 }}
@@ -20,7 +17,11 @@
         </v-progress-circular>
       </div>
     </div>
-    <div v-if="elapsedTimeSummary.hasData" style="grid-row: 2/3; grid-column: 5/6">
+    <div
+      v-if="elapsedTimeSummary.hasData"
+      class="time-stats-wrapper"
+      style="grid-row: 2/3; grid-column: 5/6"
+    >
       <div class="time-stats">
         <div class="time-stat-card">
           <div class="time-stat-label">누적 시간</div>
@@ -43,11 +44,8 @@
         </div>
       </div>
     </div>
-    <div class="d-flex align-end" style="width: 100%">
-      <div
-        class="px-3 py-1 d-flex align-center justify-center"
-        style="border-radius: 100px; background-color: #34879f; color: white; width: 100%"
-      >
+    <div class="grid-badge val-badge">
+      <div class="badge-chip badge-val">
         VAL
       </div>
     </div>
@@ -497,11 +495,62 @@ export default {
   letter-spacing: 0.2px;
 }
 
+.grid-badge {
+  display: flex;
+  align-items: flex-start;
+  width: 100%;
+  align-self: start;
+}
+
+.badge-chip {
+  width: 100%;
+  padding: 8px 12px;
+  border-radius: 100px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: white;
+  font-weight: 700;
+  letter-spacing: 0.2px;
+}
+
+.badge-train {
+  background-color: #ef3e2b;
+}
+
+.badge-val {
+  background-color: #34879f;
+}
+
+.train-badge {
+  grid-row: 1/2;
+  grid-column: 1/2;
+  align-self: start;
+  padding-top: 20px;
+}
+
+.val-badge {
+  grid-row: 2/3;
+  grid-column: 1/2;
+  align-self: start;
+  padding-top: 25px;
+}
+
+.gauge-wrapper {
+  align-self: start;
+}
+
 .time-stats {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
   gap: 8px;
   margin-bottom: 12px;
+  align-items: start;
+}
+
+.time-stats-wrapper {
+  align-self: start;
+  width: 100%;
 }
 
 .time-stat-card {
