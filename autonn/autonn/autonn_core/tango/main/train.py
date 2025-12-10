@@ -478,6 +478,8 @@ def train(proj_info, hyp, opt, data_dict, device, tb_writer=None, stop_event=Non
     batch_size = per_device_batch_size if rank != -1 else total_batch_size
 
     opt.batch_size = total_batch_size
+    opt.total_batch_size = total_batch_size
+    opt.per_device_batch_size = per_device_batch_size
     opt.world_size = world_size
 
 

@@ -322,15 +322,25 @@ def autobatch(uid, pid, model, ch, imgsz, bs_factor=0.8, batch_size=16, max_sear
             break
     torch.cuda.empty_cache()
 
+    base_max_batch_size = final_batch_size
     if max_search: # search maximum batch size (allow size other than multiple of 2)
         test_func = TestFuncGen(model, ch, imgsz, v9)
         final_batch_size = binary_search(uid, pid, final_batch_size, batch_size, test_func, want_to_get=True)
         logger.info(f'{PREFIX}{final_batch_size} x margin({bs_factor}) = {int(final_batch_size * bs_factor)}')
+        base_max_batch_size = final_batch_size
         final_batch_size *= bs_factor # need some spare
     final_batch_size = max(final_batch_size, 1.0)
+    status_update(
+        uid,
+        pid,
+        update_id="batchsize",
+        update_content={
+            "low": int(final_batch_size),          # 최종 사용(per-device) 배치 사이즈
+            "high": int(base_max_batch_size),      # 검색된 최대(per-device) 배치 사이즈
+        },
+    )
     torch.cuda.empty_cache()
 
     gc.collect()
     return final_batch_size
-
 

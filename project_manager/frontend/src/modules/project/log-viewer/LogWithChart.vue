@@ -19,6 +19,8 @@
       <AutonnSystem :data="displayData['system']" :isCompleted="displayData['progress'] >= AutonnStatus.SYSTEM" />
       <AutonnModel
         :data="displayData['model_summary']"
+        :batchSize="displayData['batch_size']"
+        :arguments="displayData['arguments']"
         :baseModel="displayData['basemodel']"
         :isCompleted="displayData['progress'] >= AutonnStatus.MODEL"
       />
