@@ -13,6 +13,7 @@
             contentColor="#b797cf"
             v-for="(item, index) in firstRowItems"
             :key="`row1-${index}`"
+            :class="{ 'batch-attention': item.title === 'Batch Size' && isAutoBatching }"
           >
             <template #title>
               <div>{{ item.title }}</div>
@@ -28,6 +29,7 @@
             contentColor="#b797cf"
             v-for="(item, index) in secondRowItems"
             :key="`row2-${index}`"
+            :class="{ 'batch-attention': item.title === 'Batch Size' && isAutoBatching }"
           >
             <template #title>
               <div>{{ item.title }}</div>
@@ -87,6 +89,24 @@ export default {
 
     secondRowItems() {
       return this.dispalyItems.slice(4);
+    },
+
+    isAutoBatching() {
+      const source = this.batchSize || this.data?.["batch_size"] || {};
+
+      const low = this.asNumber(source?.low);
+      const high = this.asNumber(source?.high);
+      const perDeviceFinal = this.computePerDeviceFinal();
+
+      // If we have a final per-device value, autobatch has finished.
+      if (perDeviceFinal !== null) return false;
+
+      // Any signal of low/high search values (or pending state) means autobatch is still working.
+      if (low !== null || high !== null || source?.status === "searching") return true;
+
+      // When we have not received the search bounds yet but the UI is showing a pending message,
+      // keep the emphasis so users know autobatch is still in progress.
+      return this.batchSizeText === "Auto search pending";
     },
 
     batchSizeText() {
@@ -195,5 +215,26 @@ export default {
   display: grid;
   gap: 8px;
   width: 100%;
+}
+
+.batch-attention {
+  animation: batchPulse 1.4s ease-in-out infinite;
+}
+
+.batch-attention :deep(.default-item) {
+  transition: transform 0.35s ease;
+  transform-origin: center;
+}
+
+@keyframes batchPulse {
+  0% {
+    transform: translateZ(0) scale(1);
+  }
+  50% {
+    transform: translateZ(0) scale(1.035);
+  }
+  100% {
+    transform: translateZ(0) scale(1);
+  }
 }
 </style>
