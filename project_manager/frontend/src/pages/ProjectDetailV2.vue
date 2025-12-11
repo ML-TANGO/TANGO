@@ -236,7 +236,9 @@ export default {
     },
 
     stop() {
-      this.stopInterval();
+      // 중지 요청 이후에도 status_report(stopped)와 로그를 받을 때까지 폴링 유지
+      this.startProjectStatusInterval();
+      this.getCurrentProjectInfo();
     },
 
     start() {
@@ -298,19 +300,25 @@ export default {
 
           this.SET_PROJECT({ container: res.container, container_status: res.container_status });
           this.$EventBus.$emit("logUpdate", res);
-          if (res.container_status.toLowerCase() === ProjectStatus.FAILED) {
+          const statusLower = res.container_status.toLowerCase();
+
+          if (statusLower === ProjectStatus.FAILED) {
             this.stopInterval();
             return;
           }
 
-          console.log("res.container_status.toLowerCase()", res.container_status.toLowerCase());
-          if (res.container_status.toLowerCase() === ProjectStatus.STOPPED) {
+          console.log("res.container_status.toLowerCase()", statusLower);
+          if (statusLower === ProjectStatus.STOPPED) {
             this.stopInterval();
             return;
           }
 
           if (this.project.project_type !== "auto") {
-            if (res.container_status !== ProjectStatus.RUNNING && res.container_status !== ProjectStatus.STARTED) {
+            if (
+              res.container_status !== ProjectStatus.RUNNING &&
+              res.container_status !== ProjectStatus.STARTED &&
+              res.container_status !== ProjectStatus.STOPPING
+            ) {
               this.stopInterval();
               if (res.container === ContainerName.IMAGE_DEPLOY) {
                 this.$EventBus.$emit("nnModelDownload");
@@ -320,7 +328,11 @@ export default {
           } else {
             // todo auto일경우 구현
             if (res.container === ContainerName.IMAGE_DEPLOY) {
-              if (res.container_status !== ProjectStatus.RUNNING && res.container_status !== ProjectStatus.STARTED) {
+              if (
+                res.container_status !== ProjectStatus.RUNNING &&
+                res.container_status !== ProjectStatus.STARTED &&
+                res.container_status !== ProjectStatus.STOPPING
+              ) {
                 this.stopInterval();
                 this.$EventBus.$emit("nnModelDownload");
                 return;

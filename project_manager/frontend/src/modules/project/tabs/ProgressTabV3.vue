@@ -139,7 +139,8 @@ export default {
 
       if (
         this.project.container_status === ProjectStatus.RUNNING ||
-        this.project.container_status === ProjectStatus.STARTED
+        this.project.container_status === ProjectStatus.STARTED ||
+        this.project.container_status === ProjectStatus.STOPPING
       ) {
         if (this.project.container === container) {
           Swal.fire({
@@ -157,7 +158,7 @@ export default {
 
               this.SET_PROJECT({
                 container: container,
-                container_status: ProjectStatus.STOPPED
+                container_status: ProjectStatus.STOPPING
               });
 
               this.$emit("stop");

@@ -480,7 +480,8 @@ def container_stop(request):
             return HttpResponse(e)
 
         project_info.container = container_id
-        project_info.container_status = ContainerStatus.STOPPED
+        # 실제 중단 완료는 autonn status_report가 "stopped"를 보낼 때 최종 반영한다.
+        project_info.container_status = ContainerStatus.STOPPING
         project_info.save()
         return HttpResponse(json.dumps({'status': 200, 'message': str(container_id) + ' 중지 요청\n', 'response' : str(container_id) + ' 중지 요청\n'}))
     except Project.DoesNotExist:

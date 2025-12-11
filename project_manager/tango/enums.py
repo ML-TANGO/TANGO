@@ -11,6 +11,7 @@ class ContainerStatus(str, Enum):
     STARTED = "started"
     RUNNING = "running"
     COMPLETED = "completed"
+    STOPPING = "stopping"
     STOPPED = "stopped"
     FAILED = "failed"
 

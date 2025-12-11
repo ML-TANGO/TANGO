@@ -210,6 +210,7 @@ export const ProjectStatus = Object.freeze({
   STARTED: "started",
   FAILED: "failed",
   RUNNING: "running",
+  STOPPING: "stopping",
   COMPLETED: "completed",
   STOPPED: "stopped"
 });
