@@ -756,11 +756,12 @@ def run_autonn(userid, project_id, resume=False, viz2code=False, nas=False, hpo=
         with open(res_path, "w", encoding="utf-8") as f:
             json.dump({}, f)
         
-        stop_flag_path = tempfile.mktemp(prefix="autonn_stop_", suffix=".flag")
-        env["STOP_FLAG_PATH"] = stop_flag_path
+        fd_stop, stop_flag_path = tempfile.mkstemp(prefix="autonn_stop_", suffix=".flag")
+        os.close(fd_stop)
 
         env["TRAIN_CONFIG"] = cfg_path
         env["RESULT_PATH"] = res_path
+        env["STOP_FLAG_PATH"] = stop_flag_path
         
         MODULE = "tango.main.train"
         cmd = [

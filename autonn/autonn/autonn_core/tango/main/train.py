@@ -90,17 +90,20 @@ from tango.utils.torch_utils import (
 
 logger = logging.getLogger(__name__)
 
-def is_distributed() -> bool:
-    return os.environ.get("WORLD_SIZE", "1") not in ("1", "", None)
-
 def is_rank0() -> bool:
     return os.environ.get("RANK", "0") == "0"
 
 def is_ddp():
     return dist.is_available() and dist.is_initialized()
 
-def ddp_cleanup():
-    dist.destroy_process_group()
+def _ddp_setup(opt):
+    logger.info(f'{colorstr("DDP: ")} LOCAL RANK is not -1; DDP initialize')
+    dist.init_process_group(backend="nccl", init_method="env://")
+    torch.cuda.set_device(opt.local_rank)
+    return torch.device("cuda", opt.local_rank)
+
+# def _ddp_cleanup():
+#     dist.destroy_process_group()
 
 def _ddp_all_stop_flag(stop: bool, device) -> bool:
     if not is_ddp():
@@ -110,6 +113,10 @@ def _ddp_all_stop_flag(stop: bool, device) -> bool:
     return bool(t.item())
 
 def _to_namespace(d):
+    """
+    점(.) 접근 쓰도록 함(예. opt.batch_size)
+        - dict 타입을 Namespace 타입으로 변환
+    """
     if isinstance(d, dict):
         from types import SimpleNamespace
         return SimpleNamespace(**{k: _to_namespace(v) for k, v in d.items()})
@@ -140,7 +147,7 @@ def _py_compat(x):
         pass
     return x
 
-def set_attrs_for_all(model_like, **attrs):
+def _set_attrs_for_all(model_like, **attrs):
     """
     - de_parallel(model_like) -> original model
     - outer wrapper(DDP/EMA, etc) -> mirror
@@ -157,7 +164,7 @@ def set_attrs_for_all(model_like, **attrs):
             pass
     return base
 
-def get_optimizer(model, is_adam=False, lr=0.001, momentum=0.9, decay=1e-5):
+def _get_optimizer(model, is_adam=False, lr=0.001, momentum=0.9, decay=1e-5):
     # YOLOv5 3-param group optimizer: 0) weights with decay, 1) weights no decay, 2) biases no decay
     g = [], [], []  # optimizer parameter groups
     bn = tuple(v for k, v in nn.__dict__.items() if 'Norm' in k)  # normalization layers, i.e. BatchNorm2d()
@@ -282,13 +289,14 @@ def train(proj_info, hyp, opt, data_dict, device, tb_writer=None, stop_event=Non
         return _ddp_all_stop_flag(local_stop, device)
 
     # DDP init -----------------------------------------------------------------
-    if opt.local_rank != -1: # DDP mode
-        logger.info(f'{colorstr("DDP: ")} LOCAL RANK is not -1; DDP initialize')
-        assert torch.cuda.is_available()
-        assert torch.cuda.device_count() > opt.local_rank
-        torch.cuda.set_device(opt.local_rank)
-        device = torch.device('cuda', opt.local_rank)
-        dist.init_process_group(backend='nccl', init_method='env://')  # distributed backend
+    # main()으로 이동: init과 cleanup을 한 군데에서 처리하도록 변경
+    # if opt.local_rank != -1: # DDP mode
+    #     logger.info(f'{colorstr("DDP: ")} LOCAL RANK is not -1; DDP initialize')
+    #     assert torch.cuda.is_available()
+    #     assert torch.cuda.device_count() > opt.local_rank
+    #     dist.init_process_group(backend='nccl', init_method='env://')  # distributed backend
+    #     torch.cuda.set_device(opt.local_rank)
+    #     device = torch.device('cuda', opt.local_rank)
 
     # Directories --------------------------------------------------------------
     # !! resume 혹은 transfer learning을 위해 디렉토리를 무조건 지우면 안됨 !!
@@ -511,9 +519,9 @@ def train(proj_info, hyp, opt, data_dict, device, tb_writer=None, stop_event=Non
     accumulate = max(round(nbs / max(batch_size,1)), 1)  # accumulate loss before optimizing
     hyp['weight_decay'] *= batch_size * accumulate / nbs  # scale weight_decay
     weight_decay_, momentum_, lr0_ = hyp['weight_decay'], hyp['momentum'], hyp['lr0']
-    optimizer = get_optimizer(model, opt.adam, lr0_, momentum_, weight_decay_)
+    optimizer = _get_optimizer(model, opt.adam, lr0_, momentum_, weight_decay_)
 
-    # Scheduler ----------------------------------------------------------------
+    # Learning Rate Scheduler --------------------------------------------------
     # https://arxiv.org/pdf/1812.01187.pdf
     # https://pytorch.org/docs/stable/_modules/torch/optim/lr_scheduler.html#OneCycleLR
     if opt.linear_lr:
@@ -842,15 +850,15 @@ def train(proj_info, hyp, opt, data_dict, device, tb_writer=None, stop_event=Non
             hyp['obj'] *= (imgsz / 640) ** 2 * 3. / nl  # scale to image size and layers
             gr = 1.0  # iou loss ratio (obj_loss = 1.0 or iou)
             class_weights = labels_to_class_weights(dataset.labels, nc).to(device) * nc  # attach class weights
-            set_attrs_for_all(model, gr=gr, class_weights=class_weights)
+            _set_attrs_for_all(model, gr=gr, class_weights=class_weights)
         else:
             class_weights = labels_to_class_weights_v9(dataset.labels, nc).to(device) * nc  # attach class weights
-            set_attrs_for_all(model, class_weights=class_weights)
+            _set_attrs_for_all(model, class_weights=class_weights)
         hyp['label_smoothing'] = opt.label_smoothing
     #model.nc = nc  # attach number of classes to model
     #model.hyp = hyp  # attach hyperparameters to model
     #model.names = names
-    set_attrs_for_all(model, hyp=hyp, nc=nc, names=names)
+    _set_attrs_for_all(model, hyp=hyp, nc=nc, names=names)
 
     # Save training settings ---------------------------------------------------
     if (not is_ddp()) or is_rank0():
@@ -1443,8 +1451,8 @@ def train(proj_info, hyp, opt, data_dict, device, tb_writer=None, stop_event=Non
             logger.info(f"\tckpt@epoch#{epoch-1} : {str(last)}")
         safe_update_info(userid, project_id, status="stopped", progress="stopped")
         final_model = best if best.exists() else last
-        if is_ddp():
-            ddp_cleanup()
+        # if is_ddp():
+        #     _ddp_cleanup()
         return results, final_model
 
     logger.info(f'\n{colorstr("Train: ")}'
@@ -1458,7 +1466,7 @@ def train(proj_info, hyp, opt, data_dict, device, tb_writer=None, stop_event=Non
     del model
     gc.collect()
     torch.cuda.empty_cache()
-    if is_ddp(): ddp_cleanup()
+    # if is_ddp(): _ddp_cleanup()
     # end training -------------------------------------------------------------
 
     final_model = best if best.exists() else last  # final model file
@@ -1533,15 +1541,16 @@ def train(proj_info, hyp, opt, data_dict, device, tb_writer=None, stop_event=Non
     
     return results, final_model
 
-
-if __name__ == "__main__":
+def main():
     set_logging(int(os.environ['RANK']) if 'RANK' in os.environ else -1)
+
     cfg_path = os.environ.get("TRAIN_CONFIG")
     if not cfg_path or not os.path.exists(cfg_path):
         raise RuntimeError("DDP: TRAIN_CONFIG not set or file missing")
 
     with open(cfg_path, "r", encoding="utf-8") as f:
         cfg = json.load(f)
+
     opt = _to_namespace(cfg.get("opt", {}))
     proj_info = cfg.get("proj_info", {})
     hyp = cfg.get("hyp", {})
@@ -1558,7 +1567,12 @@ if __name__ == "__main__":
 
     opt.local_rank = int(os.environ.get("LOCAL_RANK", "-1"))
     opt.global_rank = int(os.environ.get("RANK", "-1"))
-    device = torch.device(cfg.get("device", "cpu"))
+
+    if opt.local_rank != -1:
+        device = _ddp_setup(opt)
+    else:
+        device = torch.device(cfg.get("device", "cpu"))
+
     stop_flag_path = os.environ.get("STOP_FLAG_PATH")
 
     try:
@@ -1571,24 +1585,19 @@ if __name__ == "__main__":
             tb_writer=None,
             stop_flag_path=stop_flag_path,
         )
-
-        rank = int(os.environ.get("RANK", "0"))
-        if rank == 0:
+        if opt.global_rank == 0:
             res_path = os.environ.get("RESULT_PATH")
             if res_path:
                 payload = {
-                    "results": results if results is not None else {},
-                    "train_final": str(train_final) if train_final is not None else None,
+                    "results": results or {},
+                    "train_final": str(train_final) if train_final else None,
                 }
                 with open(res_path, "w", encoding="utf-8") as f:
-                    json.dump(
-                        payload,
-                        f,
-                        ensure_ascii=False,
-                        indent=2,
-                        default=str,
-                    )
+                    json.dump(payload, f, ensure_ascii=False, indent=2)
     finally:
         if is_ddp():
-            dist.barrier()
+            # dist.barrier()
             dist.destroy_process_group()
+
+if __name__ == "__main__":
+    main()

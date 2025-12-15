@@ -77,7 +77,7 @@ def safe_update_or_create(
     update_or_create wrapper
     return (updated, created)
     """
-    if is_distrubuted() and (rank0_only and not is_rank0()):
+    if is_distributed() and (rank0_only and not is_rank0()):
         return False
     if os.environ.get("AUTONN_ALLOW_ORM", "1") != "1":
         return False
