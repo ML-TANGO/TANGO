@@ -159,7 +159,7 @@ def start(request):
             info = Info.objects.select_for_update().get(pk=info.pk)
             info.process_id = pr_id
             info.status = "started"
-            info.progress = "ready"
+            info.progress = "autonn_start"
             info.save(update_fields=["process_id", "status", "progress"])
 
         return Response("started", status=status.HTTP_200_OK)
@@ -313,7 +313,7 @@ def status_report(userid, project_id, status="success"):
 def process_autonn(userid, project_id, stop_event=None):
     """Run the autonn pipeline and report status."""
     info = Info.objects.get(userid=userid, project_id=project_id)
-    resume = (info.progress == 'oom')
+    resume = (info.status == 'oom')
 
     try:
         stopped = run_autonn(
@@ -326,13 +326,12 @@ def process_autonn(userid, project_id, stop_event=None):
             stop_event=stop_event,
         )
         info = Info.objects.get(userid=userid, project_id=project_id)
+        info.progress = 'autonn_end'
         if stopped:
-            info.progress = 'stopped'
             info.status = "stopped"
             info.save(update_fields=["progress", "status"])
             status_report(userid, project_id, "stopped")
         else:
-            info.progress = 'autonn ends'
             info.status = "completed"
             info.save(update_fields=["progress", "status"])
             status_report(userid, project_id, "completed")
@@ -355,19 +354,21 @@ def process_autonn(userid, project_id, stop_event=None):
                 "[AutoNN process_autonn] CUDA Out of Memory, "
                 "retry with reduced batch size next time"
             )
-            info.progress = "oom"
+            info.status = "oom"
+            status_report(userid, project_id, "failed")
             info.print()
             logger.warning('=' * 80)
         else:
             if stop_event and stop_event.is_set():
                 logger.warning("[AutoNN process_autonn] Stop requested, exiting gracefully")
+                info.status = "stopped"
             else:
                 logger.warning("[AutoNN process_autonn] General failure")
-
-        info.status = "stopped" if (stop_event and stop_event.is_set()) else "failed"
-        info.model_viz = "not ready"
-        info.save(update_fields=["status", "model_viz"])
-        status_report(userid, project_id, info.status)
+                info.status = "failed"
+            status_report(userid, project_id, info.status)
+        # info.model_viz = "not_ready"
+        info.save(update_fields=["status"]) #, "model_viz"])
+        
 
 
 def get_process_id():

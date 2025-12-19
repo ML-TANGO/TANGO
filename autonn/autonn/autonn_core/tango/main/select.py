@@ -805,7 +805,7 @@ def run_autonn(userid, project_id, resume=False, viz2code=False, nas=False, hpo=
 
     if stop_requested() or results is None or train_final is None:
         logger.info("[AutoNN] Stop requested after training; skipping export")
-        safe_update_info(userid, project_id, status="stopped", progress="stopped")
+        safe_update_info(userid, project_id, status="stopped", progress='train_end')
         return True
 
     # Log training results
@@ -825,7 +825,7 @@ def run_autonn(userid, project_id, resume=False, viz2code=False, nas=False, hpo=
 
         if stop_requested():
             logger.info("[AutoNN] Stop requested after NAS; skipping further steps")
-            safe_update_info(userid, project_id, status="stopped", progress="stopped")
+            safe_update_info(userid, project_id, status="stopped", progress='nas')
             return True
         # opt.resume = True
         opt.weights = str(train_final)
@@ -840,7 +840,7 @@ def run_autonn(userid, project_id, resume=False, viz2code=False, nas=False, hpo=
 
         if stop_requested():
             logger.info("[AutoNN] Stop requested after HPO; skipping further steps")
-            safe_update_info(userid, project_id, status="stopped", progress="stopped")
+            safe_update_info(userid, project_id, status="stopped", progress='hpo')
             return True
 
         # Plot evolution results

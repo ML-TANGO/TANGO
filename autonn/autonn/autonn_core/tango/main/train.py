@@ -932,7 +932,7 @@ def train(proj_info, hyp, opt, data_dict, device, tb_writer=None, stop_event=Non
     status_update(userid, project_id,
               update_id="train_start",
               update_content=train_start)
-    safe_update_info(userid, project_id, progress="train_start")
+    # safe_update_info(userid, project_id, progress="train_start")
 
     logger.info(f'{colorstr("Train: ")}start epoch = {start_epoch},'
                 f' final epoch = {epochs-1}')
@@ -1449,7 +1449,7 @@ def train(proj_info, hyp, opt, data_dict, device, tb_writer=None, stop_event=Non
         logger.info(f"[Train] Stop requested; cleaning up and exiting early ")
         if epoch > 0:
             logger.info(f"\tckpt@epoch#{epoch-1} : {str(last)}")
-        safe_update_info(userid, project_id, status="stopped", progress="stopped")
+        safe_update_info(userid, project_id, status="stopped")
         final_model = best if best.exists() else last
         # if is_ddp():
         #     _ddp_cleanup()
@@ -1457,7 +1457,7 @@ def train(proj_info, hyp, opt, data_dict, device, tb_writer=None, stop_event=Non
 
     logger.info(f'\n{colorstr("Train: ")}'
                 f'{epoch-start_epoch+1} epochs completed({(time.time() - t0) / 60:.3f} min).')
-    safe_update_info(userid, project_id, status = "train_end")
+    # safe_update_info(userid, project_id, progress = "train_end")
 
     # Cleanup
     del ema
@@ -1485,7 +1485,7 @@ def train(proj_info, hyp, opt, data_dict, device, tb_writer=None, stop_event=Non
 
         # Test best.pt after fusing layers
         if best.exists():
-            safe_update_info(userid, project_id, status = "test_start")
+            safe_update_info(userid, project_id, progress = "test_start")
 
             if task == 'detection':
                 m = os.path.splitext(best)[0] + "_stripped.pt"
@@ -1524,7 +1524,7 @@ def train(proj_info, hyp, opt, data_dict, device, tb_writer=None, stop_event=Non
         #                                    save_dir=save_dir,
         #                                    plots=False,
         #                                    half_precision=True)
-            safe_update_info(userid, project_id, status= "test_end")
+            safe_update_info(userid, project_id, progress= "test_end")
     # end testing --------------------------------------------------------------
 
     # report to PM -------------------------------------------------------------
