@@ -265,11 +265,11 @@ export default {
             },
             right: {
               title: AutonnLogTitle[this.taskType].val.right,
-              value: this.fixedOrData(this.defaultOrData(this.val.mAP50, ""), 7)
+              value: this.fixedOrData(this.defaultOrData(this.val.mAP50, ""), 6)
             },
             result: {
               title: AutonnLogTitle[this.taskType].val.result,
-              value: this.fixedOrData(this.defaultOrData(this.val.mAP50_95, ""), 7)
+              value: this.fixedOrData(this.defaultOrData(this.val.mAP50_95, ""), 6)
             }
           },
           title: "VALIDATION ACCURACY",
