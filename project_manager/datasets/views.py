@@ -19,6 +19,7 @@ import threading
 import time
 import zipfile
 import shutil
+import yaml
 
 from .enums import DATASET_STATUS
 
@@ -198,6 +199,11 @@ def get_folder_info(folder_path):
     return folder_info
 
 def get_dir_size_handler(path):
+    dataset_yaml_path = os.path.join(path, "dataset.yaml")
+    if os.path.isfile(dataset_yaml_path):
+        train_size = get_train_image_size_from_yaml(dataset_yaml_path)
+        if train_size is not None:
+            return {"folder_path": path, "size": train_size}
     return {"folder_path": path, "size": get_dir_size(path)}
 
 def get_dir_size(path='.'):
@@ -265,11 +271,123 @@ def get_file_count(folder_path):
     Returns:
         int : file count
     """
+    dataset_yaml_path = os.path.join(folder_path, "dataset.yaml")
+    if os.path.isfile(dataset_yaml_path):
+        train_count = get_train_image_count_from_yaml(dataset_yaml_path)
+        if train_count is not None:
+            return { "folder_path": folder_path, "count": train_count}
+
     file_count = 0
     for path, dirs, files in os.walk(folder_path):
         file_count += len(files)
-    # return file_count
     return { "folder_path": folder_path, "count": file_count}
+
+def get_train_image_count_from_yaml(dataset_yaml_path):
+    try:
+        with open(dataset_yaml_path, "r") as f:
+            dataset_info = yaml.safe_load(f) or {}
+    except Exception as error:
+        print(f"dataset.yaml parse error: {dataset_yaml_path}")
+        print(error)
+        return None
+
+    train_value = dataset_info.get("train")
+    if train_value is None:
+        return None
+
+    train_sources = train_value if isinstance(train_value, list) else [train_value]
+    base_dir = os.path.dirname(dataset_yaml_path)
+
+    total = 0
+    for source in train_sources:
+        if not isinstance(source, str) or not source.strip():
+            continue
+        resolved = resolve_dataset_path(source, base_dir)
+        if os.path.isdir(resolved):
+            total += count_images_in_dir(resolved)
+        elif os.path.isfile(resolved):
+            total += count_images_in_list_file(resolved)
+    return total
+
+def get_train_image_size_from_yaml(dataset_yaml_path):
+    try:
+        with open(dataset_yaml_path, "r") as f:
+            dataset_info = yaml.safe_load(f) or {}
+    except Exception as error:
+        print(f"dataset.yaml parse error: {dataset_yaml_path}")
+        print(error)
+        return None
+
+    train_value = dataset_info.get("train")
+    if train_value is None:
+        return None
+
+    train_sources = train_value if isinstance(train_value, list) else [train_value]
+    base_dir = os.path.dirname(dataset_yaml_path)
+
+    total = 0
+    for source in train_sources:
+        if not isinstance(source, str) or not source.strip():
+            continue
+        resolved = resolve_dataset_path(source, base_dir)
+        if os.path.isdir(resolved):
+            total += get_image_dir_size(resolved)
+        elif os.path.isfile(resolved):
+            total += get_image_list_file_size(resolved)
+    return total
+
+def resolve_dataset_path(path_value, base_dir):
+    if os.path.isabs(path_value):
+        return path_value
+    return os.path.normpath(os.path.join(base_dir, path_value))
+
+def count_images_in_dir(folder_path):
+    image_exts = (".jpg", ".jpeg", ".png", ".bmp", ".tif", ".tiff", ".webp")
+    count = 0
+    for path, dirs, files in os.walk(folder_path):
+        for file_name in files:
+            if file_name.lower().endswith(image_exts):
+                count += 1
+    return count
+
+def get_image_dir_size(folder_path):
+    image_exts = (".jpg", ".jpeg", ".png", ".bmp", ".tif", ".tiff", ".webp")
+    total = 0
+    for path, dirs, files in os.walk(folder_path):
+        for file_name in files:
+            if file_name.lower().endswith(image_exts):
+                file_path = os.path.join(path, file_name)
+                try:
+                    total += os.path.getsize(file_path)
+                except OSError:
+                    continue
+    return total
+
+def count_images_in_list_file(list_path):
+    count = 0
+    with open(list_path, "r") as f:
+        for line in f:
+            line = line.strip()
+            if not line or line.startswith("#"):
+                continue
+            count += 1
+    return count
+
+def get_image_list_file_size(list_path):
+    total = 0
+    base_dir = os.path.dirname(list_path)
+    with open(list_path, "r") as f:
+        for line in f:
+            line = line.strip()
+            if not line or line.startswith("#"):
+                continue
+            resolved = resolve_dataset_path(line, base_dir)
+            if os.path.isfile(resolved):
+                try:
+                    total += os.path.getsize(resolved)
+                except OSError:
+                    continue
+    return total
 
 def get_folder_thumbnail(folder_path):
     """
@@ -810,6 +928,3 @@ def copy_train_file_for_version(version):
     
 
 #endregion
-
-
-
