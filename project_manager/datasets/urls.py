@@ -13,6 +13,7 @@ from . import views
 urlpatterns = [
     re_path(r'^get_dataset_list', views.get_dataset_list, name='get_dataset_list'), 
     re_path(r'^get_dataset_info', views.get_dataset_info, name='get_dataset_info'), 
+    re_path(r'^get_dataset_preview', views.get_dataset_preview, name='get_dataset_preview'), 
     re_path(r'^get_folders_size', views.get_folders_size, name='get_folders_size'), 
     re_path(r'^get_folders_file_count', views.get_folders_file_count, name='get_folders_file_count'), 
 

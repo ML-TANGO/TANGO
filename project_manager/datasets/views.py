@@ -13,6 +13,7 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 
 import cv2
 import base64
+import numpy as np
 
 import multiprocessing
 import threading
@@ -56,6 +57,10 @@ COMMON_DATASET_INFO = {
         "thread_name": RUN_CHEST_XRAY_THREAD
     }
 }
+
+IMAGENET_SYNONYM_CACHE = {}
+IMAGENET_SIMPLE_LABELS_CACHE = {}
+IMAGENET_CLASS_INDEX_CACHE = {}
 
 #region get dataset ......................................................................................
 
@@ -134,6 +139,60 @@ def get_dataset_info(request):
         return HttpResponse(json.dumps({'status': 200, 'dataset': dataset_info }))
     except Exception as e:
         return HttpResponse(json.dumps({'status': 404}))
+
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])   # 토큰 확인
+def get_dataset_preview(request):
+    try:
+        dataset_name = request.GET.get("name")
+        count = int(request.GET.get("count", 5))
+        if not dataset_name:
+            return HttpResponse(json.dumps({'status': 400, 'message': 'dataset name is required'}))
+
+        folder_path = None
+        path = os.path.join(root_path, "shared/datasets/*")
+        for dir_path in glob.glob(path):
+            if os.path.basename(dir_path) == dataset_name:
+                folder_path = dir_path
+                break
+
+        if folder_path is None:
+            return HttpResponse(json.dumps({'status': 404, 'message': 'dataset not found'}))
+
+        dataset_yaml_path = os.path.join(folder_path, "dataset.yaml")
+        if not os.path.isfile(dataset_yaml_path):
+            return HttpResponse(json.dumps({'status': 404, 'message': 'dataset.yaml not found'}))
+
+        dataset_info = load_dataset_yaml(dataset_yaml_path)
+        train_sources = extract_train_sources(dataset_info, dataset_yaml_path)
+        if not train_sources:
+            return HttpResponse(json.dumps({'status': 404, 'message': 'train sources not found'}))
+
+        sample_paths = reservoir_sample(iter_image_paths(train_sources, dataset_yaml_path), count)
+        samples = []
+        detected_task = None
+        names = dataset_info.get("names")
+
+        for image_path in sample_paths:
+            sample = build_sample_preview(image_path, names, dataset_yaml_path)
+            if sample is None:
+                continue
+            samples.append(sample)
+            sample_task = sample.get("task")
+            if sample_task == "segmentation":
+                detected_task = "segmentation"
+            elif sample_task == "detection" and detected_task != "segmentation":
+                detected_task = "detection"
+            elif detected_task is None and sample_task == "classification":
+                detected_task = "classification"
+
+        return HttpResponse(json.dumps({'status': 200, 'task': detected_task, 'samples': samples }))
+    except Exception as e:
+        print("get_dataset_preview error ---------------------------------\n")
+        print(e)
+        print("\n ------------------------------------------------------")
+        return HttpResponse(json.dumps({'status': 500, 'samples': []}))
 
 
 @api_view(['POST'])
@@ -340,6 +399,450 @@ def resolve_dataset_path(path_value, base_dir):
     if os.path.isabs(path_value):
         return path_value
     return os.path.normpath(os.path.join(base_dir, path_value))
+
+def load_dataset_yaml(dataset_yaml_path):
+    try:
+        with open(dataset_yaml_path, "r") as f:
+            return yaml.safe_load(f) or {}
+    except Exception as error:
+        print(f"dataset.yaml parse error: {dataset_yaml_path}")
+        print(error)
+        return {}
+
+def extract_train_sources(dataset_info, dataset_yaml_path):
+    train_value = dataset_info.get("train")
+    if train_value is None:
+        return []
+    train_sources = train_value if isinstance(train_value, list) else [train_value]
+    base_dir = os.path.dirname(dataset_yaml_path)
+    resolved_sources = []
+    for source in train_sources:
+        if not isinstance(source, str) or not source.strip():
+            continue
+        resolved_sources.append(resolve_dataset_path(source, base_dir))
+    return resolved_sources
+
+def iter_image_paths(train_sources, dataset_yaml_path):
+    image_exts = (".jpg", ".jpeg", ".png", ".bmp", ".tif", ".tiff", ".webp")
+    for source in train_sources:
+        if os.path.isdir(source):
+            for root, dirs, files in os.walk(source):
+                for file_name in files:
+                    if file_name.lower().endswith(image_exts):
+                        yield os.path.join(root, file_name)
+        elif os.path.isfile(source):
+            base_dir = os.path.dirname(source)
+            with open(source, "r") as f:
+                for line in f:
+                    line = line.strip()
+                    if not line or line.startswith("#"):
+                        continue
+                    image_path = line.split()[0]
+                    resolved = resolve_dataset_path(image_path, base_dir)
+                    if os.path.isfile(resolved) and resolved.lower().endswith(image_exts):
+                        yield resolved
+
+def reservoir_sample(iterator, count):
+    if count <= 0:
+        return []
+    samples = []
+    for idx, item in enumerate(iterator):
+        if len(samples) < count:
+            samples.append(item)
+            continue
+        replace_idx = random.randint(0, idx)
+        if replace_idx < count:
+            samples[replace_idx] = item
+    return samples
+
+def build_sample_preview(image_path, names, dataset_yaml_path=None):
+    image = cv2.imread(image_path, cv2.IMREAD_UNCHANGED)
+    if image is None:
+        print(f"[preview] image load failed: {image_path}")
+        return None
+    if len(image.shape) == 2:
+        image = cv2.cvtColor(image, cv2.COLOR_GRAY2BGR)
+    elif image.shape[2] == 4:
+        image = cv2.cvtColor(image, cv2.COLOR_BGRA2BGR)
+
+    label_path = guess_label_path(image_path)
+    labels = []
+    label_items = []
+    task = "classification"
+    legend = []
+    if label_path and os.path.isfile(label_path):
+        annotations, task = parse_yolo_label_file(label_path)
+        if annotations:
+            image, legend = draw_annotations(image, annotations, names)
+            labels = [get_class_name(item["class_id"], names) for item in annotations]
+        else:
+            print(f"[preview] no annotations parsed: {label_path}")
+    else:
+        print(f"[preview] label file missing: {label_path} (image={image_path})")
+
+    if not labels and task == "classification":
+        class_label = get_class_label_from_path(image_path, names, dataset_yaml_path)
+        if class_label:
+            labels = [class_label]
+            label_items = [
+                {
+                    "text": class_label,
+                    "color_hex": color_to_hex(color_for_label(class_label))
+                }
+            ]
+        else:
+            print(f"[preview] classification label missing: {image_path}")
+
+    success, jpg_img = cv2.imencode('.jpg', image)
+    if not success:
+        return None
+
+    return {
+        "file": os.path.basename(image_path),
+        "labels": labels,
+        "label_items": label_items,
+        "legend": legend,
+        "task": task,
+        "image": "data:image/jpg;base64," + str(base64.b64encode(jpg_img).decode('utf-8'))
+    }
+
+def guess_label_path(image_path):
+    parts = image_path.split(os.sep)
+    if "images" in parts:
+        idx = parts.index("images")
+        parts[idx] = "labels"
+        base_path = os.path.splitext(join_path_parts(parts))[0]
+    else:
+        base_path = os.path.splitext(image_path)[0]
+    label_path = base_path + ".txt"
+    print(f"[preview] guessed label path: {label_path}")
+    return label_path
+
+def join_path_parts(parts):
+    if parts and parts[0] == "":
+        return os.sep + os.path.join(*parts[1:])
+    return os.path.join(*parts)
+
+def parse_yolo_label_file(label_path):
+    annotations = []
+    task = "detection"
+    with open(label_path, "r") as f:
+        for line in f:
+            line = line.strip()
+            if not line:
+                continue
+            parts = line.split()
+            if len(parts) < 5:
+                print(f"[preview] invalid label line (too short): {label_path} :: {line}")
+                continue
+            try:
+                values = [float(part) for part in parts]
+            except ValueError:
+                print(f"[preview] invalid label line (non-numeric): {label_path} :: {line}")
+                continue
+            class_id = int(values[0])
+            coords = values[1:]
+            if len(coords) > 4:
+                task = "segmentation"
+                if len(coords) % 2 != 0:
+                    print(f"[preview] invalid segmentation coords: {label_path} :: {line}")
+                    continue
+                points = list(zip(coords[0::2], coords[1::2]))
+                annotations.append({"class_id": class_id, "points": points})
+            else:
+                annotations.append({"class_id": class_id, "bbox": tuple(coords)})
+    print(f"[preview] parsed {len(annotations)} annotations from {label_path}")
+    return annotations, task
+
+def draw_annotations(image, annotations, names):
+    height, width = image.shape[:2]
+    legend = []
+    largest_by_class = {}
+    for ann in annotations:
+        if "bbox" not in ann:
+            continue
+        cx, cy, bw, bh = ann["bbox"]
+        area = bw * bh
+        class_id = ann["class_id"]
+        if class_id not in largest_by_class or area > largest_by_class[class_id]["area"]:
+            largest_by_class[class_id] = {
+                "area": area,
+                "bbox": ann["bbox"]
+            }
+
+    for ann in annotations:
+        class_id = ann["class_id"]
+        label = get_class_name(class_id, names)
+        color = color_for_class(class_id)
+        if label.strip().lower() == "person":
+            color = (255, 255, 255)
+        if "bbox" in ann:
+            cx, cy, bw, bh = ann["bbox"]
+            x1 = int((cx - bw / 2) * width)
+            y1 = int((cy - bh / 2) * height)
+            x2 = int((cx + bw / 2) * width)
+            y2 = int((cy + bh / 2) * height)
+            x1 = max(0, min(width - 1, x1))
+            x2 = max(0, min(width - 1, x2))
+            y1 = max(0, min(height - 1, y1))
+            y2 = max(0, min(height - 1, y2))
+            overlay = image.copy()
+            cv2.rectangle(overlay, (x1, y1), (x2, y2), color, -1)
+            cv2.addWeighted(overlay, 0.18, image, 0.82, 0, image)
+            cv2.rectangle(image, (x1, y1), (x2, y2), color, 3)
+            largest = largest_by_class.get(class_id)
+            if largest and largest["bbox"] == ann["bbox"]:
+                abbr = get_label_abbreviation(label)
+                draw_abbr_circle(image, abbr, (x1, y1), color)
+                rgb_color = bgr_to_rgb(color)
+                legend.append({
+                    "abbr": abbr,
+                    "label": label,
+                    "color": list(rgb_color),
+                    "color_hex": color_to_hex(rgb_color)
+                })
+        elif "points" in ann:
+            points = [(int(x * width), int(y * height)) for x, y in ann["points"]]
+            if len(points) < 3:
+                continue
+            pts = np.array(points, dtype=np.int32).reshape((-1, 1, 2))
+            overlay = image.copy()
+            cv2.fillPoly(overlay, [pts], color)
+            cv2.addWeighted(overlay, 0.3, image, 0.7, 0, image)
+            cv2.polylines(image, [pts], True, color, 2)
+            label_pos = points[0]
+            draw_label_box(image, label, label_pos, color)
+    legend = dedupe_legend(legend)
+    return image, legend
+
+def get_class_name(class_id, names):
+    if isinstance(names, dict):
+        return names.get(class_id) or names.get(str(class_id)) or str(class_id)
+    if isinstance(names, list):
+        if 0 <= class_id < len(names):
+            return names[class_id]
+    return str(class_id)
+
+def get_class_label_from_path(image_path, names, dataset_yaml_path=None):
+    parent = os.path.basename(os.path.dirname(image_path))
+    synset_label = resolve_imagenet_label_by_synset(parent, dataset_yaml_path)
+    if synset_label:
+        return synset_label
+    if parent.isdigit():
+        idx = int(parent)
+        imagenet_label = resolve_imagenet_label_by_index(idx, dataset_yaml_path, names)
+        if imagenet_label:
+            return imagenet_label
+        if isinstance(names, dict):
+            return names.get(parent) or names.get(idx) or parent
+        if isinstance(names, list) and 0 <= idx < len(names):
+            return names[idx]
+    if isinstance(names, dict):
+        return names.get(parent) or names.get(str(parent)) or parent
+    if isinstance(names, list):
+        if parent in names:
+            return parent
+    if dataset_yaml_path:
+        synset_label = resolve_imagenet_label_by_synset(parent, dataset_yaml_path)
+        if synset_label:
+            return synset_label
+    if dataset_yaml_path:
+        synset_label = resolve_synset_label(parent, dataset_yaml_path)
+        if synset_label:
+            return synset_label
+    return parent
+
+def draw_label_box(image, text, origin, color, font_scale=0.75, thickness=2, padding=4):
+    x, y = origin
+    font = cv2.FONT_HERSHEY_SIMPLEX
+    text_size, baseline = cv2.getTextSize(text, font, font_scale, thickness)
+    text_w, text_h = text_size
+    box_x1 = max(0, x)
+    box_y1 = max(0, y - text_h - padding * 2)
+    box_x2 = min(image.shape[1] - 1, x + text_w + padding * 2)
+    box_y2 = min(image.shape[0] - 1, y + baseline + padding)
+    cv2.rectangle(image, (box_x1, box_y1), (box_x2, box_y2), color, -1)
+    text_x = box_x1 + padding
+    text_y = box_y2 - padding
+    cv2.putText(image, text, (text_x, text_y), font, font_scale, (255, 255, 255), thickness, cv2.LINE_AA)
+
+def get_label_abbreviation(label):
+    label = label.strip()
+    if not label:
+        return "?"
+    parts = [part for part in label.split(" ") if part]
+    if len(parts) > 1:
+        return "".join(part[0].upper() for part in parts[:2])
+    return label[0].upper()
+
+def dedupe_legend(legend):
+    seen = set()
+    result = []
+    for item in legend:
+        key = item.get("abbr")
+        if not key or key in seen:
+            continue
+        seen.add(key)
+        result.append(item)
+    return result
+
+
+def color_for_class(class_id):
+    return (
+        50 + int((class_id * 37) % 180),
+        50 + int((class_id * 17) % 180),
+        50 + int((class_id * 29) % 180)
+    )
+
+def color_to_hex(color):
+    try:
+        return "#{:02x}{:02x}{:02x}".format(int(color[0]), int(color[1]), int(color[2]))
+    except Exception:
+        return "#444444"
+
+def bgr_to_rgb(color):
+    try:
+        return (int(color[2]), int(color[1]), int(color[0]))
+    except Exception:
+        return color
+
+def color_for_label(label):
+    if label.strip().lower() == "person":
+        return (255, 255, 255)
+    total = 0
+    for ch in label:
+        total = (total * 31 + ord(ch)) % 100000
+    return (
+        50 + (total * 37) % 180,
+        50 + (total * 17) % 180,
+        50 + (total * 29) % 180
+    )
+
+def resolve_synset_label(synset, dataset_yaml_path):
+    if not synset or not synset.startswith("n"):
+        return None
+    base_dir = os.path.dirname(dataset_yaml_path)
+    cache_key = base_dir
+    if cache_key not in IMAGENET_SYNONYM_CACHE:
+        IMAGENET_SYNONYM_CACHE[cache_key] = load_synset_map(base_dir)
+    return IMAGENET_SYNONYM_CACHE[cache_key].get(synset)
+
+def resolve_imagenet_label_by_index(idx, dataset_yaml_path, names):
+    if not dataset_yaml_path:
+        return None
+    base_dir = os.path.dirname(dataset_yaml_path)
+    cache_key = base_dir
+    if cache_key not in IMAGENET_SIMPLE_LABELS_CACHE:
+        IMAGENET_SIMPLE_LABELS_CACHE[cache_key] = load_imagenet_simple_labels(base_dir)
+    labels = IMAGENET_SIMPLE_LABELS_CACHE[cache_key]
+    if labels and 0 <= idx < len(labels):
+        return labels[idx]
+    return None
+
+def resolve_imagenet_label_by_synset(synset, dataset_yaml_path):
+    if not synset or not synset.startswith("n"):
+        return None
+    base_dir = os.path.dirname(dataset_yaml_path) if dataset_yaml_path else os.path.join(BASE_DIR, "datasets_yaml", "imagenet")
+    cache_key = base_dir
+    if cache_key not in IMAGENET_CLASS_INDEX_CACHE:
+        IMAGENET_CLASS_INDEX_CACHE[cache_key] = load_imagenet_class_index(base_dir)
+    synset_to_idx = IMAGENET_CLASS_INDEX_CACHE[cache_key]
+    idx = synset_to_idx.get(synset)
+    if idx is None:
+        print(f"[preview] imagenet synset not found: {synset}")
+        return None
+    if cache_key not in IMAGENET_SIMPLE_LABELS_CACHE:
+        IMAGENET_SIMPLE_LABELS_CACHE[cache_key] = load_imagenet_simple_labels(base_dir)
+    labels = IMAGENET_SIMPLE_LABELS_CACHE[cache_key]
+    if labels and 0 <= idx < len(labels):
+        print(f"[preview] imagenet synset mapped: {synset} -> {idx} -> {labels[idx]}")
+        return labels[idx]
+    print(f"[preview] imagenet label missing for index: {idx} (synset={synset})")
+    return None
+
+def load_synset_map(base_dir):
+    mapping = {}
+    candidates = ["synset_words.txt", "words.txt", "imagenet_words.txt"]
+    for filename in candidates:
+        path = os.path.join(base_dir, filename)
+        if not os.path.isfile(path):
+            continue
+        with open(path, "r") as f:
+            for line in f:
+                line = line.strip()
+                if not line:
+                    continue
+                parts = line.split(" ", 1)
+                if len(parts) != 2:
+                    continue
+                synset_id, label = parts[0], parts[1]
+                label = label.split(",")[0].strip()
+                mapping[synset_id] = label
+        break
+    return mapping
+
+def load_imagenet_simple_labels(base_dir):
+    candidates = [
+        os.path.join(base_dir, "imagenet-simple-labels.json"),
+        os.path.join(BASE_DIR, "datasets_yaml", "imagenet", "imagenet-simple-labels.json")
+    ]
+    for json_path in candidates:
+        if not os.path.isfile(json_path):
+            continue
+        try:
+            with open(json_path, "r") as f:
+                data = json.load(f)
+            if isinstance(data, list):
+                return data
+        except Exception as error:
+            print(f"imagenet simple labels load error: {json_path}")
+            print(error)
+    return []
+
+def load_imagenet_class_index(base_dir):
+    candidates = [
+        os.path.join(base_dir, "imagenet_class_index.json"),
+        os.path.join(BASE_DIR, "datasets_yaml", "imagenet", "imagenet_class_index.json")
+    ]
+    for json_path in candidates:
+        if not os.path.isfile(json_path):
+            continue
+        try:
+            with open(json_path, "r") as f:
+                data = json.load(f)
+            if isinstance(data, dict):
+                mapping = {}
+                for idx_str, value in data.items():
+                    if not isinstance(value, list) or len(value) < 1:
+                        continue
+                    synset = value[0]
+                    try:
+                        idx = int(idx_str)
+                    except ValueError:
+                        continue
+                    mapping[synset] = idx
+                return mapping
+        except Exception as error:
+            print(f"imagenet class index load error: {json_path}")
+            print(error)
+    return {}
+
+def draw_abbr_circle(image, text, origin, color):
+    x, y = origin
+    radius = 14
+    center = (x + radius, max(radius + 2, y - radius))
+    avg = (color[0] + color[1] + color[2]) / 3
+    text_color = (0, 0, 0) if avg > 200 else (255, 255, 255)
+    cv2.circle(image, center, radius, color, -1)
+    if avg > 200:
+        cv2.circle(image, center, radius, (120, 120, 120), 2)
+    font = cv2.FONT_HERSHEY_SIMPLEX
+    font_scale = 0.6 if len(text) <= 1 else 0.5
+    thickness = 2
+    text_size, _ = cv2.getTextSize(text, font, font_scale, thickness)
+    text_x = center[0] - text_size[0] // 2
+    text_y = center[1] + text_size[1] // 2
+    cv2.putText(image, text, (text_x, text_y), font, font_scale, text_color, thickness, cv2.LINE_AA)
 
 def count_images_in_dir(folder_path):
     image_exts = (".jpg", ".jpeg", ".png", ".bmp", ".tif", ".tiff", ".webp")

@@ -37,6 +37,17 @@ export async function getDatasetInfo(name) {
   return response.data;
 }
 
+export async function getDatasetPreview(name, count = 5) {
+  let response = null;
+  try {
+    response = await axios.get("/api/datasets/get_dataset_preview", { params: { name, count } });
+  } catch (error) {
+    throw new Error(error);
+  }
+
+  return response.data;
+}
+
 export async function getDatasetFolderSize(folderList) {
   let response = null;
   try {
