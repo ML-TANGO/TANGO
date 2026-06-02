@@ -1,7 +1,7 @@
+
 # TANGO
 
-**[사용자 설명서](https://github.com/user-attachments/files/28487268/09_.docx)**
-
+**[TANGO_프로젝트매니저_사용설명서.pdf](https://github.com/user-attachments/files/28487383/TANGO_._.pdf)**
 
 > **Announcement**
 > * [2026 January TANGO Release](https://github.com/ML-TANGO/TANGO/releases/tag/tango-26.01): the final official release
